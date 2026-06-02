@@ -249,6 +249,62 @@ function loadFromStorage() {
   let migrated = false;
   ORDERS.forEach(o => {
     if (o.stage === 'inquiry')   { o.stage = 'intake-custom'; migrated = true; }
+    if (o.stage === 'wait-cust') { o.stage = 'contact-need';  migrated = true; }
+    if (o.stage === 'repair')    { o.stage = 'intake-repair'; migrated = true; }
+  });
+  if (migrated) saveToStorage();
+  updateCompletedToggle();
+}
+
+// ════════════════════════════════════════════
+//  THEME
+// ════════════════════════════════════════════
+function setTheme(theme) {
+  document.body.className = theme ? 'theme-' + theme : '';
+  try { localStorage.setItem('sts-theme', theme); } catch(e) {}
+  // Update active swatch
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', (s.dataset.theme || '') === theme);
+  });
+  // Close picker
+  const picker = document.getElementById('themePicker');
+  if (picker) picker.classList.remove('open');
+}
+
+function toggleThemePicker() {
+  const picker = document.getElementById('themePicker');
+  if (picker) picker.classList.toggle('open');
+}
+
+// ════════════════════════════════════════════
+//  STARTUP
+// ════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  // Restore theme
+  const savedTheme = localStorage.getItem('sts-theme') || '';
+  if (savedTheme) setTheme(savedTheme);
+
+  // Load order data
+  loadFromStorage();
+  renderKanban();
+  renderCustomers();
+  loadNotes();
+
+  // Service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+
+  // Close theme picker on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.theme-wrap')) {
+      const picker = document.getElementById('themePicker');
+      if (picker) picker.classList.remove('open');
+    }
+  });
+});
+  ORDERS.forEach(o => {
+    if (o.stage === 'inquiry')   { o.stage = 'intake-custom'; migrated = true; }
     if (o.stage === 'wait-cust') { o.stage = 'quote';         migrated = true; }
   });
   if (migrated) try { localStorage.setItem('sts-orders', JSON.stringify(ORDERS)); } catch(e) {}

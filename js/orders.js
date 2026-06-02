@@ -136,6 +136,9 @@ function cardHTML(o) {
           <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}"
                   title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}"
                   onclick="event.stopPropagation(); openCamera('${o.id}')">📷</button>
+          <button class="card-print-btn"
+                  title="Print work order"
+                  onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
           <span class="o-chevron"
                 title="Expand / Collapse"
                 onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
@@ -215,9 +218,12 @@ function markOrderComplete() {
   renderKanban();
   closeEditOrderModal();
 
+  // Sync to ClickUp
+  if (typeof cuUpdateStatus === 'function') cuUpdateStatus(o.clickup, 'complete');
+
   showSaveChoice(
     `Mark "${o.name}" as Completed`,
-    () => { saveToStorage(); toast('Order completed ✓ (saved locally)', '✓'); },
+    () => { saveToStorage(); toast('Order completed ✓', '✓'); },
     () => { saveToStorage(); notionSaveStage(o); toast('Order completed — saving to Notion…', '📓'); }
   );
 }
@@ -249,9 +255,12 @@ function saveOrderEdit() {
   renderKanban();
   closeEditOrderModal();
 
+  // Sync to ClickUp
+  if (typeof cuUpdateTask === 'function') cuUpdateTask(o);
+
   showSaveChoice(
     `Update order for ${o.name}`,
-    () => { saveToStorage(); toast('Order updated ✓ (saved locally)', '✓'); },
+    () => { saveToStorage(); toast('Order updated ✓', '✓'); },
     () => { saveToStorage(); notionSaveOrder(o); toast('Order updated — saving to Notion…', '📓'); }
   );
 }
@@ -390,22 +399,17 @@ function submitOrder() {
   switchTab('dashboard', document.querySelector('[data-tab=dashboard]'));
   toast(`${name} added to ${stageLabel}!`, '✓');
 
-  // ── Sync to ClickUp + Notion if in Claude ──
-  safeSendPrompt('create order: ' + JSON.stringify({
-    name, email,
-    phone:       document.getElementById('f-phone')?.value?.trim(),
-    description: desc,
-    materials:   document.getElementById('f-materials').value.trim(),
-    price,
-    deadline,
-    takeIn,
-    pickup,
-    contactSource,
-    orderType,
-    notes:       document.getElementById('f-notes').value.trim(),
-    clickup_list:  '901416911135',
-    notion_db:     'edee1ecc-7d11-428a-9efc-d17b8cbf195d',
-  }));
+  // ── Sync to ClickUp (direct API) ─────────
+  const newOrder = ORDERS[ORDERS.length - 1]; // just pushed above
+  if (typeof cuCreateTask === 'function' && cuToken()) {
+    cuCreateTask(newOrder).then(taskId => {
+      if (taskId) {
+        newOrder.clickup = taskId;
+        saveToStorage();
+        toast(`${name} saved to ClickUp ✓`, '✓');
+      }
+    });
+  }
 }
 
 
@@ -528,6 +532,8 @@ function drop(ev, stageId) {
     if (stageId === 'complete') completedHidden.add(order.id);
     updateCompletedToggle();
     renderKanban();
+    // Sync stage to ClickUp immediately (fire-and-forget)
+    if (typeof cuUpdateStatus === 'function') cuUpdateStatus(order.clickup, stageId);
     const stageLabel = (STAGES.find(s => s.id === stageId) || {}).label || stageId;
     showSaveChoice(
       `Moved "${order.name}" → ${stageLabel}`,
@@ -547,6 +553,8 @@ function dropWithPickup(ev, stageId, location) {
     order.stage  = stageId;
     order.pickup = location;
     renderKanban();
+    // Sync stage to ClickUp immediately (fire-and-forget)
+    if (typeof cuUpdateStatus === 'function') cuUpdateStatus(order.clickup, stageId);
     showSaveChoice(
       `Moved "${order.name}" → Ready for Pickup (${location})`,
       () => { saveToStorage(); },
@@ -675,6 +683,28 @@ function clearEstimate() {
   if (laborEl) laborEl.value = '';
   calcEstimate();
   addMaterialRow();
+}
+
+function printOrder(id) {
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+  const p = new URLSearchParams({
+    name:      o.name        || '',
+    email:     o.email       || '',
+    phone:     o.phone       || '',
+    address:   o.address     || '',
+    desc:      o.desc        || '',
+    notes:     o.notes       || '',
+    materials: o.materials   || '',
+    takeIn:    o.takeIn      || '',
+    deadline:  o.deadline    || '',
+    price:     o.price       || '',
+    deposit:   o.deposit     || '',
+    pickup:    o.pickup      || '',
+    source:    o.contactSource || '',
+    stage:     o.stage       || ''
+  });
+  window.open('work-order-print.html?' + p.toString(), '_blank');
 }
 
 // Always start with cards fully expanded.

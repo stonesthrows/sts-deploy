@@ -1,4 +1,4 @@
-const CACHE = 'sts-orders-v65';
+const CACHE = 'sts-orders-v66';
 const ASSETS = [
   './jewelry-workflow.html',
   './js/data.js',
@@ -11,6 +11,7 @@ const ASSETS = [
   './js/production.js',
   './js/notes.js',
   './js/supplier-history.js',
+  './js/clickup.js',
   './manifest.json',
   './icon.svg'
 ];

@@ -586,7 +586,33 @@ function sotPrint() {
   });
   var notesVal = (document.getElementById('sotNotes')||{}).value||'';
   if (notesVal.trim()) { lines.push('NOTES'); lines.push(notesVal); }
-  v
+  var w = window.open('', '_blank');
+  w.document.write('<pre style="font-family:monospace;font-size:13px;padding:24px;white-space:pre-wrap">' + lines.join('\n') + '</pre>');
+  w.document.close();
+  w.print();
+}
+
+function sotCopy() {
+  var ids = Object.keys(sotOrder);
+  if (!ids.length) { alert('No items in the order yet.'); return; }
+  var lines = ['STONES THROW STUDIO — SUPPLY ORDER', 'Week of ' + sotWeekRange(), ''];
+  sotAllSuppliers().forEach(function(sup){
+    var supIds = ids.filter(function(id){ var it = sotGetItem(id); return it && it.sup===sup.id; });
+    if (!supIds.length) return;
+    lines.push('== ' + sup.name.toUpperCase() + ' ==');
+    supIds.forEach(function(id){
+      var it = sotGetItem(id); var qty = sotOrder[id]||1;
+      if (it) lines.push('  ['+qty+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+    });
+    lines.push('');
+  });
+  var notesVal = (document.getElementById('sotNotes')||{}).value||'';
+  if (notesVal.trim()) { lines.push('NOTES'); lines.push(notesVal); }
+  navigator.clipboard.writeText(lines.join('\n')).then(function(){
+    toast('Order copied to clipboard ✓', '📋');
+  }).catch(function(){ alert(lines.join('\n')); });
+}
+
 // ── Initialization ────────────────────────────────────────────
 function sotInit() {
   sotLoad();

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STS Work Order Bag — Blank Template</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Arial Narrow', Arial, sans-serif;
+      background: #e8e4dc;
+      padding: 24px;
+      color: #111;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding: 12px 18px;
+      background: #1E1C19;
+      border-radius: 8px;
+      max-width: 816px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .controls h1 { color: #C9983A; font-size: 14px; font-weight: 700; flex: 1; }
+    .btn-print {
+      background: #C9983A; color: #fff; border: none;
+      border-radius: 6px; padding: 7px 16px;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .btn-print:hover { background: #b5892e; }
+    .qty-label { color: #7A7268; font-size: 12px; }
+    .qty-input {
+      width: 48px; padding: 4px 6px; border-radius: 4px;
+      border: 1px solid #555; background: #2a2825;
+      color: #fff; font-size: 12px; text-align: center;
+    }
+
+    /* ─────────────────────────────────────────────────
+       Portrait page: 8.5" × 11" = 816px × 1056px
+       Two bag slots stacked, each 8.5" × 5.5" = 816×528
+    ───────────────────────────────────────────────── */
+    .page {
+      width: 816px;
+      height: 1056px;
+      margin: 0 auto 24px auto;
+      background: #ddd;       /* show the dashed line between slots */
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #bbb;
+    }
+
+    /* Each slot is a landscape window; the form inside is rotated */
+    .bag-slot {
+      width: 816px;
+      height: 528px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      border-bottom: 1.5px dashed #888;
+      background: white;
+    }
+    .bag-slot:last-child { border-bottom: none; }
+
+    /* ─────────────────────────────────────────────────
+       The actual form: portrait 528px × 816px
+       Rotated −90° and centred inside the 816×528 slot
+       so the form's TOP ends up on the LEFT of the slot.
+
+       Centering math:
+         left = (816 − 528) / 2 = 144px
+         top  = (528 − 816) / 2 = −144px
+       transform-origin: center → rotates around the
+       element's own centre, which is at (408, 264) in
+       slot coordinates after offset.
+    ───────────────────────────────────────────────── */
+    .bag-form {
+      width: 528px;
+      height: 816px;
+      position: absolute;
+      left: 144px;
+      top: -144px;
+      transform-origin: center center;
+      transform: rotate(-90deg);
+      display: flex;
+      flex-direction: column;
+      border: 1.5px solid #222;
+      background: white;
+    }
+
+    /* ── Brand header ── */
+    .brand {
+      background: #1E1C19;
+      padding: 8px 16px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border-bottom: 1.5px solid #222;
+    }
+    .brand-name {
+      color: #C9983A;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2.5px;
+    }
+    .brand-sub {
+      color: #7A7268;
+      font-size: 7.5px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-top: 1px;
+    }
+
+    /* ── Form body ── */
+    .form-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 12px;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ── Shared labels ── */
+    .sec-label {
+      font-size: 6.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+      color: #777;
+      margin-bottom: 3px;
+    }
+
+    /* ── Divider block ── */
+    .block {
+      margin-bottom: 7px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid #e8e8e8;
+      flex-shrink: 0;
+    }
+    .block:last-child { border-bottom: none; margin-bottom: 0; }
+
+    /* ── Checkboxes ── */
+    .check-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .chk.normal { font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 8.5px; }
+    .box {
+      width: 11px;
+      height: 11px;
+      border: 1.2px solid #333;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── Write fields ── */
+    .field-row {
+      display: flex;
+      gap: 10px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      margin-bottom: 5px;
+    }
+    .field:last-child { margin-bottom: 0; }
+    .field-label {
+      font-size: 6.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #888;
+      font-weight: 700;
+    }
+    .field-line {
+      border-bottom: 1px solid #333;
+      height: 16px;
+    }
+
+    /* ── Write lines ── */
+    .write-lines { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .write-line { border-bottom: 1px solid #bbb; flex: 1; }
+
+    /* ── Bottom row: materials + pricing ── */
+    .bottom-row {
+      display: flex;
+      gap: 12px;
+      flex-shrink: 0;
+      padding-top: 7px;
+      border-top: 1.5px solid #222;
+    }
+    .mat-col { width: 80px; flex-shrink: 0; }
+    .mat-list { display: flex; flex-direction: column; gap: 5px; margin-top: 3px; }
+
+    .price-col { flex: 1; }
+    .p-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .p-label { font-size: 8px; color: #333; white-space: nowrap; min-width: 55px; }
+    .p-line { flex: 1; border-bottom: 1px solid #333; height: 13px; }
+    .p-checks { display: flex; gap: 5px; }
+    .p-checks .chk { font-size: 7px; }
+    .p-row.divider { border-top: 1px solid #888; padding-top: 3px; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>💍 STS Work Order Bag — Blank Template</h1>
+  <span class="qty-label">Pages:</span>
+  <input type="number" class="qty-input" id="qty" value="2" min="1" max="20" onchange="renderPages()">
+  <span class="qty-label" style="margin-left:4px;">= <span id="bag-count">4</span> bags</span>
+  <button class="btn-print" onclick="window.print()">🖨 Print</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+function makeBag() {
+  return `
+  <div class="bag-slot">
+    <div class="bag-form">
+
+      <!-- Brand header -->
+      <div class="brand">
+        <div class="brand-name">Stones Throw Studio</div>
+        <div class="brand-sub">Custom Jewelry &amp; Repair</div>
+      </div>
+
+      <div class="form-body">
+
+        <!-- Order Type -->
+        <div class="block">
+          <div class="sec-label">Order Type</div>
+          <div class="check-row">
+            <label class="chk"><span class="box"></span> Custom</label>
+            <label class="chk"><span class="box"></span> Resize</label>
+            <label class="chk"><span class="box"></span> Repair</label>
+            <label class="chk"><span class="box"></span> Etsy</label>
+          </div>
+        </div>
+
+        <!-- Dates + Pickup -->
+        <div class="block">
+          <div class="field-row" style="margin-bottom:6px;">
+            <div class="field">
+              <div class="field-label">Today's Date</div>
+              <div class="field-line"></div>
+            </div>
+            <div class="field">
+              <div class="field-label">Due Date</div>
+              <div class="field-line"></div>
+            </div>
+          </div>
+          <div class="sec-label">Pickup Location</div>
+          <div class="check-row">
+            <label class="chk"><span class="box"></span> Bell</label>
+            <label class="chk"><span class="box"></span> SVFM</label>
+            <label class="chk"><span class="box"></span> TXFM</label>
+            <label class="chk"><span class="box"></span> CCFM</label>
+            <label class="chk"><span class="box"></span> DTFM</label>
+            <label class="chk"><span class="box"></span> Flea</label>
+            <label class="chk"><span class="box"></span> Studio</label>
+            <label class="chk"><span class="box"></span> Ship</label>
+          </div>
+        </div>
+
+        <!-- Customer Info -->
+        <div class="block">
+          <div class="field">
+            <div class="field-label">Name</div>
+            <div class="field-line"></div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <div class="field-label">Phone</div>
+              <div class="field-line"></div>
+            </div>
+            <div class="field" style="flex:1.6;">
+              <div class="field-label">Email</div>
+              <div class="field-line"></div>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <div class="field-label">Address (if shipping)</div>
+            <div class="field-line"></div>
+          </div>
+        </div>
+
+        <!-- Job Description — fills remaining vertical space -->
+        <div class="block" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+          <div class="sec-label">Job Description</div>
+          <div class="write-lines">
+            <div class="write-line"></div>
+            <div class="write-line"></div>
+            <div class="write-line"></div>
+            <div class="write-line"></div>
+            <div class="write-line"></div>
+            <div class="write-line"></div>
+          </div>
+        </div>
+
+        <!-- Ring Size + Notes -->
+        <div class="block">
+          <div class="field-row" style="margin-bottom:0;">
+            <div class="field" style="margin-bottom:0;">
+              <div class="field-label">Ring Size(s)</div>
+              <div class="field-line"></div>
+            </div>
+            <div class="field" style="flex:2; margin-bottom:0;">
+              <div class="field-label">Notes</div>
+              <div class="field-line"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom: Materials + Pricing -->
+        <div class="bottom-row">
+          <div class="mat-col">
+            <div class="sec-label">Customer Supplied</div>
+            <div class="mat-list">
+              <label class="chk normal"><span class="box"></span> Rings</label>
+              <label class="chk normal"><span class="box"></span> Stones</label>
+              <label class="chk normal"><span class="box"></span> Other</label>
+            </div>
+          </div>
+
+          <div class="price-col">
+            <div class="sec-label">Pricing</div>
+            <div class="p-row">
+              <span class="p-label">Subtotal:</span>
+              <div class="p-line"></div>
+              <span class="p-label" style="min-width:26px;">Tax:</span>
+              <div class="p-line" style="flex:.5;"></div>
+            </div>
+            <div class="p-row">
+              <span class="p-label">Total:</span>
+              <div class="p-line"></div>
+            </div>
+            <div class="p-row">
+              <span class="p-label">Deposit:</span>
+              <div class="p-line"></div>
+              <div class="p-checks">
+                <label class="chk normal"><span class="box"></span> Cash</label>
+                <label class="chk normal"><span class="box"></span> Credit</label>
+                <label class="chk normal"><span class="box"></span> Check</label>
+              </div>
+            </div>
+            <div class="p-row">
+              <span class="p-label">Discount:</span>
+              <div class="p-line"></div>
+              <span class="p-label" style="min-width:42px;">Shipping:</span>
+              <div class="p-line"></div>
+            </div>
+            <div class="p-row divider">
+              <span class="p-label">Balance Due:</span>
+              <div class="p-line"></div>
+            </div>
+            <div class="p-row">
+              <span class="p-label">Paid in Full:</span>
+              <div class="p-line"></div>
+              <div class="p-checks">
+                <label class="chk normal"><span class="box"></span> Cash</label>
+                <label class="chk normal"><span class="box"></span> Credit</label>
+                <label class="chk normal"><span class="box"></span> Check</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /form-body -->
+    </div><!-- /bag-form -->
+  </div>`;
+}
+
+function renderPages() {
+  const pages = parseInt(document.getElementById('qty').value) || 2;
+  document.getElementById('bag-count').textContent = pages * 2;
+  let html = '';
+  for (let p = 0; p < pages; p++) {
+    html += `<div class="page">${makeBag()}${makeBag()}</div>`;
+  }
+  document.getElementById('output').innerHTML = html;
+}
+
+renderPages();
+</script>
+
+<style>
+  @media print {
+    body { background: white; padding: 0; margin: 0; }
+    .controls { display: none !important; }
+    .page {
+      width: 8.5in;
+      height: 11in;
+      margin: 0;
+      background: white;
+      border: none;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: avoid; }
+    .bag-slot {
+      width: 8.5in;
+      height: 5.5in;
+    }
+    .bag-form {
+      width: 5.5in;
+      height: 8.5in;
+      left: 1.5in;   /* (8.5 - 5.5) / 2 */
+      top: -1.5in;   /* (5.5 - 8.5) / 2 */
+    }
+    @page { size: 8.5in 11in portrait; margin: 0; }
+  }
+</style>
+</body>
+</html>
