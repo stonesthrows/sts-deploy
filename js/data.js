@@ -8,16 +8,18 @@ const TODAY = new Date('2026-05-20');
 const STAGES = [
   { id:'intake-custom',  label:'Custom Intake',                cls:'s-intake-custom'  },
   { id:'intake-repair',  label:'Repair Intake',                cls:'s-intake-repair'  },
+  { id:'needs-est',      label:'Estimate Intake',              cls:'s-needs-est'      },
   { id:'repair',         label:'Repairs',                      cls:'s-repair'         },
   { id:'sketch-needs',   label:'Needs Sketch',                 cls:'s-sketch-needs'   },
   { id:'sketch-wait',    label:'Waiting on Sketch Approval',   cls:'s-sketch-wait'    },
   { id:'sketch',         label:'Sketch Approved',              cls:'s-sketch'         },
-  { id:'needs-est',      label:'Needs Estimate',               cls:'s-needs-est'      },
   { id:'quote',          label:'Estimate Sent',                cls:'s-quote'          },
   { id:'est-appr',       label:'Estimate Approved',            cls:'s-est-appr'       },
   { id:'order-mat',      label:'Order Materials',              cls:'s-order-mat'      },
   { id:'materials',      label:'Waiting on Materials',         cls:'s-materials'      },
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
+  { id:'contact-need',   label:'Need to Contact Customer',     cls:'s-contact-need'   },
+  { id:'contact-done',   label:'Contacted Customer',           cls:'s-contact-done'   },
   { id:'ready-pick',     label:'Ready for Pickup',             cls:'s-ready-pick'     },
   { id:'complete',       label:'Completed',                    cls:'s-complete'       },
   // Legacy IDs kept for data-compat (migrated on load)
@@ -31,17 +33,16 @@ const PICKUP_LOCATIONS = ['Studio', 'Bell Market', 'Mueller Market', 'Chaparral 
 // Column layout — groups stages into shared columns
 const COLUMN_GROUPS = [
   { label:'Intake',       cls:'s-intake-group',    stages:[
-    { id:'intake-custom', cls:'s-intake-custom', label:'Custom Intake'  },
-    { id:'intake-repair', cls:'s-intake-repair', label:'Repair Intake'  },
+    { id:'intake-custom', cls:'s-intake-custom', label:'Custom Intake'   },
+    { id:'intake-repair', cls:'s-intake-repair', label:'Repair Intake'   },
+    { id:'needs-est',     cls:'s-needs-est',     label:'Estimate Intake' },
   ]},
-  { label:'Repairs',      cls:'s-repair',          stages:[{id:'repair', cls:'s-repair', label:'Repairs'}] },
   { label:'Sketch',       cls:'s-sketch-group',    stages:[
     { id:'sketch-needs', cls:'s-sketch-needs', label:'Needs Sketch'                },
     { id:'sketch-wait',  cls:'s-sketch-wait',  label:'Waiting on Sketch Approval'  },
     { id:'sketch',       cls:'s-sketch',       label:'Sketch Approved'             },
   ]},
   { label:'Estimating',   cls:'s-estimate-group',  stages:[
-    { id:'needs-est',  cls:'s-needs-est',  label:'Needs Estimate'      },
     { id:'quote',      cls:'s-quote',      label:'Estimate Sent'       },
     { id:'est-appr',   cls:'s-est-appr',   label:'Estimate Approved'   },
   ]},
@@ -50,6 +51,10 @@ const COLUMN_GROUPS = [
     { id:'materials',  cls:'s-materials',  label:'Waiting on Materials' },
   ]},
   { label:'At the Bench', cls:'s-build',           stages:[{id:'build',      cls:'s-build',      label:'At the Bench'}] },
+  { label:'Contact Customer', cls:'s-contact-group', stages:[
+    { id:'contact-need', cls:'s-contact-need', label:'Need to Contact Customer' },
+    { id:'contact-done', cls:'s-contact-done', label:'Contacted Customer'       },
+  ]},
   { label:'Ready for Pickup', cls:'s-ready-pick',  stages:[{id:'ready-pick', cls:'s-ready-pick', label:'Ready for Pickup'}], pickupSections:true },
 ];
 

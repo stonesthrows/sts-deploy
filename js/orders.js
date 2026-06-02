@@ -304,7 +304,7 @@ function setOrderType(type) {
 
   if (type === 'estimate') {
     btnEstimate.classList.add('selected');
-    hint.innerHTML = 'Will be placed in <strong>Needs Estimate</strong>.';
+    hint.innerHTML = 'Will be placed in <strong>Estimate Intake</strong>.';
     hint.className = 'ot-hint estimate';
   } else if (type === 'repair') {
     btnRepair.classList.add('selected');
@@ -345,7 +345,7 @@ function submitOrder() {
   const contactSource = document.getElementById('f-source').value || null;
   const newId      = 'u' + Date.now();
   const stage      = orderType === 'estimate' ? 'needs-est' : orderType === 'repair' ? 'intake-repair' : 'intake-custom';
-  const stageLabel = orderType === 'estimate' ? 'Needs Estimate' : orderType === 'repair' ? 'Repair Intake' : 'Custom Intake';
+  const stageLabel = orderType === 'estimate' ? 'Estimate Intake' : orderType === 'repair' ? 'Repair Intake' : 'Custom Intake';
 
   // ── Add to local ORDERS ──────────────────
   ORDERS.push({
