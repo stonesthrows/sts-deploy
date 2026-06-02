@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>STS — Scan Work Order</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:    #C8973A;
+      --gold2:   #A87820;
+      --blue:    #4A72E8;
+      --blue2:   #2A52C8;
+      --bg:      #0F0F0F;
+      --surface: #1A1A1A;
+      --surface2:#242424;
+      --bdr:     #2E2E2E;
+      --text:    #F0EDE8;
+      --text2:   #9A9690;
+      --text3:   #5A5650;
+      --green:   #3AB86A;
+      --red:     #E05050;
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Screens ───────────────────────────────── */
+    .screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px 24px;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .screen.hidden {
+      opacity: 0; pointer-events: none;
+      transform: translateY(12px);
+    }
+
+    /* ── Setup screen ──────────────────────────── */
+    #screen-setup {
+      gap: 18px;
+      text-align: center;
+    }
+    .setup-logo {
+      font-size: 48px; margin-bottom: 4px;
+    }
+    .setup-title {
+      font-size: 22px; font-weight: 800; color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .setup-sub {
+      font-size: 14px; color: var(--text2); line-height: 1.5;
+      max-width: 300px;
+    }
+    .setup-key-wrap {
+      width: 100%; max-width: 340px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .setup-key-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text2); text-align: left;
+    }
+    .setup-key-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--bdr);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: monospace;
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .setup-key-input:focus { border-color: var(--blue); }
+    .setup-key-hint {
+      font-size: 11.5px; color: var(--text3); text-align: left;
+    }
+    .setup-key-hint a { color: var(--blue); text-decoration: none; }
+
+    /* ── Camera screen ─────────────────────────── */
+    #screen-camera {
+      gap: 0; padding: 0; justify-content: flex-end;
+      background: #000;
+    }
+    #videoEl {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .cam-overlay {
+      position: relative; z-index: 2;
+      width: 100%;
+      background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
+      padding: 24px 24px 44px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+    }
+    .cam-hint {
+      font-size: 13px; color: rgba(255,255,255,0.7);
+      text-align: center; line-height: 1.4;
+    }
+    .cam-actions {
+      display: flex; align-items: center;
+      justify-content: center; gap: 32px;
+      width: 100%;
+    }
+    .cam-btn-main {
+      width: 76px; height: 76px;
+      background: #fff;
+      border: 4px solid rgba(255,255,255,0.4);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.1s;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cam-btn-main:active { transform: scale(0.92); background: #e0e0e0; }
+    .cam-btn-main-inner {
+      width: 58px; height: 58px;
+      background: #fff;
+      border-radius: 50%;
+      border: 3px solid #ccc;
+    }
+    .cam-btn-side {
+      width: 48px; height: 48px;
+      background: rgba(255,255,255,0.12);
+      border: none; border-radius: 50%;
+      color: #fff; font-size: 20px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .cam-btn-side:active { background: rgba(255,255,255,0.25); }
+    .cam-top-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      z-index: 3;
+      padding: 52px 20px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+    }
+    .cam-title {
+      font-size: 16px; font-weight: 700; color: #fff;
+      letter-spacing: -0.2px;
+    }
+    .cam-key-btn {
+      font-size: 12px; color: rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.1);
+      border: none; border-radius: 20px;
+      padding: 5px 12px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* File input fallback (for non-camera browsers) */
+    #fileInput { display: none; }
+
+    /* ── Scanning screen ───────────────────────── */
+    #screen-scanning { gap: 20px; }
+    .scan-preview-img {
+      width: 220px; height: 220px;
+      object-fit: cover;
+      border-radius: 16px;
+      border: 2px solid var(--bdr);
+      opacity: 0.6;
+    }
+    .scan-spinner-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .scan-spinner {
+      width: 44px; height: 44px;
+      border: 3.5px solid rgba(255,255,255,0.12);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .scan-label { font-size: 16px; font-weight: 600; color: var(--text); }
+    .scan-sub   { font-size: 13px; color: var(--text2); }
+
+    /* ── Results screen ────────────────────────── */
+    #screen-results {
+      justify-content: flex-start;
+      padding: 0;
+      overflow-y: auto;
+    }
+    .results-inner {
+      width: 100%; max-width: 480px;
+      padding: 56px 20px 32px;
+      display: flex; flex-direction: column; gap: 0;
+    }
+    .results-header {
+      margin-bottom: 20px;
+    }
+    .results-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+    .results-sub   { font-size: 13px; color: var(--text2); }
+
+    .result-section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.7px; color: var(--text3);
+      margin: 18px 0 8px;
+    }
+    .result-field {
+      display: flex; flex-direction: column; gap: 3px;
+      margin-bottom: 10px;
+    }
+    .result-field-label {
+      font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--text2);
+    }
+    .result-field-val {
+      font-size: 15px; font-weight: 500; color: var(--text);
+      background: var(--surface2);
+      border: 1px solid var(--bdr);
+      border-radius: 10px;
+      padding: 10px 14px;
+      line-height: 1.4;
+    }
+    .result-field-val.empty {
+      color: var(--text3); font-style: italic; font-size: 13px;
+    }
+    .result-type-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 14px; font-weight: 700;
+      padding: 10px 16px; border-radius: 10px;
+      background: var(--surface2); border: 1px solid var(--bdr);
+    }
+
+    .results-actions {
+      display: flex; flex-direction: column; gap: 10px;
+      margin-top: 24px; padding-top: 20px;
+      border-top: 1px solid var(--bdr);
+    }
+
+    /* ── Success screen ────────────────────────── */
+    #screen-success { gap: 16px; text-align: center; }
+    .success-icon { font-size: 64px; }
+    .success-title { font-size: 22px; font-weight: 800; }
+    .success-sub { font-size: 14px; color: var(--text2); line-height: 1.5; max-width: 280px; }
+
+    /* ── Shared button styles ─────────────────── */
+    .btn {
+      display: flex; align-items: center; justify-content: center;
+      gap: 7px; width: 100%;
+      padding: 16px 20px;
+      border-radius: 14px;
+      font-size: 16px; font-weight: 700;
+      border: none; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { opacity: 0.82; transform: scale(0.98); }
+    .btn-gold {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold2) 100%);
+      color: #fff;
+    }
+    .btn-blue {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue2) 100%);
+      color: #fff;
+    }
+    .btn-green {
+      background: linear-gradient(135deg, #3AB86A 0%, #2A9850 100%);
+      color: #fff;
+    }
+    .btn-outline {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1.5px solid var(--bdr);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text2);
+      border: none;
+      font-size: 14px;
+    }
+    .btn-sm { padding: 11px 16px; font-size: 14px; border-radius: 10px; }
+
+    /* ── Toast ─────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 52px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #fff; color: #111;
+      font-size: 14px; font-weight: 600;
+      padding: 12px 20px; border-radius: 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      opacity: 0; transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none; z-index: 9999; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════ SETUP SCREEN ═══════ -->
+<div class="screen" id="screen-setup">
+  <div class="setup-logo">💍</div>
+  <div class="setup-title">Work Order Scanner</div>
+  <div class="setup-sub">Enter your Anthropic API key once — it's saved to this device and never needed again.</div>
+  <div class="setup-key-wrap">
+    <div class="setup-key-label">Anthropic API Key</div>
+    <input class="setup-key-input" id="keyInput" type="password"
+           placeholder="sk-ant-api03-…"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="setup-key-hint">
+      Get yours at <a href="https://console.anthropic.com/settings/api-keys" target="_blank">console.anthropic.com</a>
+    </div>
+  </div>
+  <button class="btn btn-gold" style="max-width:340px;" onclick="saveKeyAndStart()">Save &amp; Start Scanning</button>
+</div>
+
+<!-- ═══════ CAMERA SCREEN ═══════ -->
+<div class="screen hidden" id="screen-camera" style="padding:0;">
+  <video id="videoEl" autoplay playsinline muted></video>
+  <canvas id="canvasEl" style="display:none;"></canvas>
+  <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFileCapture(this)">
+
+  <div class="cam-top-bar">
+    <div class="cam-title">📷 Scan Work Order Bag</div>
+    <button class="cam-key-btn" onclick="showScreen('screen-setup')">🔑 Key</button>
+  </div>
+
+  <div class="cam-overlay">
+    <div class="cam-hint">Point the camera at the work order bag tag, then tap the button.</div>
+    <div class="cam-actions">
+      <button class="cam-btn-side" onclick="triggerFileInput()" title="Upload photo">🖼</button>
+      <button class="cam-btn-main" onclick="capturePhoto()" id="captureBtn">
+        <div class="cam-btn-main-inner"></div>
+      </button>
+      <button class="cam-btn-side" onclick="flipCamera()" id="flipBtn" title="Flip camera">🔄</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ SCANNING SCREEN ═══════ -->
+<div class="screen hidden" id="screen-scanning">
+  <img id="scanPreviewImg" class="scan-preview-img" src="" alt="">
+  <div class="scan-spinner-wrap">
+    <div class="scan-spinner"></div>
+    <div class="scan-label">Reading work order…</div>
+    <div class="scan-sub">Claude is extracting the details</div>
+  </div>
+</div>
+
+<!-- ═══════ RESULTS SCREEN ═══════ -->
+<div class="screen hidden" id="screen-results">
+  <div class="results-inner">
+    <div class="results-header">
+      <div class="results-title">📋 Order Details</div>
+      <div class="results-sub">Review what Claude found, then send to the board.</div>
+    </div>
+
+    <div id="resultsBody"></div>
+
+    <div class="results-actions">
+      <button class="btn btn-green" onclick="sendToBoard()">✓ Send to Board</button>
+      <button class="btn btn-outline btn-sm" onclick="rescan()">↩ Scan Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ SUCCESS SCREEN ═══════ -->
+<div class="screen hidden" id="screen-success">
+  <div class="success-icon">✅</div>
+  <div class="success-title">Sent to Board!</div>
+  <div class="success-sub">Open the workflow app on any device — the order will be waiting to import.</div>
+  <button class="btn btn-outline btn-sm" style="max-width:260px;margin-top:8px;" onclick="rescan()">📷 Scan Another</button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let stream = null;
+let facingMode = 'environment'; // rear camera by default
+let capturedDataUrl = null;
+let parsedOrder = null;
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  const key = localStorage.getItem('sts-anthropic-key');
+  if (key) {
+    startCamera();
+  } else {
+    showScreen('screen-setup');
+  }
+});
+
+// ════════════════════════════════════════════
+//  SCREEN MANAGEMENT
+// ════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.toggle('hidden', s.id !== id);
+  });
+  // Stop camera when leaving camera screen
+  if (id !== 'screen-camera' && stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  // Start camera when entering camera screen
+  if (id === 'screen-camera') {
+    startCamera();
+  }
+}
+
+// ════════════════════════════════════════════
+//  API KEY SETUP
+// ════════════════════════════════════════════
+function saveKeyAndStart() {
+  const key = document.getElementById('keyInput').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    toast('Key should start with sk-ant-');
+    return;
+  }
+  localStorage.setItem('sts-anthropic-key', key);
+  document.getElementById('keyInput').value = '';
+  startCamera();
+}
+
+// ════════════════════════════════════════════
+//  CAMERA
+// ════════════════════════════════════════════
+async function startCamera() {
+  showScreen('screen-camera');
+  const video = document.getElementById('videoEl');
+
+  // Stop any existing stream
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    video.srcObject = stream;
+  } catch (err) {
+    // Camera not available (desktop, permissions denied) — show file picker mode
+    console.warn('Camera unavailable:', err);
+    document.getElementById('captureBtn').onclick = triggerFileInput;
+    document.getElementById('flipBtn').style.display = 'none';
+    toast('No camera found — tap to upload a photo');
+  }
+}
+
+function flipCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+}
+
+function capturePhoto() {
+  const video  = document.getElementById('videoEl');
+  const canvas = document.getElementById('canvasEl');
+
+  if (!stream || !video.videoWidth) {
+    triggerFileInput();
+    return;
+  }
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  capturedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+  runScan(capturedDataUrl);
+}
+
+function triggerFileInput() {
+  document.getElementById('fileInput').click();
+}
+
+function handleFileCapture(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => { capturedDataUrl = e.target.result; runScan(capturedDataUrl); };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// ════════════════════════════════════════════
+//  CLAUDE VISION SCAN
+// ════════════════════════════════════════════
+async function runScan(dataUrl) {
+  const key = localStorage.getItem('sts-anthropic-key');
+  if (!key) { showScreen('screen-setup'); return; }
+
+  // Show scanning screen with preview
+  document.getElementById('scanPreviewImg').src = dataUrl;
+  showScreen('screen-scanning');
+
+  const comma    = dataUrl.indexOf(',');
+  const base64   = dataUrl.slice(comma + 1);
+  const mimeType = dataUrl.slice(5, comma).split(';')[0];
+
+  const systemPrompt = `You are an order intake assistant for Stones Throw Studio, a custom jewelry shop.
+The user will show you a photo of a handwritten work order bag or intake sheet.
+Extract all visible information and return ONLY a valid JSON object with these exact keys (use null for anything not visible):
+{
+  "customer_name": string|null,
+  "email": string|null,
+  "phone": string|null,
+  "take_in_date": "YYYY-MM-DD"|null,
+  "deadline": "YYYY-MM-DD"|null,
+  "pickup_location": "Bell Market"|"Mueller Market"|"Chaparral Crossing Market"|"Studio"|"Sunset Valley"|null,
+  "contacted_via": "Email"|"Farmer's Market"|"Shopify Email"|"Etsy Message"|"Instagram Message"|"Text Message"|"Facebook Message"|null,
+  "order_type": "order"|"estimate"|"repair",
+  "description": string|null,
+  "materials": string|null,
+  "price": number|null,
+  "notes": string|null
+}
+For order_type: use "repair" for repairs/resizing, "estimate" for estimate requests, "order" for custom orders (default to "order" if unclear).
+For dates, infer the year as the current year (${new Date().getFullYear()}) if only month/day is shown.
+Return ONLY the JSON object, no other text.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key':                                  key,
+        'anthropic-version':                          '2023-06-01',
+        'anthropic-dangerous-direct-browser-access':  'true',
+        'content-type':                               'application/json',
+      },
+      body: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system:     systemPrompt,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text',  text:  'Extract the order information from this work order bag photo.' }
+          ]
+        }]
+      })
+    });
+
+    if (!resp.ok) {
+      const errBody = await resp.json().catch(() => ({}));
+      if (resp.status === 401) {
+        localStorage.removeItem('sts-anthropic-key');
+        showScreen('screen-setup');
+        toast('Invalid API key — please re-enter it');
+      } else {
+        showScreen('screen-camera');
+        toast('API error: ' + (errBody.error?.message || resp.statusText));
+      }
+      return;
+    }
+
+    const data = await resp.json();
+    const raw  = data.content?.[0]?.text || '';
+
+    let parsed;
+    try {
+      const cleaned = raw.replace(/```json\n?/g,'').replace(/```/g,'').trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      showScreen('screen-camera');
+      toast('Couldn\'t read the result — try a clearer photo');
+      return;
+    }
+
+    parsedOrder = parsed;
+    renderResults(parsed);
+    showScreen('screen-results');
+
+  } catch (err) {
+    showScreen('screen-camera');
+    toast('Network error — check your connection');
+    console.error(err);
+  }
+}
+
+// ════════════════════════════════════════════
+//  RESULTS
+// ════════════════════════════════════════════
+function renderResults(d) {
+  const typeMap = { order: '💍 Custom Order', estimate: '📋 Estimate Request', repair: '🔧 Repair / Resize' };
+  const typeLabel = typeMap[d.order_type] || '💍 Custom Order';
+
+  const field = (label, val) => {
+    const empty = val === null || val === undefined || val === '';
+    return `<div class="result-field">
+      <div class="result-field-label">${label}</div>
+      <div class="result-field-val${empty ? ' empty' : ''}">${empty ? 'Not found' : escHtml(String(val))}</div>
+    </div>`;
+  };
+
+  document.getElementById('resultsBody').innerHTML = `
+    <div class="result-section-label">Order Type</div>
+    <div class="result-field">
+      <div class="result-type-pill">${typeLabel}</div>
+    </div>
+
+    <div class="result-section-label">Customer</div>
+    ${field('Name',          d.customer_name)}
+    ${field('Email',         d.email)}
+    ${field('Phone',         d.phone)}
+    ${field('Contacted Via', d.contacted_via)}
+
+    <div class="result-section-label">Dates &amp; Pickup</div>
+    ${field('Take-In Date',    d.take_in_date)}
+    ${field('Deadline',        d.deadline)}
+    ${field('Pickup Location', d.pickup_location)}
+
+    <div class="result-section-label">Order Details</div>
+    ${field('Description', d.description)}
+    ${field('Materials',   d.materials)}
+    ${field('Price',       d.price != null ? '$' + d.price : null)}
+    ${field('Notes',       d.notes)}
+  `;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ════════════════════════════════════════════
+//  SEND TO BOARD
+// ════════════════════════════════════════════
+function sendToBoard() {
+  if (!parsedOrder) return;
+
+  // Read any existing queue, add to it
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('sts-pending-scans') || '[]'); } catch {}
+  queue.push({ ...parsedOrder, scannedAt: new Date().toISOString() });
+  localStorage.setItem('sts-pending-scans', JSON.stringify(queue));
+
+  showScreen('screen-success');
+}
+
+function rescan() {
+  parsedOrder    = null;
+  capturedDataUrl = null;
+  startCamera();
+}
+
+// ════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════
+let _toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,3076 @@
+<!DOCTYPE html>
+<!-- deploy-version: v58-bag-scan-flora -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Stones Throw Studio — Order Workflow v62</title>
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1E1C19">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="STS Orders">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F5F0E8;
+      --hdr: #1E1C19;
+      --nav: #252320;
+      --subnav: #1A1916;
+      --hdr-pill: #2E2B26;
+      --hdr-bdr: #3A3530;
+      --accent: var(--accent);
+      --accent-mid: var(--accent-mid);
+      --accent-light: var(--accent-light);
+      --accent-bg: #FDF5E6;
+      --accent-border: #F5CFA0;
+      --card-bg: #FFFFFF;
+      --card-head-bg: #FDFAF6;
+      --bdr: #E4DDD4;
+      --bdr-light: #EEE6DC;
+      --text: var(--text);
+      --text2: var(--text2);
+      --text3: var(--text3);
+      --text-dim: #7A7268;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    .header {
+      background: var(--hdr);
+      height: 58px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      border-bottom: 1px solid var(--hdr-bdr);
+      position: relative;
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #C9983A 0%, #8C6520 100%);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .logo-text {
+      color: var(--accent-light);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.2px;
+    }
+    .logo-sub {
+      color: #7A7268;
+      font-size: 11px;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .header-spacer { flex: 1; }
+    .header-pill {
+      background: var(--hdr-pill);
+      border: 1px solid var(--hdr-bdr);
+      border-radius: 20px;
+      padding: 5px 14px;
+      color: var(--text2);
+      font-size: 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .header-pill .dot {
+      width: 6px; height: 6px;
+      background: #6AB87A;
+      border-radius: 50%;
+    }
+
+    /* ── Nav ─────────────────────────────────── */
+    .nav {
+      background: var(--nav);
+      display: flex;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--hdr-bdr);
+    }
+    .nav-tab {
+      padding: 13px 18px;
+      color: #7A7268;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .nav-tab:hover { color: var(--accent-mid); }
+    .nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+    .nav-badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    /* ── Sub-nav ────────────────────────────── */
+    .sub-nav {
+      display: none;
+      background: var(--subnav);
+      padding: 0 24px;
+      border-bottom: 1px solid var(--hdr-pill);
+    }
+    .sub-nav.active { display: flex; }
+    .sub-nav-tab {
+      padding: 10px 16px;
+      color: #7A7268;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sub-nav-tab:hover { color: var(--accent-mid); }
+    .sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
+    /* ── Layout ──────────────────────────────── */
+    .content { padding: 20px 24px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Stat Cards ──────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .stat-card {
+      background: #FFFFFF;
+      border: 1px solid #E4DDD4;
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stat-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px;
+      flex-shrink: 0;
+    }
+    .si-gold  { background: #FDF5E6; }
+    .si-red   { background: #FEF0EF; }
+    .si-purple{ background: #F3EEF9; }
+    .si-green { background: #EAF6EE; }
+    .stat-label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.2px; text-transform: uppercase; margin-bottom: 3px; }
+    .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+
+    /* ── Kanban ──────────────────────────────── */
+    .kanban-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .kanban-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .kanban-actions { display: flex; gap: 8px; }
+
+    .kanban-board {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+      align-items: flex-start;
+    }
+    .kanban-board::-webkit-scrollbar { height: 5px; }
+    .kanban-board::-webkit-scrollbar-track { background: #ECE7DF; border-radius: 3px; }
+    .kanban-board::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+
+    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; }
+    .k-head {
+      padding: 8px 11px;
+      border-radius: 8px 8px 0 0;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .k-count {
+      background: rgba(0,0,0,0.13);
+      border-radius: 20px;
+      padding: 1px 7px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .k-body {
+      border-radius: 0 0 8px 8px;
+      padding: 7px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .k-empty {
+      text-align: center;
+      padding: 22px 8px;
+      color: #B8B0A6;
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    /* Stage color tokens */
+    .s-inquiry  .k-head { background:#E8EFFE; color:#3A5FCC; }
+    .s-inquiry  .k-body { background:#EFF3FD; }
+    .s-inquiry  .o-card { border-left-color:#4A72E8; }
+    .s-sketch   .k-head { background:#FEF7E6; color:#9A6F0A; }
+    .s-sketch   .k-body { background:#FDF9EF; }
+    .s-sketch   .o-card { border-left-color:#D4A020; }
+    .s-quote    .k-head { background:#FEF0E6; color:#A84C10; }
+    .s-quote    .k-body { background:#FDF5EE; }
+    .s-quote    .o-card { border-left-color:#DC6B28; }
+    .s-materials .k-head { background:#F3EEF9; color:#6830A8; }
+    .s-materials .k-body { background:#F8F5FC; }
+    .s-materials .o-card { border-left-color:#9050CC; }
+    .s-build    .k-head { background:#E6EEF8; color:#234E8C; }
+    .s-build    .k-body { background:#EEF4FC; }
+    .s-build    .o-card { border-left-color:#2A68B8; }
+    .s-complete .k-head { background:#E6F5EC; color:#1E6840; }
+    .s-complete .k-body { background:#EFF9F3; }
+    .s-complete .o-card { border-left-color:#2A8C50; }
+    .s-needs-est .k-head    { background:#FEE8E0; color:#B04018; }
+    .s-needs-est .k-body    { background:#FEF3EE; }
+    .s-needs-est .o-card    { border-left-color:#E05828; }
+    .s-wait-cust .k-head    { background:#E0F4F4; color:#1A7070; }
+    .s-wait-cust .k-body    { background:#ECF9F9; }
+    .s-wait-cust .o-card    { border-left-color:#2A9898; }
+    .s-est-appr .k-head     { background:#EBF7E0; color:#306818; }
+    .s-est-appr .k-body     { background:#F3FAE8; }
+    .s-est-appr .o-card     { border-left-color:#50901E; }
+    .s-order-mat .k-head    { background:#F5ECE0; color:#7C4A18; }
+    .s-order-mat .k-body    { background:#FAF3E8; }
+    .s-order-mat .o-card    { border-left-color:#A86028; }
+    .s-ready-pick .k-head   { background:#DEF0F8; color:#145E7A; }
+    .s-ready-pick .k-body   { background:#EAF6FC; }
+    .s-ready-pick .o-card   { border-left-color:#1E84A8; }
+
+    /* ── Grouped column headers ─────────────── */
+    .s-intake-group .k-head    { background:#DDE6FA; color:#243C80; }
+    .s-sketch-group .k-head    { background:#FEF2CC; color:#7A5A00; }
+    .s-estimate-group .k-head  { background:#FDEBD8; color:#904020; }
+    .s-materials-group .k-head { background:#F0EAF4; color:#6038A0; }
+
+    /* ── Intake column stage colors ──────────── */
+    .s-intake-custom .k-head { background:#E8EFFE; color:#3A5FCC; }
+    .s-intake-custom .k-body { background:#EFF3FD; }
+    .s-intake-custom .o-card { border-left-color:#4A72E8; }
+    .s-intake-repair .k-head { background:#FEF0E0; color:#8C5020; }
+    .s-intake-repair .k-body { background:#FEF5EC; }
+    .s-intake-repair .o-card { border-left-color:#D47030; }
+
+    /* ── Repairs column ──────────────────────── */
+    .s-repair .k-head { background:#FDE4D4; color:#9A3010; }
+    .s-repair .k-body { background:#FDF0E8; }
+    .s-repair .o-card { border-left-color:#C84020; }
+
+    /* ── Sketch sub-stage colors ─────────────── */
+    .s-sketch-needs .k-head { background:#FFFBE4; color:#5A4600; }
+    .s-sketch-needs .k-body { background:#FFFDE8; }
+    .s-sketch-needs .o-card { border-left-color:#C0980C; }
+    .s-sketch-wait  .k-head { background:#FEF7D8; color:#7A6000; }
+    .s-sketch-wait  .k-body { background:#FFFBE8; }
+    .s-sketch-wait  .o-card { border-left-color:#CCA010; }
+
+    /* ── Sub-section layout ─────────────────── */
+    .k-sub-head {
+      padding: 5px 11px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(0,0,0,0.07);
+    }
+    .k-sub-count {
+      background: rgba(0,0,0,0.12);
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 9px;
+      font-weight: 700;
+    }
+    .k-sub-wrap .k-body  { border-radius: 0; min-height: 60px; }
+    .k-sub-wrap:last-child .k-body { border-radius: 0 0 8px 8px; }
+
+    /* Sub-section stage colors — Intake group */
+    .k-sub-wrap.s-intake-custom .k-sub-head { background:#E8EFFE; color:#3A5FCC; }
+    .k-sub-wrap.s-intake-custom .k-body     { background:#EFF3FD; }
+    .k-sub-wrap.s-intake-custom .o-card     { border-left-color:#4A72E8; }
+    .k-sub-wrap.s-intake-repair .k-sub-head { background:#FEF0E0; color:#8C5020; }
+    .k-sub-wrap.s-intake-repair .k-body     { background:#FEF5EC; }
+    .k-sub-wrap.s-intake-repair .o-card     { border-left-color:#D47030; }
+
+    /* Sub-section stage colors — Sketch group */
+    .k-sub-wrap.s-sketch-needs .k-sub-head { background:#FFFBE4; color:#5A4600; }
+    .k-sub-wrap.s-sketch-needs .k-body     { background:#FFFDE8; }
+    .k-sub-wrap.s-sketch-needs .o-card     { border-left-color:#C0980C; }
+    .k-sub-wrap.s-sketch-wait  .k-sub-head { background:#FEF7D8; color:#7A6000; }
+    .k-sub-wrap.s-sketch-wait  .k-body     { background:#FFFBE8; }
+    .k-sub-wrap.s-sketch-wait  .o-card     { border-left-color:#CCA010; }
+    .k-sub-wrap.s-sketch       .k-sub-head { background:#FEF7E6; color:#9A6F0A; }
+    .k-sub-wrap.s-sketch       .k-body     { background:#FDF9EF; }
+    .k-sub-wrap.s-sketch       .o-card     { border-left-color:#D4A020; }
+
+    /* Sub-section stage colors — Estimating group */
+    .k-sub-wrap.s-needs-est .k-sub-head { background:#FEE8E0; color:#B04018; }
+    .k-sub-wrap.s-needs-est .k-body     { background:#FEF3EE; }
+    .k-sub-wrap.s-needs-est .o-card     { border-left-color:#E05828; }
+    .k-sub-wrap.s-quote     .k-sub-head { background:#FEF0E6; color:#A84C10; }
+    .k-sub-wrap.s-quote     .k-body     { background:#FDF5EE; }
+    .k-sub-wrap.s-quote     .o-card     { border-left-color:#DC6B28; }
+    .k-sub-wrap.s-est-appr  .k-sub-head { background:#EBF7E0; color:#306818; }
+    .k-sub-wrap.s-est-appr  .k-body     { background:#F3FAE8; }
+    .k-sub-wrap.s-est-appr  .o-card     { border-left-color:#50901E; }
+
+    /* Sub-section stage colors — Materials group */
+    .k-sub-wrap.s-order-mat  .k-sub-head { background:#F5ECE0; color:#7C4A18; }
+    .k-sub-wrap.s-order-mat  .k-body     { background:#FAF3E8; }
+    .k-sub-wrap.s-order-mat  .o-card     { border-left-color:#A86028; }
+    .k-sub-wrap.s-materials  .k-sub-head { background:#F3EEF9; color:#6830A8; }
+    .k-sub-wrap.s-materials  .k-body     { background:#F8F5FC; }
+    .k-sub-wrap.s-materials  .o-card     { border-left-color:#9050CC; }
+
+    /* Sub-section colors — Ready for Pickup locations */
+    .k-sub-wrap.s-pickup-sub .k-sub-head { background:#C8E8F4; color:#0E5268; border-top:1px solid #A8D8EC; }
+    .k-sub-wrap.s-pickup-sub .k-body     { background:#EAF6FC; }
+    .k-sub-wrap.s-pickup-sub .o-card     { border-left-color:#1E84A8; }
+
+    /* Order card */
+    .o-card {
+      background: #FFFFFF;
+      border: 1px solid #E4DDD4;
+      border-left-width: 3px;
+      border-radius: 7px;
+      padding: 11px 11px 9px;
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.1s;
+    }
+    .o-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.09); transform: translateY(-1px); }
+    .o-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .o-desc { font-size: 11.5px; color: #6A6460; line-height: 1.4; margin-bottom: 8px; }
+    .o-foot { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+    .o-tag {
+      font-size: 10.5px; font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    .dl-ok     { background: #EAF6EE; color: #2A7A48; }
+    .dl-soon   { background: #FEF6E6; color: #A86010; }
+    .dl-past   { background: #FEEFEE; color: #C43030; }
+    .dl-none   { background: #F2EFE9; color: var(--text3); }
+    .o-price   { font-size: 11px; color: var(--text3); font-weight: 500; }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn {
+      padding: 8px 16px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: inherit;
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #C9983A, #A07428);
+      color: #fff;
+    }
+    .btn-gold:hover { background: linear-gradient(135deg, #D8A840, #B08030); }
+    .btn-outline {
+      background: #fff;
+      color: #5C5650;
+      border: 1px solid #D8D0C8;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: #A07428; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text2);
+      border: 1px solid #D0C8C0;
+    }
+    .btn-ghost:hover { border-color: #B0A898; color: #5C5650; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-danger { background: #C43030; color: #fff; }
+
+    /* ── New Order Form ─────────────────────── */
+    .form-wrap {
+      max-width: 820px;
+    }
+    .form-card {
+      background: #fff;
+      border: 1px solid #E4DDD4;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .form-head {
+      padding: 20px 28px 18px;
+      border-bottom: 1px solid #EEE6DC;
+      background: #FDFAF6;
+    }
+    .form-head-title { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .form-head-sub { font-size: 12px; color: var(--text2); }
+    .form-body { padding: 24px 28px; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .fg { display: flex; flex-direction: column; gap: 5px; }
+    .fg.full { grid-column: 1 / -1; }
+    .fg label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #7A7268;
+    }
+    .fg input, .fg textarea, .fg select {
+      border: 1px solid #D8D0C8;
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-size: 13.5px;
+      color: var(--text);
+      background: #FAFAF8;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    /* ── Order Type Toggle ───────────────────── */
+    .order-type-toggle {
+      display: flex;
+      gap: 0;
+      border: 1px solid #D8D0C8;
+      border-radius: 8px;
+      overflow: hidden;
+      width: fit-content;
+    }
+    .ot-option {
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, color 0.15s;
+      color: #7A7268;
+      background: #FAFAF8;
+      border: none;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .ot-option:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .ot-option.selected {
+      background: var(--text);
+      color: var(--accent-light);
+    }
+    .ot-option.selected.estimate {
+      background: linear-gradient(135deg, #E05828, #B04018);
+      color: #fff;
+    }
+    .ot-option.selected.repair {
+      background: linear-gradient(135deg, #4A7CB5, #2E5A8A);
+      color: #fff;
+    }
+    .ot-hint {
+      font-size: 11.5px;
+      color: var(--text3);
+      margin-top: 8px;
+      min-height: 16px;
+      transition: color 0.15s;
+    }
+    .ot-hint.estimate { color: #B04018; font-weight: 600; }
+    .ot-hint.repair   { color: #2E5A8A; font-weight: 600; }
+
+    .fg input:focus, .fg textarea:focus, .fg select:focus {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(196,144,58,0.12);
+    }
+    .fg textarea { resize: vertical; min-height: 82px; }
+    .form-foot {
+      padding: 18px 28px;
+      border-top: 1px solid #EEE6DC;
+      background: #FDFAF6;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* Gmail pull panel */
+    .gmail-panel {
+      display: none;
+      background: #fff;
+      border: 1px solid #E4DDD4;
+      border-radius: 12px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+      width: 360px;
+      position: fixed;
+      right: 28px;
+      top: 100px;
+      z-index: 200;
+      overflow: hidden;
+    }
+    .gmail-panel.open { display: block; }
+    .gp-head {
+      padding: 13px 16px;
+      border-bottom: 1px solid #EEE6DC;
+      background: #FDFAF6;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .gp-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
+    .gp-close { cursor: pointer; color: var(--text3); font-size: 20px; line-height: 1; }
+    .gp-close:hover { color: #4A4440; }
+    .gp-thread {
+      padding: 12px 16px;
+      border-bottom: 1px solid #F4EFE8;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .gp-thread:hover { background: #FBF8F3; }
+    .gp-thread:last-child { border-bottom: none; }
+    .gp-subj { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .gp-from { font-size: 11.5px; color: var(--text2); margin-bottom: 3px; }
+    .gp-snip { font-size: 11.5px; color: #6A6460; line-height: 1.4; }
+    .gp-hint { padding: 10px 16px; font-size: 11px; color: #A8A098; text-align: center; border-top: 1px solid #F0EBE3; }
+
+    /* ── Customers Tab ───────────────────────── */
+    .cust-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+    .search-box {
+      position: relative;
+      width: 280px;
+    }
+    .search-box svg {
+      position: absolute; left: 10px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text3);
+      pointer-events: none;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 8px 12px 8px 34px;
+      border: 1px solid #D8D0C8;
+      border-radius: 8px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+      font-family: inherit;
+      color: var(--text);
+    }
+    .search-box input:focus { border-color: var(--accent); }
+    .cust-table {
+      background: #fff;
+      border: 1px solid #E4DDD4;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .ct-head {
+      display: grid;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px;
+      padding: 11px 20px;
+      background: #F8F3EC;
+      border-bottom: 1px solid #E4DDD4;
+    }
+    .ct-th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+    .ct-row {
+      display: grid;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px;
+      padding: 13px 20px;
+      border-bottom: 1px solid #F2EDE6;
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .ct-row:hover { background: #FBF8F3; }
+    .ct-row:last-child { border-bottom: none; }
+    .c-avatar-wrap { display: flex; align-items: center; gap: 11px; }
+    .c-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, #C9983A 0%, #7A5A18 100%);
+      color: #fff;
+      font-size: 12px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .c-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .c-email { font-size: 11.5px; color: var(--text2); }
+    .o-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+    .o-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 10.5px; font-weight: 600; padding: 2px 7px;
+      border-radius: 10px; white-space: nowrap;
+    }
+    .o-badge.pickup  { background:#EAF0FB; color:#2E5A8A; }
+    .o-badge.source  { background:#F0EAF8; color:#6A3A9A; }
+    .c-td { font-size: 13px; color: var(--text); }
+    .c-muted { color: var(--text2); }
+    .active-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #EAF6EE;
+      color: #226640;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 12px;
+    }
+    .active-chip::before { content: '●'; font-size: 8px; }
+
+    /* ── Customer sub-tabs ───────────────────── */
+    .cust-subtabs {
+      display: flex; gap: 4px;
+      border-bottom: 1px solid #E4DDD4;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .cst-tab {
+      padding: 7px 14px;
+      font-size: 12.5px; font-weight: 600;
+      color: var(--text2);
+      border: none; background: none;
+      border-bottom: 2.5px solid transparent;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      transition: color 0.15s;
+      margin-bottom: -1px;
+    }
+    .cst-tab:hover { color: var(--text); }
+    .cst-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .cst-count {
+      font-size: 10px; font-weight: 700;
+      background: #F0EDE8; color: var(--text2);
+      padding: 1px 6px; border-radius: 10px;
+      min-width: 18px; text-align: center;
+    }
+    .cst-tab.active .cst-count { background: #F5EDD5; color: var(--accent); }
+    .cust-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text2);
+      font-size: 13.5px;
+    }
+    .cust-empty-icon { font-size: 32px; margin-bottom: 10px; }
+
+    .stage-chip {
+      display: inline-block;
+      font-size: 10.5px; font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+
+    /* ── Detail Drawer ───────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32);
+      z-index: 300;
+    }
+    .overlay.open { display: block; }
+    .drawer {
+      display: none; position: fixed;
+      right: 0; top: 0; bottom: 0;
+      width: 420px;
+      background: #fff;
+      border-left: 1px solid #E4DDD4;
+      box-shadow: -6px 0 24px rgba(0,0,0,0.1);
+      z-index: 400;
+      overflow-y: auto;
+    }
+    .drawer.open { display: block; }
+    .drawer-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid #EEE6DC;
+      background: #FDFAF6;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .d-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, #C9983A 0%, #7A5A18 100%);
+      color: #fff; font-size: 15px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .d-name { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+    .d-email { font-size: 12px; color: var(--text2); }
+    .d-close {
+      margin-left: auto; cursor: pointer;
+      color: var(--text3); font-size: 24px; line-height: 1;
+    }
+    .d-close:hover { color: #4A4440; }
+    .drawer-body { padding: 20px 24px; }
+    .d-section { margin-bottom: 22px; }
+    .d-section-title {
+      font-size: 10.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--text3);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #EEE6DC;
+    }
+    .d-order {
+      background: #F8F3EC;
+      border-left: 3px solid var(--accent);
+      border-radius: 7px;
+      padding: 11px 13px;
+      margin-bottom: 8px;
+    }
+    .d-order-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .d-order-meta { font-size: 11.5px; color: #6A6460; display: flex; gap: 10px; flex-wrap: wrap; }
+    .d-action-btn {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 7px;
+      justify-content: flex-start;
+    }
+
+    /* ── Customer Detail: search bar ─────────── */
+    .d-search-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px;
+      background: #1E1C19;
+      border-bottom: 1px solid #3A3530;
+      position: sticky; top: 0; z-index: 2;
+    }
+    .d-search-bar svg { color: var(--text3); flex-shrink: 0; }
+    .d-search-bar input {
+      flex: 1; border: 1px solid #3A3530; border-radius: 7px;
+      padding: 7px 10px; font-size: 13px;
+      background: #2E2B26; outline: none; font-family: inherit; color: var(--accent-light);
+    }
+    .d-search-bar input::placeholder { color: #6A6460; }
+    .d-search-bar input:focus { border-color: var(--accent); }
+    .d-sb-close {
+      cursor: pointer; color: #6A6460; font-size: 22px; line-height: 1;
+      padding: 2px 4px; flex-shrink: 0;
+    }
+    .d-sb-close:hover { color: var(--accent-light); }
+
+    /* ── Customer Detail: search dropdown ───── */
+    .d-dropdown {
+      background: #fff; display: none;
+      border-bottom: 1px solid #EEE6DC;
+      max-height: 240px; overflow-y: auto;
+    }
+    .d-dropdown.open { display: block; }
+    .d-dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; cursor: pointer;
+      border-bottom: 1px solid #F5EFE8; transition: background 0.1s;
+    }
+    .d-dropdown-item:hover { background: #FBF8F3; }
+    .d-dropdown-item:last-child { border-bottom: none; }
+    .d-dd-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: linear-gradient(135deg, #C9983A 0%, #7A5A18 100%);
+      color: #fff; font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .d-dd-name  { font-size: 13px; font-weight: 700; color: var(--text); }
+    .d-dd-email { font-size: 11px; color: var(--text3); }
+
+    /* ── Customer Detail: stats strip ────────── */
+    .d-stats-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px; background: #EEE6DC;
+    }
+    .d-stat { background: #FDFAF6; padding: 12px 10px; text-align: center; }
+    .d-stat-val { font-size: 17px; font-weight: 800; color: var(--text); }
+    .d-stat-lbl { font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
+    /* ── Customer Detail: CTA row ─────────────── */
+    .d-cta-row { display: flex; gap: 8px; padding: 16px 20px 8px; }
+    .d-cta-row .btn { flex: 1; justify-content: center; font-size: 12.5px; padding: 8px 10px; }
+
+    /* ── Camera / Photos ────────────────────── */
+    .card-camera-btn {
+      width: 24px; height: 24px;
+      background: #F0EBE3;
+      border: 1px solid #DDD5CC;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.12s, border-color 0.12s;
+      padding: 0;
+    }
+    .card-camera-btn:hover  { background: #E4DDD4; border-color: var(--accent); }
+    .card-camera-btn.has-photo { background: #E0EEF8; border-color: #5080C0; }
+    .card-photo {
+      margin: 7px 0 4px;
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      line-height: 0;
+    }
+    .card-photo img {
+      width: 100%;
+      max-height: 90px;
+      object-fit: cover;
+      border-radius: 5px;
+      display: block;
+    }
+    .card-photo-label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.55));
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 10px 6px 4px;
+      letter-spacing: 0.3px;
+    }
+    /* Lightbox */
+    /* ── Pending scan import banner ──────────── */
+    #scanImportBanner {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 8000;
+      background: linear-gradient(135deg, #3AB86A 0%, #2A9850 100%);
+      color: #fff;
+      padding: 12px 16px;
+      align-items: center; gap: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      animation: slideDown 0.3s ease;
+    }
+    #scanImportBanner.open { display: flex; }
+    @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+    .sib-icon  { font-size: 20px; flex-shrink: 0; }
+    .sib-text  { flex: 1; font-size: 13.5px; font-weight: 600; }
+    .sib-count { font-size: 18px; font-weight: 800; }
+    .sib-btn {
+      padding: 7px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 700;
+      border: none; cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .sib-btn:hover { opacity: 0.88; }
+    .sib-btn-import { background: #fff; color: #2A9850; }
+    .sib-btn-dismiss { background: rgba(255,255,255,0.18); color: #fff; margin-left: 4px; }
+
+    /* ── Drive overlay spinner ─────────────────── */
+    #driveOverlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 9000;
+      align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    }
+    #driveOverlay.open { display: flex; }
+    .drive-spinner {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(255,255,255,0.25); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #driveOverlayLabel { color: #fff; font-size: 15px; font-weight: 600; }
+
+    /* ── Drive review modal ─────────────────── */
+    #driveReviewModalBg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 9100;
+      align-items: center; justify-content: center;
+    }
+    #driveReviewModalBg.open { display: flex; }
+    .drive-review-modal {
+      background: var(--surface); border-radius: 14px;
+      padding: 24px 28px 20px; width: 540px;
+      max-width: calc(100vw - 32px); max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.20);
+    }
+    .drive-review-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .drive-review-head h3 { margin: 0 0 3px; font-size: 17px; font-weight: 800; }
+    #driveReviewSub { font-size: 12px; color: var(--text2); }
+    .drive-review-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
+    .drf-card { border: 1.5px solid var(--bdr); border-radius: 10px; padding: 14px 16px; }
+    .drf-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .drf-type-tag { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+    .drf-customer { font-size: 15px; font-weight: 700; color: var(--text); }
+    .drf-filename { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    .drf-check-wrap { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; white-space: nowrap; }
+    .drf-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+    .drf-row { display: flex; flex-direction: column; gap: 1px; }
+    .drf-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); }
+    .drf-val { font-size: 12.5px; color: var(--text); }
+    .drf-fields .drf-row:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .drive-review-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--bdr); padding-top: 16px; }
+
+    /* ── Integrations modal ─────────────────── */
+    #integrationsModalBg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 9100;
+      align-items: center; justify-content: center;
+    }
+    #integrationsModalBg.open { display: flex; }
+    .integrations-modal {
+      background: var(--surface); border-radius: 14px;
+      padding: 26px 28px 22px; width: 480px;
+      max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.20);
+    }
+    .integrations-modal h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+    .int-subtitle { font-size: 12px; color: var(--text2); margin-bottom: 20px; }
+    .int-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--bdr); }
+    .int-section:last-of-type { border-bottom: none; margin-bottom: 0; }
+    .int-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 10px; }
+    .int-section label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text2); margin-bottom: 4px; margin-top: 10px; }
+    .int-section label:first-of-type { margin-top: 0; }
+    .int-section input[type="text"], .int-section input[type="password"] {
+      width: 100%; padding: 8px 11px; border: 1.5px solid var(--bdr);
+      border-radius: 8px; font-size: 13px; font-family: monospace;
+      background: var(--bg); color: var(--text);
+    }
+    .int-section input:focus { outline: none; border-color: var(--accent); }
+    .int-hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.45; }
+    .int-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; border-top: 1px solid var(--bdr); padding-top: 16px; }
+
+    .photo-lightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+    .photo-lightbox.open { display: flex; }
+    .photo-lightbox img {
+      max-width: 92vw;
+      max-height: 72vh;
+      border-radius: 10px;
+      object-fit: contain;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .lb-title {
+      color: var(--accent-light);
+      font-size: 14px;
+      font-weight: 700;
+      max-width: 92vw;
+      text-align: center;
+    }
+    .lb-close {
+      position: absolute;
+      top: 18px; right: 22px;
+      color: #fff; font-size: 32px;
+      cursor: pointer; line-height: 1;
+      opacity: 0.8;
+    }
+    .lb-close:hover { opacity: 1; }
+    .lb-actions { display: flex; gap: 10px; }
+
+    /* ── Complete Animation ──────────────────── */
+    @keyframes cardDone {
+      0%   { opacity: 1; transform: scale(1);    background: #fff;     max-height: 160px; margin-bottom: 7px; }
+      25%  { opacity: 1; transform: scale(1.03); background: #D4F0DE;  }
+      75%  { opacity: 0; transform: scale(0.88); background: #D4F0DE;  }
+      100% { opacity: 0; transform: scale(0.88); max-height: 0px;      margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+    }
+    .o-card.completing {
+      animation: cardDone 0.52s ease forwards;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .completed-toggle {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: #EAF6EE;
+      border: 1px solid #AADCBA;
+      color: #226640;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .completed-toggle:hover { background: #D4EEE0; }
+    .completed-toggle.has-items { display: flex; }
+    .completed-toggle.showing { background: #fff; border-color: #C0D8C8; color: #4A7C5A; }
+
+    /* ── Card Collapse ───────────────────────── */
+    .o-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .o-chevron {
+      color: #B8B0A6;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 1px 3px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      transition: color 0.12s, transform 0.18s;
+      transform: rotate(0deg);
+      margin-top: 1px;
+    }
+    .o-chevron:hover { color: #5C5650; background: #F0EBE3; }
+    .o-card.collapsed .o-chevron { transform: rotate(-90deg); }
+    .o-card.collapsed .o-desc,
+    .o-card.collapsed .o-foot { display: none; }
+    .o-card.collapsed { padding-bottom: 10px; }
+    .o-card .o-body { overflow: hidden; }
+
+    /* ── Drag & Drop ─────────────────────────── */
+    .o-card { cursor: grab; }
+    .o-card:active { cursor: grabbing; }
+    .o-card.dragging {
+      opacity: 0.35;
+      transform: rotate(2deg) scale(0.96);
+      box-shadow: none;
+    }
+    .k-body.drag-over {
+      outline: 2px dashed var(--accent);
+      outline-offset: -3px;
+      background-color: rgba(196, 144, 58, 0.10) !important;
+    }
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      background: #fff;
+      border: 1px solid #E4DDD4;
+      border-left: 3px solid var(--accent);
+      border-radius: 7px;
+      padding: 10px 12px;
+      width: 180px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      opacity: 0.95;
+      transform: rotate(2deg);
+    }
+
+    /* ── Toast ───────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 22px; right: 24px;
+      background: #2E2B26;
+      color: #F5ECD7;
+      padding: 11px 18px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+      z-index: 999;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.show { display: flex; animation: toastIn 0.2s ease; }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Section dividers ────────────────────── */
+    .section-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .section-title { font-size: 15px; font-weight: 800; color: var(--text); }
+    .section-sub { font-size: 12px; color: var(--text3); margin-left: 8px; }
+
+    /* Notion link chip */
+    .notion-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #F0EBF8; color: #6030A0;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 9px; border-radius: 5px;
+      text-decoration: none;
+    }
+
+    /* ── Estimate Builder ───────────────────── */
+    .est-material-row {
+      display: grid;
+      grid-template-columns: 1fr 110px 30px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 7px;
+    }
+    .est-material-row input {
+      border: 1px solid #D8D0C8;
+      border-radius: 7px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
+      background: #FAFAF8;
+      outline: none;
+      font-family: inherit;
+      width: 100%;
+    }
+    .est-material-row input:focus {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(196,144,58,0.12);
+    }
+    .est-remove-btn {
+      width: 28px; height: 28px;
+      border: none;
+      background: #FEF0EE;
+      color: #C43030;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 17px;
+      line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.12s;
+      font-family: inherit;
+    }
+    .est-remove-btn:hover { background: #FCDAD6; }
+    .est-col-labels {
+      display: grid;
+      grid-template-columns: 1fr 110px 30px;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .est-col-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text3);
+    }
+    .mult-toggle {
+      display: flex;
+      gap: 0;
+      border: 1px solid #D8D0C8;
+      border-radius: 8px;
+      overflow: hidden;
+      width: fit-content;
+    }
+    .mult-btn {
+      padding: 9px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      color: #7A7268;
+      background: #FAFAF8;
+      border: none;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mult-btn:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .mult-btn.selected {
+      background: linear-gradient(135deg, #C9983A, #A07428);
+      color: #fff;
+    }
+    .est-total-box {
+      background: #F8F3EC;
+      border: 1px solid #E4D8C4;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+    .est-total-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 3px 0;
+    }
+    .est-total-row span:first-child { color: #7A7268; }
+    .est-total-row span:last-child  { color: var(--text); font-weight: 600; }
+    .est-total-divider {
+      border: none;
+      border-top: 1px solid #DDD5C8;
+      margin: 8px 0;
+    }
+    .est-total-final {
+      display: flex;
+      justify-content: space-between;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      border-top: 2px solid var(--accent);
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    .est-total-final span:first-child { color: #6A5A3A; }
+    .btn-green {
+      background: linear-gradient(135deg, #2E8050, #1E6038);
+      color: #fff;
+    }
+    .btn-green:hover { background: linear-gradient(135deg, #389060, #226840); }
+
+    /* ── Nav Scroll ─────────────────────────── */
+    .nav { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav-tab { flex-shrink: 0; }
+
+    /* ── Page header bar ────────────────────── */
+    .page-bar {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 18px; gap: 12px;
+    }
+    .page-title { font-size: 16px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .page-sub   { font-size: 12px; color: var(--text3); margin-top: 3px; }
+
+    /* ── Gmail Brief ─────────────────────────── */
+    .go-timestamp { font-size: 11px; color: #A8A098; }
+    .go-run-banner {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; background: var(--card-bg); border: 1px dashed #D0C8C0; border-radius: 12px;
+      padding: 40px 32px; text-align: center;
+    }
+    .go-run-hint { font-size: 12px; color: var(--text3); margin-top: 2px; }
+    .gmail-brief { display: flex; flex-direction: column; gap: 14px; }
+    .gb-priority-card {
+      background: linear-gradient(135deg, #FEF9EC 0%, #FDF2D5 100%);
+      border: 1.5px solid #F0C870;
+      border-radius: 14px;
+      padding: 18px 22px;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .gb-priority-icon { font-size: 24px; flex-shrink: 0; line-height: 1.2; margin-top: 2px; }
+    .gb-priority-inner { flex: 1; }
+    .gb-priority-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: #B07818; margin-bottom: 7px;
+    }
+    .gb-priority-text { font-size: 15px; font-weight: 600; color: #3A2E1E; line-height: 1.6; }
+    .gb-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 800px) { .gb-cards { grid-template-columns: 1fr; } }
+    .gb-card { background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden; }
+    .gb-card-head {
+      padding: 11px 16px; background: var(--card-head-bg);
+      border-bottom: 1px solid var(--bdr-light);
+      font-size: 12px; font-weight: 700; color: var(--text);
+    }
+    .gb-card-body { padding: 14px 16px; }
+    .gb-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    .gb-list li { font-size: 13px; color: var(--text); line-height: 1.55; padding-left: 14px; position: relative; }
+    .gb-list li::before { content: '•'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+    .gb-list li strong { color: var(--text); font-weight: 700; }
+    .gb-empty { font-size: 13px; color: var(--text3); font-style: italic; display: block; padding: 2px 0; }
+
+    /* ── Order Materials ─────────────────────── */
+    .materials-layout {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+      align-items: start;
+    }
+    .mat-supplier {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
+      overflow: hidden; margin-bottom: 14px;
+    }
+    .mat-sup-head {
+      padding: 11px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .mat-sup-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .mat-sup-url { font-size: 11px; color: var(--accent); text-decoration: none; }
+    .mat-sup-url:hover { text-decoration: underline; }
+    .mat-item {
+      display: grid; grid-template-columns: 22px 1fr 68px;
+      gap: 8px; align-items: center;
+      padding: 8px 16px; border-bottom: 1px solid #F4EFE8; transition: background 0.1s;
+    }
+    .mat-item:last-child { border-bottom: none; }
+    .mat-item:hover { background: #FDFAF5; }
+    .mat-item input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+    .mat-item label { font-size: 13px; color: var(--text); cursor: pointer; line-height: 1.4; }
+    .mat-item label.checked { color: var(--text3); text-decoration: line-through; }
+    .mat-item-qty {
+      padding: 4px 7px; border: 1px solid #D8D0C8; border-radius: 5px;
+      font-size: 12px; text-align: center; background: #fff; outline: none;
+      font-family: inherit; color: var(--text); width: 100%;
+    }
+    .mat-item-qty:focus { border-color: var(--accent); }
+    .mat-add-row { padding: 8px 16px 11px; display: flex; gap: 8px; align-items: center; }
+    .mat-add-input {
+      flex: 1; padding: 6px 10px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 13px; outline: none; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .mat-add-input:focus { border-color: var(--accent); }
+    .mat-order-panel {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
+      overflow: hidden; position: sticky; top: 20px;
+    }
+    .mat-order-head { padding: 13px 16px; background: #1E1C19; border-bottom: 1px solid #3A3530; }
+    .mat-order-title { font-size: 13px; font-weight: 700; color: var(--accent-light); }
+    .mat-order-sub   { font-size: 11px; color: #7A7268; margin-top: 2px; }
+    .mat-order-body  { padding: 12px 16px; min-height: 100px; }
+    .mat-order-sup   { font-size: 11px; font-weight: 700; color: #8A7A60; padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid #F0EBE3; }
+    .mat-order-item  { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #F8F3EC; font-size: 12.5px; }
+    .mat-order-item:last-child { border-bottom: none; }
+    .mat-order-empty { color: #B8B0A6; font-size: 12.5px; font-style: italic; padding: 4px 0; }
+    .mat-order-foot  { padding: 12px 16px; border-top: 1px solid #EEE6DC; background: #FDFAF6; }
+
+    /* ── Production ──────────────────────────── */
+    .prod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .prod-card { background: #fff; border: 1px solid #E4DDD4; border-radius: 12px; overflow: hidden; }
+    .prod-card-head {
+      padding: 12px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
+      font-size: 13px; font-weight: 700; color: var(--text);
+    }
+    .prod-card-body { padding: 16px; min-height: 100px; }
+    .prod-placeholder {
+      background: #F8F3EC; border: 1px dashed #D8C8A8; border-radius: 8px;
+      padding: 18px; text-align: center; color: #9A8860; font-size: 12.5px; line-height: 1.5;
+    }
+
+    /* ── Sales ───────────────────────────────── */
+    .sales-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+    .sales-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .sales-card  { background: #fff; border: 1px solid #E4DDD4; border-radius: 12px; overflow: hidden; }
+    .sales-card-head { padding: 12px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4; font-size: 13px; font-weight: 700; color: var(--text); }
+    .sales-card-body { padding: 16px; }
+    .sales-row-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #F4EFE8; font-size: 13px; }
+    .sales-row-item:last-child { border-bottom: none; }
+    .sales-row-name { font-weight: 600; color: var(--text); }
+    .sales-row-val  { color: #4A7A4A; font-weight: 700; font-size: 13px; }
+    .sales-bar-wrap { display: flex; flex-direction: column; gap: 11px; }
+    .sales-bar-row  { display: flex; flex-direction: column; gap: 4px; }
+    .sales-bar-lbl  { display: flex; justify-content: space-between; font-size: 12px; color: #5A5250; }
+    .sales-bar-track{ height: 8px; background: #F0EBE3; border-radius: 4px; overflow: hidden; }
+    .sales-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+    /* ── Notes ───────────────────────────────── */
+    .notes-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .notes-card {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
+      overflow: hidden; display: flex; flex-direction: column; min-height: 420px;
+    }
+    .notes-card-head {
+      padding: 12px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .notes-card-count { font-size: 11px; color: var(--text3); font-weight: 400; }
+    .notes-textarea {
+      flex: 1; padding: 14px 16px; border: none; outline: none; resize: none;
+      font-family: inherit; font-size: 13.5px; color: var(--text);
+      line-height: 1.7; background: #fff; min-height: 340px;
+    }
+    .notes-textarea::placeholder { color: #C0B8B0; font-style: italic; }
+    .notes-add-row {
+      padding: 10px 14px; border-top: 1px solid #EEE6DC;
+      display: flex; gap: 8px; align-items: center; background: #FDFAF6;
+    }
+    .notes-add-input {
+      flex: 1; padding: 7px 10px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 13px; outline: none; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .notes-add-input:focus { border-color: var(--accent); }
+    .notes-list { padding: 10px 14px; flex: 1; overflow-y: auto; }
+    .notes-list-item {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 8px 0; border-bottom: 1px solid #F4EFE8; font-size: 13px; color: var(--text);
+    }
+    .notes-list-item:last-child { border-bottom: none; }
+    .notes-list-item input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+    .notes-list-item.done .notes-item-text { color: var(--text3); text-decoration: line-through; }
+    .notes-item-text { flex: 1; line-height: 1.5; }
+    .notes-item-del { color: #C8C0B8; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
+    .notes-item-del:hover { color: #C43030; }
+    .notes-save-dot {
+      width: 7px; height: 7px; background: #6AB87A; border-radius: 50;
+      display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
+    }
+    .notes-save-dot.visible { opacity: 1; }
+
+    /* ── Supplier Order Tracker ─────────────────── */
+    #tab-supplier { padding: 0; }
+    .sot-layout {
+      display: flex;
+      height: calc(100vh - 116px);
+      overflow: hidden;
+    }
+    /* Left: Catalog */
+    .sot-catalog {
+      flex: 1 1 0;
+      overflow-y: auto;
+      padding: 20px 20px 80px;
+      border-right: 1px solid #E4DDD4;
+    }
+    .sot-catalog::-webkit-scrollbar { width: 5px; }
+    .sot-catalog::-webkit-scrollbar-track { background: #ECE7DF; }
+    .sot-catalog::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+    /* Right: Order panel */
+    .sot-order {
+      width: 310px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: #FDFAF6;
+      overflow: hidden;
+    }
+    .sot-order-head {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #E4DDD4;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .sot-order-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sot-order-badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 10px;
+    }
+    .sot-week-label {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+    .sot-clear-btn {
+      font-size: 11px;
+      color: #C43030;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      padding: 0;
+      margin-left: auto;
+    }
+    .sot-clear-btn:hover { text-decoration: underline; }
+    .sot-order-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+    }
+    .sot-order-scroll::-webkit-scrollbar { width: 4px; }
+    .sot-order-scroll::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+    .sot-empty {
+      text-align: center;
+      padding: 40px 16px;
+      color: #B8B0A6;
+      font-size: 12px;
+      font-style: italic;
+    }
+    /* Supplier section in catalog */
+    .sot-supplier-section {
+      margin-bottom: 18px;
+    }
+    .sot-supplier-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid #E4DDD4;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 6px;
+    }
+    .sot-supplier-head:hover { background: #FDFAF6; }
+    .sot-supplier-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+    }
+    .sot-supplier-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1;
+    }
+    .sot-supplier-count {
+      font-size: 11px;
+      color: var(--text3);
+    }
+    .sot-chevron {
+      font-size: 11px;
+      color: var(--text3);
+      transition: transform 0.2s;
+    }
+    .sot-supplier-section.collapsed .sot-chevron { transform: rotate(-90deg); }
+    .sot-supplier-body { }
+    .sot-supplier-section.collapsed .sot-supplier-body { display: none; }
+    /* Category group */
+    .sot-cat-group { margin-bottom: 4px; }
+    .sot-cat-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5C5650;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 5px;
+    }
+    .sot-cat-head:hover { background: #F0EBE3; }
+    .sot-cat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sot-cat-chevron { font-size: 9px; color: #B0A898; margin-left: auto; transition: transform 0.2s; }
+    .sot-cat-group.collapsed .sot-cat-chevron { transform: rotate(-90deg); }
+    .sot-cat-group.collapsed .sot-cat-items { display: none; }
+    .sot-cat-items { padding: 0 4px 4px 18px; }
+    /* Catalog item row */
+    .sot-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      transition: background 0.1s;
+      position: relative;
+    }
+    .sot-item:hover { background: #F5F0E8; }
+    .sot-item-cb {
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .sot-item-info { flex: 1; min-width: 0; }
+    .sot-item-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .sot-item-desc {
+      font-size: 11px;
+      color: #7A7268;
+      line-height: 1.3;
+      margin-top: 1px;
+    }
+    .sot-item-sku {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text2);
+      background: #F0EBE3;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-top: 2px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .sot-item-actions {
+      display: none;
+      gap: 4px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .sot-item:hover .sot-item-actions { display: flex; }
+    .sot-item-btn {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid #D8D0C8;
+      background: #fff;
+      color: #7A7268;
+      font-family: inherit;
+    }
+    .sot-item-btn:hover { border-color: var(--accent); color: #A07428; }
+    .sot-item-btn.del:hover { border-color: #C43030; color: #C43030; }
+    /* Search bar */
+    .sot-search-wrap {
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .sot-search {
+      width: 100%;
+      padding: 9px 12px 9px 34px;
+      border: 1px solid #D8D0C8;
+      border-radius: 8px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+    .sot-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196,144,58,0.1); }
+    .sot-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #B0A898;
+      font-size: 13px;
+      pointer-events: none;
+    }
+    /* Add item form */
+    .sot-add-form {
+      display: none;
+      background: #F8F5F0;
+      border: 1px solid #E4DDD4;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+    .sot-add-form.open { display: block; }
+    .sot-add-form input, .sot-add-form select {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #D8D0C8;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--text);
+      background: #fff;
+      font-family: inherit;
+      margin-bottom: 7px;
+      outline: none;
+    }
+    .sot-add-form input:focus, .sot-add-form select:focus {
+      border-color: var(--accent);
+    }
+    .sot-add-form-row {
+      display: flex;
+      gap: 6px;
+    }
+    .sot-add-supplier-btn {
+      margin-top: 16px;
+      width: 100%;
+      padding: 9px;
+      border: 1px dashed #C4B49A;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text3);
+      font-size: 12.5px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .sot-add-supplier-btn:hover { border-color: var(--accent); color: #A07428; background: #FDF9F3; }
+    /* Add supplier form */
+    .sot-add-supplier-form {
+      display: none;
+      background: #F8F5F0;
+      border: 1px solid #E4DDD4;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+    .sot-add-supplier-form.open { display: block; }
+    .sot-add-supplier-form input {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #D8D0C8;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--text);
+      background: #fff;
+      font-family: inherit;
+      margin-bottom: 7px;
+      outline: none;
+    }
+    .sot-add-supplier-form input:focus { border-color: var(--accent); }
+    /* Order panel items */
+    .sot-ord-supplier { margin-bottom: 12px; }
+    .sot-ord-sup-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+    .sot-ord-cat-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text2);
+      margin-bottom: 4px;
+      padding-left: 2px;
+    }
+    .sot-ord-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 6px;
+      background: #fff;
+      border: 1px solid #E8E3DB;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
+    .sot-ord-item-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .sot-ord-item-sku {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.3px;
+      line-height: 1.2;
+    }
+    .sot-ord-item-name {
+      font-size: 11px;
+      color: var(--text-muted, #888);
+      font-weight: 400;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    .sot-qty-wrap {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .sot-qty-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 1px solid #D0C8C0;
+      background: #F5F0E8;
+      color: #5C5650;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      font-family: inherit;
+    }
+    .sot-qty-btn:hover { background: #EDE7DC; }
+    .sot-qty-val {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      min-width: 18px;
+      text-align: center;
+    }
+    .sot-ord-remove {
+      color: #C4A898;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      padding: 0 2px;
+    }
+    .sot-ord-remove:hover { color: #C43030; }
+    /* Order footer */
+    .sot-order-foot {
+      padding: 12px 14px;
+      border-top: 1px solid #E4DDD4;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .sot-notes-ta {
+      width: 100%;
+      border: 1px solid #D8D0C8;
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text);
+      background: #FAFAF8;
+      resize: none;
+      height: 60px;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .sot-notes-ta:focus { border-color: var(--accent); }
+    .sot-foot-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .sot-foot-btn {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #D8D0C8;
+      background: #fff;
+      color: #5C5650;
+      font-family: inherit;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .sot-foot-btn:hover { border-color: var(--accent); color: #A07428; }
+    .sot-foot-btn.primary {
+      background: linear-gradient(135deg, #C9983A, #A07428);
+      border-color: transparent;
+      color: #fff;
+    }
+    .sot-foot-btn.primary:hover { background: linear-gradient(135deg, #D8A840, #B08030); }
+    /* Rio Grande quick-add panel */
+    .sot-rg-panel {
+      display: none;
+      background: #EFF7FF;
+      border: 1px solid #C0D8F0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .sot-rg-panel.open { display: block; }
+    .sot-rg-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #2860A0;
+      margin-bottom: 8px;
+    }
+    .sot-rg-link {
+      font-size: 11px;
+      color: #3070C0;
+      text-decoration: none;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+    .sot-rg-link:hover { text-decoration: underline; }
+    .sot-rg-panel input, .sot-rg-panel select {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #C0D8F0;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--text);
+      background: #fff;
+      font-family: inherit;
+      margin-bottom: 7px;
+      outline: none;
+    }
+    .sot-rg-panel input:focus, .sot-rg-panel select:focus { border-color: #3070C0; }
+    /* Edit modal */
+    .sot-modal-bg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    .sot-modal-bg.open { display: flex; }
+    .sot-modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      width: 380px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+    }
+    .sot-modal h3 {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .sot-modal input, .sot-modal select {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1px solid #D8D0C8;
+      border-radius: 7px;
+      font-size: 13px;
+      color: var(--text);
+      background: #FAFAF8;
+      font-family: inherit;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    .sot-modal input:focus, .sot-modal select:focus { border-color: var(--accent); }
+    .sot-modal-row { display: flex; gap: 8px; margin-top: 4px; }
+
+    /* ── Theme Switcher UI ──────────────────── */
+    .theme-wrap { position: relative; margin-right: 4px; }
+    .theme-btn {
+      background: none; border: none; cursor: pointer; font-size: 15px;
+      padding: 5px 9px; border-radius: 8px; color: var(--text-dim);
+      transition: background 0.15s; line-height: 1; display: flex; align-items: center;
+    }
+    .theme-btn:hover { background: var(--hdr-pill); }
+    .theme-picker {
+      display: none; position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--hdr); border: 1px solid var(--hdr-bdr);
+      border-radius: 12px; padding: 8px; gap: 4px;
+      flex-direction: column; z-index: 600;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45); min-width: 138px;
+    }
+    .theme-picker.open { display: flex; }
+    .theme-swatch {
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+      padding: 7px 10px; border-radius: 8px; border: 1.5px solid transparent;
+      transition: background 0.1s;
+    }
+    .theme-swatch:hover { background: var(--hdr-pill); }
+    .theme-swatch.active { border-color: var(--accent); }
+    .theme-dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; border: 1.5px solid rgba(255,255,255,0.12); }
+    .theme-name { font-size: 12.5px; color: #C8C0B8; font-weight: 500; }
+
+    /* ── Themes ─────────────────────────────── */
+    body.theme-sage {
+      --bg: #EEF4EC; --hdr: #253522; --nav: #2B3D28; --subnav: #1F2F1C;
+      --hdr-pill: #2F4028; --hdr-bdr: #3A5235;
+      --accent: #5B8C50; --accent-mid: #7AAD70; --accent-light: #B0D4A8;
+      --accent-bg: #EBF5E8; --accent-border: #B8D8B0;
+      --bdr: #C8DECC; --bdr-light: #D8ECD8;
+      --card-head-bg: #F4FAF3;
+    }
+    body.theme-coast {
+      --bg: #EBF0F8; --hdr: #1C2A48; --nav: #223254; --subnav: #182240;
+      --hdr-pill: #1E2E54; --hdr-bdr: #2E4070;
+      --accent: #3A70C0; --accent-mid: #6090D8; --accent-light: #A0C0E8;
+      --accent-bg: #EAF2FD; --accent-border: #B0CCEE;
+      --bdr: #C8D8EE; --bdr-light: #D8E8F8;
+      --card-head-bg: #F4F8FE;
+    }
+    body.theme-midnight {
+      --bg: #1A1A1C; --hdr: #0F0F11; --nav: #141416; --subnav: #101012;
+      --hdr-pill: #1E1E22; --hdr-bdr: #2C2C30;
+      --accent: #D4A040; --accent-mid: #E0B860; --accent-light: #F0D498;
+      --accent-bg: #28221A; --accent-border: #4A3820;
+      --card-bg: #242428; --card-head-bg: #2A2A2E;
+      --bdr: #38383C; --bdr-light: #2E2E32;
+      --text: #E8E0D4; --text2: #9A9298; --text3: #7A7278; --text-dim: #6A6868;
+    }
+    /* Midnight: key card backgrounds */
+    body.theme-midnight .stat-card,
+    body.theme-midnight .gb-card,
+    body.theme-midnight .k-card,
+    body.theme-midnight .cust-card,
+    body.theme-midnight .d-panel,
+    body.theme-midnight .d-section,
+    body.theme-midnight .mat-supplier,
+    body.theme-midnight .mat-order-panel,
+    body.theme-midnight .prod-card,
+    body.theme-midnight .sot-card,
+    body.theme-midnight .order-form-card,
+    body.theme-midnight .notes-card { background: var(--card-bg) !important; border-color: var(--bdr) !important; }
+    body.theme-midnight .k-col { background: #1E1E22 !important; border-color: var(--bdr) !important; }
+    body.theme-midnight .k-head { background: var(--card-head-bg) !important; border-color: var(--bdr) !important; }
+    body.theme-midnight .gb-priority-card { background: linear-gradient(135deg,#2A2418 0%,#241F14 100%) !important; border-color: #4A3820 !important; }
+    body.theme-midnight .gb-priority-label { color: #D4A040; }
+    body.theme-midnight .gb-priority-text { color: var(--text); }
+    body.theme-midnight .go-run-banner { background: var(--card-bg); border-color: var(--bdr); }
+    body.theme-midnight input, body.theme-midnight select, body.theme-midnight textarea {
+      background: #1E1E22 !important; border-color: var(--bdr) !important; color: var(--text) !important;
+    }
+    body.theme-midnight .page-bar { border-color: var(--bdr); }
+
+
+  /* ── Order History Tab ──────────────────── */
+  .oh-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .oh-stat {
+    background: #fff;
+    border: 1px solid var(--bdr);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .oh-stat .v { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.2; }
+  .oh-stat .l { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; font-weight: 600; }
+  .oh-stat.due .v { color: #dc2626; }
+  .oh-stat.blue .v { color: #2563eb; }
+  .oh-controls {
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 14px;
+  }
+  .oh-fbtn {
+    padding: 5px 13px;
+    border: 1px solid var(--bdr);
+    border-radius: 20px;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-family: inherit;
+    transition: all 0.12s;
+  }
+  .oh-fbtn:hover { background: var(--bg); }
+  .oh-fbtn.active { background: var(--hdr); color: #fff; border-color: var(--hdr); }
+  .oh-fbtn[data-sup="Rio Grande"].active { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .oh-fbtn[data-sup="Stuller"].active    { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+  .oh-fbtn[data-sup="Gesswein"].active   { background: #059669; border-color: #059669; color: #fff; }
+  .oh-sep { width: 1px; height: 22px; background: var(--bdr); margin: 0 2px; flex-shrink: 0; }
+  .oh-table-wrap {
+    background: #fff;
+    border: 1px solid var(--bdr);
+    border-radius: 12px;
+    overflow: hidden;
+    overflow-x: auto;
+  }
+  .oh-table { width: 100%; border-collapse: collapse; min-width: 680px; }
+  .oh-table thead { background: var(--card-head-bg); }
+  .oh-table th {
+    text-align: left;
+    padding: 9px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--bdr-light);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .oh-table th:hover { color: var(--text); }
+  .oh-table th.sorted { color: var(--text); }
+  .oh-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--bdr-light);
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  .oh-table tr:last-child td { border-bottom: none; }
+  .oh-table tr:hover td { background: var(--accent-bg); }
+  .oh-sup { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; }
+  .oh-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .oh-dot-rg       { background: #2563eb; }
+  .oh-dot-stuller  { background: #7c3aed; }
+  .oh-dot-gesswein { background: #059669; }
+  .oh-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 700; }
+  .oh-s-processing { background: #f1f5f9; color: #475569; }
+  .oh-s-paid       { background: #dcfce7; color: #15803d; }
+  .oh-s-due        { background: #fee2e2; color: #b91c1c; }
+  .oh-s-delivered  { background: #dbeafe; color: #1d4ed8; }
+  .oh-mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11.5px; color: var(--text-dim); }
+  .oh-amt  { font-family: 'SF Mono', 'Consolas', monospace; font-weight: 700; font-size: 12.5px; color: var(--text); }
+  .oh-na   { color: #ccc; font-style: italic; font-size: 11px; }
+  .oh-new  { background: #fef3c7; color: #b45309; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+  .oh-empty { text-align: center; padding: 32px; color: var(--text-dim); font-size: 13px; }
+  .oh-edit-btn { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px; opacity: 0.4; transition: opacity .15s; }
+  .oh-edit-btn:hover { opacity: 1; }
+  .oh-imp-sup-sel { padding: 4px 8px; border: 1px solid var(--bdr); border-radius: 6px; font-size: 12px; background: var(--card); color: var(--text); cursor: pointer; }
+  .oh-bulk-bar { display: none; align-items: center; gap: 10px; padding: 8px 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #92400e; }
+  .oh-bulk-bar.visible { display: flex; }
+  .oh-table tr.oh-selected td { background: #eff6ff !important; }
+  body.theme-midnight .oh-bulk-bar { background: #1e293b; border-color: #f59e0b; color: #fcd34d; }
+  body.theme-midnight .oh-table tr.oh-selected td { background: #1e3a5f !important; }
+  .oh-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .oh-title { font-size: 15px; font-weight: 700; }
+  .oh-refresh-lbl { font-size: 11px; color: var(--text-dim); }
+  .oh-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
+
+  </style>
+</head>
+<body>
+
+
+<!-- Header -->
+<div class="header">
+  <div class="logo-mark">💎</div>
+  <div>
+    <span class="logo-text">Stones Throw Studio</span>
+    <span class="logo-sub">Order Workflow</span>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="theme-wrap">
+    <button class="theme-btn" onclick="toggleThemePicker()" title="Change color theme">🎨</button>
+    <div class="theme-picker" id="themePicker">
+      <div class="theme-swatch active" data-theme="" onclick="setTheme('')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,var(--accent) 50%)"></div>
+        <span class="theme-name">Warm</span>
+      </div>
+      <div class="theme-swatch" data-theme="sage" onclick="setTheme('sage')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EEF4EC 50%,#5B8C50 50%)"></div>
+        <span class="theme-name">Sage</span>
+      </div>
+      <div class="theme-swatch" data-theme="coast" onclick="setTheme('coast')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EBF0F8 50%,#3A70C0 50%)"></div>
+        <span class="theme-name">Coast</span>
+      </div>
+      <div class="theme-swatch" data-theme="midnight" onclick="setTheme('midnight')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#1A1A1C 50%,#D4A040 50%)"></div>
+        <span class="theme-name">Midnight</span>
+      </div>
+    </div>
+  </div>
+  <div class="header-pill">
+    <span class="dot"></span>
+    <span>Notion + ClickUp + Gmail connected</span>
+  </div>
+</div>
+
+<!-- Nav -->
+<div class="nav">
+  <div class="nav-tab active" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
+    ✏️ Custom Orders <span class="nav-badge" id="badge-active">6</span>
+  </div>
+  <div class="nav-tab" data-tab="gmail" onclick="switchTab('gmail',this)">
+    📧 Gmail
+  </div>
+  <div class="nav-tab" data-tab="production" onclick="switchTab('production',this)">
+    🔨 Production
+  </div>
+  <div class="nav-tab" data-tab="sales" onclick="switchTab('sales',this)">
+    📊 Sales
+  </div>
+  <div class="nav-tab" data-tab="notes" onclick="switchTab('notes',this)">
+    📝 Notes
+  </div>
+  <div class="nav-tab" data-parent="supplies" onclick="switchParent('supplies',this)">
+    📦 Supplies
+  </div>
+</div>
+
+<!-- Sub-nav (Custom Orders) -->
+<div class="sub-nav active" id="sub-nav-custom-orders">
+  <div class="sub-nav-tab active" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
+    📋 Orders <span class="nav-badge" id="badge-active-sub"></span>
+  </div>
+  <div class="sub-nav-tab" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+    ＋ New Order
+  </div>
+  <div class="sub-nav-tab" data-tab="customers" onclick="switchSubTab('customers',this)">
+    👥 Customers
+  </div>
+</div>
+
+<!-- Sub-nav (Supplies) -->
+<div class="sub-nav" id="sub-nav-supplies">
+  <div class="sub-nav-tab active" data-tab="supplier" onclick="switchSubTab('supplier',this);ohInitSupplier()">
+    📦 Order Materials
+  </div>
+  <div class="sub-nav-tab" data-tab="order-history" onclick="switchSubTab('order-history',this);ohInitHistory()">
+    📋 Order History
+  </div>
+</div>
+
+<!-- ═══════════════════ DASHBOARD ═══════════════════ -->
+<div class="content">
+<div id="tab-dashboard" class="tab-panel active">
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon si-gold">📋</div>
+      <div>
+        <div class="stat-label">Active Orders</div>
+        <div class="stat-value" id="stat-active">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon si-red">⏰</div>
+      <div>
+        <div class="stat-label">Due ≤ 7 Days</div>
+        <div class="stat-value" id="stat-due">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon si-purple">📦</div>
+      <div>
+        <div class="stat-label">Awaiting Materials</div>
+        <div class="stat-value" id="stat-materials">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon si-green">🔨</div>
+      <div>
+        <div class="stat-label">At the Bench</div>
+        <div class="stat-value" id="stat-bench">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kanban-bar">
+    <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced from ClickUp</span></span>
+    <div class="kanban-actions">
+      <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
+      <button class="btn btn-ghost btn-sm" onclick="syncGmail()">⟳ Sync Gmail</button>
+      <button class="btn btn-ghost btn-sm" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
+      <button class="btn btn-ghost btn-sm" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ Add Order</button>
+    </div>
+  </div>
+
+  <div class="kanban-board" id="kanbanBoard"></div>
+
+</div>
+
+<!-- ═══════════════════ NEW ORDER ═══════════════════ -->
+<div id="tab-new-order" class="tab-panel">
+  <div class="form-wrap">
+    <div class="form-card">
+      <div class="form-head">
+        <div class="form-head-title">Order Intake</div>
+        <div class="form-head-sub">Submitting creates a ClickUp task + Notion record automatically.</div>
+      </div>
+      <div class="form-body">
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Order Type</div>
+          <div class="order-type-toggle">
+            <button class="ot-option selected" id="ot-order" onclick="setOrderType('order')">
+              💍 Custom Order
+            </button>
+            <button class="ot-option estimate" id="ot-estimate" onclick="setOrderType('estimate')">
+              📋 Estimate Request
+            </button>
+            <button class="ot-option repair" id="ot-repair" onclick="setOrderType('repair')">
+              🔧 Repair
+            </button>
+          </div>
+          <div class="ot-hint" id="ot-hint">Will be placed in the <strong>Inquiry</strong> column.</div>
+        </div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>Customer Name *</label>
+            <input type="text" id="f-name" placeholder="e.g. Sarah Johnson">
+          </div>
+          <div class="fg">
+            <label>Email</label>
+            <input type="email" id="f-email" placeholder="sarah@example.com">
+          </div>
+          <div class="fg">
+            <label>Phone</label>
+            <input type="tel" id="f-phone" placeholder="(512) 555-0100">
+          </div>
+          <div class="fg">
+            <label>Take In Date</label>
+            <input type="date" id="f-takein">
+          </div>
+          <div class="fg">
+            <label>Deadline</label>
+            <input type="date" id="f-deadline">
+          </div>
+          <div class="fg">
+            <label>Pickup Location</label>
+            <select id="f-pickup">
+              <option value="">— Select location —</option>
+              <option value="Bell Market">Bell Market</option>
+              <option value="Mueller Market">Mueller Market</option>
+              <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+              <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+              <option value="Austin Flea">Austin Flea</option>
+              <option value="Studio">Studio</option>
+              <option value="To be Shipped">📦 To be Shipped</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Contacted Via</label>
+            <select id="f-source">
+              <option value="">— Select source —</option>
+              <option value="Email">Email</option>
+              <option value="Farmer's Market">Farmer's Market</option>
+              <option value="Shopify Email">Shopify Email</option>
+              <option value="Etsy Message">Etsy Message</option>
+              <option value="Instagram Message">Instagram Message</option>
+              <option value="Text Message">Text Message</option>
+              <option value="Facebook Message">Facebook Message</option>
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Order Description *</label>
+            <textarea id="f-description" placeholder="Describe the piece — type, style, size, stone, any inspiration or reference images…"></textarea>
+          </div>
+          <div class="fg">
+            <label>Materials / Metal</label>
+            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+          </div>
+          <div class="fg">
+            <label>Quoted Price ($)</label>
+            <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0">
+          </div>
+          <div class="fg full">
+            <label>Internal Notes</label>
+            <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:60px;"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <button class="btn btn-gold" onclick="submitOrder()">✓ Create Order</button>
+        <button class="btn btn-outline" onclick="openGmailPanel()">✉ Pull from Gmail</button>
+        <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in ClickUp <strong>Custom Orders</strong> + Notion</span>
+      </div>
+    </div>
+
+  <!-- Estimate Builder Card -->
+  <div class="form-card" style="margin-top:16px;" id="estimateBuilderCard">
+    <div class="form-head">
+      <div class="form-head-title">💰 Estimate Builder</div>
+      <div class="form-head-sub">Add materials + labor, choose your markup, then approve and send a draft to Square.</div>
+    </div>
+    <div class="form-body">
+
+      <!-- Materials -->
+      <div style="margin-bottom:22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;">Materials</div>
+          <button class="btn btn-ghost btn-sm" onclick="addMaterialRow()">＋ Add Line</button>
+        </div>
+        <div class="est-col-labels">
+          <div class="est-col-label">Description</div>
+          <div class="est-col-label">Cost ($)</div>
+          <div class="est-col-label"></div>
+        </div>
+        <div id="est-materials"></div>
+      </div>
+
+      <!-- Labor -->
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Labor</div>
+        <div style="max-width:220px;">
+          <div class="fg">
+            <input type="number" id="est-labor" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Multiplier -->
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Markup Multiplier</div>
+        <div class="mult-toggle">
+          <button class="mult-btn selected" id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
+          <button class="mult-btn"          id="mult-3"   onclick="setMultiplier(3)">3×</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
+          (Materials + Labor) × 2.5
+        </div>
+      </div>
+
+      <!-- Total breakdown -->
+      <div class="est-total-box">
+        <div class="est-total-row">
+          <span>Materials Total</span>
+          <span id="est-mat-total">$0.00</span>
+        </div>
+        <div class="est-total-row">
+          <span>Labor</span>
+          <span id="est-labor-display">$0.00</span>
+        </div>
+        <hr class="est-total-divider">
+        <div class="est-total-row">
+          <span>Subtotal</span>
+          <span id="est-subtotal">$0.00</span>
+        </div>
+        <div class="est-total-row" style="margin-top:2px;">
+          <span id="est-mult-label">× 2.5 markup</span>
+          <span></span>
+        </div>
+        <div class="est-total-final">
+          <span>Final Estimate</span>
+          <span id="est-final">$0.00</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="form-foot">
+      <button class="btn btn-green" onclick="approveEstimate()">✓ Approve &amp; Send to Square</button>
+      <button class="btn btn-ghost" onclick="clearEstimate()">Clear Estimate</button>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates a draft estimate in Square for your review</span>
+    </div>
+  </div>
+</div><!-- /form-wrap -->
+</div><!-- /tab-new-order -->
+
+<!-- ═══════════════════ CUSTOMERS ═══════════════════ -->
+<div id="tab-customers" class="tab-panel">
+  <div class="cust-bar">
+    <div class="search-box">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" placeholder="Search customers…" oninput="filterCustomers(this.value)" id="custSearch">
+    </div>
+    <button class="btn btn-gold btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ New Order</button>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="cust-subtabs" id="custSubtabs">
+    <button class="cst-tab active" data-cst="current"    onclick="switchCustTab('current',this)">Current <span class="cst-count" id="cst-cnt-current">0</span></button>
+    <button class="cst-tab"        data-cst="all"        onclick="switchCustTab('all',this)">All <span class="cst-count" id="cst-cnt-all">0</span></button>
+    <button class="cst-tab"        data-cst="repeat"     onclick="switchCustTab('repeat',this)">Repeat <span class="cst-count" id="cst-cnt-repeat">0</span></button>
+    <button class="cst-tab"        data-cst="new60"      onclick="switchCustTab('new60',this)">New (60 days) <span class="cst-count" id="cst-cnt-new60">0</span></button>
+    <button class="cst-tab"        data-cst="followup"   onclick="switchCustTab('followup',this)">Needs Follow-up <span class="cst-count" id="cst-cnt-followup">0</span></button>
+  </div>
+
+  <div class="cust-table">
+    <div class="ct-head">
+      <div class="ct-th">Customer</div>
+      <div class="ct-th">Active Orders</div>
+      <div class="ct-th">Last Contact</div>
+      <div class="ct-th">Total Orders</div>
+      <div class="ct-th">Value</div>
+    </div>
+    <div id="custTableBody"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ GMAIL OVERVIEW ═══════════════════ -->
+<div id="tab-gmail" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">📧 Gmail Overview</div>
+      <div class="page-sub">Auto-loaded from your 6 AM scheduled brief</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="go-timestamp" id="gmail-last-run"></span>
+      <button class="btn btn-ghost btn-sm" onclick="runGmailOverview()">⟳ Re-run Now</button>
+    </div>
+  </div>
+
+  <div class="go-run-banner" id="go-run-banner">
+    <div style="font-size:32px;">📧</div>
+    <div style="font-size:14px;font-weight:700;color:var(--text);">Today's brief not loaded yet</div>
+    <div class="go-run-hint">Runs automatically at 6 AM on weekdays. You can also trigger it manually.</div>
+    <button class="btn btn-gold" style="margin-top:4px;" onclick="runGmailOverview()">▶ Run Now</button>
+  </div>
+
+  <div class="gmail-brief" id="go-grid" style="display:none;">
+    <div class="gb-priority-card">
+      <div class="gb-priority-icon">⚠️</div>
+      <div class="gb-priority-inner">
+        <div class="gb-priority-label">Today's Priority</div>
+        <div class="gb-priority-text" id="go-priority"></div>
+      </div>
+    </div>
+    <div class="gb-cards">
+      <div class="gb-card">
+        <div class="gb-card-head">👥 Customer Emails</div>
+        <div class="gb-card-body" id="go-customers"></div>
+      </div>
+      <div class="gb-card">
+        <div class="gb-card-head">📬 Business</div>
+        <div class="gb-card-body" id="go-business"></div>
+      </div>
+      <div class="gb-card">
+        <div class="gb-card-head">🛒 Sales &amp; Transactions</div>
+        <div class="gb-card-body" id="go-sales-gmail"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PRODUCTION ═══════════════════ -->
+<div id="tab-production" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">🔨 Production</div>
+      <div class="page-sub">Orders currently being worked on or ready to hand off</div>
+    </div>
+  </div>
+  <div class="prod-grid" id="prodGrid">
+    <!-- rendered by renderProduction() -->
+  </div>
+</div>
+
+<!-- ═══════════════════ SALES ═══════════════════ -->
+<div id="tab-sales" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">📊 Sales</div>
+      <div class="page-sub">Revenue summary pulled from your order data</div>
+    </div>
+  </div>
+  <div id="salesContent"><!-- rendered by renderSales() --></div>
+</div>
+
+<!-- ═══════════════════ NOTES ═══════════════════ -->
+<div id="tab-notes" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">📝 Notes</div>
+      <div class="page-sub">Studio notes &amp; to-dos — saved automatically</div>
+    </div>
+    <span class="notes-save-dot" id="notesDot"></span>
+  </div>
+  <div class="notes-layout">
+
+    <!-- Card 1: Studio Notes (freeform) -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        📓 Studio Notes
+      </div>
+      <textarea class="notes-textarea" id="notes-general"
+        placeholder="Reminders, ideas, work-in-progress thoughts…"
+        oninput="saveNote('notes-general')"></textarea>
+    </div>
+
+    <!-- Card 2: To-Do checklist -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        ✅ To-Do
+        <span class="notes-card-count" id="todo-count"></span>
+      </div>
+      <div class="notes-list" id="todo-list"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="todo-input" type="text"
+          placeholder="Add a task…"
+          onkeydown="if(event.key==='Enter') addNoteItem('todo')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('todo')">Add</button>
+      </div>
+    </div>
+
+    <!-- Card 3: Follow-ups checklist -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        📞 Follow-ups
+        <span class="notes-card-count" id="followup-count"></span>
+      </div>
+      <div class="notes-list" id="followup-list"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="followup-input" type="text"
+          placeholder="Add a follow-up…"
+          onkeydown="if(event.key==='Enter') addNoteItem('followup')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('followup')">Add</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════ ORDER MATERIALS ═══════════════════ -->
+<!-- ═══════════════════ SUPPLIER ORDER TRACKER ═══════════════════ -->
+<div id="tab-supplier" class="tab-panel">
+  <div class="sot-layout">
+
+    <!-- LEFT: Catalog -->
+    <div class="sot-catalog" id="sotCatalog">
+      <div class="sot-search-wrap">
+        <span class="sot-search-icon">&#128269;</span>
+        <input class="sot-search" id="sotSearch" type="text" placeholder="Search items or paste a Rio Grande item #…" oninput="sotSearch(this.value)" autocomplete="off">
+      </div>
+      <!-- Rio Grande quick-add panel -->
+      <div class="sot-rg-panel" id="sotRgPanel">
+        <div class="sot-rg-title">&#128279; Rio Grande Item Detected</div>
+        <a class="sot-rg-link" id="sotRgLink" href="#" target="_blank">View on Rio Grande &#8599;</a>
+        <input id="sotRgName" type="text" placeholder="Item name…">
+        <input id="sotRgDesc" type="text" placeholder="Description (gauge, unit, etc.)…">
+        <select id="sotRgCat">
+          <option value="">— Category —</option>
+          <option>Metals — Wire</option>
+          <option>Metals — Sheet &amp; Stock</option>
+          <option>Chains</option>
+          <option>Findings &amp; Clasps</option>
+          <option>Gemstones</option>
+          <option>Bench Tools &amp; Supplies</option>
+        </select>
+        <button class="btn btn-gold btn-sm" onclick="sotRgAdd()" style="width:100%">&#65291; Add to Catalog</button>
+      </div>
+      <!-- Supplier sections rendered by JS -->
+      <div id="sotCatalogInner"></div>
+      <!-- Add supplier button -->
+      <button class="sot-add-supplier-btn" id="sotAddSupBtn" onclick="sotToggleAddSupplier()">&#65291; Add another supplier</button>
+      <div class="sot-add-supplier-form" id="sotAddSupForm">
+        <input id="sotNewSupName" type="text" placeholder="Supplier name…">
+        <input id="sotNewSupColor" type="color" value="#888888" style="height:34px;padding:2px 6px;">
+        <div class="sot-add-form-row">
+          <button class="btn btn-gold btn-sm" onclick="sotAddSupplier()">Add Supplier</button>
+          <button class="btn btn-outline btn-sm" onclick="sotToggleAddSupplier()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Order Panel -->
+    <div class="sot-order">
+      <div class="sot-order-head">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="sot-order-title">
+            This Week&#39;s Order
+            <span class="sot-order-badge" id="sotOrderBadge">0</span>
+          </div>
+          <button class="sot-clear-btn" onclick="sotClearOrder()">Clear</button>
+        </div>
+        <div class="sot-week-label" id="sotWeekLabel"></div>
+      </div>
+      <div class="sot-order-scroll" id="sotOrderList">
+        <div class="sot-empty" id="sotEmptyState">No items checked yet.<br>Check items in the catalog to build your order.</div>
+      </div>
+      <div class="sot-order-foot">
+        <textarea class="sot-notes-ta" id="sotNotes" placeholder="Order notes…" oninput="sotSaveNotes()"></textarea>
+        <div class="sot-foot-row">
+          <button class="sot-foot-btn primary" onclick="sotPrint()">&#128424; Print</button>
+          <button class="sot-foot-btn" onclick="sotCopy()">&#128203; Copy</button>
+        </div>
+        <div class="sot-foot-row" style="margin-top:6px">
+          <button class="sot-foot-btn" onclick="sotBackup()">&#8659; Backup</button>
+          <label class="sot-foot-btn" style="cursor:pointer">&#8657; Restore<input type="file" accept=".json" style="display:none" onchange="sotRestore(event)"></label>
+        </div>
+        <div class="sot-foot-row" style="margin-top:6px">
+          <button class="sot-foot-btn primary" onclick="sotSaveNotion()" id="sotNotionSaveBtn">&#9729; Save to Notion</button>
+          <button class="sot-foot-btn" onclick="sotLoadNotion()" id="sotNotionLoadBtn">&#9729; Load from Notion</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order History Tab -->
+<div id="tab-order-history" class="tab-panel">
+  <div class="oh-head-row">
+    <div class="oh-title">Supplier Order History</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="oh-refresh-lbl" id="ohTs"></div>
+      <select id="ohImportSupplier" class="oh-imp-sup-sel" title="Supplier for this import">
+        <option value="">Auto-detect supplier</option>
+        <option value="Rio Grande">Rio Grande</option>
+        <option value="Stuller">Stuller</option>
+        <option value="Gesswein">Gesswein</option>
+      </select>
+      <label class="btn btn-outline btn-sm" title="Import orders from a CSV file" style="cursor:pointer">
+        ⬆ Import CSV
+        <input type="file" id="ohCsvInput" accept=".csv" style="display:none">
+      </label>
+      <button class="btn btn-outline btn-sm" id="ohCsvHelpBtn" title="Show expected CSV format">?</button>
+      <button class="btn btn-outline btn-sm" id="ohNotionLoadBtn">☁ Load from Notion</button>
+      <button class="btn btn-outline btn-sm" id="ohNotionSaveBtn">☁ Save to Notion</button>
+      <button class="btn btn-gold btn-sm" id="ohAddBtn">＋ Add Order</button>
+    </div>
+  </div>
+
+  <div class="oh-stats">
+    <div class="oh-stat">
+      <div class="v" id="oh-total">—</div>
+      <div class="l">Total Spent</div>
+    </div>
+    <div class="oh-stat">
+      <div class="v" id="oh-count">—</div>
+      <div class="l">Total Orders</div>
+    </div>
+    <div class="oh-stat due">
+      <div class="v" id="oh-due">—</div>
+      <div class="l">Outstanding / Due</div>
+    </div>
+    <div class="oh-stat blue">
+      <div class="v" id="oh-month">—</div>
+      <div class="l">This Month</div>
+    </div>
+  </div>
+
+  <div class="oh-controls">
+    <div id="ohSf" style="display:flex;gap:4px;">
+      <button class="oh-fbtn active" data-sup="all">All Suppliers</button>
+      <button class="oh-fbtn" data-sup="Rio Grande">Rio Grande</button>
+      <button class="oh-fbtn" data-sup="Stuller">Stuller</button>
+      <button class="oh-fbtn" data-sup="Gesswein">Gesswein</button>
+    </div>
+    <div class="oh-sep"></div>
+    <div id="ohStf" style="display:flex;gap:4px;">
+      <button class="oh-fbtn active" data-st="all">All</button>
+      <button class="oh-fbtn" data-st="Processing">Processing</button>
+      <button class="oh-fbtn" data-st="Paid">Paid</button>
+      <button class="oh-fbtn" data-st="Due">Due</button>
+      <button class="oh-fbtn" data-st="Delivered">Delivered</button>
+    </div>
+    <div class="oh-sep"></div>
+    <select id="ohYearFilter" class="oh-imp-sup-sel" title="Filter by year"></select>
+  </div>
+
+  <div class="oh-bulk-bar" id="ohBulkBar">
+    <span id="ohBulkCount">0 selected</span>
+    <button class="btn btn-danger btn-sm" onclick="ohDeleteSelected()">🗑 Delete Selected</button>
+    <button class="btn btn-outline btn-sm" onclick="ohClearSelection()">Clear</button>
+  </div>
+
+  <div class="oh-table-wrap">
+    <table class="oh-table">
+      <thead>
+        <tr>
+          <th style="width:32px;padding:0 8px"><input type="checkbox" id="ohSelectAll" title="Select all"></th>
+          <th data-ohcol="d">Date</th>
+          <th data-ohcol="s">Supplier</th>
+          <th data-ohcol="o">Order #</th>
+          <th data-ohcol="inv">Invoice #</th>
+          <th data-ohcol="amt">Amount</th>
+          <th data-ohcol="st">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ohTbody">
+        <tr><td colspan="8" class="oh-empty">Loading orders…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="oh-note" id="ohNote"></div>
+</div>
+
+<!-- Order Card Edit Modal -->
+<div class="sot-modal-bg" id="editOrderModalBg" onclick="if(event.target===this)closeEditOrderModal()">
+  <div class="sot-modal" style="max-width:480px;max-height:90vh;display:flex;flex-direction:column">
+    <h3 style="flex-shrink:0">✏️ Edit Order</h3>
+    <div style="flex:1;overflow-y:auto;padding-right:4px">
+    <input type="hidden" id="eo-id">
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Customer Name</label>
+    <input id="eo-name" type="text" placeholder="Customer name">
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Item</label>
+    <input id="eo-desc" type="text" placeholder="e.g. Custom ring, Bracelet repair">
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Stage</label>
+    <select id="eo-stage">
+      <optgroup label="── Intake ──">
+        <option value="intake-custom">Custom Intake</option>
+        <option value="intake-repair">Repair Intake</option>
+      </optgroup>
+      <optgroup label="── Repairs ──">
+        <option value="repair">Repairs</option>
+      </optgroup>
+      <optgroup label="── Sketch ──">
+        <option value="sketch-needs">Needs Sketch</option>
+        <option value="sketch-wait">Waiting on Sketch Approval</option>
+        <option value="sketch">Sketch Approved</option>
+      </optgroup>
+      <optgroup label="── Estimating ──">
+        <option value="needs-est">Needs Estimate</option>
+        <option value="quote">Estimate Sent</option>
+        <option value="est-appr">Estimate Approved</option>
+      </optgroup>
+      <optgroup label="── Production ──">
+        <option value="order-mat">Order Materials</option>
+        <option value="materials">Waiting on Materials</option>
+        <option value="build">At the Bench</option>
+        <option value="ready-pick">Ready for Pickup</option>
+      </optgroup>
+    </select>
+
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Price ($)</label>
+        <input id="eo-price" type="number" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Deadline</label>
+        <input id="eo-deadline" type="date">
+      </div>
+    </div>
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Pickup Location</label>
+    <select id="eo-pickup" onchange="toggleShippingAddress()">
+      <option value="">— None —</option>
+      <option value="Bell Market">Bell Market</option>
+      <option value="Mueller Market">Mueller Market</option>
+      <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+      <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+      <option value="Austin Flea">Austin Flea</option>
+      <option value="Studio">Studio</option>
+      <option value="To be Shipped">📦 To be Shipped</option>
+    </select>
+
+    <div id="eo-shipping-wrap" style="display:none">
+      <label style="font-size:11px;color:var(--text-dim);font-weight:600">Shipping Address</label>
+      <textarea id="eo-address" placeholder="Street, City, State, ZIP" style="min-height:60px;resize:vertical;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text1);background:var(--input-bg,#fff)"></textarea>
+    </div>
+
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Email</label>
+        <input id="eo-email" type="email" placeholder="customer@email.com">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Phone</label>
+        <input id="eo-phone" type="tel" placeholder="(512) 555-0000">
+      </div>
+    </div>
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Contacted Via</label>
+    <select id="eo-source">
+      <option value="">— Select —</option>
+      <option value="Email">Email</option>
+      <option value="Farmer's Market">Farmer's Market</option>
+      <option value="Shopify Email">Shopify Email</option>
+      <option value="Etsy Message">Etsy Message</option>
+      <option value="Instagram Message">Instagram Message</option>
+      <option value="Text Message">Text Message</option>
+      <option value="Facebook Message">Facebook Message</option>
+    </select>
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Materials</label>
+    <input id="eo-materials" type="text" placeholder="e.g. 14k yellow gold, 2mm sapphire">
+
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Ring Size</label>
+        <input id="eo-ring-size" type="text" placeholder="e.g. 7, 7.5">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Paid By</label>
+        <select id="eo-paid-by">
+          <option value="">— Not paid —</option>
+          <option value="Cash">Cash</option>
+          <option value="Credit">Credit</option>
+          <option value="Check">Check</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Notes</label>
+    <textarea id="eo-notes" placeholder="Sizing, customer preferences, special instructions, etc." style="min-height:70px;resize:vertical;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text1);background:var(--input-bg,#fff)"></textarea>
+
+    <label style="font-size:11px;color:var(--text-dim);font-weight:600">Sketch Description</label>
+    <textarea id="eo-sketch" placeholder="Describe any sketch on the order bag (shape, style, details noted)…" style="min-height:60px;resize:vertical;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text1);background:var(--input-bg,#fff)"></textarea>
+
+    </div><!-- end scroll area -->
+    <div style="flex-shrink:0;margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:space-between;align-items:center">
+      <button onclick="markOrderComplete()" style="padding:8px 14px;border:1px solid #B8D8C0;border-radius:8px;background:#EEF8F1;color:#2E6B42;cursor:pointer;font-size:13px;font-weight:600">✓ Mark Completed</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeEditOrderModal()" style="padding:8px 18px;border:1px solid var(--bdr);border-radius:8px;background:#fff;cursor:pointer;font-size:13px">Cancel</button>
+        <button onclick="saveOrderEdit()" style="padding:8px 18px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:700">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order History Add/Edit Modal -->
+<div class="sot-modal-bg" id="ohModalBg">
+  <div class="sot-modal" style="max-width:420px">
+    <h3 id="ohModalTitle">Add Order</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Date *</label>
+        <input id="ohMDate" type="date" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Supplier *</label>
+        <select id="ohMSup" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+          <option>Rio Grande</option>
+          <option>Stuller</option>
+          <option>Gesswein</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Order #</label>
+        <input id="ohMOrderNum" type="text" placeholder="e.g. 1234567" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Invoice #</label>
+        <input id="ohMInvNum" type="text" placeholder="e.g. INV-001" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Amount ($)</label>
+        <input id="ohMAmt" type="text" placeholder="e.g. 142.50" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Status</label>
+        <select id="ohMStatus" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+          <option>Processing</option>
+          <option>Paid</option>
+          <option>Due</option>
+          <option>Delivered</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Shipped Date</label>
+        <input id="ohMShipped" type="date" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--text-dim);font-weight:600">Delivered Date</label>
+        <input id="ohMDelivered" type="date" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px">
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+      <label style="font-size:11px;color:var(--text-dim);font-weight:600">Notes</label>
+      <textarea id="ohMNotes" placeholder="Optional notes…" rows="2" style="padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;resize:vertical"></textarea>
+    </div>
+    <div class="sot-modal-row" style="margin-top:14px;justify-content:space-between">
+      <button class="btn btn-danger btn-sm" id="ohModalDelete" onclick="ohDeleteOrder(ohEditId)" style="display:none">🗑 Delete</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-outline" id="ohModalCancel">Cancel</button>
+        <button class="btn btn-gold" id="ohModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drive overlay spinner -->
+<div id="driveOverlay">
+  <div class="drive-spinner"></div>
+  <div id="driveOverlayLabel">Checking Drive…</div>
+</div>
+
+<!-- Drive review modal -->
+<div id="driveReviewModalBg" onclick="if(event.target===this)closeDriveReview()">
+  <div class="drive-review-modal">
+    <div class="drive-review-head">
+      <div>
+        <h3>☁ Drive Scans</h3>
+        <div id="driveReviewSub">New orders found</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeDriveReview()">✕</button>
+    </div>
+    <div class="drive-review-scroll" id="driveReviewList"></div>
+    <div class="drive-review-foot">
+      <button class="btn btn-ghost" onclick="closeDriveReview()">Cancel</button>
+      <button class="btn btn-gold" onclick="importAllDriveOrders()">✓ Import Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- Integrations modal -->
+<div id="integrationsModalBg">
+  <div class="integrations-modal">
+    <h3>⚙ Integrations</h3>
+    <div class="int-subtitle">Keys are saved locally on this device only — never shared.</div>
+
+    <div class="int-section">
+      <div class="int-section-title">Google Drive &amp; Contacts</div>
+      <label>OAuth Client ID</label>
+      <input type="text" id="int-google-client-id" placeholder="your-client-id.apps.googleusercontent.com" autocomplete="off">
+      <div class="int-hint">Create at <strong>console.cloud.google.com</strong> → APIs &amp; Services → Credentials → OAuth 2.0 Client ID (Web). Enable Drive API + People API. Add your app URL as an authorized redirect URI.</div>
+    </div>
+
+    <div class="int-section">
+      <div class="int-section-title">Claude Vision (Anthropic)</div>
+      <label>API Key</label>
+      <input type="password" id="int-anthropic-key" placeholder="sk-ant-..." autocomplete="off">
+      <div class="int-hint">Get yours at <strong>console.anthropic.com</strong></div>
+    </div>
+
+    <div class="int-section">
+      <div class="int-section-title">ClickUp</div>
+      <label>API Token</label>
+      <input type="password" id="int-clickup-token" placeholder="pk_..." autocomplete="off">
+      <div class="int-hint">ClickUp Settings → Apps → API Token</div>
+      <label>Custom Orders List ID</label>
+      <input type="text" id="int-clickup-list-id" placeholder="e.g. 901234567" autocomplete="off">
+      <div class="int-hint">Open the list in ClickUp — the ID is in the URL. Or use the button below.</div>
+      <button class="btn btn-outline btn-sm" onclick="findClickUpListId()" style="margin-top:8px">🔍 Find my List ID automatically</button>
+    </div>
+
+    <div class="int-foot">
+      <button class="btn btn-ghost" onclick="closeIntegrationsModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveIntegrations()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SOT Edit Modal -->
+<div class="sot-modal-bg" id="sotModalBg" onclick="sotModalClose(event)">
+  <div class="sot-modal">
+    <h3>Edit Item</h3>
+    <input id="sotEditName" type="text" placeholder="Item name…">
+    <input id="sotEditDesc" type="text" placeholder="Description…">
+    <input id="sotEditSku" type="text" placeholder="SKU / Item #…">
+    <select id="sotEditCat">
+      <option>Metals — Wire</option>
+      <option>Metals — Sheet &amp; Stock</option>
+      <option>Chains</option>
+      <option>Findings &amp; Clasps</option>
+      <option>Gemstones</option>
+      <option>Bench Tools &amp; Supplies</option>
+    </select>
+    <div class="sot-modal-row">
+      <button class="btn btn-gold" onclick="sotEditSave()">Save</button>
+      <button class="btn btn-outline" onclick="sotModalBgClose()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+</div><!-- /content -->
+
+<!-- Gmail Panel -->
+<div class="gmail-panel" id="gmailPanel">
+  <div class="gp-head">
+    <span class="gp-title">✉ Recent Threads</span>
+    <span class="gp-close" onclick="closeGmailPanel()">×</span>
+  </div>
+  <div id="gpList"></div>
+  <div class="gp-hint">Click a thread to auto-fill the form</div>
+</div>
+
+<!-- Overlay + Customer Drawer -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <!-- Sticky search bar -->
+  <div class="d-search-bar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input id="drawerCustSearch" type="text" placeholder="Find a customer…"
+           oninput="drawerSearchCustomer(this.value)" autocomplete="off">
+    <div class="d-sb-close" onclick="closeDrawer()">×</div>
+  </div>
+  <!-- Search results dropdown -->
+  <div id="drawerDropdown" class="d-dropdown"></div>
+  <!-- Customer header -->
+  <div class="drawer-head" id="dCustomerHead">
+    <div class="d-avatar" id="dAvatar">??</div>
+    <div style="flex:1;min-width:0;">
+      <div class="d-name" id="dName"></div>
+      <div class="d-email" id="dEmail"></div>
+    </div>
+  </div>
+  <!-- Stats strip -->
+  <div class="d-stats-row" id="dStatsRow"></div>
+  <!-- Body -->
+  <div class="drawer-body" id="dBody"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden camera / file input -->
+<input type="file" id="cameraInput" accept="image/*"
+       style="display:none" onchange="handlePhoto(this)">
+
+<!-- Photo Lightbox -->
+<div class="photo-lightbox" id="photoLightbox" onclick="closeLightbox()">
+  <span class="lb-close">×</span>
+  <div class="lb-title" id="lbTitle"></div>
+  <img id="lightboxImg" src="" alt="Work order photo" onclick="event.stopPropagation()">
+  <div class="lb-actions" onclick="event.stopPropagation()">
+    <button class="btn btn-outline" onclick="retakePhoto()">📷 Retake / Replace</button>
+    <button class="btn btn-danger"  onclick="removePhoto()">🗑 Remove</button>
+  </div>
+</div>
+
+
+<!-- ═══════════ PAGE SCRIPTS ═══════════════════════════════════
+     Each file is self-contained. Editing one cannot break others.
+     Load order: data → app → orders → customers → gmail → sales → production → notes
+ ════════════════════════════════════════════════════════════ -->
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/orders.js"></script>
+<script src="js/customers.js"></script>
+<script src="js/gmail.js"></script>
+<script src="js/sales.js"></script>
+<script src="js/production.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/supplier-history.js"></script>
+</body>
+</html>

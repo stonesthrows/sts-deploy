@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.env
+gmail-brief.json
+scanned-orders.json
+processed-drive-scans.json
+cf-screenshot.png
+*.log
+.netlify

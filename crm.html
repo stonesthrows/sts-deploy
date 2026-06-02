@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Stones Throw Studio — CRM</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1E1C19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="STS CRM">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #F5F0E8;
+      --hdr:          #1E1C19;
+      --nav:          #252320;
+      --hdr-bdr:      #3A3530;
+      --hdr-pill:     #2E2B26;
+      --accent:       #C9983A;
+      --accent-mid:   #D9A84A;
+      --accent-light: #EEC96A;
+      --accent-bg:    #FDF5E6;
+      --accent-border:#F5CFA0;
+      --card-bg:      #FFFFFF;
+      --card-head-bg: #FDFAF6;
+      --bdr:          #E4DDD4;
+      --bdr-light:    #EEE6DC;
+      --text:         #2C2820;
+      --text2:        #A89880;
+      --text3:        #C8B898;
+      --text-dim:     #7A7268;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ───────────────────────────────── */
+    .header {
+      background: var(--hdr);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 12px;
+      border-bottom: 1px solid var(--hdr-bdr);
+    }
+    .logo-mark {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, #C9983A 0%, #8C6520 100%);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .logo-text { color: var(--accent-light); font-weight: 700; font-size: 14px; }
+    .logo-sub  { color: #7A7268; font-size: 11px; margin-left: 4px; }
+    .header-spacer { flex: 1; }
+    .header-pill {
+      background: var(--hdr-pill);
+      border: 1px solid var(--hdr-bdr);
+      border-radius: 20px;
+      padding: 4px 12px;
+      color: var(--text2);
+      font-size: 12px;
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none;
+    }
+    .header-pill:hover { border-color: var(--accent); color: var(--accent-light); }
+    .dot { width: 6px; height: 6px; background: #6AB87A; border-radius: 50%; }
+
+    /* ── Nav ──────────────────────────────────── */
+    .nav {
+      background: var(--nav);
+      display: flex;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--hdr-bdr);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+
+    .nav-tab {
+      padding: 0 14px;
+      height: 42px;
+      display: flex; align-items: center;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color .15s;
+      user-select: none;
+      gap: 6px;
+    }
+    .nav-tab:hover  { color: var(--accent-mid); }
+    .nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+    .nav-tab .tab-badge {
+      background: var(--accent);
+      color: #1E1C19;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9px;
+      padding: 1px 5px;
+      min-width: 16px;
+      text-align: center;
+    }
+
+    /* ── Tab panels ───────────────────────────── */
+    .tab-panel          { display: none; }
+    .tab-panel.active   { display: block; }
+    .tab-content        { padding: 24px 20px; max-width: 1100px; margin: 0 auto; }
+
+    /* ── Cards ────────────────────────────────── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .card-head {
+      background: var(--card-head-bg);
+      border-bottom: 1px solid var(--bdr-light);
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .card-head .card-title-icon { font-size: 15px; }
+    .card-head-actions { margin-left: auto; display: flex; gap: 8px; }
+    .card-body { padding: 16px; }
+
+    /* ── Grid helpers ─────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    @media (max-width: 700px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* ── Stat tiles ───────────────────────────── */
+    .stat-tile {
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-sub   { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    /* ── Buttons ──────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: none; border-radius: 7px;
+      padding: 7px 14px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-gold    { background: var(--accent); color: #1E1C19; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--bdr);
+      color: var(--text-dim);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── List rows ────────────────────────────── */
+    .list-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--bdr-light);
+    }
+    .list-row:last-child { border-bottom: none; }
+    .list-row-main  { flex: 1; min-width: 0; }
+    .list-row-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .list-row-sub   { font-size: 11px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .list-row-meta  { font-size: 11px; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+
+    /* ── Badges / chips ───────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-gold   { background: #FEF0CC; color: #8C6520; }
+    .badge-green  { background: #D4EDDA; color: #155724; }
+    .badge-blue   { background: #D1ECF1; color: #0C5460; }
+    .badge-red    { background: #F8D7DA; color: #721C24; }
+    .badge-gray   { background: #E9ECEF; color: #495057; }
+
+    /* ── Avatar ───────────────────────────────── */
+    .avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent) 0%, #8C6520 100%);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      color: #1E1C19; flex-shrink: 0;
+    }
+
+    /* ── Empty state ──────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+    }
+    .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── Section header ───────────────────────── */
+    .section-header {
+      display: flex; align-items: center;
+      margin-bottom: 14px; gap: 10px;
+    }
+    .section-title { font-size: 15px; font-weight: 600; }
+    .section-actions { margin-left: auto; display: flex; gap: 8px; }
+
+    /* ── Inline form ──────────────────────────── */
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-dim); margin-bottom: 5px; }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--bdr);
+      border-radius: 7px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--accent);
+    }
+    .form-textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
+
+    /* ── Toast ────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #2C2820; color: #EEC96A;
+      border: 1px solid #C9983A;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      display: flex; align-items: center; gap: 8px;
+      pointer-events: none;
+      transition: transform .25s ease;
+      z-index: 1000;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Loading spinner ──────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--bdr);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Add-tab button ───────────────────────── */
+    #add-tab-btn {
+      padding: 0 12px;
+      height: 42px;
+      display: flex; align-items: center;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      transition: color .15s;
+    }
+    #add-tab-btn:hover { color: var(--accent-light); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────── -->
+<div class="header">
+  <div class="logo-mark">💎</div>
+  <span class="logo-text">Stones Throw Studio</span>
+  <span class="logo-sub">CRM</span>
+  <div class="header-spacer"></div>
+  <a href="jewelry-workflow.html" class="header-pill">
+    <span class="dot"></span> Orders
+  </a>
+</div>
+
+<!-- ── Nav ───────────────────────────────────── -->
+<div class="nav" id="main-nav">
+  <!-- Tabs injected by app.js -->
+  <div id="add-tab-btn" title="Add module" onclick="CRM.promptAddModule()">＋</div>
+</div>
+
+<!-- ── Tab panels ─────────────────────────────── -->
+<div id="tab-panels">
+  <!-- Panels injected by each tab module -->
+</div>
+
+<!-- ── Toast ──────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Scripts ────────────────────────────────── -->
+<script src="crm/app.js"></script>
+<script src="crm/dashboard.js"></script>
+<script src="crm/orders.js"></script>
+<script src="crm/email.js"></script>
+<script src="crm/sales.js"></script>
+<script src="crm/inventory.js"></script>
+<script src="crm/receipts.js"></script>
+<script src="crm/notes.js"></script>
+
+</body>
+</html>

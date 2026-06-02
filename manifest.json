@@ -1,0 +1,20 @@
+{
+  "name": "Stones Throw Studio — Orders",
+  "short_name": "STS Orders",
+  "description": "Custom order workflow for Stones Throw Studio jewelry",
+  "start_url": "./jewelry-workflow.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F0E8",
+  "theme_color": "#1E1C19",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
