@@ -3,8 +3,9 @@ Do not alter any other tab in the webapp while working on this tab's code.
 ## Deployment
 - Platform: Cloudflare Pages (NOT Netlify — account hit its limit)
 - Live URL: https://stsworkflow.pages.dev/jewelry-workflow
-- Deploy: Kyle double-clicks 2-deploy.bat in C:\Users\morph\Desktop\sts-deploy
-- After deploying, remind Kyle to hard refresh (Ctrl+Shift+R) to clear service worker cache
+- GitHub repo: https://github.com/stonesthrows/sts-deploy
+- Deploy: git push to main branch — Cloudflare auto-deploys from GitHub (no more 2-deploy.bat)
+- After deploying, hard refresh (Ctrl+Shift+R) to clear service worker cache
 - Must touch jewelry-workflow.html (not just sw.js) for Cloudflare to detect and push the update
 
 ## Integrations

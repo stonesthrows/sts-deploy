@@ -126,6 +126,112 @@ function saveToStorage() {
   } catch(e) {}
 }
 
+// ════════════════════════════════════════════
+//  SAVE CHOICE  —  Local vs Notion
+// ════════════════════════════════════════════
+
+// Maps internal stage IDs → Notion Stage select values
+const STAGE_TO_NOTION = {
+  'intake-custom':  'Inquiry',
+  'intake-repair':  'Inquiry',
+  'repair':         'Inquiry',
+  'sketch-needs':   'Sketch',
+  'sketch-wait':    'Sketch',
+  'sketch':         'Sketch',
+  'needs-est':      'Needs Estimate',
+  'quote':          'Estimate Sent',
+  'est-appr':       'Estimate Approved',
+  'order-mat':      'Order Materials',
+  'materials':      'Waiting on Materials',
+  'build':          'At the Bench',
+  'ready-pick':     'Ready for Pickup',
+  'complete':       'Completed',
+  'delivered':      'Delivered',
+};
+
+// Shows a small modal asking Local vs Notion.
+// Falls back to onLocal() silently if not running inside Claude/Cowork.
+function showSaveChoice(title, onLocal, onNotion) {
+  const inClaude = typeof sendPrompt === 'function' || window !== window.parent;
+  if (!inClaude) { onLocal(); return; }
+
+  let bg = document.getElementById('saveChoiceBg');
+  if (!bg) {
+    bg = document.createElement('div');
+    bg.id = 'saveChoiceBg';
+    bg.style.cssText = [
+      'position:fixed','inset:0','background:rgba(0,0,0,0.45)',
+      'z-index:9999','display:flex','align-items:center','justify-content:center'
+    ].join(';');
+    document.body.appendChild(bg);
+  }
+
+  bg.innerHTML = `
+    <div style="background:var(--card-bg,#fff);border-radius:14px;padding:24px 24px 20px;
+                max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.22);">
+      <div style="font-size:15px;font-weight:600;color:var(--text,#1E1C19);margin-bottom:5px;">
+        Save this change?
+      </div>
+      <div style="font-size:13px;color:var(--text2,#7A7268);margin-bottom:20px;line-height:1.4;">
+        ${title}
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="sc-local"
+          style="flex:1;padding:10px 0;border:1px solid var(--bdr,#ddd);border-radius:8px;
+                 background:var(--card-bg,#fff);color:var(--text,#1E1C19);
+                 font-size:13px;font-weight:600;cursor:pointer;">
+          💾 Local only
+        </button>
+        <button id="sc-notion"
+          style="flex:1;padding:10px 0;border:none;border-radius:8px;
+                 background:var(--accent,#8B6F47);color:#fff;
+                 font-size:13px;font-weight:600;cursor:pointer;">
+          📓 Save to Notion
+        </button>
+      </div>
+    </div>`;
+
+  bg.style.display = 'flex';
+  document.getElementById('sc-local').onclick  = () => { bg.style.display = 'none'; onLocal(); };
+  document.getElementById('sc-notion').onclick = () => { bg.style.display = 'none'; onNotion(); };
+}
+
+// Sends a stage-only update to Notion via Claude/Cowork prompt relay
+function notionSaveStage(order) {
+  if (!order.notionId) {
+    toast('No Notion ID on this order — saved locally only', '⚠');
+    return;
+  }
+  safeSendPrompt('update notion stage: ' + JSON.stringify({
+    notionId:  order.notionId,
+    appId:     order.id,
+    stage:     STAGE_TO_NOTION[order.stage] || order.stage,
+    notion_db: 'edee1ecc-7d11-428a-9efc-d17b8cbf195d',
+  }));
+}
+
+// Sends a full order update to Notion via Claude/Cowork prompt relay
+function notionSaveOrder(order) {
+  if (!order.notionId) {
+    toast('No Notion ID on this order — saved locally only', '⚠');
+    return;
+  }
+  safeSendPrompt('update notion order: ' + JSON.stringify({
+    notionId:    order.notionId,
+    appId:       order.id,
+    stage:       STAGE_TO_NOTION[order.stage] || order.stage,
+    name:        order.name,
+    description: order.desc,
+    price:       order.price,
+    deadline:    order.deadline,
+    email:       order.email,
+    phone:       order.phone,
+    materials:   order.materials || '',
+    notes:       order.notes    || '',
+    notion_db:   'edee1ecc-7d11-428a-9efc-d17b8cbf195d',
+  }));
+}
+
 function loadFromStorage() {
   try {
     const saved = localStorage.getItem('sts-orders');

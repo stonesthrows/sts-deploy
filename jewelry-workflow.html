@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v58-bag-scan-flora -->
+<!-- deploy-version: v60-notion-save-choice -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2152,6 +2152,9 @@
   <div class="nav-tab" data-parent="supplies" onclick="switchParent('supplies',this)">
     📦 Supplies
   </div>
+  <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
+    💎 Inventory
+  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -2174,6 +2177,19 @@
   </div>
   <div class="sub-nav-tab" data-tab="order-history" onclick="switchSubTab('order-history',this);ohInitHistory()">
     📋 Order History
+  </div>
+</div>
+
+<!-- Sub-nav (Inventory) -->
+<div class="sub-nav" id="sub-nav-inventory">
+  <div class="sub-nav-tab active" data-tab="inv-earrings" onclick="invSwitchMain('earrings',this)">
+    🪬 Earrings
+  </div>
+  <div class="sub-nav-tab" data-tab="inv-rings" onclick="invSwitchMain('rings',this)">
+    💍 Rings
+  </div>
+  <div class="sub-nav-tab" data-tab="inv-pendants" onclick="invSwitchMain('pendants',this)">
+    📿 Pendants
   </div>
 </div>
 
@@ -2725,6 +2741,622 @@
   <div class="oh-note" id="ohNote"></div>
 </div>
 
+<!-- ═══════════════════ INVENTORY ═══════════════════ -->
+<div id="tab-inv-earrings" class="tab-panel">
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">💎 Earrings Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
+  </div>
+</div>
+
+<!-- Earring sub-tabs (pill style matching artifact) -->
+<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+  <button id="inv-ear-subtab-ear-cuffs" class="inv-ear-sub active" onclick="invSwitchSub('ear-cuffs',this)">Ear Cuffs</button>
+  <button id="inv-ear-subtab-dangle"    class="inv-ear-sub"        onclick="invSwitchSub('dangle',this)">Dangle</button>
+  <button id="inv-ear-subtab-studs"     class="inv-ear-sub"        onclick="invSwitchSub('studs',this)">Studs</button>
+  <button id="inv-ear-subtab-hoops"     class="inv-ear-sub"        onclick="invSwitchSub('hoops',this)">Seamless Hoops</button>
+  <button id="inv-ear-subtab-spirit"    class="inv-ear-sub"        onclick="invSwitchSub('spirit',this)">Spirit Animal</button>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+  <input id="invSearch" type="text" placeholder="Filter items…"
+    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    oninput="invFilter(this.value)">
+  <button class="btn btn-gold btn-sm" id="invUpdateAllBtn" onclick="invUpdateAll()">Update All</button>
+  <button class="btn btn-outline btn-sm" id="invRefreshBtn" onclick="invRefresh()">↻ Refresh</button>
+</div>
+<div id="invCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+
+<!-- Sub-panels -->
+<div style="padding:0 16px 16px">
+  <div id="inv-sub-ear-cuffs" class="inv-sub-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-sub-dangle"    class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-sub-studs"     class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-sub-hoops"     class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-sub-spirit"    class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+</div>
+</div>
+
+<!-- Inventory: Rings placeholder -->
+<div id="tab-inv-rings" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">💍 Rings Inventory</div>
+      <div class="page-sub">Coming soon — add ring products to get started</div>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory: Pendants placeholder -->
+<div id="tab-inv-pendants" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">📿 Pendants Inventory</div>
+      <div class="page-sub">Coming soon — add pendant products to get started</div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Inventory styles (scoped, won't affect other tabs) ── */
+.inv-ear-sub {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  border-radius: 20px;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.inv-ear-sub:hover { color: var(--text); background: var(--bg); border-color: var(--bdr); }
+.inv-ear-sub.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+
+.inv-card {
+  background: var(--card-bg);
+  border: 1px solid var(--bdr);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.inv-card.hidden { display: none; }
+.inv-card-head {
+  padding: 8px 14px;
+  background: var(--card-head-bg);
+  border-bottom: 1px solid var(--bdr-light);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.inv-row {
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--bdr-light);
+  gap: 10px;
+}
+.inv-row:last-child { border-bottom: none; }
+.inv-var-name { flex: 1; font-size: 13px; color: var(--text2); min-width: 0; }
+
+.inv-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.inv-badge.in-stock  { background: #f0fdf4; color: #16a34a; }
+.inv-badge.low-stock { background: #fffbeb; color: #d97706; }
+.inv-badge.no-stock  { background: #fef2f2; color: #dc2626; }
+.inv-badge.unset     { background: var(--card-head-bg); color: var(--text-dim); font-weight: 400; font-style: italic; }
+
+.inv-stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--bdr);
+  border-radius: 7px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.inv-step-btn {
+  width: 28px; height: 30px;
+  border: none;
+  background: var(--card-head-bg);
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.inv-step-btn:hover { background: var(--bdr-light); }
+.inv-step-input {
+  width: 48px; height: 30px;
+  border: none;
+  border-left: 1px solid var(--bdr);
+  border-right: 1px solid var(--bdr);
+  font-size: 13px;
+  text-align: center;
+  background: var(--card-bg);
+  color: var(--text);
+  -moz-appearance: textfield;
+}
+.inv-step-input::-webkit-inner-spin-button,
+.inv-step-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.inv-step-input:focus { outline: none; }
+
+.inv-set-btn {
+  padding: 0 10px;
+  height: 30px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.inv-set-btn:hover { opacity: .88; }
+.inv-set-btn:disabled { background: var(--bdr); cursor: not-allowed; }
+
+.inv-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--bdr);
+  flex-shrink: 0;
+}
+.inv-dot.ok  { background: #22c55e; }
+.inv-dot.err { background: #ef4444; }
+</style>
+
+<script>
+/* ── Inventory tab script (isolated — touches only inv-* IDs) ── */
+(function() {
+  const LOCATION_ID = "D7EZ98V48F79A";
+  const SQUARE_TOOL = "mcp__5cb67aa1-f30f-43a4-aa0f-fe81f0b901bd__make_api_request";
+
+  const EARRING_SECTIONS = {
+    "ear-cuffs": [
+      { name: "Add-on Chain", variations: [
+        { name: "With chain and sleeve", id: "PLX26X3ZPPL4PTBHDHJNKMPS" },
+        { name: "With threader", id: "3ASPRZBHPAVGFM2BTUGI3AG7" },
+        { name: "With chain dangle loop", id: "ZZWSLA2DHFY75COA54EU5A5C" }
+      ]},
+      { name: "Bat Ear Cuff", variations: [{ name: "Regular", id: "GTXZ4SA5VEX4YJHEUOYWFMKC" }]},
+      { name: "Bee Ear Cuff", variations: [{ name: "Regular", id: "AWBQ3U5E4IH7C4U3DX6BVJYH" }]},
+      { name: "Bird Ear Cuff", variations: [{ name: "Regular", id: "44EXXLUQ4Y6QP72CV72D64ZW" }]},
+      { name: "Butterfly Earcuff", variations: [
+        { name: "Butterfly", id: "JYMWUNFIGXYFBCYUIBLR2EVQ" },
+        { name: "Moth", id: "YGX77N5P6YWRC4UA6WUXF3LI" }
+      ]},
+      { name: "Chevron Ear Cuff", variations: [
+        { name: "Single Silver (Sm)", id: "SIXCRKUTFEU5W6JITE2EDXT6" },
+        { name: "Single Silver (Lg)", id: "FURFZLE6NRS55ZEHN352EPMG" },
+        { name: "Single GF (Sm)", id: "DCNH52F4BXL5ISFLLAZJOYLC" },
+        { name: "Single GF (Lg)", id: "I3I476N2ZYBDSTR3PK4RQYVY" },
+        { name: "Double Silver (Sm)", id: "J7OTXOWLP4YJ5QNWOXSLQNIO" },
+        { name: "Double Silver (Lg)", id: "7XEXFUSQU7BEPSKZDCD5BKAE" },
+        { name: "Double GF (Sm)", id: "V47GG2RPTJLFP5FPQJMCQLDW" },
+        { name: "Double GF (Lg)", id: "KHFHZVJX3Q4QVQQ26T2ZGVRG" }
+      ]},
+      { name: "Crow Earcuff", variations: [{ name: "Regular", id: "FE2YOCGPB62CCVEEBFNBO2FR" }]},
+      { name: "Double Bar Ear Cuff", variations: [
+        { name: "Silver, Small", id: "OCX75OHJO5Y7KGTFC4OVT6SO" },
+        { name: "Silver, Large", id: "VKNNUWBQTFVXSYK6XAZUMKB3" },
+        { name: "Gold fill, Small", id: "RR4KWFNY7QP72XJF4JJP6UVZ" },
+        { name: "Gold fill, Large", id: "H6F3O653DLQMJKJI5GVXTRSE" },
+        { name: "Silver & GF, Small", id: "DSZLKPPT2JPZNIZZLCVZFJU5" },
+        { name: "Silver & GF, Large", id: "LMHMSD2GBKCF7PYR56ZCKBNN" }
+      ]},
+      { name: "Dragonfly Earcuff", variations: [
+        { name: "Flush to ear", id: "AJP5GHU7VRPPIUB6FKPFGSD2" },
+        { name: "Raised", id: "6R7I5KMYOJOPGTRMGRMPACRF" }
+      ]},
+      { name: "Feather Ear Cuff", variations: [
+        { name: "Small Ag", id: "RMHPYAJIZTTC53SEGU2BDR3E" },
+        { name: "Large Ag", id: "HQGGPOQMZN2JBH2RSPYCFLRC" },
+        { name: "Sm GF", id: "A5GWHWC6YSM3V72A6HTODXH6" },
+        { name: "Lg GF", id: "F7XXGQOOVSBOZ4YSGCYOAZJ4" }
+      ]},
+      { name: "Hoop Ear Cuff", variations: [
+        { name: "Silver, Single", id: "P43NXSQLZ3WAD2Z5LRQVQ2YZ" },
+        { name: "Silver, Double", id: "WDACQPLSFOUOLGEM3SHH64HA" },
+        { name: "Silver, Triple", id: "VTED7E2FUYRV4WWLPMDVF3IH" },
+        { name: "Gold fill, Single", id: "YZ2JWUWZLBP2PMGKLML5JR27" },
+        { name: "Gold fill, Double", id: "HP2S6UTFB4PYO54KW5TNDRUR" },
+        { name: "Gold fill, Triple", id: "CXQWQDTOULSNG7OSN6RN33DB" }
+      ]},
+      { name: "Octopus Earcuff", variations: [
+        { name: "Small", id: "KU3CPBGHJTDYLA227AOQNONT" },
+        { name: "Large", id: "WNHWPZMJ5FI7KI5BCR6YO76T" }
+      ]},
+      { name: "Orbit Ear Cuff", variations: [
+        { name: "GF w/ silver orbs, 2 orbs, Sm", id: "CKXOWKDCGEBVEZX7MLB2MGRE" },
+        { name: "GF w/ silver orbs, 2 orbs, Lg", id: "DEQL3BJA534X3VNUNY6C4DS4" },
+        { name: "GF w/ silver orbs, 3 orbs, Sm", id: "Z5VFXHEMRODAKE2O6E4IS3K2" },
+        { name: "GF w/ silver orbs, 3 orbs, Lg", id: "BL6ICMWPEZQ6I7DGGNPQDNN2" },
+        { name: "All silver, 2 orbs, Sm", id: "L4FAQMSUS27UZWRGTERODIUG" },
+        { name: "All silver, 2 orbs, Lg", id: "RQXIO6PO3T4PZFBD6BBK6LE4" },
+        { name: "All silver, 3 orbs, Sm", id: "64ZZCRUIHKBRCSCSYQY2RFM3" },
+        { name: "All silver, 3 orbs, Lg", id: "XRV2KN6ESVGJULQMBZZU76PV" }
+      ]},
+      { name: "Owl Face Earcuff", variations: [{ name: "Regular", id: "53OC32VT4VD2VHVHHYZQC3J2" }]},
+      { name: "Peeking Cat Earcuff", variations: [
+        { name: "Large", id: "FHTLXJCBXQYXBUNK6D67EGHI" },
+        { name: "Small", id: "F5ZA35U4F5OINYXH5EW7OFKQ" }
+      ]},
+      { name: "Rainbow Ear Cuff", variations: [
+        { name: "Small", id: "STEYAJDFVE63FHBNAA4ICXHM" },
+        { name: "Large", id: "WLKUVXJSJD3PBPSFXSXEHKME" }
+      ]},
+      { name: "Rising Sun Ear Cuff", variations: [
+        { name: "Small", id: "3NOBTOLP5QIQNZ7WEK67SQIO" },
+        { name: "Large", id: "5HO34Y3NJ4OV5FJ6GCGVG5AE" }
+      ]},
+      { name: "Simple Ear Cuff", variations: [
+        { name: "Small, Silver, 8mm", id: "GGOBU2K7ZK6MUFFQS7FGBCUL" },
+        { name: "Small, Silver, 4mm", id: "JU5SK26A3XAOID3JW2O4EM4F" },
+        { name: "Small, Silver, 6mm", id: "XH4RWLO5RGDT65KWLBZVEPAU" },
+        { name: "Small, Gold fill, 4mm", id: "VHXAKLA3AZZG54F6BDFVRBTE" },
+        { name: "Small, Gold fill, 6mm", id: "DCDB4XH7VIBWA7BYU5XQ6VUU" },
+        { name: "Small, Gold fill, 8mm", id: "OF3L2ZJOWQ4BTLG7CNO4W3KV" },
+        { name: "Large, Silver, 4mm", id: "JTGVRNPL3BBYNNJD5GLUXYP2" },
+        { name: "Large, Silver, 6mm", id: "URGFKJBW2WBSBTB6IKBBNQYO" },
+        { name: "Large, Silver, 8mm", id: "74NOHMV7AWBV4PMWBDIRTK5W" },
+        { name: "Large, Gold fill, 4mm", id: "HT4LIUV2U5OLMGZFLO7XXC2T" },
+        { name: "Large, Gold fill, 6mm", id: "YSPI6GWH7P4ELGCJKC75PJHK" },
+        { name: "Large, Gold fill, 8mm", id: "X624RNQIUVPJBTNCQBROGUCG" }
+      ]},
+      { name: "Snail Ear Cuff", variations: [{ name: "Regular", id: "4WIW3F2EVBS4YGZBJFHFT2N7" }]},
+      { name: "Snake Ear Cuff", variations: [
+        { name: "Large", id: "AS2XLJOGZ2PBZWD4FUGRWMTG" },
+        { name: "Small", id: "NNMCENA235UFJCQBXLX2QVRJ" }
+      ]},
+      { name: "Spiral Ear Cuff", variations: [
+        { name: "Silver (Sm)", id: "KSUS35R7AND4IALYSZE4NPTL" },
+        { name: "Silver (Lg)", id: "FRTO7GTDMFHKQ25CIHJPH6EF" },
+        { name: "Gold fill (Sm)", id: "RRK5QWFGW2TRDANGIFOYG4OC" },
+        { name: "Gold fill (Lg)", id: "YHUOTGRS3S7PMMDVYFQ7XFF7" }
+      ]},
+      { name: "Stackable Ear Cuff", variations: [
+        { name: "Silver, Small (15mm)", id: "V5ASX2MHJKBE7VXSHBOFOO5Q" },
+        { name: "Silver, Medium (20mm)", id: "RFVGM5STFBVVBLHNIG6O3QKA" },
+        { name: "Silver, Large (25mm)", id: "R5VBF2VUQQ7HQCIMS7TCP5H2" },
+        { name: "Gold fill, Small (15mm)", id: "FFF5WHTXFNXQV7RV6GYS6S6S" },
+        { name: "Gold fill, Medium (20mm)", id: "W6F4NXSXEMZDCMIDWA5Q472Y" },
+        { name: "Gold fill, Large (25mm)", id: "ES3ZNIPW54OFABSZFXRGYMWD" }
+      ]},
+      { name: "Tricolor Ear Cuff", variations: [
+        { name: "Small", id: "PFTMPPD3OIV6HWDINY7NQOOT" },
+        { name: "Large", id: "BEMAUZM4LIVDIFDUW735NUM2" }
+      ]},
+      { name: "Triple Bar Ear Cuff", variations: [{ name: "Regular", id: "DKFU4RY4ORGEOUP3E635IJ6B" }]},
+      { name: "X Ear Cuff", variations: [
+        { name: "Silver, Large", id: "TM4EJ5HC47CJW2MVV233OMJ2" },
+        { name: "Silver, Small", id: "Q72TYIXDEJHWUCDGVCDMHNJV" },
+        { name: "Silver, Double", id: "U4XLCN4SCUR2GG3XM4RBHBCI" },
+        { name: "Gold fill, Large", id: "5MRHKJW4EHSB7I3DO5J6ZLJX" },
+        { name: "Gold fill, Small", id: "JBGGISGNBHKVFZZPRGGWNPOM" },
+        { name: "Gold fill, Double", id: "4PATVF2VFGCVEESEIEECV7WY" },
+        { name: "Silver & GF, Large", id: "OWDCSU4R5CO7MBBKPZRXX4GH" },
+        { name: "Silver & GF, Small", id: "YN4OUFZUSRU4MAIA63VJS3Q6" }
+      ]}
+    ],
+    "dangle": [
+      { name: "Bead Dangles", variations: [
+        { name: "Silver", id: "3GS3SMSNWH5CJPMWXNPJSCRP" },
+        { name: "Gold Fill", id: "KE4VRNXKAHO6YXWBM6EZ3EAU" }
+      ]},
+      { name: "Dragonfly Earrings", variations: [
+        { name: "Post", id: "KC66RWSBFGMTVSAISFTZ7LGJ" },
+        { name: "Dangle", id: "B44T32QE7RF33MYCFBZT3MQ4" }
+      ]},
+      { name: "Feather Earrings (Silver)", variations: [{ name: "New", id: "6LRDCZROBH7H4K3TITUST3YW" }]},
+      { name: "Feather Earrings (Titanium)", variations: [{ name: "Regular", id: "3QJ2DQ2TC3NZTFMBH5E7QZRN" }]},
+      { name: "Ginkgo Earrings", variations: [{ name: "Regular", id: "VKIP6X7KDUL5NHJAPSD7HRHO" }]},
+      { name: "Hexagon Earrings", variations: [{ name: "Large", id: "C3RBS5A467YQ63HC33IV5R7T" }]},
+      { name: "Interlocking Circles Earrings", variations: [{ name: "Regular", id: "Z42YN4NICWRHYELT32OVFUIC" }]},
+      { name: "Orbit Earrings", variations: [
+        { name: "Small", id: "GYU2GIXIC52EEBV2ZZPSD67T" },
+        { name: "Large", id: "TYGSQVNYRE6XXFJRGUUG43MI" },
+        { name: "Sleeve", id: "E5I5BJTHURTQZKDDPVK4VRHI" },
+        { name: "Stud", id: "CWQJPN6R2AB7VRGWR465RWJQ" }
+      ]}
+    ],
+    "studs": [
+      { name: "Bar Post Earrings", variations: [
+        { name: "Silver Studs (sm)", id: "GQUC7SKFMX5Q72KZUVSKBNOW" },
+        { name: "Silver Studs (med)", id: "M3E5TSU7DTK4OSALIJHER456" },
+        { name: "Silver Studs (lrg)", id: "S667ZC3DJFAMNE5M7DC67VRG" },
+        { name: "Gold Fill Studs (sm)", id: "WJUFBM6ASLCJYZXPHT3VIUPB" },
+        { name: "Gold Fill Studs (lrg)", id: "OCZL6OPDTDHL5EYWXL63L4SE" }
+      ]},
+      { name: "Bee Studs", variations: [{ name: "Regular", id: "GM6RFH6PWX2LPC555NBT46KD" }]},
+      { name: "Butterfly Studs", variations: [{ name: "Regular", id: "CUXOIHL46BZD5BES2GSDH47J" }]},
+      { name: "Cat Studs", variations: [{ name: "Regular", id: "GNDS3VHEZLZXPCMIW3R7OKSE" }]},
+      { name: "Chevron Post Earrings", variations: [
+        { name: "Silver", id: "L4VSKLHQLLTDL7UUKUY6QZ2B" },
+        { name: "Gold Fill", id: "V52JTYSX2QGQGCSOAIPGEXIC" }
+      ]},
+      { name: "Circle Post Earrings", variations: [
+        { name: "Silver", id: "WOJ3E25ZFPKS6WS4LGR2EB7K" },
+        { name: "Gold Fill", id: "Z5AWJ2WSHPMXAJ6GQQ5XCIYR" }
+      ]},
+      { name: "Fox Studs", variations: [
+        { name: "Head Only", id: "A24TJQQLFF3M4B2GOHMI6L6D" },
+        { name: "With Tail", id: "7UH3NVX26WON3PIAMZ6CF3S4" }
+      ]},
+      { name: "Geometric Studs", variations: [{ name: "Regular", id: "FBOKIAQ5BUCWBUVDLYRBLHFK" }]},
+      { name: "Hoop Earrings (post)", variations: [
+        { name: "Silver", id: "UKW7FIH7U7QVUQYHM37VEBMO" },
+        { name: "Gold Filled", id: "JGEE6NG7DCKHY5SQ6F7R6AHG" }
+      ]},
+      { name: "Infinity Studs", variations: [
+        { name: "Small", id: "XZFMAJZEP6XBH7NGMOCSLJ53" },
+        { name: "Large", id: "2DGXOA5CVSHC3SIAZEU2UEPK" }
+      ]},
+      { name: "Interlocking Circle Studs", variations: [{ name: "Regular", id: "XZSERTVMIJGSAZHJJ4F5LVDA" }]},
+      { name: "Octopus Earrings", variations: [{ name: "Regular", id: "JM67VSTOK3VMOZBWTQMYFWZK" }]},
+      { name: "Orbit Studs", variations: [{ name: "Regular", id: "B6FPQL7KHOJP5UYNHHEBXD7Z" }]},
+      { name: "Owl Studs", variations: [
+        { name: "Regular", id: "KB2DNFNF6CVKD7IEFAHAYPYK" },
+        { name: "Simplified", id: "I37SP2ZPDNOA3JZWYW2MBSDC" }
+      ]},
+      { name: "Snake Studs", variations: [
+        { name: "Small", id: "C4XT3IS5HG7XGTPABQBPNL5Z" },
+        { name: "Large", id: "56PE7QZBGAY5I6YWG2YZNPT6" }
+      ]}
+    ],
+    "hoops": [
+      { name: "Seamless Hoops", variations: [
+        { name: "Silver", id: "KAN4WNV7O425UZ22OKYJY5RV" },
+        { name: "Gold fill", id: "VZQJDRODM2VW7CQVFII766BL" },
+        { name: "Anodized titanium", id: "GHQVOUKRHLCKBP5EDUONUB42" },
+        { name: "Titanium", id: "MTYTZNATFCGXN5WIIUJID2QP" },
+        { name: "Surgical steel", id: "VSOU2DR2P6MKEJ6C22OYCYS7" }
+      ]},
+      { name: "Titanium Ball for Seamless Hoop", variations: [{ name: "Regular", id: "YJRHE4BYZBXQWFQCETFVHERQ" }]}
+    ],
+    "spirit": [
+      { name: "Bee Studs", variations: [{ name: "Regular", id: "GM6RFH6PWX2LPC555NBT46KD" }]},
+      { name: "Butterfly Studs", variations: [{ name: "Regular", id: "CUXOIHL46BZD5BES2GSDH47J" }]},
+      { name: "Cat Studs", variations: [{ name: "Regular", id: "GNDS3VHEZLZXPCMIW3R7OKSE" }]},
+      { name: "Crow Earrings", variations: [{ name: "Regular", id: "NESPPEJGMTYKVJ7GEDNB477X" }]},
+      { name: "Dragonfly Earrings", variations: [
+        { name: "Post", id: "KC66RWSBFGMTVSAISFTZ7LGJ" },
+        { name: "Dangle", id: "B44T32QE7RF33MYCFBZT3MQ4" }
+      ]},
+      { name: "Fox Studs", variations: [
+        { name: "Head Only", id: "A24TJQQLFF3M4B2GOHMI6L6D" },
+        { name: "With Tail", id: "7UH3NVX26WON3PIAMZ6CF3S4" }
+      ]},
+      { name: "Octopus Earrings", variations: [{ name: "Regular", id: "JM67VSTOK3VMOZBWTQMYFWZK" }]},
+      { name: "Owl Studs", variations: [
+        { name: "Regular", id: "KB2DNFNF6CVKD7IEFAHAYPYK" },
+        { name: "Simplified", id: "I37SP2ZPDNOA3JZWYW2MBSDC" }
+      ]},
+      { name: "Snake Studs", variations: [
+        { name: "Small", id: "C4XT3IS5HG7XGTPABQBPNL5Z" },
+        { name: "Large", id: "56PE7QZBGAY5I6YWG2YZNPT6" }
+      ]}
+    ]
+  };
+
+  let invCounts = {};
+  window._invLoaded = false;
+
+  // ── Tab switching (called from nav) ──
+  window.invSwitchMain = function(section, btn) {
+    // Show correct inventory panel
+    document.querySelectorAll('#tab-inv-earrings,#tab-inv-rings,#tab-inv-pendants').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-inv-' + section).classList.add('active');
+    // Update sub-nav button states
+    document.querySelectorAll('#sub-nav-inventory .sub-nav-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    if (section === 'earrings' && !window._invLoaded) invLoad();
+  };
+
+  // ── Earring sub-tabs ──
+  window.invSwitchSub = function(key, btn) {
+    document.querySelectorAll('.inv-sub-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('inv-sub-' + key).style.display = '';
+    document.querySelectorAll('.inv-ear-sub').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('invSearch').value = '';
+    invFilter('');
+  };
+
+  // ── Filter ──
+  window.invFilter = function(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.inv-card').forEach(card => {
+      card.classList.toggle('hidden', q.length > 0 && !(card.dataset.name || '').includes(q));
+    });
+  };
+
+  // ── Stock badge ──
+  function setInvBadge(el, qty) {
+    if (qty === undefined || qty === null) {
+      el.className = 'inv-badge unset'; el.textContent = 'not set in Square'; return;
+    }
+    const n = parseInt(qty, 10);
+    el.textContent = n + ' in stock' + (n === 0 ? ' — needs inventory' : n <= 3 ? ' (low)' : '');
+    el.className = 'inv-badge ' + (n === 0 ? 'no-stock' : n <= 3 ? 'low-stock' : 'in-stock');
+  }
+
+  // ── Render ──
+  function renderInvSection(key) {
+    const container = document.getElementById('inv-sub-' + key);
+    container.innerHTML = '';
+    (EARRING_SECTIONS[key] || []).forEach(product => {
+      const card = document.createElement('div');
+      card.className = 'inv-card';
+      card.dataset.name = product.name.toLowerCase();
+      const hdr = document.createElement('div');
+      hdr.className = 'inv-card-head';
+      hdr.textContent = product.name;
+      card.appendChild(hdr);
+      product.variations.forEach(v => {
+        const row = document.createElement('div');
+        row.className = 'inv-row';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'inv-var-name';
+        nameEl.textContent = v.name;
+        const badge = document.createElement('div');
+        badge.className = 'inv-badge var-ibadge-' + v.id;
+        setInvBadge(badge, invCounts[v.id]);
+        const stepper = document.createElement('div');
+        stepper.className = 'inv-stepper';
+        const minus = document.createElement('button');
+        minus.className = 'inv-step-btn'; minus.textContent = '−'; minus.type = 'button';
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.className = 'inv-step-input'; inp.min = '0'; inp.placeholder = '—';
+        if (invCounts[v.id] !== undefined) inp.value = invCounts[v.id];
+        const plus = document.createElement('button');
+        plus.className = 'inv-step-btn'; plus.textContent = '+'; plus.type = 'button';
+        minus.onclick = () => { const n = parseInt(inp.value,10); inp.value = isNaN(n)?0:Math.max(0,n-1); };
+        plus.onclick  = () => { const n = parseInt(inp.value,10); inp.value = isNaN(n)?1:n+1; };
+        stepper.appendChild(minus); stepper.appendChild(inp); stepper.appendChild(plus);
+        const dot = document.createElement('span'); dot.className = 'inv-dot';
+        const setBtn = document.createElement('button');
+        setBtn.className = 'inv-set-btn'; setBtn.textContent = 'Set';
+        setBtn.onclick = () => invSetOne(v.id, inp, dot, setBtn);
+        row.appendChild(nameEl); row.appendChild(badge); row.appendChild(stepper);
+        row.appendChild(dot); row.appendChild(setBtn);
+        card.appendChild(row);
+      });
+      container.appendChild(card);
+    });
+  }
+
+  function renderAll() { Object.keys(EARRING_SECTIONS).forEach(renderInvSection); }
+
+  // ── Extract Square counts ──
+  function extractInvCounts(raw) {
+    if (!raw) return [];
+    if (raw.content && Array.isArray(raw.content)) {
+      for (const b of raw.content) {
+        if (b.type==='text'&&b.text) { try { const p=JSON.parse(b.text); if(Array.isArray(p.counts))return p.counts; } catch(e){} }
+      }
+    }
+    if (Array.isArray(raw.counts)) return raw.counts;
+    return [];
+  }
+
+  // ── Load inventory ──
+  window.invLoad = async function invLoad() {
+    const seen = new Set();
+    const ids = [];
+    Object.values(EARRING_SECTIONS).forEach(items => items.forEach(p => p.variations.forEach(v => {
+      if (!seen.has(v.id)) { seen.add(v.id); ids.push(v.id); }
+    })));
+
+    for (let i = 0; i < ids.length; i += 50) {
+      const batch = ids.slice(i, i+50);
+      try {
+        const res = await window.cowork.callMcpTool(SQUARE_TOOL, {
+          service: 'inventory', method: 'batchGetcounts',
+          request: { catalog_object_ids: batch, location_ids: [LOCATION_ID] },
+          characterization: 'Load earring inventory'
+        });
+        extractInvCounts(res).forEach(c => {
+          if (c.state === 'IN_STOCK') invCounts[c.catalog_object_id] = c.quantity || '0';
+        });
+      } catch(e) { console.warn('inv load err', e); }
+    }
+
+    window._invLoaded = true;
+    renderAll();
+    const totalItems = Object.values(EARRING_SECTIONS).reduce((s,a)=>s+a.length,0);
+    document.getElementById('invCountLabel').textContent =
+      totalItems + ' items · ' + ids.length + ' variations · ' + Object.keys(invCounts).length + ' counts from Square';
+  }
+
+  // ── Set one variation ──
+  async function invSetOne(id, inp, dot, btn) {
+    const qty = parseInt(inp.value, 10);
+    if (isNaN(qty)||qty<0) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      await window.cowork.callMcpTool(SQUARE_TOOL, {
+        service: 'inventory', method: 'batchChange',
+        request: {
+          idempotency_key: id+'-'+Date.now(),
+          changes: [{ type:'PHYSICAL_COUNT', physical_count:{
+            catalog_object_id: id, location_id: LOCATION_ID,
+            quantity: String(qty), state: 'IN_STOCK', occurred_at: new Date().toISOString()
+          }}],
+          ignore_unchanged_counts: true
+        },
+        characterization: 'Update earring inventory'
+      });
+      invCounts[id] = String(qty);
+      document.querySelectorAll('.var-ibadge-' + id).forEach(b => setInvBadge(b, String(qty)));
+      dot.className = 'inv-dot ok';
+      if (window.showToast) window.showToast('Updated!', 'success');
+    } catch(e) {
+      dot.className = 'inv-dot err';
+    }
+    btn.disabled = false; btn.textContent = 'Set';
+  }
+
+  // ── Update All ──
+  window.invUpdateAll = async function() {
+    const seen = new Set(); const changes = [];
+    Object.values(EARRING_SECTIONS).forEach(items => items.forEach(p => p.variations.forEach(v => {
+      if (seen.has(v.id)) return; seen.add(v.id);
+      const inp = document.querySelector('.inv-sub-panel:not([style*="none"]) .inv-step-input[data-vid="'+v.id+'"]')
+        || (() => { let f=null; document.querySelectorAll('.inv-sub-panel .inv-row').forEach(r => {
+          if (f) return;
+          const b = r.querySelector('.var-ibadge-'+v.id);
+          if (b) f = r.querySelector('.inv-step-input');
+        }); return f; })();
+      if (!inp||inp.value==='') return;
+      const qty = parseInt(inp.value,10);
+      if (isNaN(qty)||qty<0) return;
+      changes.push({ type:'PHYSICAL_COUNT', physical_count:{
+        catalog_object_id: v.id, location_id: LOCATION_ID,
+        quantity: String(qty), state:'IN_STOCK', occurred_at: new Date().toISOString()
+      }});
+    })));
+    if (!changes.length) return;
+    const btn = document.getElementById('invUpdateAllBtn');
+    btn.disabled = true; btn.textContent = 'Updating…';
+    for (let i=0;i<changes.length;i+=100) {
+      const batch = changes.slice(i,i+100);
+      try {
+        await window.cowork.callMcpTool(SQUARE_TOOL, {
+          service:'inventory', method:'batchChange',
+          request:{ idempotency_key:'bulk-'+Date.now()+'-'+i, changes:batch, ignore_unchanged_counts:true },
+          characterization:'Bulk update earring inventory'
+        });
+        batch.forEach(c => {
+          const id=c.physical_count.catalog_object_id, qty=c.physical_count.quantity;
+          invCounts[id]=qty;
+          document.querySelectorAll('.var-ibadge-'+id).forEach(b=>setInvBadge(b,qty));
+        });
+      } catch(e) {}
+    }
+    btn.disabled=false; btn.textContent='Update All';
+  };
+
+  // ── Refresh ──
+  window.invRefresh = async function() {
+    const btn=document.getElementById('invRefreshBtn');
+    btn.disabled=true; btn.textContent='↻ Loading…';
+    invCounts={}; invLoaded=false;
+    await invLoad();
+    btn.disabled=false; btn.textContent='↻ Refresh';
+  };
+
+})();
+</script>
+
 <!-- Order Card Edit Modal -->
 <div class="sot-modal-bg" id="editOrderModalBg" onclick="if(event.target===this)closeEditOrderModal()">
   <div class="sot-modal" style="max-width:480px;max-height:90vh;display:flex;flex-direction:column">
@@ -3043,34 +3675,24 @@
 <div class="toast" id="toast"></div>
 
 <!-- Hidden camera / file input -->
-<input type="file" id="cameraInput" accept="image/*"
-       style="display:none" onchange="handlePhoto(this)">
+t" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="handleScan(event)">
 
-<!-- Photo Lightbox -->
-<div class="photo-lightbox" id="photoLightbox" onclick="closeLightbox()">
-  <span class="lb-close">×</span>
-  <div class="lb-title" id="lbTitle"></div>
-  <img id="lightboxImg" src="" alt="Work order photo" onclick="event.stopPropagation()">
-  <div class="lb-actions" onclick="event.stopPropagation()">
-    <button class="btn btn-outline" onclick="retakePhoto()">📷 Retake / Replace</button>
-    <button class="btn btn-danger"  onclick="removePhoto()">🗑 Remove</button>
-  </div>
-</div>
+</div><!-- /app -->
 
-
-<!-- ═══════════ PAGE SCRIPTS ═══════════════════════════════════
-     Each file is self-contained. Editing one cannot break others.
-     Load order: data → app → orders → customers → gmail → sales → production → notes
- ════════════════════════════════════════════════════════════ -->
-<script src="js/data.js"></script>
-<script src="js/app.js"></script>
-<script src="js/drive.js"></script>
-<script src="js/orders.js"></script>
-<script src="js/customers.js"></script>
-<script src="js/gmail.js"></script>
-<script src="js/sales.js"></script>
-<script src="js/production.js"></script>
-<script src="js/notes.js"></script>
-<script src="js/supplier-history.js"></script>
+<script src="./js/data.js"></script>
+<script src="./js/app.js"></script>
+<script src="./js/drive.js"></script>
+<script src="./js/orders.js"></script>
+<script src="./js/customers.js"></script>
+<script src="./js/gmail.js"></script>
+<script src="./js/sales.js"></script>
+<script src="./js/production.js"></script>
+<script src="./js/notes.js"></script>
+<script src="./js/supplier-history.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+</script>
 </body>
 </html>

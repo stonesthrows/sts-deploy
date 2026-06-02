@@ -203,7 +203,7 @@ function markOrderComplete() {
   o.stage = 'complete';
   completedHidden.add(o.id);
 
-  // Persist to completed registry so no sync can ever re-add this order
+  // Always persist to completed registry — prevents sync from ever un-completing
   try {
     const reg = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]');
     const entry = { id: o.id, notionId: o.notionId || null, name: (o.name || '').toLowerCase().trim() };
@@ -211,11 +211,15 @@ function markOrderComplete() {
     localStorage.setItem('sts-completed-registry', JSON.stringify(reg));
   } catch(e) {}
 
-  saveToStorage();
   updateCompletedToggle();
   renderKanban();
   closeEditOrderModal();
-  toast('Order marked completed ✓', '✓');
+
+  showSaveChoice(
+    `Mark "${o.name}" as Completed`,
+    () => { saveToStorage(); toast('Order completed ✓ (saved locally)', '✓'); },
+    () => { saveToStorage(); notionSaveStage(o); toast('Order completed — saving to Notion…', '📓'); }
+  );
 }
 
 function saveOrderEdit() {
@@ -241,11 +245,15 @@ function saveOrderEdit() {
   o.sketchDesc    = document.getElementById('eo-sketch').value.trim()    || '';
   o.address       = document.getElementById('eo-address').value.trim()   || '';
 
-  saveToStorage();
   updateCompletedToggle();
   renderKanban();
   closeEditOrderModal();
-  toast('Order updated ✓', '✓');
+
+  showSaveChoice(
+    `Update order for ${o.name}`,
+    () => { saveToStorage(); toast('Order updated ✓ (saved locally)', '✓'); },
+    () => { saveToStorage(); notionSaveOrder(o); toast('Order updated — saving to Notion…', '📓'); }
+  );
 }
 
 // ════════════════════════════════════════════
@@ -518,9 +526,14 @@ function drop(ev, stageId) {
   if (order) {
     order.stage = stageId;
     if (stageId === 'complete') completedHidden.add(order.id);
-    saveToStorage();
     updateCompletedToggle();
     renderKanban();
+    const stageLabel = (STAGES.find(s => s.id === stageId) || {}).label || stageId;
+    showSaveChoice(
+      `Moved "${order.name}" → ${stageLabel}`,
+      () => { saveToStorage(); },
+      () => { saveToStorage(); notionSaveStage(order); toast('Stage saved to Notion…', '📓'); }
+    );
   }
   draggedId = null;
 }
@@ -530,7 +543,16 @@ function dropWithPickup(ev, stageId, location) {
   ev.currentTarget.classList.remove('drag-over');
   if (!draggedId) return;
   const order = ORDERS.find(o => o.id === draggedId);
-  if (order) { order.stage = stageId; order.pickup = location; saveToStorage(); renderKanban(); }
+  if (order) {
+    order.stage  = stageId;
+    order.pickup = location;
+    renderKanban();
+    showSaveChoice(
+      `Moved "${order.name}" → Ready for Pickup (${location})`,
+      () => { saveToStorage(); },
+      () => { saveToStorage(); notionSaveStage(order); toast('Stage saved to Notion…', '📓'); }
+    );
+  }
   draggedId = null;
 }
 
