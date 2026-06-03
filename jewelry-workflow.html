@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v62-clickup-direct-sync -->
+<!-- deploy-version: v63-triplog-tab -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2185,6 +2185,9 @@
   <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
     💎 Inventory
   </div>
+  <div class="nav-tab" data-tab="triplog" onclick="switchTab('triplog',this);tlInit()">
+    🚗 Trips
+  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -2945,6 +2948,259 @@
 .inv-dot.err { background: #ef4444; }
 </style>
 
+<!-- ═══════════════════ TRIPLOG ═══════════════════ -->
+<div id="tab-triplog" class="tab-panel">
+
+  <div class="page-bar" style="padding:18px 20px 0;margin-bottom:0;">
+    <div>
+      <div class="page-title">🚗 Trip Log</div>
+      <div class="page-sub">Mileage from TripLog · IRS rate $0.70/mi (2026) · local edits saved in browser</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <input type="date" id="tlStartDate" class="tl-date-input">
+      <span style="color:var(--text-dim);font-size:13px;">to</span>
+      <input type="date" id="tlEndDate" class="tl-date-input">
+      <button id="tlFetchBtn" class="btn btn-gold btn-sm" onclick="tlFetch()">↻ Load Trips</button>
+      <button class="btn btn-outline btn-sm" onclick="tlExportCSV()">📥 CSV</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="tl-stats-row">
+    <div class="tl-stat">
+      <div class="tl-stat-icon si-gold">🚗</div>
+      <div>
+        <div class="stat-label">Trips</div>
+        <div class="stat-value" id="tlStatTrips">—</div>
+      </div>
+    </div>
+    <div class="tl-stat">
+      <div class="tl-stat-icon si-purple">📍</div>
+      <div>
+        <div class="stat-label">Total Miles</div>
+        <div class="stat-value" id="tlStatTotal">—</div>
+      </div>
+    </div>
+    <div class="tl-stat">
+      <div class="tl-stat-icon si-gold">💼</div>
+      <div>
+        <div class="stat-label">Business Miles</div>
+        <div class="stat-value" id="tlStatBiz">—</div>
+      </div>
+    </div>
+    <div class="tl-stat">
+      <div class="tl-stat-icon si-green">🏠</div>
+      <div>
+        <div class="stat-label">Personal Miles</div>
+        <div class="stat-value" id="tlStatPer">—</div>
+      </div>
+    </div>
+    <div class="tl-stat tl-stat-reimb">
+      <div class="tl-stat-icon si-gold">💰</div>
+      <div>
+        <div class="stat-label">Reimbursement</div>
+        <div class="stat-value tl-reimb-value" id="tlStatReimb">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="tl-table-wrap">
+    <table class="tl-table">
+      <thead>
+        <tr>
+          <th style="width:130px">Date</th>
+          <th>Route</th>
+          <th style="width:72px;text-align:right">Miles</th>
+          <th style="width:100px">Activity</th>
+          <th style="width:160px">Odometer</th>
+          <th style="width:64px"></th>
+        </tr>
+      </thead>
+      <tbody id="tlBody">
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-dim)">Pick a date range and click Load Trips</td></tr>
+      </tbody>
+    </table>
+    <div id="tlEmpty" style="display:none;text-align:center;padding:48px 20px;color:var(--text-dim);">
+      <div style="font-size:32px;margin-bottom:10px">🚗</div>
+      No trips found for this date range.
+    </div>
+  </div>
+</div>
+
+<!-- TripLog Edit Modal -->
+<div class="tl-modal-overlay" id="tlEditOverlay" onclick="tlCloseEdit()"></div>
+<div class="tl-modal" id="tlEditModal">
+  <div class="tl-modal-head">
+    <span id="tlEditTitle">Edit Trip</span>
+    <button class="tl-modal-close" onclick="tlCloseEdit()">×</button>
+  </div>
+  <div class="tl-modal-route">
+    <span id="tlEditFrom" class="tl-from"></span>
+    <span class="tl-arrow">→</span>
+    <span id="tlEditTo" class="tl-to"></span>
+  </div>
+  <div class="tl-modal-body">
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>Start Odometer</label>
+        <input type="number" id="tlEditStartOdo" placeholder="e.g. 34250" oninput="tlAutoCalcMiles()">
+      </div>
+      <div class="tl-field">
+        <label>End Odometer</label>
+        <input type="number" id="tlEditEndOdo" placeholder="e.g. 34265" oninput="tlAutoCalcMiles()">
+      </div>
+    </div>
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>Miles</label>
+        <input type="number" id="tlEditMiles" step="0.1" min="0" placeholder="e.g. 15.0">
+      </div>
+      <div class="tl-field">
+        <label>Activity</label>
+        <select id="tlEditActivity">
+          <option value="Business">Business</option>
+          <option value="Personal">Personal</option>
+        </select>
+      </div>
+    </div>
+    <div class="tl-field">
+      <label>Notes</label>
+      <textarea id="tlEditNotes" rows="2" placeholder="Optional notes…"></textarea>
+    </div>
+  </div>
+  <div class="tl-modal-foot">
+    <button id="tlEditResetBtn" class="btn btn-outline btn-sm" onclick="tlResetEdit()" style="display:none">↺ Reset to Original</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-outline btn-sm" onclick="tlCloseEdit()">Cancel</button>
+    <button class="btn btn-gold btn-sm" onclick="tlSaveEdit()">Save Changes</button>
+  </div>
+</div>
+
+<style>
+/* ── TripLog tab styles ── */
+.tl-stats-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--bdr);
+}
+.tl-stat {
+  background: var(--card-bg);
+  border: 1px solid var(--bdr);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+  min-width: 130px; flex: 1;
+}
+.tl-stat-reimb { border-color: #F0C870; background: #FDFAF2; }
+.tl-reimb-value { color: #8C6520 !important; }
+.tl-stat-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+.tl-date-input {
+  padding: 6px 10px; border: 1px solid var(--bdr); border-radius: 8px;
+  font-size: 13px; background: var(--card-bg); color: var(--text);
+  cursor: pointer;
+}
+.tl-table-wrap {
+  overflow-x: auto;
+  padding: 16px 20px;
+}
+.tl-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: 10px; overflow: hidden;
+}
+.tl-table thead th {
+  background: var(--card-head-bg); border-bottom: 1px solid var(--bdr);
+  padding: 10px 12px; text-align: left;
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
+}
+.tl-table tbody tr { border-bottom: 1px solid var(--bdr-light); transition: background .1s; }
+.tl-table tbody tr:last-child { border-bottom: none; }
+.tl-table tbody tr:hover { background: var(--accent-bg); }
+.tl-table td { padding: 10px 12px; vertical-align: middle; }
+.tl-td-date { white-space: nowrap; font-weight: 600; font-size: 12px; }
+.tl-time { font-weight: 400; color: var(--text-dim); font-size: 11px; }
+.tl-td-route { max-width: 380px; }
+.tl-from { color: var(--text2); }
+.tl-to   { font-weight: 600; color: var(--text); }
+.tl-arrow { color: var(--text-dim); margin: 0 5px; font-size: 11px; }
+.tl-td-miles { text-align: right; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.tl-td-act { white-space: nowrap; }
+.tl-td-odo { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.tl-odo { font-family: monospace; }
+.tl-td-edit { text-align: right; white-space: nowrap; }
+.tl-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.tl-biz { background: #EAF6EE; color: #2D7A4A; border: 1px solid #B5DFC2; }
+.tl-per { background: #F0F2FF; color: #4A56A0; border: 1px solid #C5CAED; }
+.tl-edit-btn {
+  padding: 4px 10px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--bdr); border-radius: 6px;
+  background: var(--card-head-bg); color: var(--text2);
+  cursor: pointer; transition: all .15s;
+}
+.tl-edit-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg); }
+.tl-edit-dot {
+  font-size: 13px; color: #C9983A; margin-right: 4px;
+  cursor: default;
+}
+/* ── Edit Modal ── */
+.tl-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 900;
+}
+.tl-modal-overlay.active { display: block; }
+.tl-modal {
+  display: none; position: fixed;
+  top: 50%; left: 50%; transform: translate(-50%, -55%);
+  width: min(480px, 96vw);
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.18);
+  z-index: 901; flex-direction: column;
+}
+.tl-modal.active { display: flex; transform: translate(-50%, -50%); }
+.tl-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 0;
+  font-size: 15px; font-weight: 700; color: var(--text);
+}
+.tl-modal-close {
+  background: none; border: none; font-size: 22px; line-height: 1;
+  color: var(--text-dim); cursor: pointer; padding: 0 2px;
+}
+.tl-modal-close:hover { color: var(--text); }
+.tl-modal-route {
+  padding: 8px 20px 12px;
+  font-size: 12px; color: var(--text2);
+  border-bottom: 1px solid var(--bdr-light);
+}
+.tl-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.tl-field-row { display: flex; gap: 12px; }
+.tl-field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.tl-field label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text2); }
+.tl-field input, .tl-field select, .tl-field textarea {
+  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: 8px;
+  font-size: 13px; background: var(--bg); color: var(--text);
+  transition: border-color .15s; width: 100%;
+}
+.tl-field input:focus, .tl-field select:focus, .tl-field textarea:focus {
+  outline: none; border-color: var(--accent-border);
+}
+.tl-field textarea { resize: vertical; font-family: inherit; }
+.tl-modal-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--bdr-light);
+}
+</style>
+
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
@@ -2957,5 +3213,6 @@
 <script src="js/notes.js"></script>
 <script src="js/supplier-history.js"></script>
 <script src="js/clickup.js"></script>
+<script src="js/triplog.js"></script>
 </body>
 </html>
