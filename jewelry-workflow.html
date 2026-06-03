@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v66-daily-odo-banner -->
+<!-- deploy-version: v67-steel-theme -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -17,25 +17,25 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #F5F0E8;
-      --hdr: #1E1C19;
-      --nav: #252320;
-      --subnav: #1A1916;
-      --hdr-pill: #2E2B26;
-      --hdr-bdr: #3A3530;
-      --accent: var(--accent);
-      --accent-mid: var(--accent-mid);
-      --accent-light: var(--accent-light);
-      --accent-bg: #FDF5E6;
-      --accent-border: #F5CFA0;
+      --bg: #4E7A94;
+      --hdr: #1E3D50;
+      --nav: #234659;
+      --subnav: #1A3448;
+      --hdr-pill: #2A4F65;
+      --hdr-bdr: #2E5C78;
+      --accent: #C9983A;
+      --accent-mid: #D4AA56;
+      --accent-light: #E8C878;
+      --accent-bg: #FDF6E8;
+      --accent-border: #E8D0A0;
       --card-bg: #FFFFFF;
-      --card-head-bg: #FDFAF6;
-      --bdr: #E4DDD4;
-      --bdr-light: #EEE6DC;
-      --text: var(--text);
-      --text2: var(--text2);
-      --text3: var(--text3);
-      --text-dim: #7A7268;
+      --card-head-bg: #EBF5FB;
+      --bdr: #B0CDE0;
+      --bdr-light: #C8DFEE;
+      --text: #1A2E38;
+      --text2: #4A6878;
+      --text3: #6A8898;
+      --text-dim: #7A9AAA;
     }
 
     body {
@@ -422,16 +422,16 @@
     .btn-gold:hover { background: linear-gradient(135deg, #D8A840, #B08030); }
     .btn-outline {
       background: #fff;
-      color: #5C5650;
-      border: 1px solid #D8D0C8;
+      color: var(--text2);
+      border: 1px solid var(--bdr);
     }
-    .btn-outline:hover { border-color: var(--accent); color: #A07428; }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
     .btn-ghost {
       background: transparent;
       color: var(--text2);
-      border: 1px solid #D0C8C0;
+      border: 1px solid var(--bdr);
     }
-    .btn-ghost:hover { border-color: #B0A898; color: #5C5650; }
+    .btn-ghost:hover { border-color: var(--accent-mid); color: var(--text); }
     .btn-sm { padding: 6px 12px; font-size: 12px; }
     .btn-danger { background: #C43030; color: #fff; }
 
@@ -1974,6 +1974,15 @@
     .theme-name { font-size: 12.5px; color: #C8C0B8; font-weight: 500; }
 
     /* ── Themes ─────────────────────────────── */
+    body.theme-warm {
+      --bg: #F5F0E8; --hdr: #1E1C19; --nav: #252320; --subnav: #1A1916;
+      --hdr-pill: #2E2B26; --hdr-bdr: #3A3530;
+      --accent: #C9983A; --accent-mid: #D4AA56; --accent-light: #E8C878;
+      --accent-bg: #FDF5E6; --accent-border: #F5CFA0;
+      --card-head-bg: #FDFAF6;
+      --bdr: #E4DDD4; --bdr-light: #EEE6DC;
+      --text: #1E1C19; --text2: #7A7268; --text3: #9A9288; --text-dim: #7A7268;
+    }
     body.theme-sage {
       --bg: #EEF4EC; --hdr: #253522; --nav: #2B3D28; --subnav: #1F2F1C;
       --hdr-pill: #2F4028; --hdr-bdr: #3A5235;
@@ -2139,7 +2148,11 @@
     <button class="theme-btn" onclick="toggleThemePicker()" title="Change color theme">🎨</button>
     <div class="theme-picker" id="themePicker">
       <div class="theme-swatch active" data-theme="" onclick="setTheme('')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,var(--accent) 50%)"></div>
+        <div class="theme-dot" style="background:linear-gradient(135deg,#4E7A94 50%,#C9983A 50%)"></div>
+        <span class="theme-name">Steel</span>
+      </div>
+      <div class="theme-swatch" data-theme="warm" onclick="setTheme('warm')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,#C9983A 50%)"></div>
         <span class="theme-name">Warm</span>
       </div>
       <div class="theme-swatch" data-theme="sage" onclick="setTheme('sage')">
