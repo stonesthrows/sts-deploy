@@ -84,9 +84,11 @@ function switchParent(parentId, el) {
   if (el) el.classList.add('active');
   const subNav = document.getElementById('sub-nav-' + parentId);
   if (subNav) subNav.classList.add('active');
-  // Show the currently active sub-tab panel (default to first)
-  const activeSub = subNav && subNav.querySelector('.sub-nav-tab.active');
-  const defaultId = activeSub ? activeSub.getAttribute('data-tab') : 'dashboard';
+  // Always show the first sub-tab when switching to a parent tab
+  document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
+  const firstSub = subNav && subNav.querySelector('.sub-nav-tab');
+  if (firstSub) firstSub.classList.add('active');
+  const defaultId = firstSub ? firstSub.getAttribute('data-tab') : 'dashboard';
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + defaultId);
   if (panel) panel.classList.add('active');
