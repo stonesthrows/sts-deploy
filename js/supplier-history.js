@@ -36,9 +36,22 @@ function ohLoad() {
   try {
     var raw = localStorage.getItem(OH_KEY);
     if (raw) ohOrders = JSON.parse(raw);
-    // Ensure amt is always stored as number
     ohOrders.forEach(function(o){ if (o.amt != null) o.amt = parseFloat(o.amt) || null; });
   } catch(e) { ohOrders = []; }
+  ohDedupeExisting();
+}
+
+// One-time cleanup: remove duplicate orders already in localStorage
+function ohDedupeExisting() {
+  var seen = {}, result = [];
+  ohOrders.forEach(function(o) {
+    var key = o.orderNum || o.invNum || o.id;
+    if (!seen[key]) { seen[key] = true; result.push(o); }
+  });
+  if (result.length < ohOrders.length) {
+    ohOrders = result;
+    ohSave();
+  }
 }
 function ohSave() {
   try { localStorage.setItem(OH_KEY, JSON.stringify(ohOrders)); } catch(e) {}
@@ -299,7 +312,7 @@ function ohRender() {
           ? 'No orders yet — click <strong>＋ Add Order</strong> to log one, or use <strong>⬆ Import CSV</strong>.'
           : 'No orders match the current filters.')
       + '</td></tr>';
-    ohUpdateStats();
+    ohUpdateStats([]);
     return;
   }
 
@@ -326,26 +339,24 @@ function ohRender() {
       + '</tr>';
   }).join('');
 
-  ohUpdateStats();
+  ohUpdateStats(rows);
 }
 
 // ── Stats ─────────────────────────────────────
-function ohUpdateStats() {
+function ohUpdateStats(rows) {
   var now       = new Date();
   var thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  var total = 0, count = 0, due = 0, month = 0;
-  ohOrders.forEach(function(o){
+  var total = 0, count = 0, month = 0;
+  rows.forEach(function(o){
     count++;
     var a = o.amt != null ? parseFloat(o.amt) : NaN;
     if (!isNaN(a)) total += a;
-    if (o.status === 'Due' && !isNaN(a)) due += a;
     if (o.date && o.date.slice(0,7) === thisMonth && !isNaN(a)) month += a;
   });
   var fmt = function(n){ return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var el  = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
   el('oh-total', total > 0 ? fmt(total) : '—');
   el('oh-count', count > 0 ? count      : '—');
-  el('oh-due',   due   > 0 ? fmt(due)   : '$0.00');
   el('oh-month', month > 0 ? fmt(month) : '—');
 }
 function ohUpdateTs() {
