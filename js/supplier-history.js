@@ -2,37 +2,35 @@
 //  SUPPLIER ORDER HISTORY  —  pages/supplier-history.js
 // ════════════════════════════════════════════
 
-var OH_KEY        = 'sot_history_v1';
-var OH_NOTION_DB  = 'ce32844c-fd51-4a3c-87a5-30ae79e16f8d';
+var OH_KEY = 'sot_history_v1';
+var OH_API = '/api/notion-orders';
 
 // ── State ─────────────────────────────────────
 var ohOrders    = [];
 var ohSupFilter = 'all';
-var ohYearFilter= String(new Date().getFullYear()); // default current year
+var ohYearFilter= String(new Date().getFullYear());
 var ohSortCol   = 'd';
 var ohSortAsc   = false;
 var ohEditId    = null;
 var ohSelected  = new Set();
+var ohSyncing   = false;
 
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
-  ohLoad();
+  ohLoadCache();
   ohRebuildYearDropdown();
   ohWireFilters();
   ohWireSort();
   ohWireAddBtn();
   ohWireSelection();
   ohWireCsvImport();
-  ohWireNotionBtns();
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'oh-notion-data') ohHandleNotionLoad(e.data.orders || []);
-  });
   ohRender();
   ohUpdateTs();
+  ohFetchFromNotion();
 }
 
-// ── Persistence ───────────────────────────────
-function ohLoad() {
+// ── Persistence (localStorage cache) ──────────
+function ohLoadCache() {
   try {
     var raw = localStorage.getItem(OH_KEY);
     if (raw) ohOrders = JSON.parse(raw);
@@ -41,20 +39,94 @@ function ohLoad() {
   ohDedupeExisting();
 }
 
-// One-time cleanup: remove duplicate orders already in localStorage
 function ohDedupeExisting() {
   var seen = {}, result = [];
   ohOrders.forEach(function(o) {
     var key = o.orderNum || o.invNum || o.id;
     if (!seen[key]) { seen[key] = true; result.push(o); }
   });
-  if (result.length < ohOrders.length) {
-    ohOrders = result;
-    ohSave();
-  }
+  if (result.length < ohOrders.length) { ohOrders = result; ohCacheLocally(); }
 }
-function ohSave() {
+
+function ohCacheLocally() {
   try { localStorage.setItem(OH_KEY, JSON.stringify(ohOrders)); } catch(e) {}
+}
+
+// ── Notion: load all orders ────────────────────
+function ohFetchFromNotion() {
+  ohSetSyncStatus('loading');
+  fetch(OH_API)
+    .then(function(r) { return r.json(); })
+    .then(function(orders) {
+      if (!Array.isArray(orders)) throw new Error('Bad response');
+      orders.forEach(function(o){ if (o.amt != null) o.amt = parseFloat(o.amt) || null; });
+      ohOrders = orders;
+      ohDedupeExisting();
+      ohCacheLocally();
+      ohRebuildYearDropdown();
+      ohRender();
+      ohSetSyncStatus('ok');
+      ohUpdateTs();
+    })
+    .catch(function(err) {
+      console.warn('Notion fetch failed, using cache:', err);
+      ohSetSyncStatus('offline');
+    });
+}
+
+// ── Notion: upsert one order ───────────────────
+function ohSyncOrder(order) {
+  return fetch(OH_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.notionPageId) {
+      ohOrders = ohOrders.map(function(o) {
+        return o.id === order.id ? Object.assign({}, o, { notionPageId: data.notionPageId }) : o;
+      });
+      ohCacheLocally();
+    }
+  })
+  .catch(function(err) { console.warn('Notion sync failed for', order.id, err); });
+}
+
+// ── Notion: delete one order ───────────────────
+function ohDeleteFromNotion(notionPageId) {
+  if (!notionPageId) return;
+  fetch(OH_API + '?pageId=' + encodeURIComponent(notionPageId), { method: 'DELETE' })
+    .catch(function(err) { console.warn('Notion delete failed:', err); });
+}
+
+// ── Notion: batch sync (for CSV imports) ───────
+function ohBatchSync(orders) {
+  if (!orders.length) return;
+  var BATCH = 3;        // requests at a time
+  var DELAY = 400;      // ms between batches (stay under Notion rate limit)
+  var chunks = [];
+  for (var i = 0; i < orders.length; i += BATCH) chunks.push(orders.slice(i, i + BATCH));
+
+  var idx = 0;
+  function next() {
+    if (idx >= chunks.length) { ohSetSyncStatus('ok'); return; }
+    ohSetSyncStatus('saving');
+    Promise.all(chunks[idx++].map(ohSyncOrder)).then(function() {
+      setTimeout(next, DELAY);
+    });
+  }
+  next();
+}
+
+// ── Sync status indicator ──────────────────────
+function ohSetSyncStatus(state) {
+  var el = document.getElementById('ohTs');
+  if (!el) return;
+  if      (state === 'loading') el.textContent = 'Loading from Notion…';
+  else if (state === 'saving')  el.textContent = 'Saving…';
+  else if (state === 'offline') el.textContent = 'Offline — showing cached data';
+  else    ohUpdateTs();
 }
 
 // ── Filters ───────────────────────────────────
@@ -177,9 +249,11 @@ function ohDeleteSelected() {
   var n = ohSelected.size;
   if (n === 0) return;
   if (!confirm('Delete ' + n + ' order' + (n !== 1 ? 's' : '') + '? This cannot be undone.')) return;
+  var toDelete = ohOrders.filter(function(o){ return ohSelected.has(o.id); });
   ohOrders = ohOrders.filter(function(o){ return !ohSelected.has(o.id); });
   ohSelected.clear();
-  ohSave();
+  ohCacheLocally();
+  toDelete.forEach(function(o){ ohDeleteFromNotion(o.notionPageId); });
   var selectAll = document.getElementById('ohSelectAll');
   if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
   ohUpdateBulkBar();
@@ -242,40 +316,42 @@ function ohCloseModal() {
   ohEditId = null;
 }
 function ohModalSave() {
-  var date      = (document.getElementById('ohMDate').value      || '').trim();
-  var sup       = (document.getElementById('ohMSup').value       || '').trim();
-  var orderNum  = (document.getElementById('ohMOrderNum').value  || '').trim();
-  var invNum    = (document.getElementById('ohMInvNum').value    || '').trim();
-  var amtRaw    = (document.getElementById('ohMAmt').value       || '').trim();
-  var status    = (document.getElementById('ohMStatus').value    || '').trim();
-  var shipped   = (document.getElementById('ohMShipped').value   || '').trim();
-  var delivered = (document.getElementById('ohMDelivered').value || '').trim();
-  var notes     = (document.getElementById('ohMNotes').value     || '').trim();
-  var amt = ohParseAmt(amtRaw);
+  var date     = (document.getElementById('ohMDate').value     || '').trim();
+  var sup      = (document.getElementById('ohMSup').value      || '').trim();
+  var orderNum = (document.getElementById('ohMOrderNum').value || '').trim();
+  var invNum   = (document.getElementById('ohMInvNum').value   || '').trim();
+  var amtRaw   = (document.getElementById('ohMAmt').value      || '').trim();
+  var notes    = (document.getElementById('ohMNotes').value    || '').trim();
+  var amt      = ohParseAmt(amtRaw);
+  var saved;
 
   if (ohEditId) {
     ohOrders = ohOrders.map(function(o){
       if (o.id !== ohEditId) return o;
-      return Object.assign({}, o, {date: date, sup: sup, orderNum: orderNum, invNum: invNum,
-        amt: amt, status: status, shipped: shipped, delivered: delivered, notes: notes});
+      saved = Object.assign({}, o, { date: date, sup: sup, orderNum: orderNum,
+        invNum: invNum, amt: amt, notes: notes });
+      return saved;
     });
   } else {
-    ohOrders.push({ id: 'oh_' + Date.now().toString(36), date: date, sup: sup,
-      orderNum: orderNum, invNum: invNum, amt: amt, status: status,
-      shipped: shipped, delivered: delivered, notes: notes });
+    saved = { id: 'oh_' + Date.now().toString(36), date: date, sup: sup,
+      orderNum: orderNum, invNum: invNum, amt: amt, notes: notes };
+    ohOrders.push(saved);
   }
-  ohSave();
+  ohCacheLocally();
   ohCloseModal();
   ohRender();
   toast('Order saved');
+  if (saved) ohSyncOrder(saved);
 }
 function ohDeleteOrder(id) {
   if (!confirm('Delete this order record?')) return;
+  var target = ohOrders.find(function(o){ return o.id === id; });
   ohOrders = ohOrders.filter(function(o){ return o.id !== id; });
-  ohSave();
+  ohCacheLocally();
   ohCloseModal();
   ohRender();
   toast('Order deleted', '🗑');
+  if (target) ohDeleteFromNotion(target.notionPageId);
 }
 
 // ── Render ────────────────────────────────────
@@ -526,7 +602,8 @@ function ohParseCsvSilent(text, supplierOverride) {
   newOrders = ohCollapseByOrder(newOrders);
   newOrders = ohFilterExisting(newOrders);
   ohOrders = ohOrders.concat(newOrders);
-  ohSave();
+  ohCacheLocally();
+  ohBatchSync(newOrders);
 }
 
 function ohParseCsv(text, supplierOverride) {
@@ -605,12 +682,12 @@ function ohParseCsv(text, supplierOverride) {
   if (imported === 0) { toast('No new orders to import (all already exist)', 'ℹ'); return; }
 
   ohOrders = ohOrders.concat(newOrders);
-  ohSave();
-  // Reset filters so all imported orders are visible
+  ohCacheLocally();
   ohResetFilters();
   ohRebuildYearDropdown();
   ohRender();
-  toast('Imported ' + imported + ' order' + (imported !== 1 ? 's' : '') + (skipped ? ' (' + skipped + ' skipped)' : ''));
+  toast('Imported ' + imported + ' order' + (imported !== 1 ? 's' : '') + (skipped ? ' (' + skipped + ' skipped)' : '') + ' — syncing to Notion…');
+  ohBatchSync(newOrders);
 }
 
 // Collapse line-item rows: one entry per orderNum (or invNum).
@@ -731,62 +808,6 @@ function ohShowCsvHelp() {
     + '• Dates: YYYY-MM-DD or M/D/YYYY\n'
     + '• Amount: $1,234.56 or 1234.56 or 1.234,56 all work\n'
     + '• Rio Grande OrderHistory CSVs: multi-line-item orders are collapsed to one entry automatically');
-}
-
-// ── Notion Integration ────────────────────────
-function ohWireNotionBtns() {
-  var saveBtn = document.getElementById('ohNotionSaveBtn');
-  if (saveBtn) saveBtn.addEventListener('click', ohSaveNotion);
-  var loadBtn = document.getElementById('ohNotionLoadBtn');
-  if (loadBtn) loadBtn.addEventListener('click', ohLoadNotion);
-}
-
-function ohSaveNotion() {
-  if (ohOrders.length === 0) { toast('No orders to save', '⚠️'); return; }
-  var btn = document.getElementById('ohNotionSaveBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '☁ Saving…'; }
-  setTimeout(function(){ if (btn) { btn.disabled = false; btn.textContent = '☁ Save to Notion'; } }, 4000);
-  safeSendPrompt('save supplier orders to notion: ' + JSON.stringify({
-    notion_db: OH_NOTION_DB,
-    orders: ohOrders
-  }));
-  toast('Saving to Notion…', '☁');
-}
-
-function ohLoadNotion() {
-  var btn = document.getElementById('ohNotionLoadBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '☁ Loading…'; }
-  var timeout = setTimeout(function(){
-    window.removeEventListener('message', _ohNotionLoadHandler);
-    if (btn) { btn.disabled = false; btn.textContent = '☁ Load from Notion'; }
-    toast('No response from Notion', '⚠️');
-  }, 20000);
-  function _ohNotionLoadHandler(e) {
-    if (!e.data || e.data.type !== 'oh-notion-data') return;
-    clearTimeout(timeout);
-    window.removeEventListener('message', _ohNotionLoadHandler);
-    if (btn) { btn.disabled = false; btn.textContent = '☁ Load from Notion'; }
-    ohHandleNotionLoad(e.data.orders || []);
-  }
-  window.addEventListener('message', _ohNotionLoadHandler);
-  safeSendPrompt('load supplier orders from notion: ' + JSON.stringify({ notion_db: OH_NOTION_DB }));
-}
-
-function ohHandleNotionLoad(loaded) {
-  if (!loaded.length) { toast('No orders found in Notion', '⚠️'); return; }
-  // Upsert by id
-  var byId = {};
-  ohOrders.forEach(function(o){ byId[o.id] = o; });
-  var added = 0, updated = 0;
-  loaded.forEach(function(no){
-    if (byId[no.id]) { Object.assign(byId[no.id], no); updated++; }
-    else             { ohOrders.push(no); added++; }
-  });
-  ohSave();
-  ohResetFilters();
-  ohRebuildYearDropdown();
-  ohRender();
-  toast('Loaded ' + loaded.length + ' orders from Notion (' + added + ' new, ' + updated + ' updated)');
 }
 
 // ── Helpers ───────────────────────────────────
