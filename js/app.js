@@ -303,12 +303,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 });
-  ORDERS.forEach(o => {
-    if (o.stage === 'inquiry')   { o.stage = 'intake-custom'; migrated = true; }
-    if (o.stage === 'wait-cust') { o.stage = 'quote';         migrated = true; }
-  });
-  if (migrated) try { localStorage.setItem('sts-orders', JSON.stringify(ORDERS)); } catch(e) {}
-}
 
 
 async function syncWithNotion() {
