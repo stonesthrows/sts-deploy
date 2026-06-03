@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v63-triplog-tab -->
+<!-- deploy-version: v64-odometer-log -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -3026,6 +3026,71 @@
       No trips found for this date range.
     </div>
   </div>
+
+  <!-- ── Friday odometer check banner ── -->
+  <div id="odoFridayBanner" class="odo-friday-banner" style="display:none">
+    <span style="font-size:20px">📋</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:14px">Friday Odometer Check</div>
+      <div style="font-size:12px;color:var(--text2)">Log your actual odometer reading to catch any trips TripLog may have missed.</div>
+    </div>
+    <button class="btn btn-gold btn-sm" onclick="document.getElementById('odoLogCard').scrollIntoView({behavior:'smooth'})">Log Now →</button>
+  </div>
+
+  <!-- ── Odometer Log ── -->
+  <div class="odo-card" id="odoLogCard">
+    <div class="odo-card-head">
+      <div>
+        <div style="font-weight:700;font-size:14px">📟 Odometer Log</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Weekly readings — compare against TripLog to catch missing trips</div>
+      </div>
+    </div>
+
+    <!-- Sync status strip -->
+    <div class="odo-sync-strip">
+      <div class="odo-sync-item">
+        <div class="odo-sync-label">Last TripLog Odometer</div>
+        <div class="odo-sync-val" id="odoLastTL">—</div>
+      </div>
+      <div class="odo-sync-sep">→</div>
+      <div class="odo-sync-item">
+        <div class="odo-sync-label">Last Logged Reading</div>
+        <div class="odo-sync-val" id="odoLastLogged">—</div>
+      </div>
+      <div class="odo-sync-sep"></div>
+      <div class="odo-sync-item">
+        <div class="odo-sync-label">Difference</div>
+        <div id="odoDelta" class="odo-delta">—</div>
+      </div>
+    </div>
+
+    <!-- Log a reading -->
+    <div class="odo-input-row">
+      <input type="number" id="odoReadingInput" class="odo-input" placeholder="Current odometer (e.g. 34500)">
+      <input type="text"   id="odoNotesInput"   class="odo-input odo-notes" placeholder="Notes (optional — e.g. after fill-up)">
+      <button class="btn btn-gold btn-sm" onclick="odoSaveReading()">Save Reading</button>
+    </div>
+
+    <!-- History -->
+    <div class="odo-history-wrap">
+      <table class="tl-table" style="margin-top:0">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Odometer</th>
+            <th>vs TripLog</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="odoHistoryBody">
+          <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-dim)">No readings logged yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="text-align:right;padding:8px 16px 12px">
+      <button class="tl-edit-btn" onclick="odoDeleteLast()">🗑 Delete Last Entry</button>
+    </div>
+  </div>
 </div>
 
 <!-- TripLog Edit Modal -->
@@ -3199,6 +3264,54 @@
   padding: 12px 20px 16px;
   border-top: 1px solid var(--bdr-light);
 }
+/* ── Odometer log ── */
+.odo-friday-banner {
+  display: flex; align-items: center; gap: 14px;
+  margin: 0 20px 4px;
+  background: linear-gradient(135deg,#FEF9EC,#FDF2D5);
+  border: 1.5px solid #F0C870;
+  border-radius: 12px; padding: 14px 18px;
+}
+.odo-card {
+  margin: 16px 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--bdr);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.odo-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--card-head-bg);
+  border-bottom: 1px solid var(--bdr);
+}
+.odo-sync-strip {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--bdr-light);
+  flex-wrap: wrap;
+}
+.odo-sync-item { display: flex; flex-direction: column; gap: 3px; }
+.odo-sync-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
+.odo-sync-val { font-size: 20px; font-weight: 800; color: var(--text); }
+.odo-sync-sep { font-size: 18px; color: var(--text-dim); }
+.odo-delta { font-size: 14px; font-weight: 700; }
+.odo-delta.ok   { color: #2D7A4A; }
+.odo-delta.warn { color: #B07818; }
+.odo-delta.err  { color: #c0392b; }
+.odo-input-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bdr-light);
+  flex-wrap: wrap;
+}
+.odo-input {
+  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: 8px;
+  font-size: 13px; background: var(--bg); color: var(--text);
+}
+.odo-input:focus { outline: none; border-color: var(--accent-border); }
+.odo-notes { flex: 1; min-width: 180px; }
+.odo-history-wrap { padding: 12px 16px 0; }
 </style>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->

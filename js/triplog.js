@@ -4,9 +4,10 @@
 // ════════════════════════════════════════════
 
 // Requests go through a Cloudflare Worker proxy to avoid CORS
-const TRIPLOG_PROXY = 'https://triplog-proxy.kyle-3c9.workers.dev';
+const TRIPLOG_PROXY     = 'https://triplog-proxy.kyle-3c9.workers.dev';
 const IRS_RATE_2026     = 0.70;   // $0.70/mile — update each Jan if needed
 const TL_STORAGE_KEY    = 'sts-triplog-edits';
+const TL_ODO_KEY        = 'sts-odometer-log';  // weekly odometer readings
 
 let tlTrips      = [];   // raw trips from API
 let tlEdits      = {};   // { tripId: { mileage, startOdometer, endOdometer, activity, notes } }
@@ -27,6 +28,7 @@ function tlInit() {
   // Load any saved local edits
   try { tlEdits = JSON.parse(localStorage.getItem(TL_STORAGE_KEY) || '{}'); } catch(e) { tlEdits = {}; }
 
+  odoRender();
   tlFetch();
 }
 
@@ -123,6 +125,7 @@ function tlRender() {
   }).join('');
 
   document.getElementById('tlBody').innerHTML = rows;
+  odoRender(); // refresh delta now that trips are loaded
 }
 
 function tlRenderStats(trips) {
@@ -242,4 +245,97 @@ function tlExportCSV() {
   a.click();
   URL.revokeObjectURL(url);
   toast('CSV exported', '📥');
+}
+
+// ════════════════════════════════════════════
+//  ODOMETER LOG
+// ════════════════════════════════════════════
+
+function odoLoadLog() {
+  try { return JSON.parse(localStorage.getItem(TL_ODO_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function odoSaveLog(log) {
+  try { localStorage.setItem(TL_ODO_KEY, JSON.stringify(log)); } catch(e) {}
+}
+
+function odoRender() {
+  const log = odoLoadLog();
+  const isFriday = new Date().getDay() === 5;
+
+  // Friday banner
+  const banner = document.getElementById('odoFridayBanner');
+  if (banner) {
+    const alreadyLoggedToday = log.some(e => e.date === tlFmtDate(new Date()));
+    banner.style.display = (isFriday && !alreadyLoggedToday) ? 'flex' : 'none';
+  }
+
+  // Last TripLog odometer
+  const lastTrip = tlTrips.length ? tlTrips[tlTrips.length - 1] : null;
+  const lastTLOdo = lastTrip ? (tlEdits[lastTrip.id]?.endOdometer ?? lastTrip.endOdometer) : null;
+  const lastTLEl = document.getElementById('odoLastTL');
+  if (lastTLEl) lastTLEl.textContent = lastTLOdo ? lastTLOdo.toLocaleString() : '—';
+
+  // Last logged reading & delta
+  const lastEntry = log[log.length - 1];
+  const lastLogEl = document.getElementById('odoLastLogged');
+  const deltaEl   = document.getElementById('odoDelta');
+  if (lastLogEl) lastLogEl.textContent = lastEntry ? lastEntry.reading.toLocaleString() : '—';
+  if (deltaEl) {
+    if (lastEntry && lastTLOdo != null) {
+      const diff = lastEntry.reading - lastTLOdo;
+      deltaEl.textContent = diff === 0 ? '✓ In sync' : `${diff > 0 ? '+' : ''}${diff} mi vs TripLog`;
+      deltaEl.className   = 'odo-delta ' + (diff === 0 ? 'ok' : diff > 0 ? 'warn' : 'err');
+    } else {
+      deltaEl.textContent = '—';
+      deltaEl.className   = 'odo-delta';
+    }
+  }
+
+  // History table
+  const tbody = document.getElementById('odoHistoryBody');
+  if (!tbody) return;
+  if (!log.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-dim)">No readings logged yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...log].reverse().map(e => {
+    const diff = (lastTLOdo != null) ? (e.reading - lastTLOdo) : null;
+    const diffStr = diff === null ? '—' : (diff === 0 ? '<span class="odo-delta ok">✓ Sync</span>' : `<span class="odo-delta ${diff > 0 ? 'warn' : 'err'}">${diff > 0 ? '+' : ''}${diff}</span>`);
+    return `<tr>
+      <td>${new Date(e.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</td>
+      <td style="font-weight:700">${e.reading.toLocaleString()}</td>
+      <td>${diffStr}</td>
+      <td style="color:var(--text-dim);font-size:12px">${e.notes || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function odoSaveReading() {
+  const readingVal = document.getElementById('odoReadingInput').value.trim();
+  const notes      = document.getElementById('odoNotesInput').value.trim();
+  const reading    = parseInt(readingVal, 10);
+  if (isNaN(reading) || reading < 0) { toast('Enter a valid odometer reading', '⚠️'); return; }
+
+  const log   = odoLoadLog();
+  const today = tlFmtDate(new Date());
+  // Remove any existing entry for today before adding updated one
+  const filtered = log.filter(e => e.date !== today);
+  filtered.push({ date: today, reading, notes: notes || null });
+  odoSaveLog(filtered);
+
+  document.getElementById('odoReadingInput').value = '';
+  document.getElementById('odoNotesInput').value   = '';
+  odoRender();
+  toast('Odometer reading saved', '🚗');
+}
+
+function odoDeleteLast() {
+  const log = odoLoadLog();
+  if (!log.length) return;
+  if (!confirm('Delete the most recent odometer entry?')) return;
+  log.pop();
+  odoSaveLog(log);
+  odoRender();
+  toast('Entry deleted', '🗑');
 }
