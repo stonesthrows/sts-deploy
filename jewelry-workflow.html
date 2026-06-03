@@ -2714,6 +2714,7 @@
         <option value="Stuller">Stuller</option>
         <option value="Gesswein">Gesswein</option>
       </select>
+      <button class="btn btn-outline btn-sm" id="ohRGDriveBtn" title="Pull new Rio Grande invoice CSVs from Google Drive">☁ Sync RG from Drive</button>
       <label class="btn btn-outline btn-sm" title="Import orders from a CSV file" style="cursor:pointer">
         ⬆ Import CSV
         <input type="file" id="ohCsvInput" accept=".csv" style="display:none">
@@ -2752,14 +2753,6 @@
       <button class="oh-fbtn" data-sup="Gesswein">Gesswein</button>
     </div>
     <div class="oh-sep"></div>
-    <div id="ohStf" style="display:flex;gap:4px;">
-      <button class="oh-fbtn active" data-st="all">All</button>
-      <button class="oh-fbtn" data-st="Processing">Processing</button>
-      <button class="oh-fbtn" data-st="Paid">Paid</button>
-      <button class="oh-fbtn" data-st="Due">Due</button>
-      <button class="oh-fbtn" data-st="Delivered">Delivered</button>
-    </div>
-    <div class="oh-sep"></div>
     <select id="ohYearFilter" class="oh-imp-sup-sel" title="Filter by year"></select>
   </div>
 
@@ -2779,12 +2772,11 @@
           <th data-ohcol="o">Order #</th>
           <th data-ohcol="inv">Invoice #</th>
           <th data-ohcol="amt">Amount</th>
-          <th data-ohcol="st">Status</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="ohTbody">
-        <tr><td colspan="8" class="oh-empty">Loading orders…</td></tr>
+        <tr><td colspan="7" class="oh-empty">Loading orders…</td></tr>
       </tbody>
     </table>
   </div>

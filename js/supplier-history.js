@@ -8,7 +8,6 @@ var OH_NOTION_DB  = 'ce32844c-fd51-4a3c-87a5-30ae79e16f8d';
 // ── State ─────────────────────────────────────
 var ohOrders    = [];
 var ohSupFilter = 'all';
-var ohStFilter  = 'all';
 var ohYearFilter= String(new Date().getFullYear()); // default current year
 var ohSortCol   = 'd';
 var ohSortAsc   = false;
@@ -56,15 +55,6 @@ function ohWireFilters() {
     ohSupFilter = btn.dataset.sup;
     ohRender();
   });
-  var stf = document.getElementById('ohStf');
-  if (stf) stf.addEventListener('click', function(e) {
-    var btn = e.target.closest('.oh-fbtn[data-st]');
-    if (!btn) return;
-    stf.querySelectorAll('.oh-fbtn').forEach(function(b){ b.classList.remove('active'); });
-    btn.classList.add('active');
-    ohStFilter = btn.dataset.st;
-    ohRender();
-  });
   var yf = document.getElementById('ohYearFilter');
   if (yf) yf.addEventListener('change', function() {
     ohYearFilter = yf.value;
@@ -90,18 +80,11 @@ function ohRebuildYearDropdown() {
 function ohResetFilters() {
   ohSelected.clear();
   ohSupFilter = 'all';
-  ohStFilter  = 'all';
   var sf = document.getElementById('ohSf');
   if (sf) {
     sf.querySelectorAll('.oh-fbtn').forEach(function(b){ b.classList.remove('active'); });
     var all = sf.querySelector('.oh-fbtn[data-sup="all"]');
     if (all) all.classList.add('active');
-  }
-  var stf = document.getElementById('ohStf');
-  if (stf) {
-    stf.querySelectorAll('.oh-fbtn').forEach(function(b){ b.classList.remove('active'); });
-    var allSt = stf.querySelector('.oh-fbtn[data-st="all"]');
-    if (allSt) allSt.classList.add('active');
   }
 }
 
@@ -291,7 +274,6 @@ function ohRender() {
 
   var rows = ohOrders.slice();
   if (ohSupFilter !== 'all') rows = rows.filter(function(o){ return o.sup === ohSupFilter; });
-  if (ohStFilter  !== 'all') rows = rows.filter(function(o){ return o.status === ohStFilter; });
   if (ohYearFilter !== 'all') rows = rows.filter(function(o){ return o.date && o.date.slice(0,4) === ohYearFilter; });
 
   rows.sort(function(a, b){
@@ -312,7 +294,7 @@ function ohRender() {
   });
 
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="oh-empty">'
+    tbody.innerHTML = '<tr><td colspan="7" class="oh-empty">'
       + (ohOrders.length === 0
           ? 'No orders yet — click <strong>＋ Add Order</strong> to log one, or use <strong>⬆ Import CSV</strong>.'
           : 'No orders match the current filters.')
@@ -327,7 +309,6 @@ function ohRender() {
     var amtHtml = amt != null && !isNaN(amt)
       ? '<span class="oh-amt">$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>'
       : '<span class="oh-na">—</span>';
-    var stCls   = {'Processing':'oh-s-processing','Paid':'oh-s-paid','Due':'oh-s-due','Delivered':'oh-s-delivered'}[o.status] || 'oh-s-processing';
     var tip     = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
     var checked = ohSelected.has(o.id) ? ' checked' : '';
     var selCls  = ohSelected.has(o.id) ? ' oh-selected' : '';
@@ -341,7 +322,6 @@ function ohRender() {
       + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
       + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
       + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-badge ' + stCls + '">' + ohEsc(o.status) + '</span></td>'
       + '<td><button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button></td>'
       + '</tr>';
   }).join('');
@@ -374,6 +354,9 @@ function ohUpdateTs() {
 }
 
 // ── CSV Import ────────────────────────────────
+var OH_RG_SEEN_KEY = 'oh-rg-drive-seen';
+var OH_RG_FOLDER   = 'Supplier Invoice CSVs';
+
 function ohWireCsvImport() {
   var input = document.getElementById('ohCsvInput');
   if (input) input.addEventListener('change', function(e) {
@@ -387,6 +370,152 @@ function ohWireCsvImport() {
   });
   var helpBtn = document.getElementById('ohCsvHelpBtn');
   if (helpBtn) helpBtn.addEventListener('click', ohShowCsvHelp);
+  var rgBtn = document.getElementById('ohRGDriveBtn');
+  if (rgBtn) rgBtn.addEventListener('click', function(){ ohSyncRGFromDrive(rgBtn); });
+}
+
+function ohSyncRGFromDrive(btn) {
+  var clientId = localStorage.getItem('sts-google-client-id');
+  if (!clientId) {
+    openIntegrationsModal();
+    toast('Set up your Google Client ID in Integrations first', 'ℹ');
+    return;
+  }
+  var token = getGoogleToken();
+  if (!token) {
+    triggerGoogleOAuth(clientId, function(){ ohSyncRGFromDrive(btn); });
+    return;
+  }
+  ohRunRGDriveSync(btn, token);
+}
+
+async function ohRunRGDriveSync(btn, token) {
+  if (btn) { btn.disabled = true; btn.textContent = '☁ Syncing…'; }
+
+  try {
+    // Find the folder
+    var q = "name='" + OH_RG_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+    var folderResp = await fetch(
+      'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)',
+      { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    if (folderResp.status === 401) {
+      clearGoogleToken();
+      toast('Google session expired — click Sync RG to reconnect', '⚠');
+      return;
+    }
+    var folderData = await folderResp.json();
+    if (!folderData.files || !folderData.files.length) {
+      toast('Drive folder "' + OH_RG_FOLDER + '" not found', '⚠');
+      return;
+    }
+    var folderId = folderData.files[0].id;
+
+    // List CSV files
+    var csvQ = "'" + folderId + "' in parents and trashed=false and (mimeType='text/csv' or mimeType='text/plain' or name contains '.csv')";
+    var filesResp = await fetch(
+      'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(csvQ)
+      + '&fields=files(id,name,createdTime)&orderBy=createdTime+desc&pageSize=50',
+      { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    var filesData = await filesResp.json();
+    var allFiles  = filesData.files || [];
+
+    var seen = [];
+    try { seen = JSON.parse(localStorage.getItem(OH_RG_SEEN_KEY) || '[]'); } catch(e) {}
+    var newFiles = allFiles.filter(function(f){ return !seen.includes(f.id); });
+
+    if (!newFiles.length) {
+      toast('No new Rio Grande CSVs in Drive — already up to date', 'ℹ');
+      return;
+    }
+
+    var totalImported = 0;
+    for (var i = 0; i < newFiles.length; i++) {
+      var file = newFiles[i];
+      if (btn) btn.textContent = '☁ Importing ' + (i + 1) + '/' + newFiles.length + '…';
+      try {
+        var csvResp = await fetch(
+          'https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media',
+          { headers: { 'Authorization': 'Bearer ' + token } }
+        );
+        var text = await csvResp.text();
+        var before = ohOrders.length;
+        ohParseCsvSilent(text, 'Rio Grande');
+        totalImported += ohOrders.length - before;
+        seen.push(file.id);
+      } catch(e) {
+        console.warn('Error importing ' + file.name, e);
+      }
+    }
+
+    localStorage.setItem(OH_RG_SEEN_KEY, JSON.stringify(seen));
+    ohRebuildYearDropdown();
+    ohRender();
+    toast('Imported ' + totalImported + ' Rio Grande order' + (totalImported !== 1 ? 's' : '') + ' from ' + newFiles.length + ' file' + (newFiles.length !== 1 ? 's' : ''));
+
+  } catch(e) {
+    console.error('RG Drive sync error:', e);
+    toast('Error syncing from Drive — see console', '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '☁ Sync RG from Drive'; }
+  }
+}
+
+// Silent variant of ohParseCsv — no toast, no filter reset, returns count
+function ohParseCsvSilent(text, supplierOverride) {
+  var lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n')
+                  .filter(function(l){ return l.trim(); });
+  if (lines.length < 2) return;
+
+  var rawHeaders = ohCsvSplit(lines[0]);
+  rawHeaders[0] = rawHeaders[0].replace(/^﻿/, '');
+  var headers = rawHeaders.map(function(h){ return h.toLowerCase().trim().replace(/[^a-z0-9]/g,''); });
+
+  function col(aliases) {
+    for (var i = 0; i < aliases.length; i++) {
+      var idx = headers.indexOf(aliases[i]);
+      if (idx >= 0) return idx;
+    }
+    for (var i = 0; i < aliases.length; i++) {
+      for (var j = 0; j < headers.length; j++) {
+        if (headers[j] && (headers[j].indexOf(aliases[i]) >= 0 || aliases[i].indexOf(headers[j]) >= 0)) return j;
+      }
+    }
+    return -1;
+  }
+
+  var iDate     = col(['date','orderdate','ordereddate','purchasedate','invoicedate','shipped','shipdate']);
+  var iOrderNum = col(['ordernumber','ordernum','orderno','order','ponumber','po']);
+  var iInvNum   = col(['invoicenumber','invoicenum','invoiceno','invoice','inv','invoiceid']);
+  var iAmt      = col(['amount','total','invoiceamount','invoicetotal','cost','price','subtotal','grandtotal','amt','balance']);
+  var iStatus   = col(['status','state','paymentstatus','orderstatus']);
+  var iNotes    = col(['notes','note','comments','comment','memo','description','remarks']);
+
+  var newOrders = [];
+  for (var r = 1; r < lines.length; r++) {
+    var cells = ohCsvSplit(lines[r]);
+    (function(cells) {
+      function get(i) { return (i >= 0 && i < cells.length) ? cells[i].trim() : ''; }
+      var date = ohNormalizeDate(get(iDate));
+      var amt  = ohParseAmt(get(iAmt));
+      if (!date && !get(iOrderNum) && amt == null) return;
+      newOrders.push({
+        id:       'oh_' + (Date.now() + r).toString(36),
+        date:     date,
+        sup:      supplierOverride || 'Rio Grande',
+        orderNum: get(iOrderNum),
+        invNum:   get(iInvNum),
+        amt:      amt,
+        status:   ohNormalizeStatus(get(iStatus)) || 'Processing',
+        notes:    get(iNotes)
+      });
+    })(cells);
+  }
+  newOrders = ohCollapseByOrder(newOrders);
+  newOrders = ohFilterExisting(newOrders);
+  ohOrders = ohOrders.concat(newOrders);
+  ohSave();
 }
 
 function ohParseCsv(text, supplierOverride) {
@@ -458,13 +587,47 @@ function ohParseCsv(text, supplierOverride) {
 
   if (imported === 0) { toast('No valid rows found in CSV', '⚠️'); return; }
 
+  newOrders = ohCollapseByOrder(newOrders);
+  newOrders = ohFilterExisting(newOrders);
+  imported  = newOrders.length;
+
+  if (imported === 0) { toast('No new orders to import (all already exist)', 'ℹ'); return; }
+
   ohOrders = ohOrders.concat(newOrders);
   ohSave();
-  // Reset filters so all imported orders (including Stuller) are visible
+  // Reset filters so all imported orders are visible
   ohResetFilters();
   ohRebuildYearDropdown();
   ohRender();
   toast('Imported ' + imported + ' order' + (imported !== 1 ? 's' : '') + (skipped ? ' (' + skipped + ' skipped)' : ''));
+}
+
+// Collapse line-item rows: one entry per orderNum (or invNum).
+// Rio Grande's Total column is the ORDER total repeated on every item row —
+// so we keep the first row's amount, not sum them.
+function ohCollapseByOrder(orders) {
+  var seen = {}, result = [];
+  orders.forEach(function(o) {
+    var key = o.orderNum || o.invNum || '';
+    if (!key || !seen[key]) {
+      var copy = Object.assign({}, o);
+      if (key) seen[key] = true;
+      result.push(copy);
+    }
+  });
+  return result;
+}
+
+// Remove orders whose orderNum or invNum already exist in ohOrders
+function ohFilterExisting(newOrders) {
+  var existing = {};
+  ohOrders.forEach(function(o) {
+    if (o.orderNum) existing[o.orderNum] = true;
+    if (o.invNum)   existing[o.invNum]   = true;
+  });
+  return newOrders.filter(function(o) {
+    return !(o.orderNum && existing[o.orderNum]) && !(o.invNum && existing[o.invNum]);
+  });
 }
 
 // Quoted-field-aware CSV line split
@@ -545,18 +708,18 @@ function ohNormalizeStatus(s) {
 
 function ohShowCsvHelp() {
   var example = [
-    'date,supplier,order number,invoice number,amount,status,shipped date,delivered date,notes',
-    '2026-05-01,Rio Grande,1234567,INV-001,142.50,Delivered,2026-05-03,2026-05-06,Spring metals restock',
-    '2026-05-10,Stuller,9876543,INV-002,89.00,Paid,2026-05-11,,Onyx stones',
-    '2026-05-20,Gesswein,555000,INV-003,54.75,Processing,,,'
+    'date,supplier,order number,invoice number,amount,notes',
+    '2026-05-01,Rio Grande,1234567,INV-001,142.50,Spring metals restock',
+    '2026-05-10,Stuller,9876543,INV-002,89.00,Onyx stones',
+    '2026-05-20,Gesswein,555000,INV-003,54.75,'
   ].join('\n');
   alert('Expected CSV columns (names are flexible — partial matches work):\n\n'
     + example
     + '\n\nColumn tips:\n'
     + '• Supplier: Rio Grande / Stuller / Gesswein (partial OK — "rio", "stull", "gess")\n'
-    + '• Status: Processing / Paid / Due / Delivered (partial OK — "pending"→Processing)\n'
     + '• Dates: YYYY-MM-DD or M/D/YYYY\n'
-    + '• Amount: $1,234.56 or 1234.56 or 1.234,56 all work');
+    + '• Amount: $1,234.56 or 1234.56 or 1.234,56 all work\n'
+    + '• Rio Grande OrderHistory CSVs: multi-line-item orders are collapsed to one entry automatically');
 }
 
 // ── Notion Integration ────────────────────────
