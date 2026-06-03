@@ -1,7 +1,7 @@
 node_modules/
 .env
 *.env
-gmail-brief.json
+# gmail-brief.json is committed so Cloudflare can serve it to the live app
 scanned-orders.json
 processed-drive-scans.json
 cf-screenshot.png
