@@ -292,9 +292,11 @@ document.addEventListener('DOMContentLoaded', function() {
   renderCustomers();
   loadNotes();
 
-  // Service worker
+  // Unregister any old service workers
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
   }
 
   // Close theme picker on outside click
