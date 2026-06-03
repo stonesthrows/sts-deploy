@@ -28,20 +28,21 @@ let _invData    = {};  // { [sub]: { items, counts } }
 let _invDirty   = {};  // { varId: newQty } — unsaved edits
 let _invCurSub  = 'ear-cuffs';
 
-// ── Square API helper ────────────────────────
+// ── Square API helper (routes through /api/square proxy to avoid CORS) ──────
 
 async function _sqFetch(path, opts = {}) {
   const token = localStorage.getItem('sts-square-token');
   if (!token) throw new Error('No Square token — add it in ⚙ Integrations');
-  const res = await fetch('https://connect.squareup.com' + path, {
-    ...opts,
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type':  'application/json',
-      'Square-Version': '2025-01-23',
-      ...(opts.headers || {}),
-    },
+
+  const method = opts.method || 'GET';
+  const body   = opts.body ? JSON.parse(opts.body) : undefined;
+
+  const res = await fetch('/api/square', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, method, body, token }),
   });
+
   const json = await res.json();
   if (!res.ok) {
     const msg = json.errors?.[0]?.detail || json.errors?.[0]?.code || JSON.stringify(json);
@@ -53,9 +54,9 @@ async function _sqFetch(path, opts = {}) {
 // ── Load / fetch ─────────────────────────────
 
 async function invLoad() {
-  if (window._invLoaded) return;
-  window._invLoaded = true;
+  if (_invData[_invCurSub]) return; // already loaded
   await _invLoadSub(_invCurSub);
+  window._invLoaded = true;
 }
 
 async function _invLoadSub(sub) {
