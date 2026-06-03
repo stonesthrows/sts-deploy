@@ -67,6 +67,7 @@ function switchTab(id, el) {
   if (el) el.classList.add('active');
   if (id === 'sales') setTimeout(renderSales, 0);
   if (id === 'production') setTimeout(renderProduction, 0);
+  if (id === 'gmail') loadScheduledBrief();
 }
 
 // One-time inits for Supplies sub-tabs
