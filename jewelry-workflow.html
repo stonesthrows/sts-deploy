@@ -3513,6 +3513,52 @@
 }
 </style>
 
+<!-- ═══════════════════ INTEGRATIONS MODAL ═══════════════════ -->
+<div id="integrationsModalBg" onclick="if(event.target===this)closeIntegrationsModal()">
+  <div class="integrations-modal">
+    <h3>⚙ Integrations</h3>
+    <p class="int-subtitle">API keys are stored locally in your browser — never sent to any server.</p>
+
+    <div class="int-section">
+      <div class="int-section-title">Google</div>
+      <label for="int-google-client-id">OAuth Client ID</label>
+      <input type="text" id="int-google-client-id" placeholder="123456789.apps.googleusercontent.com">
+      <p class="int-hint">Used for Google Drive bag scans and Contacts sync. Create one at console.cloud.google.com.</p>
+    </div>
+
+    <div class="int-section">
+      <div class="int-section-title">Anthropic</div>
+      <label for="int-anthropic-key">API Key</label>
+      <input type="password" id="int-anthropic-key" placeholder="sk-ant-…">
+      <p class="int-hint">Used for AI-assisted order scanning and estimates.</p>
+    </div>
+
+    <div class="int-section">
+      <div class="int-section-title">ClickUp</div>
+      <label for="int-clickup-token">Personal API Token</label>
+      <input type="password" id="int-clickup-token" placeholder="pk_…">
+      <label for="int-clickup-list-id">Custom Orders List ID</label>
+      <input type="text" id="int-clickup-list-id" placeholder="901234567">
+      <div style="margin-top:8px;">
+        <button class="btn btn-outline btn-sm" onclick="findClickUpListId()">🔍 Find my List ID automatically</button>
+      </div>
+      <p class="int-hint">Get your token at app.clickup.com → Settings → Apps → API Token.</p>
+    </div>
+
+    <div class="int-section">
+      <div class="int-section-title">Square</div>
+      <label for="int-square-token">Access Token</label>
+      <input type="password" id="int-square-token" placeholder="EAAAl…">
+      <p class="int-hint">Used for live inventory sync. Get a token at developer.squareup.com → Your App → Credentials. Use a Production token for live data.</p>
+    </div>
+
+    <div class="int-foot">
+      <button class="btn btn-outline" onclick="closeIntegrationsModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveIntegrations()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
@@ -3526,5 +3572,6 @@
 <script src="js/supplier-history.js"></script>
 <script src="js/clickup.js"></script>
 <script src="js/triplog.js"></script>
+<script src="js/inventory.js"></script>
 </body>
 </html>

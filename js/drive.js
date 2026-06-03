@@ -516,6 +516,7 @@ function openIntegrationsModal() {
   document.getElementById('int-anthropic-key').value    = localStorage.getItem('sts-anthropic-key')    || '';
   document.getElementById('int-clickup-token').value    = localStorage.getItem('sts-clickup-token')    || '';
   document.getElementById('int-clickup-list-id').value  = localStorage.getItem('sts-clickup-list-id')  || '';
+  document.getElementById('int-square-token').value     = localStorage.getItem('sts-square-token')     || '';
   document.getElementById('integrationsModalBg').classList.add('open');
 }
 
@@ -529,11 +530,13 @@ function saveIntegrations() {
   const anthropicKey   = document.getElementById('int-anthropic-key').value.trim();
   const clickupToken   = document.getElementById('int-clickup-token').value.trim();
   const clickupListId  = document.getElementById('int-clickup-list-id').value.trim();
+  const squareToken    = document.getElementById('int-square-token').value.trim();
 
   googleClientId ? localStorage.setItem('sts-google-client-id', googleClientId) : localStorage.removeItem('sts-google-client-id');
   anthropicKey   ? localStorage.setItem('sts-anthropic-key',    anthropicKey)   : localStorage.removeItem('sts-anthropic-key');
   clickupToken   ? localStorage.setItem('sts-clickup-token',    clickupToken)   : localStorage.removeItem('sts-clickup-token');
   clickupListId  ? localStorage.setItem('sts-clickup-list-id',  clickupListId)  : localStorage.removeItem('sts-clickup-list-id');
+  squareToken    ? localStorage.setItem('sts-square-token',     squareToken)    : localStorage.removeItem('sts-square-token');
 
   // Invalidate token if client ID changed
   if (googleClientId !== prev) clearGoogleToken();
