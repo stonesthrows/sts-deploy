@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v67-steel-theme -->
+<!-- deploy-version: v68-chip-buttons -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1139,7 +1139,10 @@
       font-size: 11px; font-weight: 600;
       padding: 3px 9px; border-radius: 5px;
       text-decoration: none;
+      border: none; cursor: pointer; font-family: inherit;
+      transition: background .15s, color .15s;
     }
+    .notion-chip:hover { background: #E4D8F4; color: #4A2080; }
 
     /* ── Estimate Builder ───────────────────── */
     .est-material-row {
@@ -2278,10 +2281,10 @@
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced from ClickUp</span></span>
     <div class="kanban-actions">
       <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
-      <button class="btn btn-ghost btn-sm" id="cuSyncBtn" onclick="cuSyncFromClickUp()" title="Pull latest orders from ClickUp">↻ Sync ClickUp</button>
-      <button class="btn btn-ghost btn-sm" onclick="syncGmail()">⟳ Sync Gmail</button>
-      <button class="btn btn-ghost btn-sm" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
-      <button class="btn btn-ghost btn-sm" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
+      <button class="notion-chip" id="cuSyncBtn" onclick="cuSyncFromClickUp()" title="Pull latest orders from ClickUp">↻ Sync ClickUp</button>
+      <button class="notion-chip" onclick="syncGmail()">⟳ Sync Gmail</button>
+      <button class="notion-chip" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
+      <button class="notion-chip" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ Add Order</button>
     </div>
   </div>
