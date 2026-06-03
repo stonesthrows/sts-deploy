@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v64-odometer-log -->
+<!-- deploy-version: v65-remove-friday-banner -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -3027,16 +3027,6 @@
     </div>
   </div>
 
-  <!-- ── Friday odometer check banner ── -->
-  <div id="odoFridayBanner" class="odo-friday-banner" style="display:none">
-    <span style="font-size:20px">📋</span>
-    <div style="flex:1">
-      <div style="font-weight:700;font-size:14px">Friday Odometer Check</div>
-      <div style="font-size:12px;color:var(--text2)">Log your actual odometer reading to catch any trips TripLog may have missed.</div>
-    </div>
-    <button class="btn btn-gold btn-sm" onclick="document.getElementById('odoLogCard').scrollIntoView({behavior:'smooth'})">Log Now →</button>
-  </div>
-
   <!-- ── Odometer Log ── -->
   <div class="odo-card" id="odoLogCard">
     <div class="odo-card-head">
@@ -3265,13 +3255,6 @@
   border-top: 1px solid var(--bdr-light);
 }
 /* ── Odometer log ── */
-.odo-friday-banner {
-  display: flex; align-items: center; gap: 14px;
-  margin: 0 20px 4px;
-  background: linear-gradient(135deg,#FEF9EC,#FDF2D5);
-  border: 1.5px solid #F0C870;
-  border-radius: 12px; padding: 14px 18px;
-}
 .odo-card {
   margin: 16px 20px;
   background: var(--card-bg);
