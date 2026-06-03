@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v68-chip-buttons -->
+<!-- deploy-version: v69-edit-order-modal -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -3328,6 +3328,189 @@
 .odo-input:focus { outline: none; border-color: var(--accent-border); }
 .odo-notes { flex: 1; min-width: 180px; }
 .odo-history-wrap { padding: 12px 16px 0; }
+</style>
+
+<!-- ═══════════════════ EDIT ORDER MODAL ═══════════════════ -->
+<div id="editOrderModalBg" class="eo-bg" onclick="if(event.target===this)closeEditOrderModal()">
+  <div class="eo-modal">
+
+    <div class="eo-head">
+      <div class="eo-head-title">✏️ Edit Order</div>
+      <button class="eo-close" onclick="closeEditOrderModal()">×</button>
+    </div>
+
+    <div class="eo-body">
+      <input type="hidden" id="eo-id">
+
+      <div class="eo-grid">
+        <div class="eo-field full">
+          <label>Customer Name</label>
+          <input type="text" id="eo-name" placeholder="Full name">
+        </div>
+        <div class="eo-field">
+          <label>Email</label>
+          <input type="email" id="eo-email" placeholder="customer@email.com">
+        </div>
+        <div class="eo-field">
+          <label>Phone</label>
+          <input type="tel" id="eo-phone" placeholder="(512) 555-0000">
+        </div>
+        <div class="eo-field full">
+          <label>Order Description</label>
+          <textarea id="eo-desc" rows="3" placeholder="Describe the piece…"></textarea>
+        </div>
+        <div class="eo-field">
+          <label>Stage</label>
+          <select id="eo-stage">
+            <option value="intake-custom">Custom Intake</option>
+            <option value="intake-repair">Repair Intake</option>
+            <option value="needs-est">Estimate Intake</option>
+            <option value="sketch-needs">Needs Sketch</option>
+            <option value="sketch-wait">Waiting on Sketch Approval</option>
+            <option value="sketch">Sketch Approved</option>
+            <option value="quote">Estimate Sent</option>
+            <option value="est-appr">Estimate Approved</option>
+            <option value="order-mat">Order Materials</option>
+            <option value="materials">Waiting on Materials</option>
+            <option value="build">At the Bench</option>
+            <option value="contact-need">Need to Contact Customer</option>
+            <option value="contact-done">Contacted Customer</option>
+            <option value="ready-pick">Ready for Pickup</option>
+            <option value="complete">Completed</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Pickup Location</label>
+          <select id="eo-pickup" onchange="toggleShippingAddress()">
+            <option value="">— Select location —</option>
+            <option value="Bell Market">Bell Market</option>
+            <option value="Mueller Market">Mueller Market</option>
+            <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+            <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+            <option value="Austin Flea">Austin Flea</option>
+            <option value="Studio">Studio</option>
+            <option value="To be Shipped">📦 To be Shipped</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Quoted Price ($)</label>
+          <input type="number" id="eo-price" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="eo-field">
+          <label>Deadline</label>
+          <input type="date" id="eo-deadline">
+        </div>
+        <div class="eo-field">
+          <label>Contacted Via</label>
+          <select id="eo-source">
+            <option value="">— Select source —</option>
+            <option value="Email">Email</option>
+            <option value="Farmer's Market">Farmer's Market</option>
+            <option value="Shopify Email">Shopify Email</option>
+            <option value="Etsy Message">Etsy Message</option>
+            <option value="Instagram Message">Instagram Message</option>
+            <option value="Text Message">Text Message</option>
+            <option value="Facebook Message">Facebook Message</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Paid By</label>
+          <select id="eo-paid-by">
+            <option value="">— Select —</option>
+            <option value="Square">Square</option>
+            <option value="Venmo">Venmo</option>
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Zelle">Zelle</option>
+            <option value="PayPal">PayPal</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Materials / Metal</label>
+          <input type="text" id="eo-materials" placeholder="e.g. 14k yellow gold">
+        </div>
+        <div class="eo-field">
+          <label>Ring Size</label>
+          <input type="text" id="eo-ring-size" placeholder="e.g. 6.5">
+        </div>
+        <div class="eo-field full">
+          <label>Internal Notes</label>
+          <textarea id="eo-notes" rows="2" placeholder="Sizing, preferences, referral source…"></textarea>
+        </div>
+        <div class="eo-field full">
+          <label>Sketch Notes</label>
+          <textarea id="eo-sketch" rows="2" placeholder="Sketch description or approval notes…"></textarea>
+        </div>
+        <div class="eo-field full" id="eo-shipping-wrap" style="display:none">
+          <label>Ship To Address</label>
+          <input type="text" id="eo-address" placeholder="Full shipping address">
+        </div>
+      </div>
+    </div>
+
+    <div class="eo-foot">
+      <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="closeEditOrderModal()">Cancel</button>
+      <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">Save Changes</button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+/* ── Edit Order Modal ── */
+.eo-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 800;
+  align-items: center; justify-content: center;
+}
+.eo-bg.open { display: flex; }
+.eo-modal {
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: min(620px, 96vw); max-height: 90vh;
+  display: flex; flex-direction: column;
+}
+.eo-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--card-head-bg);
+  border-radius: 16px 16px 0 0;
+}
+.eo-head-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.eo-close {
+  background: none; border: none; font-size: 22px; line-height: 1;
+  color: var(--text-dim); cursor: pointer;
+}
+.eo-close:hover { color: var(--text); }
+.eo-body { overflow-y: auto; padding: 18px 20px; flex: 1; }
+.eo-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.eo-field { display: flex; flex-direction: column; gap: 4px; }
+.eo-field.full { grid-column: 1 / -1; }
+.eo-field label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3px; color: var(--text2);
+}
+.eo-field input, .eo-field select, .eo-field textarea {
+  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: 8px;
+  font-size: 13px; background: var(--bg); color: var(--text);
+  font-family: inherit; transition: border-color .15s;
+}
+.eo-field input:focus, .eo-field select:focus, .eo-field textarea:focus {
+  outline: none; border-color: var(--accent-border);
+}
+.eo-field textarea { resize: vertical; }
+.eo-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--bdr);
+  background: var(--card-head-bg);
+  border-radius: 0 0 16px 16px;
+}
 </style>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
