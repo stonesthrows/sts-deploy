@@ -3,8 +3,8 @@
 //  Mileage log, trip viewer, local edits
 // ════════════════════════════════════════════
 
-// API calls go through the Pages Function proxy at /api/triplog (avoids CORS)
-const TRIPLOG_PROXY = '/api/triplog';
+const TRIPLOG_API_KEY   = '8e7bd7cef6e7476584e561dc4a1eeaeb';
+const TRIPLOG_API_BASE  = 'https://app.triplog.net/web/api';
 const IRS_RATE_2026     = 0.70;   // $0.70/mile — update each Jan if needed
 const TL_STORAGE_KEY    = 'sts-triplog-edits';
 
@@ -48,8 +48,10 @@ async function tlFetch() {
   document.getElementById('tlEmpty').style.display = 'none';
 
   try {
-    const url = `${TRIPLOG_PROXY}?startDate=${start}&endDate=${end}`;
-    const res  = await fetch(url);
+    const url = `${TRIPLOG_API_BASE}/trips?startDate=${start}&endDate=${end}`;
+    const res  = await fetch(url, {
+      headers: { Authorization: `apikey ${TRIPLOG_API_KEY}` }
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     tlTrips = (data.trips || []).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
