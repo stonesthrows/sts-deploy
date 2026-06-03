@@ -2,31 +2,32 @@
 //  SUPPLIER ORDER HISTORY  —  pages/supplier-history.js
 // ════════════════════════════════════════════
 
-var OH_KEY = 'sot_history_v1';
-var OH_API = '/api/notion-orders';
+var OH_KEY              = 'sot_history_v1';
+var OH_API              = '/api/notion-orders';
+var OH_RECEIPTS_FOLDER  = 'STS Receipts';
+var OH_RECEIPTS_SEEN    = 'oh-receipts-seen';
 
 // ── State ─────────────────────────────────────
-var ohOrders    = [];
-var ohSupFilter = 'all';
-var ohYearFilter= String(new Date().getFullYear());
-var ohSortCol   = 'd';
-var ohSortAsc   = false;
-var ohEditId    = null;
-var ohSelected  = new Set();
-var ohSyncing   = false;
+var ohOrders        = [];
+var ohSupFilter     = 'all';
+var ohYearFilter    = String(new Date().getFullYear());
+var ohEditId        = null;
+var ohSelected      = new Set();
+var ohCollapsedSups = new Set();
 
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
   ohLoadCache();
   ohRebuildYearDropdown();
   ohWireFilters();
-  ohWireSort();
   ohWireAddBtn();
   ohWireSelection();
   ohWireCsvImport();
   ohRender();
   ohUpdateTs();
   ohFetchFromNotion();
+  // Auto-check receipts folder after load settles
+  setTimeout(function() { ohCheckReceipts(null, true); }, 3000);
 }
 
 // ── Persistence (localStorage cache) ──────────
@@ -173,20 +174,21 @@ function ohResetFilters() {
   }
 }
 
-// ── Sort ──────────────────────────────────────
+// ── Supplier group toggle ─────────────────────
+function ohToggleSup(sup) {
+  if (ohCollapsedSups.has(sup)) ohCollapsedSups.delete(sup);
+  else ohCollapsedSups.add(sup);
+  ohRender();
+}
+
+// ── (sort wiring removed — rows sorted within groups by date) ──
 function ohWireSort() {
+  // no-op: table headers are no longer sortable; within-group sort is date desc
   var tbl = document.querySelector('.oh-table');
   if (!tbl) return;
   tbl.addEventListener('click', function(e) {
     var th = e.target.closest('th[data-ohcol]');
     if (!th) return;
-    var col = th.dataset.ohcol;
-    if (ohSortCol === col) { ohSortAsc = !ohSortAsc; }
-    else { ohSortCol = col; ohSortAsc = col !== 'd'; }
-    tbl.querySelectorAll('th[data-ohcol]').forEach(function(h){
-      h.classList.remove('sorted');
-      h.textContent = h.textContent.replace(/ [▲▼]$/, '');
-    });
     th.classList.add('sorted');
     th.textContent = th.textContent + (ohSortAsc ? ' ▲' : ' ▼');
     ohRender();
@@ -362,28 +364,11 @@ function ohRender() {
   if (!tbody) return;
 
   var rows = ohOrders.slice();
-  if (ohSupFilter !== 'all') rows = rows.filter(function(o){ return o.sup === ohSupFilter; });
+  if (ohSupFilter  !== 'all') rows = rows.filter(function(o){ return o.sup === ohSupFilter; });
   if (ohYearFilter !== 'all') rows = rows.filter(function(o){ return o.date && o.date.slice(0,4) === ohYearFilter; });
 
-  rows.sort(function(a, b){
-    var va, vb;
-    switch(ohSortCol) {
-      case 'd':    va = a.date      || ''; vb = b.date      || ''; break;
-      case 's':    va = a.sup       || ''; vb = b.sup       || ''; break;
-      case 'o':    va = a.orderNum  || ''; vb = b.orderNum  || ''; break;
-      case 'inv':  va = a.invNum    || ''; vb = b.invNum    || ''; break;
-      case 'amt':  va = a.amt != null ? a.amt : -1; vb = b.amt != null ? b.amt : -1; break;
-      case 'st':   va = a.status    || ''; vb = b.status    || ''; break;
-      case 'ship': va = a.shipped   || ''; vb = b.shipped   || ''; break;
-      case 'dlv':  va = a.delivered || ''; vb = b.delivered || ''; break;
-      default:     va = ''; vb = '';
-    }
-    var cmp = (va < vb) ? -1 : (va > vb) ? 1 : 0;
-    return ohSortAsc ? cmp : -cmp;
-  });
-
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="oh-empty">'
+    tbody.innerHTML = '<tr><td colspan="6" class="oh-empty">'
       + (ohOrders.length === 0
           ? 'No orders yet — click <strong>＋ Add Order</strong> to log one, or use <strong>⬆ Import CSV</strong>.'
           : 'No orders match the current filters.')
@@ -392,29 +377,68 @@ function ohRender() {
     return;
   }
 
-  tbody.innerHTML = rows.map(function(o){
-    var color   = SUP_COLOR[o.sup] || '#888';
-    var amt     = o.amt != null ? parseFloat(o.amt) : null;
-    var amtHtml = amt != null && !isNaN(amt)
-      ? '<span class="oh-amt">$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>'
-      : '<span class="oh-na">—</span>';
-    var tip     = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
-    var checked = ohSelected.has(o.id) ? ' checked' : '';
-    var selCls  = ohSelected.has(o.id) ? ' oh-selected' : '';
-    return '<tr class="' + selCls + '"' + tip + '>'
-      + '<td onclick="event.stopPropagation()" style="padding:0 8px">'
-      +   '<input type="checkbox" class="oh-row-cb" data-id="' + o.id + '"' + checked
-      +   ' onchange="ohToggleRow(\'' + o.id + '\',this.checked);this.closest(\'tr\').classList.toggle(\'oh-selected\',this.checked)">'
-      + '</td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.date ? ohFmtDate(o.date) : '<span class="oh-na">—</span>') + '</span></td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-sup"><span class="oh-dot" style="background:' + color + '"></span>' + ohEsc(o.sup) + '</span></td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
-      + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
-      + '<td><button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button></td>'
-      + '</tr>';
+  // Group by supplier
+  var groups = {};
+  rows.forEach(function(o) {
+    var s = o.sup || 'Unknown';
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(o);
+  });
+
+  // Sort each group by date descending
+  Object.keys(groups).forEach(function(s) {
+    groups[s].sort(function(a, b) {
+      return (a.date || '') < (b.date || '') ? 1 : -1;
+    });
+  });
+
+  // Suppliers alphabetically
+  var sups = Object.keys(groups).sort();
+
+  var html = sups.map(function(sup) {
+    var supRows  = groups[sup];
+    var color    = SUP_COLOR[sup] || '#888';
+    var collapsed = ohCollapsedSups.has(sup);
+    var supTotal = supRows.reduce(function(s, o) { return s + (parseFloat(o.amt) || 0); }, 0);
+    var chevron  = collapsed ? '▶' : '▼';
+    var meta     = supRows.length + ' order' + (supRows.length !== 1 ? 's' : '')
+                 + ' · $' + supTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    var hdr = '<tr class="oh-sup-hdr" onclick="ohToggleSup(\'' + ohEsc(sup) + '\')">'
+      + '<td colspan="6"><div class="oh-sup-hdr-inner">'
+      + '<span class="oh-sup-chevron">' + chevron + '</span>'
+      + '<span class="oh-dot" style="background:' + color + '"></span>'
+      + '<span class="oh-sup-name">' + ohEsc(sup) + '</span>'
+      + '<span class="oh-sup-meta">' + meta + '</span>'
+      + '</div></td></tr>';
+
+    if (collapsed) return hdr;
+
+    var dataRows = supRows.map(function(o) {
+      var amt     = o.amt != null ? parseFloat(o.amt) : null;
+      var amtHtml = amt != null && !isNaN(amt)
+        ? '<span class="oh-amt">$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>'
+        : '<span class="oh-na">—</span>';
+      var tip     = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
+      var checked = ohSelected.has(o.id) ? ' checked' : '';
+      var selCls  = ohSelected.has(o.id) ? ' oh-selected' : '';
+      return '<tr class="oh-sup-data-row' + selCls + '"' + tip + '>'
+        + '<td onclick="event.stopPropagation()" style="padding:0 8px">'
+        +   '<input type="checkbox" class="oh-row-cb" data-id="' + o.id + '"' + checked
+        +   ' onchange="ohToggleRow(\'' + o.id + '\',this.checked);this.closest(\'tr\').classList.toggle(\'oh-selected\',this.checked)">'
+        + '</td>'
+        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.date ? ohFmtDate(o.date) : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
+        + '<td><button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button></td>'
+        + '</tr>';
+    }).join('');
+
+    return hdr + dataRows;
   }).join('');
 
+  tbody.innerHTML = html;
   ohUpdateStats(rows);
 }
 
@@ -459,6 +483,147 @@ function ohWireCsvImport() {
   if (helpBtn) helpBtn.addEventListener('click', ohShowCsvHelp);
   var rgBtn = document.getElementById('ohRGDriveBtn');
   if (rgBtn) rgBtn.addEventListener('click', function(){ ohSyncRGFromDrive(rgBtn); });
+  var recBtn = document.getElementById('ohReceiptsBtn');
+  if (recBtn) recBtn.addEventListener('click', function(){ ohCheckReceipts(recBtn, false); });
+}
+
+// ── Receipt Watch ─────────────────────────────
+function ohCheckReceipts(btn, silent) {
+  var clientId = localStorage.getItem('sts-google-client-id');
+  if (!clientId) { if (!silent) { openIntegrationsModal(); toast('Set up your Google Client ID in Integrations first', 'ℹ'); } return; }
+  var anthropicKey = localStorage.getItem('sts-anthropic-key');
+  if (!anthropicKey) { if (!silent) { openIntegrationsModal(); toast('Enter your Anthropic API key in Integrations to read receipts', 'ℹ'); } return; }
+  var token = getGoogleToken();
+  if (!token) {
+    if (silent) return; // don't pop OAuth on auto-check
+    triggerGoogleOAuth(clientId, function(){ ohCheckReceipts(btn, false); });
+    return;
+  }
+  ohRunReceiptsCheck(btn, token, anthropicKey, silent);
+}
+
+async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
+  if (btn) { btn.disabled = true; btn.textContent = '📷 Checking…'; }
+  try {
+    // Find STS Receipts folder
+    var q = "name='" + OH_RECEIPTS_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+    var fr = await fetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    if (fr.status === 401) { clearGoogleToken(); toast('Google session expired — click Check Receipts to reconnect', '⚠'); return; }
+    var fd = await fr.json();
+    if (!fd.files || !fd.files.length) { if (!silent) toast('Drive folder "' + OH_RECEIPTS_FOLDER + '" not found', '⚠'); return; }
+    var folderId = fd.files[0].id;
+
+    // List image + PDF files
+    var fq = "'" + folderId + "' in parents and trashed=false and (mimeType contains 'image/' or mimeType='application/pdf')";
+    var filesR = await fetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(fq)
+      + '&fields=files(id,name,mimeType,createdTime)&orderBy=createdTime+desc&pageSize=50',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    var filesD = await filesR.json();
+    var allFiles = filesD.files || [];
+
+    var seen = [];
+    try { seen = JSON.parse(localStorage.getItem(OH_RECEIPTS_SEEN) || '[]'); } catch(e) {}
+    var newFiles = allFiles.filter(function(f){ return !seen.includes(f.id); });
+
+    if (!newFiles.length) { if (!silent) toast('No new receipts — already up to date', 'ℹ'); return; }
+
+    if (!silent) toast('Reading ' + newFiles.length + ' receipt' + (newFiles.length !== 1 ? 's' : '') + ' with Claude Vision…', '📷');
+
+    var imported = 0;
+    for (var i = 0; i < newFiles.length; i++) {
+      var file = newFiles[i];
+      if (btn) btn.textContent = '📷 Reading ' + (i+1) + '/' + newFiles.length + '…';
+      try {
+        var imgR = await fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media',
+          { headers: { 'Authorization': 'Bearer ' + token } });
+        var blob   = await imgR.blob();
+        var base64 = await ohBlobToBase64(blob);
+        var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
+        if (data) {
+          var order = {
+            id:       'rec_' + file.id.slice(0, 12),
+            date:     data.date     || '',
+            sup:      ohNormalizeSup(data.supplier || '') || 'Unknown',
+            orderNum: data.order_number   || '',
+            invNum:   data.invoice_number || '',
+            amt:      data.amount != null ? parseFloat(data.amount) : null,
+            notes:    data.notes || file.name,
+          };
+          // Skip if already imported by order/inv number
+          var existing = ohFilterExisting([order]);
+          if (existing.length) {
+            ohOrders.push(order);
+            imported++;
+          }
+        }
+        seen.push(file.id);
+      } catch(e) { console.warn('Receipt error', file.name, e); seen.push(file.id); }
+    }
+
+    localStorage.setItem(OH_RECEIPTS_SEEN, JSON.stringify(seen));
+    if (imported > 0) {
+      ohCacheLocally();
+      ohRebuildYearDropdown();
+      ohRender();
+      var newOnes = ohOrders.slice(ohOrders.length - imported);
+      ohBatchSync(newOnes);
+      toast('Imported ' + imported + ' receipt' + (imported !== 1 ? 's' : '') + ' from Drive', '📷');
+    } else if (!silent) {
+      toast('Receipts checked — no new orders found', 'ℹ');
+    }
+  } catch(e) {
+    console.error('Receipt check error:', e);
+    if (!silent) toast('Error checking receipts — see console', '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Check Receipts'; }
+  }
+}
+
+async function ohReceiptVision(base64, mimeType, key) {
+  var isPdf = mimeType === 'application/pdf';
+  var source = isPdf
+    ? { type: 'base64', media_type: 'application/pdf', data: base64 }
+    : { type: 'base64', media_type: mimeType, data: base64 };
+  var contentType = isPdf ? 'document' : 'image';
+
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key':                                 key,
+      'anthropic-version':                         '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type':                              'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: [
+        { type: contentType, source: source },
+        { type: 'text', text:
+          'Extract purchase info from this business receipt or invoice. '
+          + 'Return ONLY a JSON object with these keys (null if not found): '
+          + '{"supplier": string, "date": "YYYY-MM-DD", "amount": number, '
+          + '"invoice_number": string, "order_number": string, "notes": string}. '
+          + 'No other text.'
+        }
+      ]}]
+    })
+  });
+  if (!resp.ok) { console.warn('Vision API error', resp.status); return null; }
+  var body = await resp.json();
+  var raw  = (body.content && body.content[0] && body.content[0].text) || '';
+  try { return JSON.parse(raw.replace(/```json\n?/g,'').replace(/```/g,'').trim()); }
+  catch(e) { console.warn('Receipt parse error:', raw); return null; }
+}
+
+function ohBlobToBase64(blob) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) { resolve(e.target.result.slice(e.target.result.indexOf(',') + 1)); };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 function ohSyncRGFromDrive(btn) {

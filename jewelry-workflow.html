@@ -2133,6 +2133,16 @@
   .oh-title { font-size: 15px; font-weight: 700; }
   .oh-refresh-lbl { font-size: 11px; color: var(--text-dim); }
   .oh-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
+  /* Supplier group header rows */
+  .oh-sup-hdr td { background: var(--card-head-bg) !important; cursor: pointer; padding: 7px 14px; border-top: 2px solid var(--bdr); }
+  .oh-sup-hdr:first-child td { border-top: none; }
+  .oh-sup-hdr:hover td { background: var(--bg) !important; }
+  .oh-sup-hdr-inner { display: flex; align-items: center; gap: 8px; }
+  .oh-sup-chevron { font-size: 10px; color: var(--text-dim); width: 12px; display: inline-block; }
+  .oh-sup-name { font-weight: 700; font-size: 12.5px; }
+  .oh-sup-meta { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+  .oh-sup-data-row td { padding-left: 28px; }
+  body.theme-midnight .oh-sup-hdr td { background: #1e293b !important; }
 
   </style>
 </head>
@@ -2714,6 +2724,7 @@
         <option value="Stuller">Stuller</option>
         <option value="Gesswein">Gesswein</option>
       </select>
+      <button class="btn btn-outline btn-sm" id="ohReceiptsBtn" title="Check STS Receipts folder in Google Drive for new receipts">📷 Check Receipts</button>
       <button class="btn btn-outline btn-sm" id="ohRGDriveBtn" title="Pull new Rio Grande invoice CSVs from Google Drive">☁ Sync RG from Drive</button>
       <label class="btn btn-outline btn-sm" title="Import orders from a CSV file" style="cursor:pointer">
         ⬆ Import CSV
@@ -2765,16 +2776,15 @@
       <thead>
         <tr>
           <th style="width:32px;padding:0 8px"><input type="checkbox" id="ohSelectAll" title="Select all"></th>
-          <th data-ohcol="d">Date</th>
-          <th data-ohcol="s">Supplier</th>
-          <th data-ohcol="o">Order #</th>
-          <th data-ohcol="inv">Invoice #</th>
-          <th data-ohcol="amt">Amount</th>
+          <th>Date</th>
+          <th>Order #</th>
+          <th>Invoice #</th>
+          <th>Amount</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="ohTbody">
-        <tr><td colspan="7" class="oh-empty">Loading orders…</td></tr>
+        <tr><td colspan="6" class="oh-empty">Loading orders…</td></tr>
       </tbody>
     </table>
   </div>
