@@ -1,3 +1,14 @@
 # STS deploy 1780349069
 /*
   X-Frame-Options: SAMEORIGIN
+
+# Never cache the service worker or main HTML — must always be fresh
+/sw.js
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/jewelry-workflow.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+# JS files — revalidate on every load
+/js/*
+  Cache-Control: no-cache, must-revalidate
