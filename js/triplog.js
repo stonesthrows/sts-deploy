@@ -261,6 +261,15 @@ function odoSaveLog(log) {
 
 function odoRender() {
   const log = odoLoadLog();
+  // Weekday morning banner (Mon–Fri, not yet logged today)
+  const banner = document.getElementById('odoWeekdayBanner');
+  if (banner) {
+    const day = new Date().getDay(); // 0=Sun, 6=Sat
+    const isWeekday = day >= 1 && day <= 5;
+    const alreadyLoggedToday = log.some(e => e.date === tlFmtDate(new Date()));
+    banner.style.display = (isWeekday && !alreadyLoggedToday) ? 'flex' : 'none';
+  }
+
   // Last TripLog odometer
   const lastTrip = tlTrips.length ? tlTrips[tlTrips.length - 1] : null;
   const lastTLOdo = lastTrip ? (tlEdits[lastTrip.id]?.endOdometer ?? lastTrip.endOdometer) : null;
