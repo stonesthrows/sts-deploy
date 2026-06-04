@@ -5,7 +5,6 @@
 //
 //  Required env vars:
 //    NOTION_TOKEN   — Notion integration token
-//    ALLOWED_FROM   — your phone number in E.164 format, e.g. +15055551234
 // ════════════════════════════════════════════
 
 const NOTION_API = 'https://api.notion.com/v1';
@@ -43,19 +42,12 @@ export async function onRequest({ request, env }) {
   }
 
   const notionToken = env.NOTION_TOKEN;
-  const allowedFrom = env.ALLOWED_FROM;
   if (!notionToken) return twimlResponse('Error: NOTION_TOKEN not configured.');
 
   // Parse Twilio's form-encoded body
   const formText = await request.text();
   const params = new URLSearchParams(formText);
-  const from = params.get('From') || '';
   const body = (params.get('Body') || '').trim();
-
-  // Only accept texts from your number
-  if (allowedFrom && from !== allowedFrom) {
-    return twimlResponse('Unauthorized.');
-  }
 
   if (!body) return twimlResponse('Empty message, nothing saved.');
 
