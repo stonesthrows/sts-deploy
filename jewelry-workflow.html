@@ -2166,6 +2166,90 @@
   .oh-sup-data-row td { padding-left: 28px; }
   body.theme-midnight .oh-sup-hdr td { background: #1e293b !important; }
 
+  /* ═══════════════════════════════════════════
+     MOBILE RESPONSIVE  (≤ 640px)
+  ═══════════════════════════════════════════ */
+  @media (max-width: 640px) {
+
+    /* Header */
+    .header { padding: 0 14px; height: 50px; }
+    .logo-sub { display: none; }
+    .header-pill { display: none; }
+    .theme-btn { font-size: 14px; padding: 4px 6px; }
+
+    /* Nav */
+    .nav { padding: 0 8px; }
+    .nav-tab { padding: 11px 12px; font-size: 12px; }
+    .sub-nav { padding: 0 8px; }
+    .sub-nav-tab { padding: 9px 12px; font-size: 11.5px; }
+
+    /* Content area */
+    .content { padding: 12px 12px; }
+
+    /* Stat cards: 4-col → 2-col */
+    .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+    .stat-value { font-size: 22px; }
+    .stat-icon { width: 36px; height: 36px; font-size: 16px; }
+
+    /* Sales stats 4-col → 2-col */
+    .sales-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    /* Sales row 2-col → 1-col */
+    .sales-row { grid-template-columns: 1fr; }
+
+    /* Kanban: keep h-scroll, just reduce column width slightly */
+    .k-col { min-width: 172px; width: 172px; }
+
+    /* New-order form: 2-col → 1-col */
+    .form-grid { grid-template-columns: 1fr; }
+    .form-body { padding: 16px 14px; }
+    .form-head { padding: 16px 14px 14px; }
+    .form-foot { padding: 14px 14px; }
+    .form-wrap { max-width: 100%; }
+
+    /* Order type toggle: full width */
+    .order-type-toggle { width: 100%; }
+    .ot-option { flex: 1; justify-content: center; padding: 9px 10px; font-size: 12px; }
+
+    /* Customer table: scrollable */
+    .cust-table { overflow-x: auto; }
+    .ct-head,
+    .ct-row { min-width: 520px; }
+
+    /* Customer bar: stack search + button */
+    .cust-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .search-box { width: 100%; }
+
+    /* Drawer: full-width on mobile */
+    .drawer { width: 100%; left: 0; right: 0; }
+
+    /* Gmail floating pull panel: full width */
+    .gmail-panel { width: calc(100vw - 24px); right: 12px; left: 12px; top: 80px; }
+
+    /* Order materials: 2-col → 1-col */
+    .materials-layout { grid-template-columns: 1fr; }
+    .mat-order-panel { position: static; }
+
+    /* Production: 2-col → 1-col */
+    .prod-grid { grid-template-columns: 1fr; }
+
+    /* Page bar: allow wrapping */
+    .page-bar { flex-wrap: wrap; }
+
+    /* Kanban bar: allow wrap */
+    .kanban-bar { flex-wrap: wrap; gap: 8px; }
+    .kanban-actions { flex-wrap: wrap; }
+
+    /* Drive review modal */
+    .drive-review-modal { padding: 16px 14px 14px; }
+    .drf-fields { grid-template-columns: 1fr; }
+
+    /* Estimate builder rows */
+    .eb-row { grid-template-columns: 1fr 90px 28px; }
+
+    /* Toast positioning */
+    .toast { left: 12px; right: 12px; min-width: 0; max-width: 100%; }
+  }
+
   </style>
 </head>
 <body>
@@ -2608,10 +2692,13 @@
   <div class="page-bar">
     <div>
       <div class="page-title">📝 Notes</div>
-      <div class="page-sub">Studio notes &amp; to-dos — saved automatically</div>
+      <div class="page-sub">Synced to Notion</div>
     </div>
     <span class="notes-save-dot" id="notesDot"></span>
   </div>
+
+  <div id="notes-loading" style="display:none;padding:8px 2px;color:var(--text3);font-size:13px">⏳ Loading notes from Notion…</div>
+
   <!-- Quick Capture bar -->
   <div class="notes-capture">
     <span style="font-size:18px;flex-shrink:0">⚡</span>
@@ -2620,7 +2707,7 @@
       onkeydown="if(event.key==='Enter') quickCapture()">
     <select class="notes-capture-select" id="quick-capture-cat">
       <option value="auto">Auto-detect</option>
-      <option value="notes-general">Studio Notes</option>
+      <option value="studio">Studio Notes</option>
       <option value="todo">To-Do</option>
       <option value="followup">Follow-up</option>
       <option value="toorder">To Order</option>
@@ -2630,14 +2717,13 @@
 
   <div class="notes-layout">
 
-    <!-- Card 1: Studio Notes (freeform) -->
+    <!-- Card 1: Studio Notes (list) -->
     <div class="notes-card">
       <div class="notes-card-head">
         📓 Studio Notes
+        <span class="notes-card-count" id="studio-count"></span>
       </div>
-      <textarea class="notes-textarea" id="notes-general"
-        placeholder="Reminders, ideas, work-in-progress thoughts…"
-        oninput="saveNote('notes-general')"></textarea>
+      <div class="notes-list" id="studio-list"></div>
       <div class="notes-add-row">
         <input class="notes-add-input" id="studio-input" type="text"
           placeholder="Add a note…"
