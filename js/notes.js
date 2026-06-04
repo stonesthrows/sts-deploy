@@ -8,7 +8,7 @@ var _notesPoller = null;
 var _dragNote = null;  // { pageId, fromKey } set on dragstart
 
 var BLOCK_MAP = {
-  studio:   'Studio Notes',
+  studio:   'Design Ideas',
   todo:     'To-Do',
   followup: 'Follow-up',
   toorder:  'To Order',
@@ -210,7 +210,7 @@ function quickCapture() {
   if (targetInput) {
     targetInput.value = text;
     addNoteItem(cat);
-    var labels = { studio: 'Studio Notes', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order' };
+    var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order' };
     toast('Added to ' + (labels[cat] || cat), '⚡');
     input.focus();
   }

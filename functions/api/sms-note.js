@@ -12,7 +12,7 @@ const NOTION_VER = '2022-06-28';
 const DB_ID      = 'fb115de84ac5433d84e61005f89ecdd2';
 
 const BLOCK_MAP = {
-  studio:   'Studio Notes',
+  studio:   'Design Ideas',
   todo:     'To-Do',
   followup: 'Follow-up',
   toorder:  'To Order',
