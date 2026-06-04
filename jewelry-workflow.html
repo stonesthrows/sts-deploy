@@ -1407,7 +1407,9 @@
       outline: none; cursor: pointer;
     }
     .notes-capture-select:focus { border-color: var(--accent); }
-    .notes-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .notes-layout { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px) { .notes-layout { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .notes-layout { grid-template-columns: 1fr; } }
     .notes-card {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
       overflow: hidden; display: flex; flex-direction: column; min-height: 420px;
@@ -2638,22 +2640,7 @@
         oninput="saveNote('notes-general')"></textarea>
     </div>
 
-    <!-- Card 2: To-Do checklist -->
-    <div class="notes-card">
-      <div class="notes-card-head">
-        ✅ To-Do
-        <span class="notes-card-count" id="todo-count"></span>
-      </div>
-      <div class="notes-list" id="todo-list"></div>
-      <div class="notes-add-row">
-        <input class="notes-add-input" id="todo-input" type="text"
-          placeholder="Add a task…"
-          onkeydown="if(event.key==='Enter') addNoteItem('todo')">
-        <button class="btn btn-gold btn-sm" onclick="addNoteItem('todo')">Add</button>
-      </div>
-    </div>
-
-    <!-- Card 3: Follow-ups checklist -->
+    <!-- Card 2: Follow-ups checklist -->
     <div class="notes-card">
       <div class="notes-card-head">
         📞 Follow-ups
@@ -2665,6 +2652,21 @@
           placeholder="Add a follow-up…"
           onkeydown="if(event.key==='Enter') addNoteItem('followup')">
         <button class="btn btn-gold btn-sm" onclick="addNoteItem('followup')">Add</button>
+      </div>
+    </div>
+
+    <!-- Card 3: To-Do checklist -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        ✅ To-Do
+        <span class="notes-card-count" id="todo-count"></span>
+      </div>
+      <div class="notes-list" id="todo-list"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="todo-input" type="text"
+          placeholder="Add a task…"
+          onkeydown="if(event.key==='Enter') addNoteItem('todo')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('todo')">Add</button>
       </div>
     </div>
 
