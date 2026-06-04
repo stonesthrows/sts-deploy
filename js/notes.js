@@ -66,7 +66,9 @@ function addNoteItem(key) {
       if (!res.ok) {
         NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
         renderNotesList(key, itemsFor(key));
-        toast('Save failed ' + res.status + ': ' + (res.data.error || 'unknown'), '⚠');
+        var msg = 'Save failed ' + res.status + ': ' + (res.data.error || 'unknown') + (res.data.code ? ' (' + res.data.code + ')' : '');
+        console.error('notion-notes POST error:', res);
+        alert(msg);
         return;
       }
       temp.notionPageId = res.data.notionPageId;
@@ -76,7 +78,8 @@ function addNoteItem(key) {
     .catch(function(err) {
       NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
       renderNotesList(key, itemsFor(key));
-      toast('Failed to save note — ' + (err || ''), '⚠');
+      console.error('notion-notes POST catch:', err);
+      alert('Failed to save note: ' + err);
     });
 }
 
