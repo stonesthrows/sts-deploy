@@ -3,7 +3,8 @@
 // ════════════════════════════════════════════
 
 var OH_KEY              = 'sot_history_v1';
-var OH_API              = '/api/notion-orders';
+var OH_API              = '/api/notion-orders';   // GET (read)
+var OH_WRITE_API        = '/api/notion-write';    // POST / DELETE (write)
 var OH_RECEIPTS_FOLDER  = 'STS Receipts';
 var OH_RECEIPTS_SEEN    = 'oh-receipts-seen';
 
@@ -98,7 +99,7 @@ async function ohPushAllToNotion() {
   // Test with first order to surface any real error
   try {
     var testOrder = ohOrders[0];
-    var r = await fetch(OH_API, {
+    var r = await fetch(OH_WRITE_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(testOrder),
@@ -137,7 +138,7 @@ async function ohPushAllToNotion() {
 
 // ── Notion: upsert one order ───────────────────
 function ohSyncOrder(order) {
-  return fetch(OH_API, {
+  return fetch(OH_WRITE_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(order),
@@ -157,7 +158,7 @@ function ohSyncOrder(order) {
 // ── Notion: delete one order ───────────────────
 function ohDeleteFromNotion(notionPageId) {
   if (!notionPageId) return;
-  fetch(OH_API + '?pageId=' + encodeURIComponent(notionPageId), { method: 'DELETE' })
+  fetch(OH_WRITE_API + '?pageId=' + encodeURIComponent(notionPageId), { method: 'DELETE' })
     .catch(function(err) { console.warn('Notion delete failed:', err); });
 }
 
