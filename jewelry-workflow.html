@@ -1435,6 +1435,12 @@
       font-size: 13px; outline: none; font-family: inherit; color: var(--text); background: #fff;
     }
     .notes-add-input:focus { border-color: var(--accent); }
+    #toorder-suggest { padding: 0 14px; }
+    .toorder-suggest-label { font-size: 11px; color: var(--text3); font-weight: 600; padding: 6px 0 3px; text-transform: uppercase; letter-spacing: .04em; }
+    .toorder-suggest-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; margin-bottom: 4px; background: #F8F3EC; border: 1px solid #E4DDD4; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .toorder-suggest-item:hover { background: #F0E8DC; border-color: var(--accent); }
+    .toorder-suggest-name { color: var(--text); flex: 1; }
+    .toorder-suggest-sup { color: var(--accent); font-weight: 700; white-space: nowrap; font-size: 11px; }
     .notes-list { padding: 10px 14px; flex: 1; overflow-y: auto; }
     .notes-list-item {
       display: flex; align-items: flex-start; gap: 9px;
@@ -2772,9 +2778,11 @@
       <div class="notes-add-row">
         <input class="notes-add-input" id="toorder-input" type="text"
           placeholder="Add a supply to order…"
-          onkeydown="if(event.key==='Enter') addNoteItem('toorder')">
+          onkeydown="if(event.key==='Enter') addNoteItem('toorder')"
+          oninput="toOrderSuggest(this.value)">
         <button class="btn btn-gold btn-sm" onclick="addNoteItem('toorder')">Add</button>
       </div>
+      <div id="toorder-suggest"></div>
     </div>
 
   </div>

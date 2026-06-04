@@ -194,3 +194,89 @@ function quickCapture() {
     input.focus();
   }
 }
+
+// ── To Order catalog suggestions ─────────────
+var TOORDER_ABBREV = {
+  'ag': 'argentium', 'argentium': 'argentium',
+  'gf': 'gold', 'goldfilled': 'gold', 'gold-filled': 'gold',
+  'ss': 'sterling', 'sterling': 'sterling',
+  'gauge': 'ga',
+  'ds': 'dead', 'deadsoft': 'dead',
+  'yw': 'yellow', 'yg': 'yellow',
+  'wg': 'white', 'wh': 'white',
+  'rnd': 'round',
+  'sht': 'sheet',
+};
+
+function toOrderNorm(text) {
+  var t = String(text).toLowerCase()
+    .replace(/[®™"'\/]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t.split(' ').map(function(w) {
+    return TOORDER_ABBREV[w] || w;
+  }).join(' ');
+}
+
+function toOrderScore(inputTokens, catalogName) {
+  var catNorm = toOrderNorm(catalogName);
+  var catToks = catNorm.split(' ');
+  var matches = 0;
+  inputTokens.forEach(function(tok) {
+    if (tok.length < 2) return;
+    if (catToks.some(function(ct) {
+      return ct === tok || ct.indexOf(tok) === 0 || tok.indexOf(ct) === 0;
+    })) matches++;
+  });
+  return matches / inputTokens.length;
+}
+
+function toOrderSuggest(value) {
+  var box = document.getElementById('toorder-suggest');
+  if (!box) return;
+  var text = (value || '').trim();
+  if (text.length < 3 || typeof CATALOG === 'undefined' || CATALOG.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+  var norm = toOrderNorm(text);
+  var tokens = norm.split(' ').filter(function(t) { return t.length >= 2; });
+  if (tokens.length === 0) { box.innerHTML = ''; return; }
+
+  var scored = CATALOG.map(function(item) {
+    return { item: item, score: toOrderScore(tokens, item.name) };
+  }).filter(function(r) { return r.score >= 0.4; })
+    .sort(function(a, b) { return b.score - a.score; })
+    .slice(0, 3);
+
+  if (scored.length === 0) { box.innerHTML = ''; return; }
+
+  var esc = function(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+  var html = '<div class="toorder-suggest-label">📋 Catalog match:</div>';
+  scored.forEach(function(r) {
+    var supMeta = (typeof SUPPLIERS_META !== 'undefined' && SUPPLIERS_META[r.item.sup]) || {};
+    var supName = supMeta.name || r.item.sup;
+    html += '<div class="toorder-suggest-item" onclick="toOrderSuggestPick(\'' + esc(r.item.id) + '\')">'
+          + '<span class="toorder-suggest-name">' + esc(r.item.name) + '</span>'
+          + '<span class="toorder-suggest-sup">' + esc(supName) + ' →</span>'
+          + '</div>';
+  });
+  box.innerHTML = html;
+}
+
+function toOrderSuggestPick(id) {
+  var box = document.getElementById('toorder-suggest');
+  if (box) box.innerHTML = '';
+  switchTab('supplier');
+  ohInitSupplier();
+  var item = (typeof sotGetItem === 'function') ? sotGetItem(id) : null;
+  if (item) {
+    setTimeout(function() {
+      var el = document.getElementById('sotSearch');
+      if (el) { el.value = item.name; sotSearch(item.name); }
+    }, 80);
+  }
+}
