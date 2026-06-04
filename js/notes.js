@@ -5,6 +5,7 @@
 
 var NOTES_DATA = [];   // flat array of { notionPageId, text, block, done }
 var _notesPoller = null;
+var _dragNote = null;  // { pageId, fromKey } set on dragstart
 
 var BLOCK_MAP = {
   studio:   'Studio Notes',
@@ -160,7 +161,10 @@ function renderNotesList(key, items) {
 
   list.innerHTML = items.map(function(item, idx) {
     var saving = item._saving ? ' style="opacity:0.5"' : '';
-    var row = '<div' + saving + ' style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid #F4EFE8">';
+    var dragAttrs = item.notionPageId && !item._saving
+      ? ' draggable="true" ondragstart="notesDragStart(event,\'' + key + '\',' + idx + ')" style="cursor:grab"'
+      : '';
+    var row = '<div' + saving + dragAttrs + ' style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid #F4EFE8">';
     if (!noCheck) {
       row += '<input type="checkbox" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer" '
            + (item.done ? 'checked' : '')
@@ -296,4 +300,58 @@ function toOrderSuggestPick(id) {
       if (el) { el.value = item.name; sotSearch(item.name); }
     }, 80);
   }
+}
+
+// ── Drag and drop between note cards ─────────
+function notesDragStart(event, key, idx) {
+  var items = itemsFor(key);
+  var item = items[idx];
+  if (!item) return;
+  _dragNote = { pageId: item.notionPageId, fromKey: key };
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function notesDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  var list = event.currentTarget;
+  list.style.outline = '2px dashed var(--accent)';
+  list.style.outlineOffset = '-3px';
+}
+
+function notesDragLeave(event) {
+  var list = event.currentTarget;
+  list.style.outline = '';
+}
+
+function notesDrop(event, targetKey) {
+  event.preventDefault();
+  var list = event.currentTarget;
+  list.style.outline = '';
+  if (!_dragNote || _dragNote.fromKey === targetKey) { _dragNote = null; return; }
+
+  var pageId  = _dragNote.pageId;
+  var fromKey = _dragNote.fromKey;
+  _dragNote = null;
+
+  var item = NOTES_DATA.filter(function(n) { return n.notionPageId === pageId; })[0];
+  if (!item) return;
+
+  var newBlock = BLOCK_MAP[targetKey];
+  item.block = newBlock;
+  ['studio','todo','followup','toorder'].forEach(function(k) {
+    renderNotesList(k, itemsFor(k));
+  });
+
+  fetch('/api/notion-notes?pageId=' + encodeURIComponent(pageId), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ block: newBlock }),
+  }).catch(function() {
+    item.block = BLOCK_MAP[fromKey];
+    ['studio','todo','followup','toorder'].forEach(function(k) {
+      renderNotesList(k, itemsFor(k));
+    });
+    toast('Failed to move note', '⚠');
+  });
 }

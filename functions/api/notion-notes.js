@@ -91,12 +91,15 @@ export async function onRequest({ request, env }) {
   const pageId = new URL(request.url).searchParams.get('pageId');
   if (!pageId) return json({ error: 'pageId required' }, 400);
 
-  // ── PATCH — toggle done ──────────────────────
+  // ── PATCH — toggle done or move block ───────
   if (request.method === 'PATCH') {
-    const { done } = await request.json();
+    const body = await request.json();
+    const props = {};
+    if ('done'  in body) props['Done']  = { checkbox: !!body.done };
+    if ('block' in body) props['Block'] = { select: { name: body.block } };
     const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
       method: 'PATCH', headers: h,
-      body: JSON.stringify({ properties: { 'Done': { checkbox: !!done } } }),
+      body: JSON.stringify({ properties: props }),
     });
     if (!r.ok) return json({ error: 'patch failed' }, r.status);
     return json({ ok: true });

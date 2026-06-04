@@ -61,13 +61,26 @@ function ohFetchFromNotion() {
     .then(function(orders) {
       if (!Array.isArray(orders)) throw new Error('Bad response');
       orders.forEach(function(o){ if (o.amt != null) o.amt = parseFloat(o.amt) || null; });
-      ohOrders = orders;
+
+      // Merge: Notion is authoritative for anything it knows about,
+      // but keep any local-only records not yet synced (avoids wiping
+      // data when the Notion DB is empty or sync hasn't run yet).
+      var notionIds = new Set(orders.map(function(o){ return o.id; }));
+      var localOnly = ohOrders.filter(function(o){ return !notionIds.has(o.id); });
+      ohOrders = orders.concat(localOnly);
+
       ohDedupeExisting();
       ohCacheLocally();
       ohRebuildYearDropdown();
       ohRender();
       ohSetSyncStatus('ok');
       ohUpdateTs();
+
+      // Push any local-only records up to Notion now
+      if (localOnly.length) {
+        console.log('ohFetchFromNotion: pushing ' + localOnly.length + ' local-only record(s) to Notion');
+        ohBatchSync(localOnly);
+      }
     })
     .catch(function(err) {
       console.warn('Notion fetch failed, using cache:', err);
