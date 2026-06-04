@@ -93,6 +93,7 @@ function switchParent(parentId, el) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + defaultId);
   if (panel) panel.classList.add('active');
+  if (parentId === 'supplies') ohInitSupplier();
 }
 
 function switchSubTab(id, el) {
