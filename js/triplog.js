@@ -248,6 +248,113 @@ function tlExportCSV() {
 }
 
 // ════════════════════════════════════════════
+//  TRIP VERIFICATION — header pill
+// ════════════════════════════════════════════
+
+const TV_KEY = 'sts-trips-verified'; // stores date string YYYY-MM-DD
+
+let tvLoaded    = false;
+let tvPanelOpen = false;
+
+// Called on DOMContentLoaded — show pill if weekday and not yet verified today
+function tvInit() {
+  const day = new Date().getDay();
+  const isWeekday = day >= 1 && day <= 5;
+  if (!isWeekday) return;
+  const verified = localStorage.getItem(TV_KEY);
+  if (verified === tlFmtDate(new Date())) return; // already done today
+  document.getElementById('tvWrap').style.display = 'block';
+}
+
+function tvToggle() {
+  const panel = document.getElementById('tvPanel');
+  tvPanelOpen = !tvPanelOpen;
+  panel.style.display = tvPanelOpen ? 'block' : 'none';
+  if (tvPanelOpen && !tvLoaded) tvLoadYesterday();
+}
+
+async function tvLoadYesterday() {
+  tvLoaded = true;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateStr = tlFmtDate(yesterday);
+  const dayLabel = yesterday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  document.getElementById('tvPanelDate').textContent = `${dayLabel}'s Trips`;
+  document.getElementById('tvPanelBody').innerHTML =
+    '<div style="text-align:center;padding:20px;color:var(--text-dim)">Loading…</div>';
+
+  try {
+    const res  = await fetch(`${TRIPLOG_PROXY}?startDate=${dateStr}&endDate=${dateStr}`);
+    const data = await res.json();
+    const trips = (data.trips || []).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    tvRenderPanel(trips, dayLabel);
+  } catch(e) {
+    document.getElementById('tvPanelBody').innerHTML =
+      `<div class="tv-no-trips">Could not load trips: ${e.message}</div>`;
+  }
+}
+
+function tvRenderPanel(trips, dayLabel) {
+  if (!trips.length) {
+    document.getElementById('tvPanelBody').innerHTML =
+      `<div class="tv-no-trips">No trips recorded for ${dayLabel}.<br>
+       <span style="font-size:11px">If you drove, trips may be missing.</span></div>`;
+    return;
+  }
+
+  const totalMiles  = trips.reduce((s, t) => s + Number(t.mileage || 0), 0);
+  const startOdo    = trips[0].startOdometer;
+  const endOdo      = trips[trips.length - 1].endOdometer;
+
+  const rows = trips.map(t => {
+    const time  = new Date(t.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const from  = t.fromLocation?.display || '—';
+    const to    = t.toLocation?.display   || '—';
+    const miles = Number(t.mileage || 0).toFixed(1);
+    return `<div class="tv-trip-row">
+      <span class="tv-trip-time">${time}</span>
+      <span class="tv-trip-route">
+        <span class="tv-trip-from">${from}</span><br>→ ${to}
+      </span>
+      <span class="tv-trip-miles">${miles} mi</span>
+    </div>`;
+  }).join('');
+
+  const summary = `${trips.length} trip${trips.length > 1 ? 's' : ''} · ${totalMiles.toFixed(1)} mi total · Odo: ${startOdo?.toLocaleString() ?? '—'} → ${endOdo?.toLocaleString() ?? '—'}`;
+
+  document.getElementById('tvPanelBody').innerHTML =
+    rows + `<div class="tv-summary">${summary}</div>`;
+}
+
+function tvConfirm() {
+  localStorage.setItem(TV_KEY, tlFmtDate(new Date()));
+  document.getElementById('tvWrap').style.display = 'none';
+  document.getElementById('tvPanel').style.display = 'none';
+  tvPanelOpen = false;
+  toast('Trips verified ✓', '🚗');
+}
+
+function tvFlag() {
+  localStorage.setItem(TV_KEY, tlFmtDate(new Date()));
+  document.getElementById('tvWrap').style.display = 'none';
+  document.getElementById('tvPanel').style.display = 'none';
+  tvPanelOpen = false;
+  toast('Flagged — check TripLog for missing or incorrect trips', '⚠️');
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', function(e) {
+  if (tvPanelOpen && !e.target.closest('.tv-wrap')) {
+    document.getElementById('tvPanel').style.display = 'none';
+    tvPanelOpen = false;
+  }
+});
+
+// Run on load
+document.addEventListener('DOMContentLoaded', tvInit);
+
+// ════════════════════════════════════════════
 //  ODOMETER LOG
 // ════════════════════════════════════════════
 
