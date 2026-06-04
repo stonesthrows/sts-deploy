@@ -11,7 +11,7 @@ git push origin main
 echo.
 echo ============================================
 echo  Pushed! Cloudflare is building now.
-echo  Live at https://stsworkflow.pages.dev
+echo  Live at https://sts-deploy.pages.dev
 echo  Hard refresh after ~1 min: Ctrl+Shift+R
 echo ============================================
 echo.

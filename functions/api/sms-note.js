@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════
 //  SMS → Notion Notes  —  /api/sms-note
 //  Cloudflare Pages Function
-//  Twilio webhook: set SMS webhook URL to https://stsworkflow.pages.dev/api/sms-note
+//  Twilio webhook: set SMS webhook URL to https://sts-deploy.pages.dev/api/sms-note
 //
 //  Required env vars:
 //    NOTION_TOKEN   — Notion integration token

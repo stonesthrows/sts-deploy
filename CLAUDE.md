@@ -32,7 +32,7 @@ Tab switching logic lives in `js/app.js`: `switchParent()`, `switchTab()`, `swit
 
 ## Deployment
 - Platform: Cloudflare Pages (NOT Netlify — account hit its limit)
-- Live URL: https://stsworkflow.pages.dev/jewelry-workflow
+- Live URL: https://sts-deploy.pages.dev/jewelry-workflow
 - GitHub repo: https://github.com/stonesthrows/sts-deploy
 - Deploy: git push to main branch — Cloudflare auto-deploys from GitHub (no more 2-deploy.bat)
 - After deploying, hard refresh (Ctrl+Shift+R) to clear service worker cache
