@@ -18,11 +18,48 @@ function loadNotes() {
     if (saved !== null) el.value = saved;
   });
   // Restore checklists
-  ['todo', 'followup'].forEach(function(key) {
+  ['todo', 'followup', 'toorder'].forEach(function(key) {
     var saved = localStorage.getItem('sts-list-' + key);
     var items = saved ? JSON.parse(saved) : [];
     renderNotesList(key, items);
   });
+}
+
+function autoDetectBlock(text) {
+  var t = text.toLowerCase();
+  var followupWords = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
+  var orderWords = ['order ', 'orders ', 'buy ', 'restock', 'need more', 'running low', 'from rio', 'from stuller', 'from otto', 'from halstead', 'get more', 'pick up'];
+  var todoWords = ['finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
+  for (var i = 0; i < followupWords.length; i++) { if (t.indexOf(followupWords[i]) !== -1) return 'followup'; }
+  for (var i = 0; i < orderWords.length; i++) { if (t.indexOf(orderWords[i]) !== -1) return 'toorder'; }
+  for (var i = 0; i < todoWords.length; i++) { if (t.indexOf(todoWords[i]) !== -1) return 'todo'; }
+  return 'notes-general';
+}
+
+function quickCapture() {
+  var input = document.getElementById('quick-capture-input');
+  var catSel = document.getElementById('quick-capture-cat');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  var cat = catSel ? catSel.value : 'auto';
+  if (cat === 'auto') cat = autoDetectBlock(text);
+  if (cat === 'notes-general') {
+    var el = document.getElementById('notes-general');
+    if (el) {
+      el.value = el.value ? el.value + '\n' + text : text;
+      saveNote('notes-general');
+    }
+  } else {
+    var items = getSavedList(cat);
+    items.push({ text: text, done: false });
+    saveList(cat, items);
+    renderNotesList(cat, items);
+  }
+  input.value = '';
+  input.focus();
+  var labels = { 'notes-general': 'Studio Notes', 'todo': 'To-Do', 'followup': 'Follow-ups', 'toorder': 'To Order' };
+  toast('Added to ' + (labels[cat] || cat), '⚡');
 }
 
 function addNoteItem(key) {
