@@ -62,6 +62,20 @@ function quickCapture() {
   toast('Added to ' + (labels[cat] || cat), '⚡');
 }
 
+function addStudioNote() {
+  var input = document.getElementById('studio-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  var el = document.getElementById('notes-general');
+  if (el) {
+    el.value = el.value ? el.value + '\n' + text : text;
+    saveNote('notes-general');
+  }
+  input.value = '';
+  input.focus();
+}
+
 function addNoteItem(key) {
   var input = document.getElementById(key + '-input');
   if (!input) return;

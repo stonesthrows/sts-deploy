@@ -2638,6 +2638,12 @@
       <textarea class="notes-textarea" id="notes-general"
         placeholder="Reminders, ideas, work-in-progress thoughts…"
         oninput="saveNote('notes-general')"></textarea>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="studio-input" type="text"
+          placeholder="Add a note…"
+          onkeydown="if(event.key==='Enter') addStudioNote()">
+        <button class="btn btn-gold btn-sm" onclick="addStudioNote()">Add</button>
+      </div>
     </div>
 
     <!-- Card 2: Follow-ups checklist -->
