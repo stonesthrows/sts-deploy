@@ -4,6 +4,7 @@
 // ════════════════════════════════════════════
 
 var NOTES_DATA = [];   // flat array of { notionPageId, text, block, done }
+var _notesPoller = null;
 
 var BLOCK_MAP = {
   studio:   'Studio Notes',
@@ -36,6 +37,22 @@ function loadNotes() {
       if (spinner) spinner.style.display = 'none';
       toast('Could not reach /api/notion-notes — ' + (err || ''), '⚠');
     });
+  if (!_notesPoller) {
+    _notesPoller = setInterval(refreshNotes, 30000);
+  }
+}
+
+function refreshNotes() {
+  fetch('/api/notion-notes')
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) return;
+      NOTES_DATA = res.data || [];
+      ['studio','todo','followup','toorder'].forEach(function(key) {
+        renderNotesList(key, itemsFor(key));
+      });
+    })
+    .catch(function() {});
 }
 
 function itemsFor(key) {
