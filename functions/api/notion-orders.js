@@ -109,26 +109,7 @@ export async function onRequest({ request, env }) {
       return json({ notionPageId: order.notionPageId });
     }
 
-    // Search by App ID to find an existing page
-    const sr = await fetch(`${NOTION_API}/databases/${DB_ID}/query`, {
-      method: 'POST', headers: hdrs,
-      body: JSON.stringify({
-        filter: { property: 'App ID', rich_text: { equals: order.id } },
-        page_size: 1,
-      }),
-    });
-    const sd  = await sr.json();
-    const existing = (sd.results || []).find(p => !p.archived);
-
-    if (existing) {
-      await fetch(`${NOTION_API}/pages/${existing.id}`, {
-        method: 'PATCH', headers: hdrs,
-        body: JSON.stringify({ properties: props, archived: false }),
-      });
-      return json({ notionPageId: existing.id });
-    }
-
-    // Create new page
+    // No notionPageId — create new page directly (skip search to avoid timeout)
     const cr = await fetch(`${NOTION_API}/pages`, {
       method: 'POST', headers: hdrs,
       body: JSON.stringify({ parent: { database_id: DB_ID }, properties: props }),
