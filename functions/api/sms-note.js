@@ -9,7 +9,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const DB_ID      = 'fb115de84ac5433d84e61005f89ecdd2';
+const DB_ID      = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 
 const BLOCK_MAP = {
   studio:   'Design Ideas',
