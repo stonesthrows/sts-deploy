@@ -62,73 +62,71 @@ function pageToOrder(page) {
   };
 }
 
-export async function onRequest({ request, env }) {
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { headers: CORS });
-  }
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS });
+}
 
-  const token = env.NOTION_TOKEN;
-  if (!token) return json({ error: 'NOTION_TOKEN not set in Cloudflare Pages env vars' }, 500);
+export async function onRequestGet(context) {
+  const token = context.env.NOTION_TOKEN;
+  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const hdrs = notionHdrs(token);
 
-  // ── GET — fetch all orders ───────────────────
-  if (request.method === 'GET') {
-    const orders = [];
-    let cursor;
-    do {
-      const body = {
-        page_size: 100,
-        sorts: [{ property: 'Date', direction: 'descending' }],
-      };
-      if (cursor) body.start_cursor = cursor;
-      const r = await fetch(`${NOTION_API}/databases/${DB_ID}/query`, {
-        method: 'POST', headers: hdrs, body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      (d.results || []).forEach(p => { if (!p.archived) orders.push(pageToOrder(p)); });
-      cursor = d.has_more ? d.next_cursor : null;
-    } while (cursor);
-    return json(orders);
-  }
-
-  // ── POST — upsert one order ──────────────────
-  if (request.method === 'POST') {
-    const order = await request.json();
-    const props = orderToProps(order);
-
-    // If we already know the Notion page ID, patch it directly
-    if (order.notionPageId) {
-      const r = await fetch(`${NOTION_API}/pages/${order.notionPageId}`, {
-        method: 'PATCH', headers: hdrs,
-        body: JSON.stringify({ properties: props, archived: false }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        return json({ error: err.message || 'Notion patch failed' }, r.status);
-      }
-      return json({ notionPageId: order.notionPageId });
-    }
-
-    // No notionPageId — create new page directly (skip search to avoid timeout)
-    const cr = await fetch(`${NOTION_API}/pages`, {
-      method: 'POST', headers: hdrs,
-      body: JSON.stringify({ parent: { database_id: DB_ID }, properties: props }),
+  const orders = [];
+  let cursor;
+  do {
+    const body = { page_size: 100, sorts: [{ property: 'Date', direction: 'descending' }] };
+    if (cursor) body.start_cursor = cursor;
+    const r = await fetch(`${NOTION_API}/databases/${DB_ID}/query`, {
+      method: 'POST', headers: hdrs, body: JSON.stringify(body),
     });
-    const cd = await cr.json();
-    if (!cr.ok) return json({ error: cd.message || 'Notion create failed' }, cr.status);
-    return json({ notionPageId: cd.id });
-  }
+    const d = await r.json();
+    (d.results || []).forEach(p => { if (!p.archived) orders.push(pageToOrder(p)); });
+    cursor = d.has_more ? d.next_cursor : null;
+  } while (cursor);
+  return json(orders);
+}
 
-  // ── DELETE — archive one order by Notion page ID ──
-  if (request.method === 'DELETE') {
-    const pageId = new URL(request.url).searchParams.get('pageId');
-    if (!pageId) return json({ error: 'pageId required' }, 400);
-    await fetch(`${NOTION_API}/pages/${pageId}`, {
+export async function onRequestPost(context) {
+  const token = context.env.NOTION_TOKEN;
+  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
+  const hdrs = notionHdrs(token);
+
+  const order = await context.request.json();
+  const props = orderToProps(order);
+
+  // If we already know the Notion page ID, patch it directly
+  if (order.notionPageId) {
+    const r = await fetch(`${NOTION_API}/pages/${order.notionPageId}`, {
       method: 'PATCH', headers: hdrs,
-      body: JSON.stringify({ archived: true }),
+      body: JSON.stringify({ properties: props, archived: false }),
     });
-    return json({ ok: true });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return json({ error: err.message || 'Notion patch failed' }, r.status);
+    }
+    return json({ notionPageId: order.notionPageId });
   }
 
-  return new Response('Method not allowed', { status: 405, headers: CORS });
+  // No notionPageId — create new page directly
+  const cr = await fetch(`${NOTION_API}/pages`, {
+    method: 'POST', headers: hdrs,
+    body: JSON.stringify({ parent: { database_id: DB_ID }, properties: props }),
+  });
+  const cd = await cr.json();
+  if (!cr.ok) return json({ error: cd.message || 'Notion create failed' }, cr.status);
+  return json({ notionPageId: cd.id });
+}
+
+export async function onRequestDelete(context) {
+  const token = context.env.NOTION_TOKEN;
+  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
+  const hdrs = notionHdrs(token);
+
+  const pageId = new URL(context.request.url).searchParams.get('pageId');
+  if (!pageId) return json({ error: 'pageId required' }, 400);
+  await fetch(`${NOTION_API}/pages/${pageId}`, {
+    method: 'PATCH', headers: hdrs,
+    body: JSON.stringify({ archived: true }),
+  });
+  return json({ ok: true });
 }
