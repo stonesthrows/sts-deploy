@@ -20,17 +20,21 @@ function loadNotes() {
   var spinner = document.getElementById('notes-loading');
   if (spinner) spinner.style.display = '';
   fetch('/api/notion-notes')
-    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
-    .then(function(data) {
-      NOTES_DATA = data || [];
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    .then(function(res) {
       if (spinner) spinner.style.display = 'none';
+      if (!res.ok) {
+        toast('Notion error ' + res.status + ': ' + (res.data.error || 'unknown'), '⚠');
+        return;
+      }
+      NOTES_DATA = res.data || [];
       ['studio','todo','followup','toorder'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
-    .catch(function() {
+    .catch(function(err) {
       if (spinner) spinner.style.display = 'none';
-      toast('Could not load notes from Notion', '⚠');
+      toast('Could not reach /api/notion-notes — ' + (err || ''), '⚠');
     });
 }
 
@@ -57,16 +61,22 @@ function addNoteItem(key) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: text, block: block }),
   })
-    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
-    .then(function(d) {
-      temp.notionPageId = d.notionPageId;
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) {
+        NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
+        renderNotesList(key, itemsFor(key));
+        toast('Save failed ' + res.status + ': ' + (res.data.error || 'unknown'), '⚠');
+        return;
+      }
+      temp.notionPageId = res.data.notionPageId;
       temp._saving = false;
       renderNotesList(key, itemsFor(key));
     })
-    .catch(function() {
+    .catch(function(err) {
       NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
       renderNotesList(key, itemsFor(key));
-      toast('Failed to save note', '⚠');
+      toast('Failed to save note — ' + (err || ''), '⚠');
     });
 }
 

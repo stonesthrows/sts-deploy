@@ -61,6 +61,7 @@ export async function onRequest({ request, env }) {
         method: 'POST', headers: h, body: JSON.stringify(body),
       });
       const d = await r.json();
+      if (!r.ok) return json({ error: d.message || 'Notion query failed', code: d.code, status: r.status }, r.status);
       (d.results || []).forEach(p => { if (!p.archived) notes.push(pageToNote(p)); });
       cursor = d.has_more ? d.next_cursor : null;
     } while (cursor);
