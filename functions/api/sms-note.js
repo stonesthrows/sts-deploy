@@ -54,11 +54,10 @@ export async function onRequest({ request, env }) {
   // Check for explicit category prefix: "todo: ...", "order: ...", "followup: ...", "studio: ..."
   let category = null;
   let text = body;
-  const prefixMatch = body.match(/^(todo|order|toorder|followup|follow.?up|studio)[:\s]+(.+)/is);
+  const prefixMatch = body.match(/^(todo|order|toorder|followup|followup|studio)[:\s]+(.+)/is);
   if (prefixMatch) {
     const prefix = prefixMatch[1].toLowerCase().replace(/[\s-]/g, '');
-    const aliases = { order: 'toorder', followup: 'toorder', followup: 'followup' };
-    category = { todo: 'todo', toorder: 'toorder', order: 'toorder', followup: 'followup', 'follow-up': 'followup', studio: 'studio' }[prefix] || null;
+    category = { todo: 'todo', toorder: 'toorder', order: 'toorder', followup: 'followup', studio: 'studio' }[prefix] || null;
     text = prefixMatch[2].trim();
   }
   if (!category) category = autoDetect(text);
