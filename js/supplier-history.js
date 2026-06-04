@@ -120,10 +120,19 @@ async function ohPushAllToNotion() {
     return;
   }
 
-  // First one worked — batch sync the rest
-  ohBatchSync(ohOrders);
-  toast('Pushing ' + ohOrders.length + ' orders to Notion…', '⬆');
-  if (btn) { btn.disabled = false; btn.textContent = '⬆ Push to Notion'; }
+  // First one worked — batch sync the rest with live progress
+  var total = ohOrders.length;
+  toast('Pushing ' + total + ' orders to Notion…', '⬆');
+  ohBatchSync(ohOrders, function(done, total, finished) {
+    if (!btn) return;
+    if (finished) {
+      btn.disabled = false;
+      btn.textContent = '⬆ Push to Notion';
+      toast('Synced ' + total + ' orders to Notion ✓', '✓');
+    } else {
+      btn.textContent = '⬆ ' + done + ' / ' + total;
+    }
+  });
 }
 
 // ── Notion: upsert one order ───────────────────
@@ -153,19 +162,16 @@ function ohDeleteFromNotion(notionPageId) {
 }
 
 // ── Notion: batch sync (for CSV imports) ───────
-function ohBatchSync(orders) {
-  if (!orders.length) return;
-  var BATCH = 3;        // requests at a time
-  var DELAY = 400;      // ms between batches (stay under Notion rate limit)
-  var chunks = [];
-  for (var i = 0; i < orders.length; i += BATCH) chunks.push(orders.slice(i, i + BATCH));
-
-  var idx = 0;
+// Sequential, one at a time with 600ms gaps — avoids Notion rate limits
+function ohBatchSync(orders, onProgress) {
+  if (!orders.length) { ohSetSyncStatus('ok'); return; }
+  var i = 0;
   function next() {
-    if (idx >= chunks.length) { ohSetSyncStatus('ok'); return; }
+    if (i >= orders.length) { ohSetSyncStatus('ok'); if (onProgress) onProgress(i, orders.length, true); return; }
     ohSetSyncStatus('saving');
-    Promise.all(chunks[idx++].map(ohSyncOrder)).then(function() {
-      setTimeout(next, DELAY);
+    if (onProgress) onProgress(i, orders.length, false);
+    ohSyncOrder(orders[i++]).then(function() {
+      setTimeout(next, 600);
     });
   }
   next();
