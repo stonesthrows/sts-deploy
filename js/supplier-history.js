@@ -88,6 +88,44 @@ function ohFetchFromNotion() {
     });
 }
 
+// ── Push all local orders to Notion (manual button) ───────────────────────
+async function ohPushAllToNotion() {
+  var btn = document.getElementById('ohPushNotionBtn');
+  if (!ohOrders.length) { toast('No orders to push', 'ℹ'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⬆ Pushing…'; }
+  ohSetSyncStatus('saving');
+
+  // Test with first order to surface any real error
+  try {
+    var testOrder = ohOrders[0];
+    var r = await fetch(OH_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testOrder),
+    });
+    var data = await r.json();
+    if (!r.ok || data.error) {
+      var msg = data.error || ('HTTP ' + r.status);
+      toast('Notion error: ' + msg, '⚠');
+      alert('Notion sync failed:\n\n' + msg + '\n\nFull response: ' + JSON.stringify(data));
+      if (btn) { btn.disabled = false; btn.textContent = '⬆ Push to Notion'; }
+      ohSetSyncStatus('offline');
+      return;
+    }
+  } catch(err) {
+    toast('Notion sync failed: ' + err.message, '⚠');
+    alert('Notion sync error:\n\n' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '⬆ Push to Notion'; }
+    ohSetSyncStatus('offline');
+    return;
+  }
+
+  // First one worked — batch sync the rest
+  ohBatchSync(ohOrders);
+  toast('Pushing ' + ohOrders.length + ' orders to Notion…', '⬆');
+  if (btn) { btn.disabled = false; btn.textContent = '⬆ Push to Notion'; }
+}
+
 // ── Notion: upsert one order ───────────────────
 function ohSyncOrder(order) {
   return fetch(OH_API, {

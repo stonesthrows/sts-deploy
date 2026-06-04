@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v75-order-history-notion-merge -->
+<!-- deploy-version: v76-order-history-push-btn -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2885,6 +2885,7 @@
         <input type="file" id="ohCsvInput" accept=".csv" style="display:none">
       </label>
       <button class="btn btn-outline btn-sm" id="ohCsvHelpBtn" title="Show expected CSV format">?</button>
+<button class="btn btn-outline btn-sm" id="ohPushNotionBtn" onclick="ohPushAllToNotion()" title="Push all local orders up to Notion">⬆ Push to Notion</button>
 <button class="btn btn-gold btn-sm" id="ohAddBtn">＋ Add Order</button>
     </div>
   </div>
