@@ -1062,6 +1062,12 @@ function ohShowCsvHelp() {
 // ── Helpers ───────────────────────────────────
 function ohFmtDate(ds) {
   if (!ds || ds === '—') return '—';
+  // Parse as local date (not UTC) to avoid timezone-shift off-by-one
+  var parts = ds.split('-');
+  if (parts.length === 3) {
+    var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  }
   return new Date(ds).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
