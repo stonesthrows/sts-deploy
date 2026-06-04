@@ -166,7 +166,7 @@ function renderNotesList(key, items) {
       : '';
     var row = '<div' + saving + dragAttrs + ' style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid #F4EFE8">';
     if (!noCheck) {
-      row += '<input type="checkbox" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer" '
+      row += '<input type="checkbox" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;margin-right:4px" '
            + (item.done ? 'checked' : '')
            + ' onchange="toggleNoteItem(\'' + key + '\',' + idx + ')">';
     }
