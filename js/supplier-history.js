@@ -19,6 +19,7 @@ var ohCollapsedSups = new Set();
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
   ohLoadCache();
+  ohMigrateSupplierNames();
   ohRebuildYearDropdown();
   ohWireFilters();
   ohWireAddBtn();
@@ -39,6 +40,16 @@ function ohLoadCache() {
     ohOrders.forEach(function(o){ if (o.amt != null) o.amt = parseFloat(o.amt) || null; });
   } catch(e) { ohOrders = []; }
   ohDedupeExisting();
+}
+
+// One-time migration: normalize any supplier names that slipped through before rules were added
+function ohMigrateSupplierNames() {
+  var changed = false;
+  ohOrders.forEach(function(o) {
+    var normalized = ohNormalizeSup(o.sup || '');
+    if (normalized && normalized !== o.sup) { o.sup = normalized; changed = true; }
+  });
+  if (changed) ohCacheLocally();
 }
 
 function ohDedupeExisting() {
@@ -353,6 +364,15 @@ function ohOpenModal(id) {
     document.getElementById('ohMNotes').value     = ord.notes     || '';
     var delBtn = document.getElementById('ohModalDelete');
     if (delBtn) delBtn.style.display = '';
+    var recLink = document.getElementById('ohModalReceiptLink');
+    if (recLink) {
+      if (ord.driveFileId) {
+        recLink.href = 'https://drive.google.com/file/d/' + ord.driveFileId + '/view';
+        recLink.style.display = 'inline-flex';
+      } else {
+        recLink.style.display = 'none';
+      }
+    }
   } else {
     title.textContent = 'Add Order';
     document.getElementById('ohMDate').value      = new Date().toISOString().slice(0,10);
@@ -489,7 +509,10 @@ function ohRender() {
         + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
         + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
         + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
-        + '<td><button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button></td>'
+        + '<td style="white-space:nowrap">'
+        +   (o.driveFileId ? '<a href="https://drive.google.com/file/d/' + o.driveFileId + '/view" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View receipt" style="text-decoration:none;margin-right:4px;">🧾</a>' : '')
+        +   '<button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button>'
+        + '</td>'
         + '</tr>';
     }).join('');
 
@@ -600,13 +623,14 @@ async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
         var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
         if (data) {
           var order = {
-            id:       'rec_' + file.id.slice(0, 12),
-            date:     data.date     || '',
-            sup:      ohNormalizeSup(data.supplier || '') || 'Unknown',
-            orderNum: data.order_number   || '',
-            invNum:   data.invoice_number || '',
-            amt:      data.amount != null ? parseFloat(data.amount) : null,
-            notes:    data.notes || file.name,
+            id:          'rec_' + file.id.slice(0, 12),
+            date:        data.date     || '',
+            sup:         ohNormalizeSup(data.supplier || '') || 'Unknown',
+            orderNum:    data.order_number   || '',
+            invNum:      data.invoice_number || '',
+            amt:         data.amount != null ? parseFloat(data.amount) : null,
+            notes:       data.notes || file.name,
+            driveFileId: file.id,
           };
           // Skip if already imported by order/inv number
           var existing = ohFilterExisting([order]);
@@ -1003,6 +1027,8 @@ function ohNormalizeSup(s) {
   if (l.indexOf('rio') >= 0 || l === 'rg')       return 'Rio Grande';
   if (l.indexOf('stull') >= 0)                    return 'Stuller';
   if (l.indexOf('gess') >= 0)                     return 'Gesswein';
+  if (l.indexOf('home depot') >= 0)               return 'The Home Depot';
+  if (l.indexOf('lowe') >= 0)                     return "Lowe's";
   return s.trim();
 }
 
