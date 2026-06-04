@@ -3691,6 +3691,16 @@
     </div>
 
     <div class="int-section">
+      <div class="int-section-title">Notion</div>
+      <p class="int-hint" style="margin-bottom:10px;">The Notion API token is stored as a <strong>server-side environment variable</strong> in Cloudflare Pages — not in your browser. It is already used for the Custom Orders integration. If notes are not loading, verify the token is set there.</p>
+      <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+        ↗ Open Cloudflare Pages Dashboard
+      </a>
+      <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>NOTION_TOKEN</code> to your integration secret. Get the token at notion.so/profile/integrations.</p>
+      <p class="int-hint" style="margin-top:6px;">Also make sure the <strong>STS Notes</strong> database in Notion has your integration connected: open the database → … → Connections → add your integration.</p>
+    </div>
+
+    <div class="int-section">
       <div class="int-section-title">Square</div>
       <label for="int-square-token">Access Token</label>
       <input type="password" id="int-square-token" placeholder="EAAAl…">
