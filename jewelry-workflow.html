@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v73-gmail-tab-refresh -->
+<!-- deploy-version: v74-sales-square-autosync -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2729,7 +2729,7 @@
         📓 Studio Notes
         <span class="notes-card-count" id="studio-count"></span>
       </div>
-      <div class="notes-list" id="studio-list"></div>
+      <div class="notes-list" id="studio-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'studio')"></div>
       <div class="notes-add-row">
         <input class="notes-add-input" id="studio-input" type="text"
           placeholder="Add a note…"
@@ -2744,7 +2744,7 @@
         📞 Follow-ups
         <span class="notes-card-count" id="followup-count"></span>
       </div>
-      <div class="notes-list" id="followup-list"></div>
+      <div class="notes-list" id="followup-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'followup')"></div>
       <div class="notes-add-row">
         <input class="notes-add-input" id="followup-input" type="text"
           placeholder="Add a follow-up…"
@@ -2759,7 +2759,7 @@
         ✅ To-Do
         <span class="notes-card-count" id="todo-count"></span>
       </div>
-      <div class="notes-list" id="todo-list"></div>
+      <div class="notes-list" id="todo-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'todo')"></div>
       <div class="notes-add-row">
         <input class="notes-add-input" id="todo-input" type="text"
           placeholder="Add a task…"
@@ -2774,7 +2774,7 @@
         🛒 To Order
         <span class="notes-card-count" id="toorder-count"></span>
       </div>
-      <div class="notes-list" id="toorder-list"></div>
+      <div class="notes-list" id="toorder-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'toorder')"></div>
       <div class="notes-add-row">
         <input class="notes-add-input" id="toorder-input" type="text"
           placeholder="Add a supply to order…"

@@ -3,18 +3,182 @@
 //  Renders the Sales tab from SQUARE_WEEKENDS + ORDERS data
 // ════════════════════════════════════════════
 
+// ── Square sync helpers ───────────────────────────────────────────────────────
+
+async function _salesSqFetch(path) {
+  var token = localStorage.getItem('sts-square-token');
+  if (!token) throw new Error('No Square token — add it in ⚙ Integrations');
+  var res = await fetch('/api/square', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: path, method: 'GET', token: token }),
+  });
+  var json = await res.json();
+  if (!res.ok) throw new Error((json.errors && json.errors[0] && json.errors[0].detail) || JSON.stringify(json));
+  return json;
+}
+
+async function _fetchDayTotal(dateObj) {
+  // Returns { total, num_transactions } for a full calendar day (local midnight → next midnight, in UTC RFC3339)
+  var start = new Date(dateObj);
+  start.setHours(0, 0, 0, 0);
+  var end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  var total = 0, txCount = 0, cursor = null;
+  do {
+    var qs = '?location_id=D7EZ98V48F79A'
+      + '&begin_time=' + encodeURIComponent(start.toISOString())
+      + '&end_time='   + encodeURIComponent(end.toISOString())
+      + '&limit=200'
+      + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    var data = await _salesSqFetch('/v2/payments' + qs);
+    var payments = data.payments || [];
+    payments.forEach(function(p) {
+      if (p.status !== 'COMPLETED') return;
+      total    += (p.total_money && p.total_money.amount) ? p.total_money.amount / 100 : 0;
+      txCount  += 1;
+    });
+    cursor = data.cursor || null;
+  } while (cursor);
+
+  return { total: Math.round(total * 100) / 100, num_transactions: txCount };
+}
+
+// Finds the most recent Saturday relative to today
+function _lastSaturday() {
+  var d = new Date();
+  var day = d.getDay(); // 0=Sun…6=Sat
+  var daysBack = day === 6 ? 0 : (day + 1);
+  d.setDate(d.getDate() - daysBack);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function _weekendLabel(satDate) {
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var sun = new Date(satDate);
+  sun.setDate(sun.getDate() + 1);
+  var satStr = months[satDate.getMonth()] + ' ' + satDate.getDate();
+  var sunStr = (sun.getMonth() !== satDate.getMonth() ? months[sun.getMonth()] + ' ' : '') + sun.getDate();
+  return satStr + '-' + sunStr;
+}
+
+// ── localStorage persistence ─────────────────────────────────────────────────
+
+var SALES_LS_KEY = 'sts-square-weekends';
+
+function _loadSyncedWeekends() {
+  try { return JSON.parse(localStorage.getItem(SALES_LS_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function _saveSyncedWeekend(entry) {
+  var stored = _loadSyncedWeekends();
+  var idx = stored.findIndex(function(w){ return w.weekend === entry.weekend; });
+  if (idx >= 0) { stored[idx] = entry; } else { stored.push(entry); }
+  localStorage.setItem(SALES_LS_KEY, JSON.stringify(stored));
+}
+
+// Merges hardcoded baseline with localStorage overrides (synced data wins)
+function _mergedWeekends() {
+  var synced = _loadSyncedWeekends();
+  var syncedMap = {};
+  synced.forEach(function(w){ syncedMap[w.weekend] = w; });
+
+  var base = SQUARE_WEEKENDS.map(function(w){
+    return syncedMap[w.weekend] || w;
+  });
+  // Append any synced entries not in the hardcoded baseline
+  synced.forEach(function(w){
+    if (!SQUARE_WEEKENDS.find(function(b){ return b.weekend === w.weekend; })) {
+      base.push(w);
+    }
+  });
+  base.sort(function(a,b){ return a.weekend < b.weekend ? -1 : a.weekend > b.weekend ? 1 : 0; });
+  return base;
+}
+
+// ── Sync ─────────────────────────────────────────────────────────────────────
+
+async function syncSquareSales() {
+  var btn = document.getElementById('salesSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+
+  try {
+    var sat = _lastSaturday();
+    var sun = new Date(sat);
+    sun.setDate(sun.getDate() + 1);
+
+    var pad = function(n){ return String(n).padStart(2,'0'); };
+    var weekendKey = sat.getFullYear() + '-' + pad(sat.getMonth()+1) + '-' + pad(sat.getDate());
+
+    var satResult = await _fetchDayTotal(sat);
+    var sunResult = await _fetchDayTotal(sun);
+
+    var entry = {
+      weekend:          weekendKey,
+      label:            _weekendLabel(sat),
+      saturday:         satResult.total,
+      sunday:           sunResult.total,
+      total:            Math.round((satResult.total + sunResult.total) * 100) / 100,
+      num_transactions: satResult.num_transactions + sunResult.num_transactions,
+    };
+
+    _saveSyncedWeekend(entry);
+
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Sync from Square'; }
+    renderSales();
+
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#2A7A48;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18)';
+    toast.textContent = 'Synced ' + entry.label + ' — $' + entry.total.toLocaleString();
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 4000);
+
+  } catch(err) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Sync from Square'; }
+    alert('Square sync failed: ' + err.message);
+  }
+}
+
+// ── Auto-sync on weekend evenings ────────────────────────────────────────────
+// Called once when the Sales tab is first shown. If it's Saturday or Sunday
+// after 6 PM local time and we haven't already auto-synced today, run silently.
+
+function salesAutoSync() {
+  var token = localStorage.getItem('sts-square-token');
+  if (!token) return; // no token = nothing to do
+
+  var now   = new Date();
+  var day   = now.getDay();   // 0=Sun, 6=Sat
+  var hour  = now.getHours(); // 0-23
+
+  if ((day !== 0 && day !== 6) || hour < 18) return; // not Sat/Sun evening
+
+  // Throttle: only auto-sync once per calendar day
+  var todayKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
+  var lastKey  = localStorage.getItem('sts-square-autosync-date');
+  if (lastKey === todayKey) return;
+
+  localStorage.setItem('sts-square-autosync-date', todayKey);
+  syncSquareSales(); // runs in background; updates page when done
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
 function renderSales() {
   var el = document.getElementById('salesContent');
   if (!el) return;
 
   // ── Stats ─────────────────────────────────
-  var weeks    = SQUARE_WEEKENDS.slice(-8);
-  var lastWeek = SQUARE_WEEKENDS[SQUARE_WEEKENDS.length - 1] || {};
-  var prevWeek = SQUARE_WEEKENDS[SQUARE_WEEKENDS.length - 2] || {};
-  var totalYTD = SQUARE_WEEKENDS.reduce(function(s,w){ return s + (w.total||0); }, 0);
-  var totalTx  = SQUARE_WEEKENDS.reduce(function(s,w){ return s + (w.num_transactions||0); }, 0);
-  var avgWeek  = SQUARE_WEEKENDS.length ? totalYTD / SQUARE_WEEKENDS.length : 0;
-  var avgTx    = SQUARE_WEEKENDS.length ? totalTx / SQUARE_WEEKENDS.length : 0;
+  var allData  = _mergedWeekends();
+  var weeks    = allData.slice(-8);
+  var lastWeek = allData[allData.length - 1] || {};
+  var prevWeek = allData[allData.length - 2] || {};
+  var totalYTD = allData.reduce(function(s,w){ return s + (w.total||0); }, 0);
+  var totalTx  = allData.reduce(function(s,w){ return s + (w.num_transactions||0); }, 0);
+  var avgWeek  = allData.length ? totalYTD / allData.length : 0;
+  var avgTx    = allData.length ? totalTx / allData.length : 0;
 
   var lastTotal = lastWeek.total || 0;
   var prevTotal = prevWeek.total || 0;
@@ -29,11 +193,19 @@ function renderSales() {
 
   var html = '';
 
+  // ── Sync button + auto-update note ───────
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  html += '<span style="font-size:11px;color:#9A8860;font-style:italic">⏱ Auto-updates every Saturday &amp; Sunday evening</span>';
+  html += '<button id="salesSyncBtn" onclick="syncSquareSales()" '
+        + 'style="background:#1a1a2e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">'
+        + '↻ Sync from Square</button>';
+  html += '</div>';
+
   // ── Stat Cards ────────────────────────────
   html += '<div class="sales-stats">';
   html += statCard('💰', 'si-gold',   'Last Weekend',   '$' + lastTotal.toLocaleString(),
     '<span style="' + changeCls + ';font-size:11px;font-weight:600">' + changeSign + weekChange + '% vs prior</span>');
-  html += statCard('📅', 'si-green',  'YTD Market Sales','$' + Math.round(totalYTD).toLocaleString(), SQUARE_WEEKENDS.length + ' weekends');
+  html += statCard('📅', 'si-green',  'YTD Market Sales','$' + Math.round(totalYTD).toLocaleString(), allData.length + ' weekends');
   html += statCard('📊', 'si-purple', 'Avg / Weekend',  '$' + Math.round(avgWeek).toLocaleString(), Math.round(avgTx) + ' avg transactions');
   html += statCard('🔧', 'si-red',    'Active Pipeline', '$' + pipelineVal.toLocaleString(),
     ORDERS.filter(function(o){ return !['complete','delivered'].includes(o.stage); }).length + ' open orders');
@@ -104,7 +276,7 @@ function renderSales() {
     html += '<th style="padding:9px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7A7268">' + h + '</th>';
   });
   html += '</tr></thead><tbody>';
-  var allWeeks = SQUARE_WEEKENDS.slice().reverse();
+  var allWeeks = allData.slice().reverse();
   allWeeks.forEach(function(w, i) {
     var bg = i % 2 === 0 ? '#fff' : '#FDFAF6';
     html += '<tr style="background:' + bg + ';border-bottom:1px solid #F4EFE8">';

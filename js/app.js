@@ -65,7 +65,7 @@ function switchTab(id, el) {
   document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   if (el) el.classList.add('active');
-  if (id === 'sales') setTimeout(renderSales, 0);
+  if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
   if (id === 'production') setTimeout(renderProduction, 0);
   if (id === 'gmail') loadScheduledBrief();
 }
@@ -348,7 +348,6 @@ async function syncWithNotion() {
       // Also load persistent completed registry (survives full ORDERS replacement)
       let completedRegistry = [];
       try { completedRegistry = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]'); } catch(e) {}
-      const completedNames = new Set(completedRegistry.map(r => r.name));
       completedRegistry.forEach(r => {
         completedMap[r.id] = 'complete';
         if (r.notionId) completedMap['n:' + r.notionId] = 'complete';
@@ -356,9 +355,7 @@ async function syncWithNotion() {
 
       ORDERS.length = 0;
       notionOrders.forEach(o => {
-        // Skip if this order name matches a completed registry entry and it's not already ours
-        const incomingName = (o.name || '').toLowerCase().trim();
-        const alreadyCompleted = completedMap[o.id] || completedMap['n:' + o.notionId] || completedNames.has(incomingName);
+        const alreadyCompleted = completedMap[o.id] || completedMap['n:' + o.notionId];
         if (alreadyCompleted) { o.stage = 'complete'; }
         if (photoMap[o.id]) o.photo = photoMap[o.id];
         ORDERS.push(o);
@@ -398,6 +395,8 @@ async function syncWithNotion() {
   if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
 
   // Try Notion sync (no-op if not connected)
-  syncWithNotion();
+  syncWithNotion().then(() => {
+    if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
+  });
 })();
 
