@@ -3514,6 +3514,7 @@
         <button id="pjPiece_anklet"   class="pj-chip" onclick="pjPickPiece('anklet')">Anklet</button>
         <button id="pjPiece_necklace" class="pj-chip" onclick="pjPickPiece('necklace')">Necklace</button>
         <button id="pjPiece_belly"    class="pj-chip" onclick="pjPickPiece('belly')">Belly Chain</button>
+        <button id="pjPiece_hand"     class="pj-chip" onclick="pjPickPiece('hand')">Hand Chain</button>
       </div>
     </div>
 
@@ -3614,7 +3615,7 @@
   function pjPickStyle(s) { pjS.style = s; pjS.piece = null; pjS.size = null; pjRender(); pjScrollTo('pjPieceStep'); }
   function pjPickPiece(p) {
     pjS.piece = p;
-    pjS.size = (p === 'bracelet' || p === 'anklet') ? p : null;
+    pjS.size = (p === 'bracelet' || p === 'anklet' || p === 'hand') ? p : null;
     pjRender();
     pjScrollTo(pjS.size ? 'pjPriceCard' : 'pjSizeStep');
   }
@@ -3630,6 +3631,7 @@
     if (!c || !pjS.size) return null;
     if (pjS.piece === 'bracelet') return c.bracelet;
     if (pjS.piece === 'anklet')   return c.anklet;
+    if (pjS.piece === 'hand')     return c.bracelet + (c.metal === 'SS' ? 30 : 60);
     if (pjS.piece === 'necklace') { const i = PJ_NECK.indexOf(+pjS.size);  return i >= 0 ? c.neck[i]  : null; }
     if (pjS.piece === 'belly')    { const i = PJ_BELLY.indexOf(+pjS.size); return i >= 0 ? c.belly[i] : null; }
     return null;
@@ -3647,7 +3649,7 @@
     }
 
     document.getElementById('pjPieceStep').classList.toggle('pj-hidden', !pjS.style);
-    ['bracelet','anklet','necklace','belly'].forEach(p => {
+    ['bracelet','anklet','necklace','belly','hand'].forEach(p => {
       const el = document.getElementById('pjPiece_' + p);
       if (el) el.classList.toggle('active', pjS.piece === p);
     });
@@ -3671,6 +3673,7 @@
       let pieceLabel = '';
       if (pjS.piece === 'bracelet') pieceLabel = 'Bracelet';
       else if (pjS.piece === 'anklet') pieceLabel = 'Anklet';
+      else if (pjS.piece === 'hand')     pieceLabel = 'Hand Chain';
       else if (pjS.piece === 'necklace') pieceLabel = pjS.size + '″ Necklace';
       else if (pjS.piece === 'belly')    pieceLabel = pjS.size + '″ Belly Chain';
       document.getElementById('pjPriceLine').textContent   = pjS.style + '  ·  ' + metalLabel + '  ·  ' + pieceLabel;
