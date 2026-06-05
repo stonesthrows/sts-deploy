@@ -3438,6 +3438,47 @@
   background: #FEF6E0; color: #8C6520; font-size: 11px; font-weight: 700;
 }
 .pj-price-td { font-weight: 600; color: var(--text); }
+
+@media (max-width: 640px) {
+  .pj-wrap { padding: 10px 12px 28px; }
+  .pj-step { padding: 14px 16px; margin-bottom: 10px; border-radius: 12px; }
+  .pj-step-label { font-size: 9px; margin-bottom: 10px; }
+
+  /* Metal: two equal full-width buttons */
+  #pjMetal_SS, #pjMetal_GF {
+    flex: 1; text-align: center; padding: 12px 10px;
+    font-size: 14px; border-radius: 12px;
+  }
+
+  /* Style chips: 3-column grid so they don't wrap awkwardly */
+  #pjStyleChips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #pjStyleChips .pj-chip {
+    text-align: center; justify-content: center;
+    padding: 10px 6px; font-size: 12px; border-radius: 10px;
+  }
+
+  /* Piece type: 2×2 grid, big tap targets */
+  #pjPieceStep .pj-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  #pjPieceStep .pj-chip {
+    text-align: center; padding: 13px 8px;
+    font-size: 14px; border-radius: 12px;
+  }
+
+  /* Size chips: larger tap targets */
+  #pjSizeChips .pj-chip { padding: 11px 14px; font-size: 14px; }
+
+  /* Price card */
+  .pj-price-card { padding: 22px 18px; border-radius: 14px; }
+  .pj-price-amount { font-size: 72px; letter-spacing: -3px; }
+  .pj-price-line { font-size: 10px; }
+  .pj-price-meta { font-size: 11px; }
+
+  /* Reference table: a bit tighter on mobile */
+  .pj-ref-wrap { padding: 10px 12px 28px; }
+  .pj-ref-table { font-size: 12px; }
+  .pj-th, .pj-th-grp { padding: 8px 10px; }
+  .pj-ref-td { padding: 8px 10px; }
+}
 </style>
 
 <!-- ═══════════════════ PERM JEWELRY — CALCULATOR ═══════════════════ -->
@@ -3564,14 +3605,20 @@
 
   let pjS = { metal: null, style: null, piece: null, size: null };
 
-  function pjPickMetal(m) { pjS = { metal: m, style: null, piece: null, size: null }; pjRender(); }
-  function pjPickStyle(s) { pjS.style = s; pjS.piece = null; pjS.size = null; pjRender(); }
+  function pjScrollTo(id) {
+    const el = document.getElementById(id);
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60);
+  }
+
+  function pjPickMetal(m) { pjS = { metal: m, style: null, piece: null, size: null }; pjRender(); pjScrollTo('pjStyleStep'); }
+  function pjPickStyle(s) { pjS.style = s; pjS.piece = null; pjS.size = null; pjRender(); pjScrollTo('pjPieceStep'); }
   function pjPickPiece(p) {
     pjS.piece = p;
     pjS.size = (p === 'bracelet' || p === 'anklet') ? p : null;
     pjRender();
+    pjScrollTo(pjS.size ? 'pjPriceCard' : 'pjSizeStep');
   }
-  function pjPickSize(s) { pjS.size = String(s); pjRender(); }
+  function pjPickSize(s) { pjS.size = String(s); pjRender(); pjScrollTo('pjPriceCard'); }
 
   function pjChain() {
     if (!pjS.metal || !pjS.style) return null;
