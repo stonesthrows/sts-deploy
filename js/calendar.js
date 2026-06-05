@@ -27,15 +27,17 @@ function calClearToken() {
 
 // ── OAuth ─────────────────────────────────────
 
-// Receive token from the Drive popup handler (shared message listener)
-// Drive's listener only fires _oauthCallback; we add our own listener here.
+// Re-use the same redirect URI as drive.js (already registered in Google Cloud).
+// Both drive.js and calendar.js listen for 'sts-google-oauth'; calendar.js saves
+// to its own token key and only fires _calOauthCallback when it's waiting.
 window.addEventListener('message', function (e) {
   if (e.origin !== window.location.origin) return;
-  if (!e.data || e.data.type !== 'sts-gcal-oauth') return;
+  if (!e.data || e.data.type !== 'sts-google-oauth') return;
+  if (!_calOauthCallback) return;  // only act when a calendar auth is in progress
   localStorage.setItem(CAL_TOKEN_KEY, e.data.token);
   localStorage.setItem(CAL_EXPIRY_KEY, String(Date.now() + parseInt(e.data.expiresIn) * 1000));
   toast('Google Calendar connected ✓', '📅');
-  if (_calOauthCallback) { const cb = _calOauthCallback; _calOauthCallback = null; cb(); }
+  const cb = _calOauthCallback; _calOauthCallback = null; cb();
 });
 
 function calTriggerOAuth(callback) {
@@ -46,7 +48,8 @@ function calTriggerOAuth(callback) {
     return;
   }
   _calOauthCallback = callback;
-  const redirectUri = window.location.origin + '/calendar-oauth.html';
+  // Use the same redirect URI as drive.js so no extra URI needs registering
+  const redirectUri = window.location.origin + window.location.pathname;
   const scopes = 'https://www.googleapis.com/auth/calendar';
   const url = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id='    + encodeURIComponent(clientId)
