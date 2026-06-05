@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v83-trip-verify-pill -->
+<!-- deploy-version: v84-perm-jewelry-pricing -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2410,6 +2410,9 @@
   <div class="nav-tab" data-tab="triplog" onclick="switchTab('triplog',this);tlInit()">
     🚗 Trips
   </div>
+  <div class="nav-tab" data-parent="perm-jewelry" onclick="switchParent('perm-jewelry',this)">
+    ⛓️ Perm. Jewelry
+  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -2445,6 +2448,16 @@
   </div>
   <div class="sub-nav-tab" data-tab="inv-pendants" onclick="invSwitchMain('pendants',this)">
     📿 Pendants
+  </div>
+</div>
+
+<!-- Sub-nav (Perm Jewelry) -->
+<div class="sub-nav" id="sub-nav-perm-jewelry">
+  <div class="sub-nav-tab active" data-tab="pj-calc" onclick="switchSubTab('pj-calc',this)">
+    🔢 Calculator
+  </div>
+  <div class="sub-nav-tab" data-tab="pj-ref" onclick="switchSubTab('pj-ref',this);pjBuildRef()">
+    📋 Reference
   </div>
 </div>
 
@@ -3346,6 +3359,306 @@
     </div>
   </div>
 </div>
+
+<style>
+/* ── Perm Jewelry ─────────────────────────── */
+.pj-wrap { padding: 18px 20px 30px; max-width: 680px; }
+.pj-step {
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
+}
+.pj-step-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text3); margin-bottom: 11px;
+}
+.pj-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pj-chip {
+  padding: 8px 16px; border-radius: 22px;
+  border: 1.5px solid var(--bdr-light);
+  background: transparent; color: var(--text2);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all .15s; white-space: nowrap;
+}
+.pj-chip:hover { border-color: var(--accent-mid); color: var(--text); }
+.pj-chip.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #fff; font-weight: 600;
+}
+.pj-hidden { display: none !important; }
+.pj-price-card {
+  background: linear-gradient(135deg, var(--hdr) 0%, #1A3850 100%);
+  border: 1px solid var(--hdr-bdr); border-radius: 16px;
+  padding: 28px 24px; margin-bottom: 12px; text-align: center;
+}
+.pj-price-line {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: #7AACCB; margin-bottom: 10px;
+}
+.pj-price-amount {
+  font-size: 64px; font-weight: 900; color: var(--accent-light);
+  line-height: 1; letter-spacing: -2px;
+}
+.pj-price-meta { font-size: 11.5px; color: #6898B8; margin-top: 10px; }
+.pj-ref-wrap { overflow-x: auto; padding: 14px 20px 30px; }
+.pj-ref-table {
+  border-collapse: collapse; font-size: 12.5px;
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: 10px; overflow: hidden; white-space: nowrap;
+}
+.pj-th {
+  background: var(--card-head-bg); border-bottom: 1px solid var(--bdr);
+  padding: 9px 13px; text-align: center; font-size: 11px;
+  font-weight: 700; color: var(--text2); text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.pj-th:first-child { text-align: left; min-width: 110px; }
+.pj-th-grp {
+  background: var(--subnav); color: #A8C8D8; font-size: 10px;
+  font-weight: 700; letter-spacing: 0.5px; padding: 4px 13px;
+  border-bottom: 1px solid var(--bdr); text-align: center;
+  text-transform: uppercase;
+}
+.pj-th-grp:first-child { text-align: left; }
+.pj-sep-l { border-left: 2px solid var(--bdr); }
+.pj-ref-td {
+  padding: 9px 13px; border-bottom: 1px solid var(--bdr-light);
+  text-align: center; color: var(--text2);
+}
+.pj-ref-td:first-child { text-align: left; color: var(--text); font-weight: 600; }
+.pj-ref-td.pj-sep-l { border-left: 2px solid var(--bdr-light); }
+.pj-ref-tr-ss { background: var(--card-bg); }
+.pj-ref-tr-gf { background: #FDFCF7; }
+.pj-ref-tr-ss:hover, .pj-ref-tr-gf:hover { background: var(--card-head-bg); }
+.pj-badge-ss {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: #E8F0F8; color: #3A6A8A; font-size: 11px; font-weight: 700;
+}
+.pj-badge-gf {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: #FEF6E0; color: #8C6520; font-size: 11px; font-weight: 700;
+}
+.pj-price-td { font-weight: 600; color: var(--text); }
+</style>
+
+<!-- ═══════════════════ PERM JEWELRY — CALCULATOR ═══════════════════ -->
+<div id="tab-pj-calc" class="tab-panel">
+  <div class="page-bar" style="padding:18px 20px 0;margin-bottom:0;">
+    <div>
+      <div class="page-title">⛓️ Permanent Jewelry Pricing</div>
+      <div class="page-sub">Select options below to look up any sell price</div>
+    </div>
+  </div>
+  <div class="pj-wrap">
+
+    <!-- Step 1: Metal -->
+    <div class="pj-step">
+      <div class="pj-step-label">1 — Metal</div>
+      <div class="pj-chips">
+        <button id="pjMetal_SS" class="pj-chip" onclick="pjPickMetal('SS')">🥈 Sterling Silver</button>
+        <button id="pjMetal_GF" class="pj-chip" onclick="pjPickMetal('GF')">✨ 14/20 Gold-Fill</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Chain Style -->
+    <div class="pj-step pj-hidden" id="pjStyleStep">
+      <div class="pj-step-label">2 — Chain Style</div>
+      <div class="pj-chips" id="pjStyleChips"></div>
+    </div>
+
+    <!-- Step 3: Piece Type -->
+    <div class="pj-step pj-hidden" id="pjPieceStep">
+      <div class="pj-step-label">3 — Piece Type</div>
+      <div class="pj-chips">
+        <button id="pjPiece_bracelet" class="pj-chip" onclick="pjPickPiece('bracelet')">Bracelet</button>
+        <button id="pjPiece_anklet"   class="pj-chip" onclick="pjPickPiece('anklet')">Anklet</button>
+        <button id="pjPiece_necklace" class="pj-chip" onclick="pjPickPiece('necklace')">Necklace</button>
+        <button id="pjPiece_belly"    class="pj-chip" onclick="pjPickPiece('belly')">Belly Chain</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Size (necklace / belly chain only) -->
+    <div class="pj-step pj-hidden" id="pjSizeStep">
+      <div class="pj-step-label" id="pjSizeLabel">4 — Size</div>
+      <div class="pj-chips" id="pjSizeChips"></div>
+    </div>
+
+    <!-- Price Result -->
+    <div id="pjPriceCard" class="pj-price-card pj-hidden">
+      <div class="pj-price-line"   id="pjPriceLine"></div>
+      <div class="pj-price-amount" id="pjPriceAmount"></div>
+      <div class="pj-price-meta"   id="pjPriceMeta"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ PERM JEWELRY — REFERENCE ═══════════════════ -->
+<div id="tab-pj-ref" class="tab-panel">
+  <div class="page-bar" style="padding:18px 20px 0;margin-bottom:0;">
+    <div>
+      <div class="page-title">📋 Pricing Reference</div>
+      <div class="page-sub">All chains and sizes — scroll right for belly chain lengths</div>
+    </div>
+  </div>
+  <div class="pj-ref-wrap">
+    <table class="pj-ref-table">
+      <thead>
+        <tr>
+          <th class="pj-th-grp">Style</th>
+          <th class="pj-th-grp">Metal</th>
+          <th class="pj-th-grp" colspan="2">Standard</th>
+          <th class="pj-th-grp pj-sep-l" colspan="4">Necklace</th>
+          <th class="pj-th-grp pj-sep-l" colspan="7">Belly Chain</th>
+        </tr>
+        <tr>
+          <th class="pj-th"></th>
+          <th class="pj-th"></th>
+          <th class="pj-th">Bracelet</th>
+          <th class="pj-th">Anklet</th>
+          <th class="pj-th pj-sep-l">14"</th>
+          <th class="pj-th">16"</th>
+          <th class="pj-th">18"</th>
+          <th class="pj-th">20"</th>
+          <th class="pj-th pj-sep-l">28"</th>
+          <th class="pj-th">30"</th>
+          <th class="pj-th">32"</th>
+          <th class="pj-th">34"</th>
+          <th class="pj-th">36"</th>
+          <th class="pj-th">38"</th>
+          <th class="pj-th">40"</th>
+        </tr>
+      </thead>
+      <tbody id="pjRefBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  const PJ_DATA = [
+    { style:'Paperclip',     metal:'SS', name:'Sterling Silver 1.9mm Oval Cable Chain',              item:'617936B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[75,80,85,95,100,105,110]    },
+    { style:'Paperclip',     metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                    item:'679289B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[100,105,115,120,125,135,140] },
+    { style:'Rolo',          metal:'SS', name:'Sterling Silver 1.3mm Drawn Oval Rolo Chain',          item:'616230B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[85,90,100,105,110,115,120]  },
+    { style:'Rolo',          metal:'GF', name:'14/20 YGF 1.3mm Drawn Oval Rolo Chain',               item:'679538B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[110,120,130,135,145,150,160] },
+    { style:'Long & Short',  metal:'SS', name:'Sterling Silver 1.6mm Oval Long & Short Chain',        item:'613081B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[55,60,65,70,70,75,80]       },
+    { style:'Long & Short',  metal:'GF', name:'14/20 YGF 1.7mm Flat Long & Short Chain',             item:'628672B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[90,100,105,110,120,125,130]  },
+    { style:'Dapped Oval',   metal:'SS', name:'Sterling Silver 2.5mm Dapped Flat Oval Cable Chain',   item:'683164B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[90,100,105,110,115,125,130]  },
+    { style:'Dapped Oval',   metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                    item:'643012B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[100,105,115,120,125,135,140] },
+    { style:'Heart',         metal:'SS', name:'Sterling Silver 3.4mm Flat Heart Link Chain',          item:'617837B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[145,155,165,175,185,195,205] },
+    { style:'Heart',         metal:'GF', name:'14/20 YGF 3.2mm Heart Link Cable Chain',              item:'643125B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[165,175,185,195,210,220,230] },
+    { style:'Tube Bead',     metal:'SS', name:'Sterling Silver 1.7mm Cable Chain with Tube Beads',    item:'615831B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[110,120,130,135,145,150,160] },
+    { style:'Tube Bead',     metal:'GF', name:'14/20 YGF 1.7mm Cable Chain with Tube Beads',         item:'678880B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[190,200,215,230,240,255,265] },
+    { style:'Figaro',        metal:'SS', name:'Sterling Silver 2.2mm Diamond-Cut Figaro Chain',       item:'632379B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[140,150,155,165,175,185,195] },
+    { style:'Figaro',        metal:'GF', name:'14/20 YGF 2.2mm Figaro Chain',                        item:'643030B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[230,245,260,275,295,310,325] },
+    { style:'Dapped Bar',    metal:'SS', name:'Sterling Silver 1.3mm Dapped Bar & Link Chain',        item:'632370B', bracelet:45, anklet:55, neck:[60,66,72,78],  belly:[150,160,170,185,195,205,215] },
+    { style:'Dapped Bar',    metal:'GF', name:'14/20 YGF 1.4mm Dapped Bar & Link Chain',             item:'678682B', bracelet:70, anklet:80, neck:[85,91,97,103], belly:[235,255,270,290,305,320,340] },
+    { style:'Enameled Bead', metal:'GF', name:'14/20 YGF 1.65mm Cable Chain w/ Blue Enamel Beads',   item:'656431B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[210,225,240,255,270,285,300] },
+  ];
+
+  const PJ_STYLES = {
+    SS: ['Paperclip','Rolo','Long & Short','Dapped Oval','Heart','Tube Bead','Figaro','Dapped Bar'],
+    GF: ['Paperclip','Rolo','Long & Short','Dapped Oval','Heart','Tube Bead','Figaro','Dapped Bar','Enameled Bead']
+  };
+  const PJ_NECK  = [14, 16, 18, 20];
+  const PJ_BELLY = [28, 30, 32, 34, 36, 38, 40];
+
+  let pjS = { metal: null, style: null, piece: null, size: null };
+
+  function pjPickMetal(m) { pjS = { metal: m, style: null, piece: null, size: null }; pjRender(); }
+  function pjPickStyle(s) { pjS.style = s; pjS.piece = null; pjS.size = null; pjRender(); }
+  function pjPickPiece(p) {
+    pjS.piece = p;
+    pjS.size = (p === 'bracelet' || p === 'anklet') ? p : null;
+    pjRender();
+  }
+  function pjPickSize(s) { pjS.size = String(s); pjRender(); }
+
+  function pjChain() {
+    if (!pjS.metal || !pjS.style) return null;
+    return PJ_DATA.find(c => c.style === pjS.style && c.metal === pjS.metal) || null;
+  }
+
+  function pjPrice() {
+    const c = pjChain();
+    if (!c || !pjS.size) return null;
+    if (pjS.piece === 'bracelet') return c.bracelet;
+    if (pjS.piece === 'anklet')   return c.anklet;
+    if (pjS.piece === 'necklace') { const i = PJ_NECK.indexOf(+pjS.size);  return i >= 0 ? c.neck[i]  : null; }
+    if (pjS.piece === 'belly')    { const i = PJ_BELLY.indexOf(+pjS.size); return i >= 0 ? c.belly[i] : null; }
+    return null;
+  }
+
+  function pjRender() {
+    ['SS','GF'].forEach(m => document.getElementById('pjMetal_'+m).classList.toggle('active', pjS.metal === m));
+
+    const styleEl = document.getElementById('pjStyleStep');
+    styleEl.classList.toggle('pj-hidden', !pjS.metal);
+    if (pjS.metal) {
+      document.getElementById('pjStyleChips').innerHTML = PJ_STYLES[pjS.metal].map(s =>
+        `<button class="pj-chip${pjS.style === s ? ' active' : ''}" onclick="pjPickStyle('${s.replace(/'/g,"\\'")}')">${s}</button>`
+      ).join('');
+    }
+
+    document.getElementById('pjPieceStep').classList.toggle('pj-hidden', !pjS.style);
+    ['bracelet','anklet','necklace','belly'].forEach(p => {
+      const el = document.getElementById('pjPiece_' + p);
+      if (el) el.classList.toggle('active', pjS.piece === p);
+    });
+
+    const needsSize = pjS.piece === 'necklace' || pjS.piece === 'belly';
+    document.getElementById('pjSizeStep').classList.toggle('pj-hidden', !pjS.piece || !needsSize);
+    if (needsSize && pjS.piece) {
+      const sizes = pjS.piece === 'necklace' ? PJ_NECK : PJ_BELLY;
+      document.getElementById('pjSizeLabel').textContent = pjS.piece === 'necklace' ? '4 — Necklace Length' : '4 — Belly Chain Length';
+      document.getElementById('pjSizeChips').innerHTML = sizes.map(s =>
+        `<button class="pj-chip${pjS.size === String(s) ? ' active' : ''}" onclick="pjPickSize(${s})">${s}"</button>`
+      ).join('');
+    }
+
+    const price = pjPrice();
+    const priceCard = document.getElementById('pjPriceCard');
+    priceCard.classList.toggle('pj-hidden', price === null);
+    if (price !== null) {
+      const chain = pjChain();
+      const metalLabel = pjS.metal === 'SS' ? 'Sterling Silver' : '14/20 Gold-Fill';
+      let pieceLabel = '';
+      if (pjS.piece === 'bracelet') pieceLabel = 'Bracelet';
+      else if (pjS.piece === 'anklet') pieceLabel = 'Anklet';
+      else if (pjS.piece === 'necklace') pieceLabel = pjS.size + '″ Necklace';
+      else if (pjS.piece === 'belly')    pieceLabel = pjS.size + '″ Belly Chain';
+      document.getElementById('pjPriceLine').textContent   = pjS.style + '  ·  ' + metalLabel + '  ·  ' + pieceLabel;
+      document.getElementById('pjPriceAmount').textContent = '$' + price;
+      document.getElementById('pjPriceMeta').textContent   = chain ? chain.name + ' · #' + chain.item : '';
+    }
+  }
+
+  function pjBuildRef() {
+    const tbody = document.getElementById('pjRefBody');
+    if (!tbody || tbody.children.length > 0) return;
+    tbody.innerHTML = PJ_DATA.map(c => {
+      const badge = c.metal === 'GF'
+        ? '<span class="pj-badge-gf">Gold-Fill</span>'
+        : '<span class="pj-badge-ss">Silver</span>';
+      const neckCells  = c.neck.map((p, j)  => `<td class="pj-ref-td pj-price-td${j === 0 ? ' pj-sep-l' : ''}">$${p}</td>`).join('');
+      const bellyCells = c.belly.map((p, j) => `<td class="pj-ref-td pj-price-td${j === 0 ? ' pj-sep-l' : ''}">$${p}</td>`).join('');
+      const trClass = c.metal === 'GF' ? 'pj-ref-tr-gf' : 'pj-ref-tr-ss';
+      return `<tr class="${trClass}">
+        <td class="pj-ref-td">${c.style}</td>
+        <td class="pj-ref-td">${badge}</td>
+        <td class="pj-ref-td pj-price-td">$${c.bracelet}</td>
+        <td class="pj-ref-td pj-price-td">$${c.anklet}</td>
+        ${neckCells}${bellyCells}
+      </tr>`;
+    }).join('');
+  }
+
+  window.pjPickMetal = pjPickMetal;
+  window.pjPickStyle = pjPickStyle;
+  window.pjPickPiece = pjPickPiece;
+  window.pjPickSize  = pjPickSize;
+  window.pjBuildRef  = pjBuildRef;
+})();
+</script>
 
 <!-- TripLog Edit Modal -->
 <div class="tl-modal-overlay" id="tlEditOverlay" onclick="tlCloseEdit()"></div>
