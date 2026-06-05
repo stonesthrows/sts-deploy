@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v84-perm-jewelry-pricing -->
+<!-- deploy-version: v85-calendar -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2413,6 +2413,9 @@
   <div class="nav-tab" data-parent="perm-jewelry" onclick="switchParent('perm-jewelry',this)">
     ⛓️ Perm. Jewelry
   </div>
+  <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
+    📅 Calendar
+  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -3776,6 +3779,123 @@
 }
 .tl-stat-reimb { border-color: #F0C870; background: #FDFAF2; }
 .tl-reimb-value { color: #8C6520 !important; }
+/* ── Calendar ─────────────────────────── */
+.cal-card {
+  background: var(--card-bg);
+  border: 1px solid var(--bdr);
+  border-radius: 10px;
+  padding: 18px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-hdr {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  padding: 4px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.cal-cell {
+  min-height: 52px;
+  border-radius: 6px;
+  padding: 4px 5px;
+  cursor: pointer;
+  transition: background .12s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.cal-cell:hover { background: var(--card-head-bg); }
+.cal-blank { cursor: default; }
+.cal-blank:hover { background: none; }
+.cal-today .cal-num {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-num {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-dots {
+  display: flex;
+  gap: 2px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.cal-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+}
+.cal-more {
+  font-size: 9px;
+  color: var(--text3);
+  line-height: 5px;
+}
+.cal-nav-btn {
+  background: none;
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  width: 30px; height: 30px;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s;
+}
+.cal-nav-btn:hover { background: var(--card-head-bg); }
+.cal-event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bdr-light);
+}
+.cal-event-row:last-child { border-bottom: none; }
+.cal-ev-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.cal-ev-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.cal-ev-time  { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.cal-empty    { font-size: 13px; color: var(--text-dim); padding: 8px 0; }
+.cal-lbl {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  margin: 12px 0 4px;
+}
+.cal-inp {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color .15s;
+}
+.cal-inp:focus { border-color: var(--accent); }
+/* ── end Calendar ─────────────────────── */
+
 .tl-stat-icon {
   width: 38px; height: 38px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
@@ -4247,6 +4367,89 @@
   </div>
 </div>
 
+<!-- ═══════════════════ CALENDAR TAB ═══════════════════ -->
+<div id="tab-calendar" class="tab-panel">
+
+  <!-- Connect banner -->
+  <div id="cal-connect-banner" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px">
+    <div style="font-size:48px">📅</div>
+    <div style="font-size:18px;font-weight:700;color:var(--text)">Connect Google Calendar</div>
+    <div style="color:var(--text2);font-size:13px;text-align:center;max-width:320px">Sign in with kyle@stonesthrowjewelry.com to view and add events.</div>
+    <button class="btn btn-gold" onclick="calConnect()">Connect Google Calendar</button>
+  </div>
+
+  <!-- Main calendar UI -->
+  <div id="cal-main" style="display:none">
+    <div class="page-bar" style="padding:18px 20px 12px;margin-bottom:0">
+      <div>
+        <div class="page-title">📅 Calendar</div>
+        <div class="page-sub">kyle@stonesthrowjewelry.com</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="calConnect()" title="Reconnect">↻ Reconnect</button>
+        <button class="btn btn-gold btn-sm" onclick="calOpenAddModal()">＋ Add Event</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:20px;padding:16px 20px;align-items:flex-start;flex-wrap:wrap">
+
+      <!-- Month grid -->
+      <div class="cal-card" style="flex:1;min-width:300px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <button class="cal-nav-btn" onclick="calPrevMonth()">‹</button>
+          <div id="cal-month-label" style="font-weight:700;font-size:15px;color:var(--text)"></div>
+          <button class="cal-nav-btn" onclick="calNextMonth()">›</button>
+        </div>
+        <div id="cal-grid" class="cal-grid"></div>
+      </div>
+
+      <!-- Upcoming events -->
+      <div class="cal-card" style="width:280px;flex-shrink:0">
+        <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Upcoming</div>
+        <div id="cal-upcoming"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Add Event modal -->
+  <div id="cal-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+      <div style="font-weight:700;font-size:16px;margin-bottom:20px;color:var(--text)">New Event</div>
+
+      <label class="cal-lbl">Title</label>
+      <input id="cal-ev-title" class="cal-inp" type="text" placeholder="Event title">
+
+      <label class="cal-lbl">Date</label>
+      <input id="cal-ev-date" class="cal-inp" type="date">
+
+      <label class="cal-lbl" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="cal-ev-all-day" type="checkbox" onchange="calToggleAllDay()"> All-day event
+      </label>
+
+      <div id="cal-time-row" style="display:flex;gap:12px;margin-top:8px">
+        <div style="flex:1">
+          <label class="cal-lbl">Start time</label>
+          <input id="cal-ev-time" class="cal-inp" type="time" value="09:00">
+        </div>
+        <div style="flex:1">
+          <label class="cal-lbl">End time</label>
+          <input id="cal-ev-end-time" class="cal-inp" type="time" value="10:00">
+        </div>
+      </div>
+
+      <label class="cal-lbl">Description (optional)</label>
+      <textarea id="cal-ev-desc" class="cal-inp" rows="3" placeholder="Details…" style="resize:vertical"></textarea>
+
+      <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="calCloseAddModal()">Cancel</button>
+        <button id="cal-save-btn" class="btn btn-gold" onclick="calSaveEvent()">Save Event</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
@@ -4264,5 +4467,6 @@
 <script src="js/clickup.js"></script>
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js"></script>
+<script src="js/calendar.js"></script>
 </body>
 </html>
