@@ -328,6 +328,9 @@ function calShowConnect() {
 function calHideConnect() {
   document.getElementById('cal-connect-banner').style.display = 'none';
   document.getElementById('cal-main').style.display = '';
+  // Draw the grid skeleton immediately so the layout is visible before events load
+  calRenderGrid();
+  document.getElementById('cal-upcoming').innerHTML = '<div class="cal-empty">Loading…</div>';
 }
 
 function calConnect() {
