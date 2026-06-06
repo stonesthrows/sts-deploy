@@ -246,10 +246,12 @@ function renderSales() {
     stageMap[o.stage].count++;
     stageMap[o.stage].value += (o.price||0);
   });
-  var stageOrder = ['inquiry','sketch','needs-est','quote','wait-cust','est-appr','order-mat','materials','build','ready-pick','complete'];
+  var stageOrder = ['inquiry','sketch','needs-est','quote','wait-cust','est-appr','deposit-wait','deposit-paid','order-mat','materials','build','ready-pick','complete'];
   var stageLabels = {
     'inquiry':'Inquiry','sketch':'Sketch','needs-est':'Needs Estimate','quote':'Estimate Sent',
-    'wait-cust':'Waiting on Customer','est-appr':'Estimate Approved','order-mat':'Order Materials',
+    'wait-cust':'Waiting on Customer','est-appr':'Estimate Approved',
+    'deposit-wait':'Waiting on Deposit','deposit-paid':'Deposit Paid',
+    'order-mat':'Order Materials',
     'materials':'Waiting on Materials','build':'At the Bench','ready-pick':'Ready for Pickup','complete':'Completed'
   };
   var maxVal = 1;
@@ -288,6 +290,75 @@ function renderSales() {
     html += '</tr>';
   });
   html += '</tbody></table></div></div>';
+
+  // ════════════════════════════════════════════
+  // ── Custom Order Revenue ──────────────────
+  // ════════════════════════════════════════════
+
+  html += '<div style="margin-top:32px;padding-top:24px;border-top:2px solid #E4DDD4;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+  html += '<div>';
+  html += '<div style="font-size:16px;font-weight:700;color:var(--text,#2C2820)">✏️ Custom Order Revenue</div>';
+  html += '<div style="font-size:12px;color:#9A8860;margin-top:2px">Completed orders from the pipeline — separate from market sales</div>';
+  html += '</div></div>';
+
+  var completedOrders = ORDERS.filter(function(o) {
+    return o.stage === 'complete' || o.stage === 'delivered';
+  }).sort(function(a, b) {
+    var da = a.completedAt || a.deadline || '';
+    var db = b.completedAt || b.deadline || '';
+    return db < da ? -1 : db > da ? 1 : 0;
+  });
+
+  var customTotal  = completedOrders.reduce(function(s,o){ return s + (o.finalPrice || o.price || 0); }, 0);
+  var customCount  = completedOrders.length;
+  var customAvg    = customCount ? customTotal / customCount : 0;
+  var activeCount  = ORDERS.filter(function(o){ return o.stage !== 'complete' && o.stage !== 'delivered'; }).length;
+  var activeVal    = ORDERS.filter(function(o){ return o.stage !== 'complete' && o.stage !== 'delivered'; })
+                           .reduce(function(s,o){ return s + (o.price||0); }, 0);
+
+  html += '<div class="sales-stats" style="margin-bottom:16px">';
+  html += statCard('💎', 'si-gold',   'Total Completed',  '$' + Math.round(customTotal).toLocaleString(), customCount + ' orders');
+  html += statCard('📊', 'si-purple', 'Avg Order Value',  '$' + Math.round(customAvg).toLocaleString(),  'per completed order');
+  html += statCard('🔧', 'si-red',    'Active Pipeline',  '$' + activeVal.toLocaleString(),              activeCount + ' open orders');
+  html += '</div>';
+
+  html += '<div class="sales-card">';
+  html += '<div class="sales-card-head">Completed Orders</div>';
+  html += '<div class="sales-card-body" style="padding:0">';
+
+  if (!completedOrders.length) {
+    html += '<div style="padding:24px;text-align:center;color:#9A8860;font-size:13px">No completed orders yet</div>';
+  } else {
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    html += '<thead><tr style="background:#F8F3EC;border-bottom:1px solid #E4DDD4">';
+    ['Customer','Description','Type','Amount','Completed','Paid By'].forEach(function(h) {
+      html += '<th style="padding:9px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7A7268">' + h + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    var typeLabels = { order:'Custom', estimate:'Estimate', repair:'Repair' };
+    completedOrders.forEach(function(o, i) {
+      var bg       = i % 2 === 0 ? '#fff' : '#FDFAF6';
+      var amount   = o.finalPrice || o.price || 0;
+      var dateStr  = o.completedAt ? new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+                   : o.deadline    ? new Date(o.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+                   : '<span style="color:#9A8860">Unknown</span>';
+      var typeLabel = typeLabels[o.orderType] || 'Custom';
+      var paidBy   = o.paidBy || '<span style="color:#9A8860">—</span>';
+      html += '<tr style="background:' + bg + ';border-bottom:1px solid #F4EFE8">';
+      html += '<td style="padding:8px 16px;font-weight:600">'  + (o.name || '—') + '</td>';
+      html += '<td style="padding:8px 16px;color:#5A5248;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (o.desc || '—') + '</td>';
+      html += '<td style="padding:8px 16px"><span style="background:#F0EBE3;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + typeLabel + '</span></td>';
+      html += '<td style="padding:8px 16px;font-weight:700;color:#2A7A48">$' + amount.toLocaleString() + '</td>';
+      html += '<td style="padding:8px 16px">' + dateStr + '</td>';
+      html += '<td style="padding:8px 16px;color:#7A7268">' + paidBy + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  html += '</div></div></div>'; // close card, section
 
   el.innerHTML = html;
 }

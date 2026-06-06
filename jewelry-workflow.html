@@ -332,6 +332,13 @@
     .s-intake-group .k-head    { background:#DDE6FA; color:#243C80; }
     .s-sketch-group .k-head    { background:#FEF2CC; color:#7A5A00; }
     .s-estimate-group .k-head  { background:#FDEBD8; color:#904020; }
+    .s-deposit-group .k-head   { background:#D6F0E8; color:#1A5C3A; }
+    .s-deposit-wait .k-head    { background:#E4F5EE; color:#1A5C3A; }
+    .s-deposit-wait .k-body    { background:#EEF9F4; }
+    .s-deposit-wait .o-card    { border-left-color:#2A9A62; }
+    .s-deposit-paid .k-head    { background:#C8EDDC; color:#0F4428; }
+    .s-deposit-paid .k-body    { background:#D6F4E8; }
+    .s-deposit-paid .o-card    { border-left-color:#1A7A48; }
     .s-materials-group .k-head { background:#F0EAF4; color:#6038A0; }
 
     /* ── Intake column stage colors ──────────── */
@@ -2500,10 +2507,10 @@
   </div>
 
   <div class="kanban-bar">
-    <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced from ClickUp</span></span>
+    <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
     <div class="kanban-actions">
       <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
-      <button class="notion-chip" id="cuSyncBtn" onclick="cuSyncFromClickUp()" title="Pull latest orders from ClickUp">↻ Sync ClickUp</button>
+      <button class="notion-chip" id="notionSyncBtn" onclick="notionSyncFromNotion()" title="Pull latest orders from Notion">↻ Sync Notion</button>
       <button class="notion-chip" onclick="syncGmail()">⟳ Sync Gmail</button>
       <button class="notion-chip" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
       <button class="notion-chip" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
@@ -4091,6 +4098,8 @@
             <option value="sketch">Sketch Approved</option>
             <option value="quote">Estimate Sent</option>
             <option value="est-appr">Estimate Approved</option>
+            <option value="deposit-wait">Waiting on Deposit</option>
+            <option value="deposit-paid">Deposit Paid</option>
             <option value="order-mat">Order Materials</option>
             <option value="materials">Waiting on Materials</option>
             <option value="build">At the Bench</option>
@@ -4255,25 +4264,16 @@
     </div>
 
     <div class="int-section">
-      <div class="int-section-title">ClickUp</div>
-      <label for="int-clickup-token">Personal API Token</label>
-      <input type="password" id="int-clickup-token" placeholder="pk_…">
-      <label for="int-clickup-list-id">Custom Orders List ID</label>
-      <input type="text" id="int-clickup-list-id" placeholder="901234567">
-      <div style="margin-top:8px;">
-        <button class="btn btn-outline btn-sm" onclick="findClickUpListId()">🔍 Find my List ID automatically</button>
-      </div>
-      <p class="int-hint">Get your token at app.clickup.com → Settings → Apps → API Token.</p>
-    </div>
-
-    <div class="int-section">
       <div class="int-section-title">Notion</div>
-      <p class="int-hint" style="margin-bottom:10px;">The Notion API token is stored as a <strong>server-side environment variable</strong> in Cloudflare Pages — not in your browser. It is already used for the Custom Orders integration. If notes are not loading, verify the token is set there.</p>
+      <p class="int-hint" style="margin-bottom:10px;">The Notion API token is stored as a <strong>server-side environment variable</strong> in Cloudflare Pages — not in your browser. It is the source of truth for the Order Pipeline, Notes, Customers, and Supplier Receipts.</p>
       <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
         ↗ Open Cloudflare Pages Dashboard
       </a>
       <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>NOTION_TOKEN</code> to your integration secret. Get the token at notion.so/profile/integrations.</p>
-      <p class="int-hint" style="margin-top:6px;">Also make sure the <strong>STS Notes</strong> database in Notion has your integration connected: open the database → … → Connections → add your integration.</p>
+      <p class="int-hint" style="margin-top:6px;">Make sure your integration is connected to both the <strong>Custom Orders</strong> and <strong>STS Notes</strong> databases in Notion (open each database → … → Connections → add your integration).</p>
+      <div style="margin-top:10px;">
+        <button class="btn btn-outline btn-sm" onclick="closeIntegrationsModal(); notionSyncFromNotion();">↻ Sync Notion Now</button>
+      </div>
     </div>
 
     <div class="int-section">
@@ -4464,7 +4464,7 @@
 <script src="js/production.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/supplier-history.js"></script>
-<script src="js/clickup.js"></script>
+<script src="js/notion.js"></script>
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js"></script>
 <script src="js/calendar.js"></script>

@@ -15,6 +15,8 @@ const STAGES = [
   { id:'sketch',         label:'Sketch Approved',              cls:'s-sketch'         },
   { id:'quote',          label:'Estimate Sent',                cls:'s-quote'          },
   { id:'est-appr',       label:'Estimate Approved',            cls:'s-est-appr'       },
+  { id:'deposit-wait',   label:'Waiting on Deposit',           cls:'s-deposit-wait'   },
+  { id:'deposit-paid',   label:'Deposit Paid',                 cls:'s-deposit-paid'   },
   { id:'order-mat',      label:'Order Materials',              cls:'s-order-mat'      },
   { id:'materials',      label:'Waiting on Materials',         cls:'s-materials'      },
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
@@ -45,6 +47,10 @@ const COLUMN_GROUPS = [
   { label:'Estimating',   cls:'s-estimate-group',  stages:[
     { id:'quote',      cls:'s-quote',      label:'Estimate Sent'       },
     { id:'est-appr',   cls:'s-est-appr',   label:'Estimate Approved'   },
+  ]},
+  { label:'Deposit',      cls:'s-deposit-group',   stages:[
+    { id:'deposit-wait', cls:'s-deposit-wait', label:'Waiting on Deposit' },
+    { id:'deposit-paid', cls:'s-deposit-paid', label:'Deposit Paid'       },
   ]},
   { label:'Materials',    cls:'s-materials-group', stages:[
     { id:'order-mat',  cls:'s-order-mat',  label:'Order Materials'      },
@@ -94,16 +100,8 @@ const ORDERS = [
   { id:'a9', name:'Mickey',              desc:'Custom charm bracelet',                     stage:'delivered',  deadline:null,        price:320,  clickup:'1213592194115584', email:'',                      phone:'' },
 ];
 
-const CUSTOMERS = [
-  { name:'Josh Goff',          email:'jgoff@email.com',          lastContact:'2026-05-18', totalOrders:1,  totalValue:850  },
-  { name:'Susanna Luciano',    email:'susanna.l@gmail.com',       lastContact:'2026-05-15', totalOrders:2,  totalValue:3400 },
-  { name:'Nick Martello',      email:'nmartello@email.com',       lastContact:'2026-05-12', totalOrders:1,  totalValue:380  },
-  { name:'Katy Brown',         email:'katy.brown@gmail.com',      lastContact:'2026-05-19', totalOrders:3,  totalValue:2480 },
-  { name:'Annaliese Walsten',  email:'awalsten@email.com',        lastContact:'2026-05-14', totalOrders:1,  totalValue:960  },
-  { name:'Corey Hunter',       email:'corey.h@gmail.com',         lastContact:'2026-05-10', totalOrders:2,  totalValue:2900 },
-  { name:'Nicholas Short',     email:'nshort@email.com',          lastContact:'2026-05-07', totalOrders:1,  totalValue:680  },
-  { name:'Mickey',             email:'—',                         lastContact:'2026-05-05', totalOrders:1,  totalValue:320  },
-];
+// Populated at runtime from Notion via loadCustomersFromNotion()
+const CUSTOMERS = [];
 
 const GMAIL_THREADS = [
   { subject:'Invoice Paid — Ladybug Ring (#000464)', from:'invoicing@squareup.com', snippet:'Josh Corpus paid $70.36 for Ladybug Ring – Remaining Balance. Paid with Visa 5901, May 20 2026.', name:'Josh Corpus', email:'josh.corpus@email.com' },

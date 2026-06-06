@@ -5,8 +5,10 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 
 ## Project Location
 - Local: `C:\Users\morph\Desktop\STS Workspace\sts-deploy\`
-- Main app file: `jewelry-workflow.html`
-- JS modules: `js/` folder (app.js, orders.js, customers.js, sales.js, production.js, gmail.js, notes.js, drive.js, clickup.js, data.js, supplier-history.js, triplog.js)
+- **Active app:** `jewelry-workflow.html` — the main Kanban workflow app in daily use
+- JS modules: `js/` folder (app.js, orders.js, customers.js, sales.js, production.js, gmail.js, notes.js, drive.js, notion.js, data.js, supplier-history.js, triplog.js, inventory.js)
+- `clickup.js` is **retired** — replaced by `notion.js`. Do not edit or restore it.
+- **Dropped experiment:** `crm.html` + `crm/` folder — started but not in active use
 - Related MCP servers (separate folders, not part of deploy): `triplog-mcp`, `triplog-proxy`
 
 ## Tech Stack
@@ -14,7 +16,7 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 - PWA (manifest + service worker sw.js)
 - Cloudflare Pages hosting
 
-## Tab Structure
+## Tab Structure (jewelry-workflow.html — active app)
 Main nav tabs (`nav-tab`) → some have sub-nav tabs (`sub-nav-tab`):
 - **Custom Orders** (parent) → Dashboard, New Order, Customers
 - **Gmail** (standalone)
@@ -36,7 +38,7 @@ Tab switching logic lives in `js/app.js`: `switchParent()`, `switchTab()`, `swit
 - GitHub repo: https://github.com/stonesthrows/sts-deploy
 - Deploy: git push to main branch — Cloudflare auto-deploys from GitHub (no more 2-deploy.bat)
 - After deploying, hard refresh (Ctrl+Shift+R) to clear service worker cache
-- Must touch jewelry-workflow.html (not just sw.js) for Cloudflare to detect and push the update
+- Must touch `jewelry-workflow.html` (not just `sw.js`) for Cloudflare to detect and push the update
 
 ## Integrations
 - Google Drive folder for order bag scans: "STS Order Bag Visual Reads"

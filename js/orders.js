@@ -203,13 +203,25 @@ function markOrderComplete() {
   const id = document.getElementById('eo-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
-  o.stage = 'complete';
+
+  // Confirm final price (pre-filled with quoted price)
+  const priceInput = prompt(
+    `Final price for ${o.name}:\n(quoted: $${o.price || 0})`,
+    o.price || ''
+  );
+  if (priceInput === null) return; // cancelled
+
+  const finalPrice = parseFloat(priceInput) || o.price || 0;
+
+  o.stage       = 'complete';
+  o.finalPrice  = finalPrice;
+  o.completedAt = new Date().toISOString();
   completedHidden.add(o.id);
 
   // Always persist to completed registry — prevents sync from ever un-completing
   try {
     const reg = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]');
-    const entry = { id: o.id, notionId: o.notionId || null, name: (o.name || '').toLowerCase().trim() };
+    const entry = { id: o.id, notionId: o.notionId || null };
     if (!reg.some(r => r.id === entry.id)) reg.push(entry);
     localStorage.setItem('sts-completed-registry', JSON.stringify(reg));
   } catch(e) {}
@@ -218,14 +230,11 @@ function markOrderComplete() {
   renderKanban();
   closeEditOrderModal();
 
-  // Sync to ClickUp
-  if (typeof cuUpdateStatus === 'function') cuUpdateStatus(o.clickup, 'complete');
+  // Sync stage to Notion
+  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'complete');
 
-  showSaveChoice(
-    `Mark "${o.name}" as Completed`,
-    () => { saveToStorage(); toast('Order completed ✓', '✓'); },
-    () => { saveToStorage(); notionSaveStage(o); toast('Order completed — saving to Notion…', '📓'); }
-  );
+  saveToStorage();
+  toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
 }
 
 function saveOrderEdit() {
@@ -255,14 +264,11 @@ function saveOrderEdit() {
   renderKanban();
   closeEditOrderModal();
 
-  // Sync to ClickUp
-  if (typeof cuUpdateTask === 'function') cuUpdateTask(o);
+  // Sync full order to Notion
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
-  showSaveChoice(
-    `Update order for ${o.name}`,
-    () => { saveToStorage(); toast('Order updated ✓', '✓'); },
-    () => { saveToStorage(); notionSaveOrder(o); toast('Order updated — saving to Notion…', '📓'); }
-  );
+  saveToStorage();
+  toast('Order updated ✓', '✓');
 }
 
 // ════════════════════════════════════════════
@@ -364,7 +370,7 @@ function submitOrder() {
     stage:     stage,
     deadline:  deadline,
     price:     price,
-    clickup:   'pending',
+    notionId:  null,
     email:     email,
     phone:     document.getElementById('f-phone').value.trim(),
     takeIn:        takeIn,
@@ -374,16 +380,20 @@ function submitOrder() {
   });
 
   // ── Add or update CUSTOMERS ──────────────
+  const phone    = document.getElementById('f-phone').value.trim();
   const existing = CUSTOMERS.find(c => c.name.toLowerCase() === name.toLowerCase());
   if (existing) {
     existing.totalOrders += 1;
     existing.totalValue  += price;
     existing.lastContact  = new Date().toISOString().slice(0,10);
     existing.activeOrders = (existing.activeOrders || 0) + 1;
+    if (phone) existing.phone = phone;
+    if (email) existing.email = email;
   } else {
     CUSTOMERS.unshift({
       name,
       email,
+      phone,
       lastContact:  new Date().toISOString().slice(0,10),
       totalOrders:  1,
       totalValue:   price,
@@ -399,14 +409,19 @@ function submitOrder() {
   switchTab('dashboard', document.querySelector('[data-tab=dashboard]'));
   toast(`${name} added to ${stageLabel}!`, '✓');
 
-  // ── Sync to ClickUp (direct API) ─────────
+  // ── Sync customer to Notion ───────────────
+  const updatedCustomer = CUSTOMERS.find(c => c.name.toLowerCase() === name.toLowerCase());
+  if (updatedCustomer && typeof upsertCustomerToNotion === 'function') {
+    upsertCustomerToNotion(updatedCustomer);
+  }
+
+  // ── Sync new order to Notion ─────────────
   const newOrder = ORDERS[ORDERS.length - 1]; // just pushed above
-  if (typeof cuCreateTask === 'function' && cuToken()) {
-    cuCreateTask(newOrder).then(taskId => {
-      if (taskId) {
-        newOrder.clickup = taskId;
+  if (typeof notionCreateOrder === 'function') {
+    notionCreateOrder(newOrder).then(notionId => {
+      if (notionId) {
+        newOrder.notionId = notionId;
         saveToStorage();
-        toast(`${name} saved to ClickUp ✓`, '✓');
       }
     });
   }
@@ -532,14 +547,10 @@ function drop(ev, stageId) {
     if (stageId === 'complete') completedHidden.add(order.id);
     updateCompletedToggle();
     renderKanban();
-    // Sync stage to ClickUp immediately (fire-and-forget)
-    if (typeof cuUpdateStatus === 'function') cuUpdateStatus(order.clickup, stageId);
+    // Sync stage to Notion immediately (fire-and-forget)
+    if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
     const stageLabel = (STAGES.find(s => s.id === stageId) || {}).label || stageId;
-    showSaveChoice(
-      `Moved "${order.name}" → ${stageLabel}`,
-      () => { saveToStorage(); },
-      () => { saveToStorage(); notionSaveStage(order); toast('Stage saved to Notion…', '📓'); }
-    );
+    saveToStorage();
   }
   draggedId = null;
 }
@@ -553,13 +564,9 @@ function dropWithPickup(ev, stageId, location) {
     order.stage  = stageId;
     order.pickup = location;
     renderKanban();
-    // Sync stage to ClickUp immediately (fire-and-forget)
-    if (typeof cuUpdateStatus === 'function') cuUpdateStatus(order.clickup, stageId);
-    showSaveChoice(
-      `Moved "${order.name}" → Ready for Pickup (${location})`,
-      () => { saveToStorage(); },
-      () => { saveToStorage(); notionSaveStage(order); toast('Stage saved to Notion…', '📓'); }
-    );
+    // Sync stage to Notion immediately (fire-and-forget)
+    if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
+    saveToStorage();
   }
   draggedId = null;
 }
