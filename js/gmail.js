@@ -442,12 +442,28 @@ function _sendReply(threadId, to, subject, body, inReplyTo, references) {
 
 function gtTrash(btn) {
   var card     = btn.closest('.gt-thread');
-  var threadId = card.dataset.threadId;  // always set from _renderThread
+  var threadId = card.dataset.threadId;
 
-  if (!threadId) { alert('No thread ID — try reconnecting Gmail.'); return; }
-  if (!_gmailTokenValid()) { alert('Gmail not connected — click Connect Gmail first.'); return; }
-  if (!confirm('Move this conversation to Trash?')) return;
+  if (!threadId) { if (typeof toast === 'function') toast('No thread ID — try reconnecting Gmail.', '⚠️'); return; }
+  if (!_gmailTokenValid()) { gmailSignIn(); if (typeof toast === 'function') toast('Reconnecting Gmail — try again in a moment.', '🔑'); return; }
+
+  // Two-step confirm (no native confirm() which gets silently blocked in PWA/iframe)
+  if (btn.dataset.confirmPending !== '1') {
+    btn.dataset.confirmPending = '1';
+    btn.textContent = 'Sure?';
+    btn.style.color = '#c0392b';
+    setTimeout(function() {
+      if (btn.dataset.confirmPending === '1') {
+        btn.dataset.confirmPending = '';
+        btn.textContent = '🗑 Trash';
+        btn.style.color = '';
+      }
+    }, 3000);
+    return;
+  }
+  btn.dataset.confirmPending = '';
   btn.textContent = 'Moving…';
+  btn.style.color = '';
   btn.disabled    = true;
 
   fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + threadId + '/trash', {
