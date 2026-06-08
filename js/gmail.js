@@ -317,7 +317,7 @@ function gtSendReply(btn) {
   if (!body) { textarea.focus(); return; }
 
   var actionsEl = card.querySelector('.gt-body-actions');
-  var threadId  = actionsEl.dataset.threadId;
+  var threadId  = card.dataset.threadId;
   var to        = actionsEl.dataset.toEmail;
   var subject   = actionsEl.dataset.subject;
   var msgId     = actionsEl.dataset.msgId;
@@ -419,12 +419,23 @@ function gtTrash(btn) {
 
 function loadGmailThreads(data) {
   var threads = data.threads || [];
+
+  document.getElementById('gt-loading').style.display = 'none';
+
+  if (!threads.length) {
+    document.getElementById('gt-empty').style.display   = '';
+    document.getElementById('gt-content').style.display = 'none';
+    var tsEl2 = document.getElementById('gmail-last-run');
+    if (tsEl2) tsEl2.textContent = data.fetchedAt ? 'Fetched ' + _formatAge(data.fetchedAt) : 'Live data';
+    try { localStorage.setItem('sts-gmail-threads', JSON.stringify(data)); } catch(e){}
+    return;
+  }
+
   _renderPriorityBanner(threads);
   _renderStats(threads);
   _section('reply',  threads.filter(function(t){ return t.category === 'needs-reply'; }));
   _section('orders', threads.filter(function(t){ return t.category === 'orders'; }));
 
-  document.getElementById('gt-loading').style.display = 'none';
   document.getElementById('gt-empty').style.display   = 'none';
   document.getElementById('gt-content').style.display = '';
 
@@ -526,22 +537,27 @@ function fetchGmailDirect() {
   if (tsEl) tsEl.textContent = 'Fetching…';
 
   var hdrs = { 'Authorization': 'Bearer ' + _gmailAccessToken };
+  var query = encodeURIComponent('in:inbox -in:draft newer_than:14d');
 
-  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=in:inbox+-in:draft+newer_than:14d&maxResults=30', { headers: hdrs })
-    .then(function(r){ return r.json(); })
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=30', { headers: hdrs })
+    .then(function(r){
+      if (!r.ok) throw new Error('Gmail API error ' + r.status);
+      return r.json();
+    })
     .then(function(listData){
       var ids = (listData.threads || []).map(function(t){ return t.id; });
+      if (!ids.length) return [];
       return Promise.all(ids.map(function(id){
         return fetch(
           'https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
           '?format=metadata&metadataHeaders=Subject,From,Date',
           { headers: hdrs }
-        ).then(function(r){ return r.json(); });
+        ).then(function(r){ return r.ok ? r.json() : null; });
       }));
     })
     .then(function(threadDetails){
       var threads = [];
-      threadDetails.forEach(function(thread){
+      (threadDetails || []).filter(Boolean).forEach(function(thread){
         var msgs    = thread.messages || [];
         var lastMsg = msgs[msgs.length - 1];
         if (!lastMsg) return;
@@ -562,6 +578,7 @@ function fetchGmailDirect() {
         var dateObj   = h['date'] ? new Date(h['date']) : new Date();
 
         var category = _categorize(fromEmail, subject);
+        console.log('[Gmail] from:', fromEmail, '| subject:', subject, '| cat:', category);
         if (category === 'skip') return;
 
         threads.push({
