@@ -4,6 +4,23 @@
 // ════════════════════════════════════════════
 
 // ════════════════════════════════════════════
+const CUSTOMERS_CACHE_KEY = 'sts-customers-cache';
+
+function saveCustomersToCache() {
+  try { localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(CUSTOMERS)); } catch(e) {}
+}
+
+function loadCustomersFromCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CUSTOMERS_CACHE_KEY) || '[]');
+    if (cached.length) {
+      CUSTOMERS.length = 0;
+      cached.forEach(c => CUSTOMERS.push(c));
+      renderCustomers();
+    }
+  } catch(e) {}
+}
+
 let filteredCust = [...CUSTOMERS];
 let activeCustTab = 'current'; // current | all | repeat | new60 | followup
 
@@ -157,6 +174,7 @@ async function loadCustomersFromNotion() {
       }
     });
     renderCustomers();
+    saveCustomersToCache();
   } catch (e) {
     console.log('Notion customers load skipped:', e.message);
   }

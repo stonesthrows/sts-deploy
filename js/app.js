@@ -36,7 +36,7 @@ function toast(msg, icon='✓') {
 //  TAB SWITCHING
 // ════════════════════════════════════════════
 // Sub-tabs that live under Custom Orders
-const SUB_TABS = new Set(['dashboard','new-order','customers']);
+const SUB_TABS = new Set(['dashboard','customers','production']);
 // Sub-tabs that live under Supplies (within Operations)
 const SUPPLIES_TABS = new Set(['supplier','order-history']);
 
@@ -175,6 +175,7 @@ function switchSubTab(id, el) {
     if (typeof renderKanban === 'function') renderKanban();
     if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
   }
+  if (id === 'production') setTimeout(renderProduction, 0);
 }
 
 // ════════════════════════════════════════════
@@ -360,7 +361,8 @@ async function syncWithNotion() {
   if (typeof loadGmailOverview === 'function') loadGmailOverview();
   if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
 
-  // Load customers from Notion independently of order sync
+  // Load customers from cache instantly, then refresh from Notion in background
+  if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
   if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
   // Try Notion sync (no-op if not connected)
