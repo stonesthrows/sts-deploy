@@ -162,6 +162,19 @@ async function loadCustomersFromNotion() {
   }
 }
 
+async function syncCustomersFromNotion() {
+  const btn = document.getElementById('syncCustomersBtn');
+  if (btn) { btn.textContent = '⏳ Syncing…'; btn.disabled = true; }
+  try {
+    await loadCustomersFromNotion();
+    if (btn) { btn.textContent = '✓ Synced'; }
+  } catch (e) {
+    if (btn) { btn.textContent = '✗ Failed'; }
+  } finally {
+    setTimeout(() => { if (btn) { btn.textContent = '↻ Sync Customers'; btn.disabled = false; } }, 2000);
+  }
+}
+
 async function upsertCustomerToNotion(customer) {
   try {
     const payload = {

@@ -2802,6 +2802,7 @@
       </svg>
       <input type="text" placeholder="Search customers…" oninput="filterCustomers(this.value)" id="custSearch">
     </div>
+    <button class="notion-chip" id="syncCustomersBtn" onclick="syncCustomersFromNotion()" title="Pull latest customers from Notion">↻ Sync Customers</button>
     <button class="btn btn-gold btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ New Order</button>
   </div>
 
