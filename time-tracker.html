@@ -210,7 +210,7 @@ const CFG = { sqToken: '', sqLocation: 'D7EZ98V48F79A', notionToken: '' };
 // ── Per-timer state ──────────────────────────────────────────────────────────
 const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   id: i,
-  selectedItem: null, selectedEmployee: null,
+  selectedItems: [], selectedEmployee: null,
   running: false, startTime: null, tickInterval: null, debounce: null,
   clockStatus: 'unknown', // 'unknown' | 'checking' | 'clocked-in' | 'not-clocked-in' | 'error'
 }));
@@ -255,20 +255,14 @@ function buildCard(tid) {
     <div class="card-header">${label}</div>
 
     <div class="step active" id="t${tid}-step-product">
-      <div class="step-label">01 — Select product</div>
+      <div class="step-label">01 — Select products</div>
       <div class="search-wrap">
         <span class="search-icon">⌕</span>
         <input type="text" id="t${tid}-search-input" placeholder="Search Square catalog…" autocomplete="off">
         <div class="spinner" id="t${tid}-spinner"></div>
       </div>
       <div class="results" id="t${tid}-results"></div>
-      <div class="selected-item" id="t${tid}-selected-item">
-        <div>
-          <div class="selected-name" id="t${tid}-sel-name"></div>
-          <div class="selected-meta" id="t${tid}-sel-meta"></div>
-        </div>
-        <button class="clear-btn" onclick="clearSelection(${tid})" title="Change item">✕</button>
-      </div>
+      <div id="t${tid}-selected-items-list"></div>
     </div>
 
     <div class="step" id="t${tid}-step-employee">
@@ -286,16 +280,8 @@ function buildCard(tid) {
           <button class="btn btn-start" id="t${tid}-start-btn" onclick="startTimer(${tid})" disabled>Start</button>
           <button class="btn btn-stop"  id="t${tid}-stop-btn"  onclick="stopTimer(${tid})"  style="display:none">Stop &amp; Save</button>
         </div>
-        <div class="notes-row" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;">
-          <div style="flex:1;">
-            <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…" style="width:100%;"></textarea>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;">
-            <label style="font-size:10px;color:var(--text2);white-space:nowrap;font-weight:600;letter-spacing:0.03em;">PIECES MADE</label>
-            <input type="number" min="0" step="1" id="t${tid}-pieces-input"
-              style="width:68px;padding:6px 8px;border:1px solid var(--bdr);border-radius:8px;font-size:18px;font-weight:700;text-align:center;background:var(--card-bg);color:var(--text);-moz-appearance:textfield;"
-              placeholder="0">
-          </div>
+        <div class="notes-row" style="margin-top:10px;">
+          <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…" style="width:100%;"></textarea>
         </div>
         <div class="saving-badge" id="t${tid}-saving-badge">Saving to Notion…</div>
       </div>
@@ -419,23 +405,42 @@ function renderResults(tid, items, query) {
 function hideResults(tid) { $t(tid, 'results').classList.remove('visible'); $t(tid, 'results').innerHTML = ''; }
 
 function selectItem(tid, item) {
-  T[tid].selectedItem = item;
-  $t(tid, 'search-input').style.display = 'none';
+  // Ignore duplicates
+  if (T[tid].selectedItems.find(i => i.id === item.id)) { hideResults(tid); $t(tid, 'search-input').value = ''; return; }
+  T[tid].selectedItems.push({ ...item, pieces: null });
   hideResults(tid);
-  $t(tid, 'sel-name').textContent = item.name;
-  $t(tid, 'sel-meta').textContent = [item.category, item.sku, item.price ? '$' + item.price : null].filter(Boolean).join(' · ');
-  $t(tid, 'selected-item').classList.add('visible');
+  $t(tid, 'search-input').value = '';
+  renderSelectedItems(tid);
   checkReady(tid);
 }
-function clearSelection(tid) {
-  T[tid].selectedItem = null;
-  $t(tid, 'search-input').style.display = '';
-  $t(tid, 'search-input').value = '';
-  $t(tid, 'selected-item').classList.remove('visible');
+function removeItem(tid, itemId) {
+  T[tid].selectedItems = T[tid].selectedItems.filter(i => i.id !== itemId);
+  renderSelectedItems(tid);
   checkReady(tid);
+}
+function renderSelectedItems(tid) {
+  const el = $t(tid, 'selected-items-list');
+  if (!T[tid].selectedItems.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">` +
+    T[tid].selectedItems.map((item, idx) => `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:7px 10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+          <div style="font-size:11px;color:var(--text2);">${[item.category, item.sku].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;">
+          <label style="font-size:9px;color:var(--text2);font-weight:600;letter-spacing:0.04em;">PCS</label>
+          <input type="number" min="0" step="1" id="t${tid}-pieces-${idx}"
+            style="width:52px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:15px;font-weight:700;text-align:center;background:var(--card-bg);color:var(--text);-moz-appearance:textfield;"
+            placeholder="0" value="${item.pieces != null ? item.pieces : ''}">
+        </div>
+        <button onclick="removeItem(${tid},'${item.id}')" title="Remove"
+          style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-dim);padding:2px 4px;flex-shrink:0;line-height:1;">✕</button>
+      </div>`).join('') +
+  `</div>`;
 }
 function checkReady(tid) {
-  const hasSelections = T[tid].selectedItem && T[tid].selectedEmployee;
+  const hasSelections = T[tid].selectedItems.length > 0 && T[tid].selectedEmployee;
   const blockedByClockIn = T[tid].clockStatus === 'not-clocked-in';
   $t(tid, 'step-timer').classList.toggle('dimmed', !hasSelections);
   $t(tid, 'start-btn').disabled = !hasSelections || T[tid].running || blockedByClockIn;
@@ -502,17 +507,16 @@ function _runningUI(tid) {
 
 function startTimer(tid) {
   T[tid].running = true; T[tid].startTime = Date.now();
-  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, item: T[tid].selectedItem, employee: T[tid].selectedEmployee }));
+  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
   _runningUI(tid);
 }
 
 function resumeTimer(tid, saved) {
-  T[tid].selectedItem = saved.item; T[tid].selectedEmployee = saved.employee;
+  // Support both old single-item saves and new multi-item saves
+  T[tid].selectedItems = saved.items || (saved.item ? [{ ...saved.item, pieces: null }] : []);
+  T[tid].selectedEmployee = saved.employee;
   T[tid].startTime = saved.startTime; T[tid].running = true;
-  $t(tid, 'search-input').style.display = 'none';
-  $t(tid, 'sel-name').textContent = saved.item.name;
-  $t(tid, 'sel-meta').textContent = [saved.item.category, saved.item.sku, saved.item.price ? '$' + saved.item.price : null].filter(Boolean).join(' · ');
-  $t(tid, 'selected-item').classList.add('visible');
+  renderSelectedItems(tid);
   _runningUI(tid);
   showToast(`Timer ${tid + 1} resumed — running since ` + new Date(saved.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
 }
@@ -536,14 +540,19 @@ async function stopTimer(tid) {
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const notes = $t(tid, 'notes-input').value.trim();
-  const piecesRaw = $t(tid, 'pieces-input').value.trim();
-  const pieces = piecesRaw !== '' ? parseInt(piecesRaw, 10) : null;
+  // Read pieces from per-item inputs in the selected-items-list
+  const items = T[tid].selectedItems.map((item, idx) => {
+    const inp = $t(tid, `pieces-${idx}`);
+    const pcs = inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null;
+    return { ...item, pieces: pcs };
+  });
   $t(tid, 'timer-status').textContent = 'Done';
-  const session = { timerLabel: `Timer ${tid + 1}`, item: T[tid].selectedItem, employee: T[tid].selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, pieces, timestamp: new Date().toISOString(), saved: false, error: null };
+  const session = { timerLabel: `Timer ${tid + 1}`, items, employee: T[tid].selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: new Date().toISOString(), saved: false, notionPageIds: [], error: null };
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid + 1} — ${fmt(netMs)} recorded`);
   saveToNotion(session);
-  if (session.pieces > 0 && CFG.sqToken) {
+  const hasAnyPieces = items.some(it => it.pieces > 0);
+  if (hasAnyPieces && CFG.sqToken) {
     showInventoryModal(tid, session);
   } else {
     resetTimer(tid);
@@ -551,30 +560,39 @@ async function stopTimer(tid) {
 }
 
 async function saveToNotion(session) {
-  const payload = {
-    itemName:     session.item.name,
-    sku:          session.item.sku        || '',
-    category:     session.item.category   || '',
-    employeeName: session.employee.name,
-    squareItemId: session.item.id         || '',
-    totalMin:     parseFloat((session.totalMs    / 60000).toFixed(2)),
-    dedMin:       parseFloat((session.clockedOutMs / 60000).toFixed(2)),
-    netMin:       parseFloat((session.netMs      / 60000).toFixed(2)),
-    date:         session.timestamp.slice(0, 10),
-    notes:        session.notes || '',
-    pieces:       session.pieces != null ? session.pieces : undefined,
-  };
-  try {
-    const res = await fetch('/api/notion-timesession', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (res.ok) { session.saved = true; session.notionPageId = data.notionPageId || null; showToast('Saved to Notion ✓'); }
-    else { session.error = data.error || 'Notion error ' + res.status; showToast('Notion save failed — ' + session.error, true); }
-  } catch(e) { session.error = 'Network error: ' + e.message; showToast('Notion save failed', true); }
-  finally { renderLog(); }
+  const items = session.items || (session.item ? [session.item] : []);
+  if (!items.length) return;
+  session.notionPageIds = session.notionPageIds || [];
+  let anyError = null;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const payload = {
+      itemName:     it.name,
+      sku:          it.sku        || '',
+      category:     it.category   || '',
+      employeeName: session.employee.name,
+      squareItemId: it.id         || '',
+      totalMin:     parseFloat((session.totalMs    / 60000).toFixed(2)),
+      dedMin:       parseFloat((session.clockedOutMs / 60000).toFixed(2)),
+      netMin:       parseFloat((session.netMs      / 60000).toFixed(2)),
+      date:         session.timestamp.slice(0, 10),
+      notes:        session.notes || '',
+      pieces:       it.pieces != null ? it.pieces : undefined,
+    };
+    try {
+      const res = await fetch('/api/notion-timesession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) { session.notionPageIds.push(data.notionPageId || null); }
+      else { anyError = data.error || 'Notion error ' + res.status; }
+    } catch(e) { anyError = 'Network error: ' + e.message; }
+  }
+  if (anyError) { session.error = anyError; showToast('Notion save failed — ' + anyError, true); }
+  else { session.saved = true; showToast('Saved to Notion ✓'); }
+  renderLog();
 }
 
 // ── Inventory modal ───────────────────────────────────────────────────────────
@@ -583,8 +601,12 @@ let _invTid = null, _invSession = null;
 function showInventoryModal(tid, session) {
   _invTid = tid; _invSession = session;
   const modal = $g('inv-modal-backdrop');
-  $g('inv-modal-item').textContent = session.item.name;
-  $g('inv-modal-detail').textContent = `${session.pieces} piece${session.pieces !== 1 ? 's' : ''} · ${session.employee.name}`;
+  const itemsWithPieces = (session.items || []).filter(it => it.pieces > 0);
+  // Build item list for the modal
+  $g('inv-modal-item').innerHTML = itemsWithPieces.map(it =>
+    `<div><strong>${it.name}</strong> — ${it.pieces} piece${it.pieces !== 1 ? 's' : ''}</div>`
+  ).join('');
+  $g('inv-modal-detail').textContent = session.employee.name;
   $g('inv-modal-status').textContent = '';
   $g('inv-modal-confirm').disabled = false;
   $g('inv-modal-confirm').textContent = 'Add to Square';
@@ -599,22 +621,25 @@ async function inventoryConfirm() {
   confirmBtn.textContent = 'Adding…';
   statusEl.textContent = '';
 
+  const itemsWithPieces = (s.items || []).filter(it => it.pieces > 0);
+  const changes = itemsWithPieces.map(it => ({
+    type: 'ADJUSTMENT',
+    adjustment: {
+      catalog_object_id: it.id,
+      location_id: CFG.sqLocation,
+      from_state: 'NONE',
+      to_state: 'IN_STOCK',
+      quantity: String(it.pieces),
+      occurred_at: s.timestamp,
+    }
+  }));
+
   try {
     const data = await sq('/inventory/changes/batch-create', {
       method: 'POST',
       body: JSON.stringify({
-        idempotency_key: `sts-inv-${s.timestamp}-${s.item.id}`,
-        changes: [{
-          type: 'ADJUSTMENT',
-          adjustment: {
-            catalog_object_id: s.item.id,
-            location_id: CFG.sqLocation,
-            from_state: 'NONE',
-            to_state: 'IN_STOCK',
-            quantity: String(s.pieces),
-            occurred_at: s.timestamp,
-          }
-        }]
+        idempotency_key: `sts-inv-${s.timestamp}-multi`,
+        changes,
       })
     });
     if (data.errors && data.errors.length) {
@@ -625,10 +650,11 @@ async function inventoryConfirm() {
       confirmBtn.textContent = 'Retry';
       return;
     }
-    s.inventoryAdded = s.pieces;
+    s.inventoryAdded = itemsWithPieces.map(it => `${it.pieces}× ${it.name}`).join(', ');
     try { localStorage.setItem('sts_sessions', JSON.stringify(sessions)); } catch(e) {}
     renderLog();
-    showToast(`+${s.pieces} added to Square ✓`);
+    const totalPcs = itemsWithPieces.reduce((acc, it) => acc + it.pieces, 0);
+    showToast(`+${totalPcs} piece${totalPcs !== 1 ? 's' : ''} added to Square ✓`);
     inventoryDone();
   } catch(e) {
     statusEl.style.color = 'var(--red)';
@@ -652,9 +678,11 @@ function resetTimer(tid) {
   $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = '';
   $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
   $t(tid, 'step-product').classList.remove('dimmed'); $t(tid, 'step-employee').classList.remove('dimmed');
-  $t(tid, 'notes-input').value = ''; $t(tid, 'pieces-input').value = ''; clearSelection(tid);
+  $t(tid, 'notes-input').value = '';
+  T[tid].selectedItems = []; renderSelectedItems(tid);
+  $t(tid, 'search-input').value = '';
   $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
-  T[tid].selectedItem = null; T[tid].selectedEmployee = null;
+  T[tid].selectedEmployee = null;
   T[tid].clockStatus = 'unknown';
   $t(tid, 'clock-status').className = 'clock-status';
   checkReady(tid);
@@ -670,10 +698,14 @@ function renderLog() {
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
     const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
     const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--gold-dim)">${s.timerLabel}</span>` : '';
-    const piecesTag = s.pieces != null ? `<div class="log-ded" style="color:var(--text2);">${s.pieces} piece${s.pieces !== 1 ? 's' : ''}${s.inventoryAdded ? ' · <span style="color:var(--green)">+' + s.inventoryAdded + ' added to Square ✓</span>' : ''}</div>` : '';
+    // Support both new multi-item sessions and old single-item sessions
+    const logItems = s.items || (s.item ? [s.item] : []);
+    const itemNames = logItems.map(it => it.name).join(', ');
+    const totalPcs = logItems.reduce((acc, it) => acc + (it.pieces || 0), 0);
+    const piecesTag = totalPcs > 0 ? `<div class="log-ded" style="color:var(--text2);">${totalPcs} piece${totalPcs !== 1 ? 's' : ''}${s.inventoryAdded ? ` · <span style="color:var(--green)">${s.inventoryAdded} added to Square ✓</span>` : ''}</div>` : '';
     return `<div class="log-entry" style="position:relative;">
       <div style="flex:1;min-width:0;">
-        <div class="log-item-name">${s.item.name}${timerTag}</div>
+        <div class="log-item-name">${itemNames}${timerTag}</div>
         <div class="log-item-meta">${s.employee.name} · ${label}</div>
         ${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}
       </div>
@@ -692,13 +724,15 @@ function renderLog() {
 async function deleteSession(i) {
   const s = sessions[i];
   if (!s) return;
-  if (!confirm(`Delete this session?\n${s.item.name} — ${s.employee.name}`)) return;
+  const logItems = s.items || (s.item ? [s.item] : []);
+  const nameStr = logItems.map(it => it.name).join(', ') || '?';
+  if (!confirm(`Delete this session?\n${nameStr} — ${s.employee ? s.employee.name : ''}`)) return;
 
-  // Archive in Notion if we have the page ID
-  if (s.notionPageId) {
-    try {
-      await fetch(`/api/notion-timesession?pageId=${s.notionPageId}`, { method: 'DELETE' });
-    } catch(e) { /* non-fatal — remove locally regardless */ }
+  // Archive in Notion — handle both old single-pageId and new array
+  const pageIds = s.notionPageIds && s.notionPageIds.length ? s.notionPageIds : (s.notionPageId ? [s.notionPageId] : []);
+  for (const pid of pageIds) {
+    if (!pid) continue;
+    try { await fetch(`/api/notion-timesession?pageId=${pid}`, { method: 'DELETE' }); } catch(e) {}
   }
 
   sessions.splice(i, 1);
