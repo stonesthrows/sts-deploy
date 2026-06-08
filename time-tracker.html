@@ -329,9 +329,21 @@ function clearSelection() { S.selectedItem = null; $('search-input').style.displ
 function checkReady() { const ok = S.selectedItem && S.selectedEmployee; $('step-timer').classList.toggle('dimmed', !ok); $('start-btn').disabled = !ok || S.running; }
 function startTimer() {
   S.running = true; S.startTime = Date.now(); S.elapsed = 0;
+  localStorage.setItem('sts_activeTimer', JSON.stringify({ startTime: S.startTime, item: S.selectedItem, employee: S.selectedEmployee }));
   $('start-btn').style.display = 'none'; $('stop-btn').style.display = ''; $('timer-status').textContent = 'Running';
   $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed');
   S.tickInterval = setInterval(() => { $('timer-display').textContent = fmt(Date.now() - S.startTime); }, 1000);
+}
+function resumeTimer(saved) {
+  S.selectedItem = saved.item; S.selectedEmployee = saved.employee; S.startTime = saved.startTime; S.running = true;
+  selectItem(saved.item);
+  document.querySelectorAll('.emp-btn').forEach(b => { if (b.dataset.id === saved.employee.id) b.classList.add('selected'); });
+  S.selectedEmployee = saved.employee;
+  $('start-btn').style.display = 'none'; $('stop-btn').style.display = ''; $('timer-status').textContent = 'Running';
+  $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed');
+  $('step-timer').classList.remove('dimmed');
+  S.tickInterval = setInterval(() => { $('timer-display').textContent = fmt(Date.now() - S.startTime); }, 1000);
+  showToast('Timer resumed — running since ' + new Date(S.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
 }
 async function stopTimer() {
   clearInterval(S.tickInterval);
@@ -371,7 +383,8 @@ async function saveToNotion(session) {
   finally { $('saving-badge').classList.remove('visible'); renderLog(); }
 }
 function resetTimer() {
-  S.running = false; $('timer-display').textContent = '00:00:00'; $('timer-status').textContent = '';
+  S.running = false; localStorage.removeItem('sts_activeTimer');
+  $('timer-display').textContent = '00:00:00'; $('timer-status').textContent = '';
   $('stop-btn').disabled = false; $('start-btn').style.display = ''; $('stop-btn').style.display = 'none';
   $('step-product').classList.remove('dimmed'); $('step-employee').classList.remove('dimmed');
   $('notes-input').value = ''; clearSelection();
@@ -389,7 +402,13 @@ function renderLog() {
     return `<div class="log-entry"><div><div class="log-item-name">${s.item.name}</div><div class="log-item-meta">${s.employee.name} · ${label}</div>${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}</div><div><div class="log-duration">${fmt(s.netMs)}</div>${ded}${status}</div></div>`;
   }).join('');
 }
-loadConfig(); loadEmployees();
+async function boot() {
+  loadConfig();
+  await loadEmployees();
+  const saved = localStorage.getItem('sts_activeTimer');
+  if (saved) { try { resumeTimer(JSON.parse(saved)); } catch(e) { localStorage.removeItem('sts_activeTimer'); } }
+}
+boot();
 </script>
 </body>
 </html>
