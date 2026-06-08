@@ -287,7 +287,23 @@ function gtExpandThread(el) {
   if (!isExpanded || el.classList.contains('gt-body-loaded')) return;
 
   var threadId = el.dataset.threadId;
-  if (!threadId || !_gmailTokenValid()) return;
+  if (!threadId) return;
+
+  if (!_gmailTokenValid()) {
+    // No live token — show the snippet we already have as a fallback
+    var snippetEl = el.querySelector('.gt-snippet');
+    var contentEl = el.querySelector('.gt-body-content');
+    var loadingEl = el.querySelector('.gt-body-loading');
+    if (contentEl && snippetEl && !el.classList.contains('gt-body-loaded')) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      contentEl.textContent = snippetEl.textContent || '(Connect Gmail to see full message)';
+      contentEl.style.display = '';
+      var actionsEl = el.querySelector('.gt-body-actions');
+      if (actionsEl) actionsEl.style.display = 'flex';
+      el.classList.add('gt-body-loaded');
+    }
+    return;
+  }
 
   var loadingEl = el.querySelector('.gt-body-loading');
   if (loadingEl) loadingEl.style.display = '';
