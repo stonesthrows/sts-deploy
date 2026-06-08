@@ -6,7 +6,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const DB_ID      = '3213afd2-1588-4d00-a8db-24fdf630ddef';
+const DB_ID      = 'faf0854d-7495-41d1-b3a0-f117d0979b43';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
