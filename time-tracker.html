@@ -194,13 +194,6 @@
         <input class="config-input" id="sq-location" type="text" placeholder="D7EZ98V48F79A">
       </div>
       <div class="config-row">
-        <label class="config-label">Square Environment</label>
-        <select class="config-input" id="sq-env">
-          <option value="production">Production</option>
-          <option value="sandbox">Sandbox</option>
-        </select>
-      </div>
-      <div class="config-row">
         <label class="config-label">Notion Integration Token</label>
         <input class="config-input" id="notion-token" type="password" placeholder="secret_…" autocomplete="off">
         <span class="config-hint">Create an internal integration at notion.so/my-integrations and share the STS Work Sessions database with it.</span>
@@ -215,16 +208,21 @@
 <script>
 const NOTION_DB = 'e59ae574e5ee4d569395e15bd56450e9';
 const S = {
-  sqToken: '', sqLocation: 'D7EZ98V48F79A', sqEnv: 'production',
-  notionToken: '', notionProxy: '',
+  sqToken: '', sqLocation: 'D7EZ98V48F79A',
+  notionToken: '',
   selectedItem: null, selectedEmployee: null,
   running: false, startTime: null, elapsed: 0, tickInterval: null,
   sessions: [], employees: []
 };
 const $ = id => document.getElementById(id);
-const sqBase = () => S.sqEnv === 'sandbox' ? 'https://connect.squareupsandbox.com/v2' : 'https://connect.squareup.com/v2';
+// Route through /api/square proxy (avoids CORS, same token as main app)
 function sq(path, opts = {}) {
-  return fetch(sqBase() + path, { ...opts, headers: { 'Authorization': 'Bearer ' + S.sqToken, 'Content-Type': 'application/json', 'Square-Version': '2024-01-18', ...(opts.headers || {}) } }).then(r => r.json());
+  const bodyObj = opts.body ? JSON.parse(opts.body) : undefined;
+  return fetch('/api/square', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: '/v2' + path, method: opts.method || 'GET', body: bodyObj, token: S.sqToken })
+  }).then(r => r.json());
 }
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
@@ -237,14 +235,22 @@ function showToast(msg, error = false) {
 }
 function toggleConfig() { $('config-body').classList.toggle('open'); }
 function saveConfig() {
-  S.sqToken = $('sq-token').value.trim(); S.sqLocation = $('sq-location').value.trim() || 'D7EZ98V48F79A';
-  S.sqEnv = $('sq-env').value; S.notionToken = $('notion-token').value.trim();
-  ['sqToken','sqLocation','sqEnv','notionToken'].forEach(k => localStorage.setItem('sts_' + k, S[k]));
+  S.sqToken = $('sq-token').value.trim();
+  S.sqLocation = $('sq-location').value.trim() || 'D7EZ98V48F79A';
+  S.notionToken = $('notion-token').value.trim();
+  localStorage.setItem('sts-square-token', S.sqToken);
+  localStorage.setItem('sts_sqLocation', S.sqLocation);
+  localStorage.setItem('sts_notionToken', S.notionToken);
   showToast('Config saved'); loadEmployees();
 }
 function loadConfig() {
-  ['sqToken','sqLocation','sqEnv','notionToken'].forEach(k => { S[k] = localStorage.getItem('sts_' + k) || S[k]; });
-  $('sq-token').value = S.sqToken; $('sq-location').value = S.sqLocation; $('sq-env').value = S.sqEnv; $('notion-token').value = S.notionToken;
+  // Read Square token from the same key used by the main workflow app
+  S.sqToken    = localStorage.getItem('sts-square-token') || '';
+  S.sqLocation = localStorage.getItem('sts_sqLocation')   || S.sqLocation;
+  S.notionToken= localStorage.getItem('sts_notionToken')  || '';
+  $('sq-token').value    = S.sqToken;
+  $('sq-location').value = S.sqLocation;
+  $('notion-token').value= S.notionToken;
 }
 async function loadEmployees() {
   if (!S.sqToken) { useMockEmployees(); return; }
