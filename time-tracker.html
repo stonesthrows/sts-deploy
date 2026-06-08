@@ -180,6 +180,26 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ── Inventory confirmation modal ── -->
+<div id="inv-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--card-bg);border-radius:14px;padding:24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;">📦 Add to Square Inventory?</div>
+    <div id="inv-modal-item" style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;"></div>
+    <div id="inv-modal-detail" style="font-size:13px;color:var(--text2);margin-bottom:20px;"></div>
+    <div id="inv-modal-status" style="font-size:12px;color:var(--text2);margin-bottom:12px;min-height:16px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button id="inv-modal-confirm" onclick="inventoryConfirm()"
+        style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+        Add to Square
+      </button>
+      <button onclick="inventorySkip()"
+        style="padding:10px 18px;background:none;border:1px solid var(--bdr);border-radius:8px;font-size:14px;color:var(--text2);cursor:pointer;">
+        Skip
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 const NOTION_DB = 'e59ae574e5ee4d569395e15bd56450e9';
 const NUM_TIMERS = 2;
@@ -523,7 +543,11 @@ async function stopTimer(tid) {
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid + 1} — ${fmt(netMs)} recorded`);
   saveToNotion(session);
-  resetTimer(tid);
+  if (session.pieces > 0 && CFG.sqToken) {
+    showInventoryModal(tid, session);
+  } else {
+    resetTimer(tid);
+  }
 }
 
 async function saveToNotion(session) {
@@ -551,6 +575,72 @@ async function saveToNotion(session) {
     else { session.error = data.error || 'Notion error ' + res.status; showToast('Notion save failed — ' + session.error, true); }
   } catch(e) { session.error = 'Network error: ' + e.message; showToast('Notion save failed', true); }
   finally { renderLog(); }
+}
+
+// ── Inventory modal ───────────────────────────────────────────────────────────
+let _invTid = null, _invSession = null;
+
+function showInventoryModal(tid, session) {
+  _invTid = tid; _invSession = session;
+  const modal = $g('inv-modal-backdrop');
+  $g('inv-modal-item').textContent = session.item.name;
+  $g('inv-modal-detail').textContent = `${session.pieces} piece${session.pieces !== 1 ? 's' : ''} · ${session.employee.name}`;
+  $g('inv-modal-status').textContent = '';
+  $g('inv-modal-confirm').disabled = false;
+  $g('inv-modal-confirm').textContent = 'Add to Square';
+  modal.style.display = 'flex';
+}
+
+async function inventoryConfirm() {
+  const s = _invSession;
+  const statusEl = $g('inv-modal-status');
+  const confirmBtn = $g('inv-modal-confirm');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Adding…';
+  statusEl.textContent = '';
+
+  try {
+    const data = await sq('/inventory/changes/batch-create', {
+      method: 'POST',
+      body: JSON.stringify({
+        idempotency_key: `sts-inv-${s.timestamp}-${s.item.id}`,
+        changes: [{
+          type: 'ADJUSTMENT',
+          adjustment: {
+            catalog_object_id: s.item.id,
+            location_id: CFG.sqLocation,
+            from_state: 'NONE',
+            to_state: 'IN_STOCK',
+            quantity: String(s.pieces),
+            occurred_at: s.timestamp,
+          }
+        }]
+      })
+    });
+    if (data.errors && data.errors.length) {
+      const msg = data.errors.map(e => e.detail || e.code).join('; ');
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '⚠ ' + msg;
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Retry';
+      return;
+    }
+    showToast(`+${s.pieces} added to Square ✓`);
+    inventoryDone();
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '⚠ Network error — ' + e.message;
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Retry';
+  }
+}
+
+function inventorySkip() { inventoryDone(); }
+
+function inventoryDone() {
+  $g('inv-modal-backdrop').style.display = 'none';
+  if (_invTid !== null) resetTimer(_invTid);
+  _invTid = null; _invSession = null;
 }
 
 function resetTimer(tid) {
