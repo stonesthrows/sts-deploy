@@ -3056,14 +3056,7 @@
           <button class="sot-foot-btn primary" onclick="sotPrint()">&#128424; Print</button>
           <button class="sot-foot-btn" onclick="sotCopy()">&#128203; Copy</button>
         </div>
-        <div class="sot-foot-row" style="margin-top:6px">
-          <button class="sot-foot-btn" onclick="sotBackup()">&#8659; Backup</button>
-          <label class="sot-foot-btn" style="cursor:pointer">&#8657; Restore<input type="file" accept=".json" style="display:none" onchange="sotRestore(event)"></label>
-        </div>
-        <div class="sot-foot-row" style="margin-top:6px">
-          <button class="sot-foot-btn primary" onclick="sotSaveNotion()" id="sotNotionSaveBtn">&#9729; Save to Notion</button>
-          <button class="sot-foot-btn" onclick="sotLoadNotion()" id="sotNotionLoadBtn">&#9729; Load from Notion</button>
-        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text3);text-align:right" id="sotSyncStatus"></div>
       </div>
     </div>
   </div>

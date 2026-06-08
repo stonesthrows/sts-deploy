@@ -152,6 +152,8 @@ var sotEditId  = null;
 var sotSupCollapsed = {};
 var sotCatCollapsed = {};
 var sotCustomSuppliers = [];
+var sotNotionPageId = null;
+var sotNotionTimer  = null;
 
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
@@ -185,6 +187,7 @@ function sotSave() {
       suppliers: sotCustomSuppliers
     }));
   } catch(e) {}
+  sotScheduleNotionSave();
 }
 function sotLoad() {
   try {
@@ -206,6 +209,76 @@ function sotLoad() {
 function sotSaveNotes() {
   sotNotesTxt = (document.getElementById('sotNotes')||{}).value || '';
   try { localStorage.setItem('sot_notes_v1', sotNotesTxt); } catch(e) {}
+  sotScheduleNotionSave();
+}
+
+// ── Notion auto-save ─────────────────────────────────────────
+function sotSetSyncStatus(state) {
+  var el = document.getElementById('sotSyncStatus');
+  if (!el) return;
+  if (state === 'saving') { el.textContent = '☁ Saving…'; el.style.color = 'var(--text3)'; }
+  else if (state === 'saved') { el.textContent = '☁ Saved'; el.style.color = '#5a9a5a'; }
+  else if (state === 'error') { el.textContent = '☁ Sync error'; el.style.color = '#c44'; }
+}
+
+function sotScheduleNotionSave() {
+  if (sotNotionTimer) clearTimeout(sotNotionTimer);
+  sotSetSyncStatus('saving');
+  sotNotionTimer = setTimeout(sotSaveNotion, 2000);
+}
+
+async function sotSaveNotion() {
+  sotNotionTimer = null;
+  var now = new Date();
+  var day = now.getDay();
+  var mon = new Date(now);
+  mon.setDate(now.getDate() - (day===0?6:day-1));
+  var key = mon.toISOString().slice(0,10);
+
+  var payload = {
+    weekKey:      key,
+    weekLabel:    sotWeekRange(),
+    items:        JSON.stringify(sotOrder),
+    notes:        sotNotesTxt,
+    notionPageId: sotNotionPageId || undefined,
+  };
+
+  try {
+    var r = await fetch('/api/notion-sot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    var d = await r.json();
+    if (d.error) { sotSetSyncStatus('error'); return; }
+    if (d.notionPageId) sotNotionPageId = d.notionPageId;
+    sotSetSyncStatus('saved');
+  } catch(e) {
+    sotSetSyncStatus('error');
+  }
+}
+
+async function sotLoadNotion() {
+  try {
+    var r = await fetch('/api/notion-sot');
+    var d = await r.json();
+    if (!d.found) return;
+    sotNotionPageId = d.notionPageId;
+    var remoteOrder = JSON.parse(d.items || '{}');
+    var remoteNotes = d.notes || '';
+    // Only overwrite local if remote has more items
+    if (Object.keys(remoteOrder).length >= Object.keys(sotOrder).length) {
+      sotOrder = remoteOrder;
+      if (remoteNotes) {
+        sotNotesTxt = remoteNotes;
+        var el = document.getElementById('sotNotes');
+        if (el) el.value = remoteNotes;
+      }
+      sotSave();
+      sotRenderCatalog();
+      sotRenderOrder();
+    }
+  } catch(e) {}
 }
 
 // ── Data helpers ─────────────────────────────────────────────
@@ -620,4 +693,5 @@ function sotInit() {
   sotRenderOrder();
   var notesEl = document.getElementById('sotNotes');
   if (notesEl) notesEl.value = sotNotesTxt;
+  sotLoadNotion();
 }
