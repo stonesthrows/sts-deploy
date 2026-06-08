@@ -1422,6 +1422,12 @@
     .gt-inv-success { font-size:13px;font-weight:600;color:#2D6A3F;padding:10px 0; }
     .gt-inv-link { color:var(--accent);text-decoration:none; }
     .gt-inv-link:hover { text-decoration:underline; }
+    /* Customer form */
+    .gt-customer-compose { border-top:1px solid var(--bdr);padding-top:12px;margin-top:4px; }
+    .gt-cust-fields { display:flex;flex-direction:column;gap:7px;margin-bottom:10px; }
+    .gt-cust-fields label { display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap; }
+    .gt-cust-name,.gt-cust-email,.gt-cust-phone,.gt-cust-notes { flex:1;font-size:13px;font-family:inherit;padding:5px 8px;border:1px solid var(--bdr);border-radius:6px;background:#FDFAF6;color:var(--text);outline:none;min-width:0; }
+    .gt-cust-name:focus,.gt-cust-email:focus,.gt-cust-phone:focus,.gt-cust-notes:focus { border-color:var(--accent); }
 
     /* ── Order Materials ─────────────────────── */
     .materials-layout {

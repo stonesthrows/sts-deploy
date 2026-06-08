@@ -192,6 +192,7 @@ function _renderThread(t) {
         '<button class="gt-body-btn gt-reply-btn" onclick="gtShowReply(this);event.stopPropagation()">↩ Reply</button>' +
         '<button class="gt-body-btn gt-trash-btn" onclick="gtTrash(this);event.stopPropagation()">🗑 Trash</button>' +
         '<button class="gt-body-btn gt-inv-btn" onclick="gtShowInvoice(this);event.stopPropagation()">📋 Invoice</button>' +
+        '<button class="gt-body-btn" onclick="gtShowCustomer(this);event.stopPropagation()">👤 Customer</button>' +
       '</div>' +
       '<div class="gt-invoice-compose" style="display:none">' +
         '<div class="gt-inv-title">📋 Square Invoice Draft</div>' +
@@ -210,6 +211,20 @@ function _renderThread(t) {
         '<div class="gt-inv-foot">' +
           '<button class="btn btn-gold btn-sm" onclick="gtSubmitInvoice(this);event.stopPropagation()">Create Draft</button>' +
           '<button class="btn btn-ghost btn-sm" onclick="gtCancelInvoice(this);event.stopPropagation()">Cancel</button>' +
+          '<span class="gt-inv-status"></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="gt-customer-compose" style="display:none">' +
+        '<div class="gt-inv-title">👤 Add to Customers</div>' +
+        '<div class="gt-cust-fields">' +
+          '<label>Name  <input class="gt-cust-name"  type="text"  placeholder="Full name"           onclick="event.stopPropagation()"></label>' +
+          '<label>Email <input class="gt-cust-email" type="email" placeholder="email@example.com"   onclick="event.stopPropagation()"></label>' +
+          '<label>Phone <input class="gt-cust-phone" type="tel"   placeholder="Optional"            onclick="event.stopPropagation()"></label>' +
+          '<label>Notes <input class="gt-cust-notes" type="text"  placeholder="Optional note…"      onclick="event.stopPropagation()"></label>' +
+        '</div>' +
+        '<div class="gt-inv-foot">' +
+          '<button class="btn btn-gold btn-sm" onclick="gtSubmitCustomer(this);event.stopPropagation()">Save Customer</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="gtCancelCustomer(this);event.stopPropagation()">Cancel</button>' +
           '<span class="gt-inv-status"></span>' +
         '</div>' +
       '</div>' +
@@ -858,6 +873,92 @@ function gtSubmitInvoice(btn) {
     btn.textContent   = 'Create Draft';
     btn.disabled      = false;
     status.textContent = '⚠ ' + (e.message || 'Unknown error');
+  });
+}
+
+// ── Customer card ────────────────────────────
+
+function gtShowCustomer(btn) {
+  var card    = btn.closest('.gt-thread');
+  var compose = card.querySelector('.gt-customer-compose');
+  // Close other open panels
+  card.querySelector('.gt-invoice-compose').style.display = 'none';
+  card.querySelector('.gt-reply-compose').style.display   = 'none';
+  compose.style.display = '';
+  // Pre-fill from thread data
+  compose.querySelector('.gt-cust-name').value  = card.dataset.fromName  || '';
+  compose.querySelector('.gt-cust-email').value = card.dataset.fromEmail || '';
+  compose.querySelector('.gt-cust-name').focus();
+}
+
+function gtCancelCustomer(btn) {
+  btn.closest('.gt-customer-compose').style.display = 'none';
+}
+
+function gtSubmitCustomer(btn) {
+  var compose = btn.closest('.gt-customer-compose');
+  var status  = compose.querySelector('.gt-inv-status');
+
+  var name  = compose.querySelector('.gt-cust-name').value.trim();
+  var email = compose.querySelector('.gt-cust-email').value.trim();
+  var phone = compose.querySelector('.gt-cust-phone').value.trim();
+  var notes = compose.querySelector('.gt-cust-notes').value.trim();
+
+  if (!name)  { status.textContent = 'Name is required.'; return; }
+  if (!email) { status.textContent = 'Email is required.'; return; }
+
+  // Check if already exists
+  var existing = (window.CUSTOMERS || []).find(function(c) {
+    return c.name.toLowerCase() === name.toLowerCase() ||
+           (c.email && c.email.toLowerCase() === email.toLowerCase());
+  });
+
+  if (existing) {
+    compose.innerHTML =
+      '<div class="gt-inv-success">✓ Already in Customers — ' +
+      '<button class="gt-inv-link" style="background:none;border:none;cursor:pointer;padding:0;font-weight:700;" ' +
+      'onclick="switchParent(\'custom-orders\');switchSubTab(\'customers\');event.stopPropagation()">View in Customers →</button>' +
+      '</div>';
+    return;
+  }
+
+  btn.textContent = 'Saving…';
+  btn.disabled    = true;
+  status.textContent = '';
+
+  var customer = {
+    name:         name,
+    email:        email,
+    phone:        phone,
+    notes:        notes,
+    lastContact:  new Date().toISOString().slice(0, 10),
+    totalOrders:  0,
+    totalValue:   0,
+    activeOrders: 0
+  };
+
+  if (window.CUSTOMERS) window.CUSTOMERS.unshift(customer);
+
+  // Sync to Notion if available, then show success
+  var syncP = (typeof upsertCustomerToNotion === 'function')
+    ? upsertCustomerToNotion(customer)
+    : Promise.resolve();
+
+  syncP.then(function() {
+    if (typeof renderCustomers === 'function') renderCustomers();
+    compose.innerHTML =
+      '<div class="gt-inv-success">✓ Customer saved — ' +
+      '<button class="gt-inv-link" style="background:none;border:none;cursor:pointer;padding:0;font-weight:700;" ' +
+      'onclick="switchParent(\'custom-orders\');switchSubTab(\'customers\');event.stopPropagation()">View in Customers →</button>' +
+      '</div>';
+  }).catch(function() {
+    // Even if Notion fails, local save succeeded
+    if (typeof renderCustomers === 'function') renderCustomers();
+    compose.innerHTML =
+      '<div class="gt-inv-success">✓ Customer saved locally (Notion sync skipped) — ' +
+      '<button class="gt-inv-link" style="background:none;border:none;cursor:pointer;padding:0;font-weight:700;" ' +
+      'onclick="switchParent(\'custom-orders\');switchSubTab(\'customers\');event.stopPropagation()">View in Customers →</button>' +
+      '</div>';
   });
 }
 
