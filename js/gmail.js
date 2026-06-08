@@ -85,53 +85,50 @@ function _extractBody(message) {
   return _decodeSnippet(message.snippet || '(No body)');
 }
 
-// ── Categorization ───────────────────────────
+// ── Categorization (whitelist) ────────────────
+// Only show: customers, markets/shows, Shopify orders, Etsy orders.
+// Everything else is silently skipped.
 
-function _categorize(senderEmail, subject, labelIds) {
+function _categorize(senderEmail, subject) {
   var se = senderEmail.toLowerCase();
-  var skipDomains = [
-    'facebookmail.com','linkedin.com','twitter.com','instagram.com',
-    'strikingly.com','qualtrics-survey.com','judge.me',
-    'aftershipmail.com','shared1.ccsend.com','austinmoms.com',
-    'pdfhouse.com','alstspecials.com','patrickadairsupplies.com',
-    'openrouter.ai','affirm.com','interactivebrokers.com',
-    'email.shopify.com','shop.tiktok.com'
+  var su = subject.toLowerCase();
+
+  // ── Shopify & Etsy orders ──────────────────
+  if (se.includes('t.shopifyemail.com')) return 'orders';
+  if (se === 'support@etsy.com' && su.match(/order|sale|sold|funds|deposit|payment/)) return 'orders';
+  if (se.includes('seller.etsy.com') && su.match(/order|sold|sale|ship/)) return 'orders';
+  if (se.includes('email.etsy.com') && su.match(/order|sold/)) return 'orders';
+
+  // ── Markets & shows (specific senders) ────
+  // Farmer's markets, art trails, art fairs, show organizers
+  var marketSenders = [
+    'austinjuniorforum.org',
+    'travisheightsarttrail.org',
+    'contactzapp@zapplication.org',  // show invitations (not payment receipts)
+    'bluegenieart.com',
+    'bluegenie',
+    'renegadecraft.com',
   ];
-  for (var i = 0; i < skipDomains.length; i++) if (se.includes(skipDomains[i])) return 'skip';
-  if (se === 'memories@facebookmail.com') return 'skip';
-  if (se.includes('calendar-notification@google.com')) return 'skip';
-  if (se.includes('google.com') && subject.toLowerCase().includes('security talks')) return 'skip';
-  if (se.includes('email.etsy.com') && !subject.toLowerCase().match(/order|sale|funds/)) return 'skip';
-  if (se.includes('email.shopify.com') || se.includes('shop.tiktok.com')) return 'skip';
+  for (var m = 0; m < marketSenders.length; m++) {
+    if (se.includes(marketSenders[m])) return 'needs-reply';
+  }
 
-  var bizPatterns = [
-    't.shopifyemail.com','support@etsy.com','seller.etsy.com',
-    'noreply@messaging.squareup.com','noreply.squarefinancialservices@squareup',
-    'no-reply@shipstation.com','noreply@zapplication.org','contactzapp@zapplication.org',
-    'cpa.texas.gov','service@paypal.com','riogrande','stuller.com',
-    'stamps.com','forms-receipts-noreply@google.com'
-  ];
-  for (var j = 0; j < bizPatterns.length; j++) if (se.includes(bizPatterns[j])) return 'business';
-
-  if (se.includes('noreply') || se.includes('no-reply') || se.includes('donotreply') ||
-      se.includes('do.not.reply') || se.includes('notification') || se.includes('automated') ||
-      se.includes('automail') || se.includes('@e.') || se.includes('@email.')) return 'fyi';
-
+  // ── Customers & market organizers (personal email domains) ──
+  // This catches gmail-based market coordinators (CCFM, Art Trail organizers, etc.)
+  // AND all customer inquiries
   var personal = ['gmail.com','yahoo.com','hotmail.com','outlook.com',
-                  'icloud.com','me.com','aol.com','protonmail.com','msn.com'];
-  for (var k = 0; k < personal.length; k++) if (se.endsWith('@' + personal[k])) return 'needs-reply';
+                  'icloud.com','me.com','aol.com','protonmail.com',
+                  'msn.com','sbcglobal.net','att.net','comcast.net'];
+  for (var k = 0; k < personal.length; k++) {
+    if (se.endsWith('@' + personal[k])) return 'needs-reply';
+  }
 
-  var replyBiz = ['melqua.com','austinjuniorforum.org','ccfm.atx'];
-  for (var m = 0; m < replyBiz.length; m++) if (se.includes(replyBiz[m])) return 'needs-reply';
-
-  return 'fyi';
+  // Skip everything else
+  return 'skip';
 }
 
 function _getPriority(category, senderEmail, subject, isImportant) {
-  if (category !== 'needs-reply') {
-    if (subject.match(/order|tax|due date|profile update|refund/i)) return 'medium';
-    return 'low';
-  }
+  if (category === 'orders') return 'high';
   if (isImportant) return 'high';
   if (subject.match(/estimate|quote|order|ring|necklace|pendant|bracelet|earring|chain|available|price|custom|repair|size/i)) return 'high';
   return 'medium';
@@ -229,9 +226,11 @@ function _renderStats(threads) {
   var el = document.getElementById('gt-stats');
   if (!el) return;
   var replyCount  = threads.filter(function(t){ return t.category === 'needs-reply'; }).length;
+  var orderCount  = threads.filter(function(t){ return t.category === 'orders'; }).length;
   var unreadCount = threads.filter(function(t){ return t.unread; }).length;
   var html = '';
   if (replyCount)  html += '<span class="gt-stat gt-stat-reply">↩ ' + replyCount + ' need' + (replyCount === 1 ? 's' : '') + ' reply</span>';
+  if (orderCount)  html += '<span class="gt-stat gt-stat-reply">🛒 ' + orderCount + ' new order' + (orderCount === 1 ? '' : 's') + '</span>';
   if (unreadCount) html += '<span class="gt-stat">📬 ' + unreadCount + ' unread</span>';
   threads.filter(function(t){ return t.deadline; }).forEach(function(t){
     html += '<span class="gt-stat gt-stat-deadline">⏰ ' + _esc((t.from||'').split(' ')[0]) + ' due ' + _esc(t.deadline) + '</span>';
@@ -413,9 +412,8 @@ function loadGmailThreads(data) {
   var threads = data.threads || [];
   _renderPriorityBanner(threads);
   _renderStats(threads);
-  _section('reply', threads.filter(function(t){ return t.category === 'needs-reply'; }));
-  _section('biz',   threads.filter(function(t){ return t.category === 'business'; }));
-  _section('fyi',   threads.filter(function(t){ return t.category === 'fyi'; }));
+  _section('reply',  threads.filter(function(t){ return t.category === 'needs-reply'; }));
+  _section('orders', threads.filter(function(t){ return t.category === 'orders'; }));
 
   document.getElementById('gt-loading').style.display = 'none';
   document.getElementById('gt-empty').style.display   = 'none';
@@ -554,7 +552,7 @@ function fetchGmailDirect() {
         var isImp     = labelIds.indexOf('IMPORTANT') !== -1;
         var dateObj   = h['date'] ? new Date(h['date']) : new Date();
 
-        var category = _categorize(fromEmail, subject, labelIds);
+        var category = _categorize(fromEmail, subject);
         if (category === 'skip') return;
 
         threads.push({
@@ -594,8 +592,12 @@ function runGmailOverview() {
     document.getElementById('gt-content').style.display = 'none';
     document.getElementById('gt-empty').style.display   = 'none';
     safeSendPrompt(
-      'Fetch my Gmail inbox using the Gmail MCP. Use search_threads with query "in:inbox -in:draft newer_than:7d" and pageSize 50. ' +
-      'Categorize as needs-reply/business/fyi, skip pure marketing. Use get_thread for needs-reply detail. ' +
+      'Fetch my Gmail inbox using the Gmail MCP. Use search_threads query "in:inbox -in:draft newer_than:7d" pageSize 50. ' +
+      'Only include two categories — skip everything else entirely: ' +
+      '"needs-reply" = real customers (personal email domains: gmail, yahoo, outlook, icloud, etc.) + farmers market/art market organizers + show invitations. ' +
+      '"orders" = Shopify order emails (t.shopifyemail.com) + Etsy order/sale emails (support@etsy.com, seller.etsy.com). ' +
+      'Skip: Square, PayPal, ShipStation, tax notices, newsletters, marketing, automated reports — anything not a real person or an order. ' +
+      'Use get_thread for needs-reply threads to get better action descriptions. ' +
       'Call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: [{ threadId, from, email, subject, snippet, date, age, category, priority, action, unread, deadline, gmailUrl }] }) ' +
       'where gmailUrl = "https://mail.google.com/mail/u/0/#inbox/" + threadId.'
     );
