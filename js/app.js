@@ -290,7 +290,7 @@ async function syncWithNotion() {
       window.addEventListener('message', handler);
       if (typeof sendPrompt === 'function') {
         sendPrompt('sync notion orders: ' + JSON.stringify({
-          notion_db: 'edee1ecc-7d11-428a-9efc-d17b8cbf195d',
+          notion_db: '62de37d7-be83-48eb-a611-f494006d8085',
           orders: ORDERS.map(o => ({ id: o.id, name: o.name, stage: o.stage, price: o.price, deadline: o.deadline, notionId: o.notionId }))
         }));
       } else {
@@ -359,6 +359,9 @@ async function syncWithNotion() {
   // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
   if (typeof loadGmailOverview === 'function') loadGmailOverview();
   if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
+
+  // Load customers from Notion independently of order sync
+  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
   // Try Notion sync (no-op if not connected)
   syncWithNotion().then(() => {
