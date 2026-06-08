@@ -1474,9 +1474,9 @@
       outline: none; cursor: pointer;
     }
     .notes-capture-select:focus { border-color: var(--accent); }
-    .notes-layout { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
-    @media (max-width: 1200px) { .notes-layout { grid-template-columns: 1fr 1fr 1fr; } }
-    @media (max-width: 750px)  { .notes-layout { grid-template-columns: 1fr 1fr; } }
+    .notes-layout { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; }
+    @media (max-width: 1400px) { .notes-layout { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 900px)  { .notes-layout { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 480px)  { .notes-layout { grid-template-columns: 1fr; } }
     .notes-card {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
@@ -2829,6 +2829,8 @@
       <option value="followup">Follow-up</option>
       <option value="toorder">To Order</option>
       <option value="restock">Inventory Restock</option>
+      <option value="webapp">Webapp Updates</option>
+      <option value="market">Market &amp; Display To-Do</option>
     </select>
     <button class="btn btn-gold btn-sm" onclick="quickCapture()">Add</button>
   </div>
@@ -2909,6 +2911,36 @@
           placeholder="Item running low…"
           onkeydown="if(event.key==='Enter') addNoteItem('restock')">
         <button class="btn btn-gold btn-sm" onclick="addNoteItem('restock')">Add</button>
+      </div>
+    </div>
+
+    <!-- Card 6: Webapp Updates -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        💻 Webapp Updates
+        <span class="notes-card-count" id="webapp-count"></span>
+      </div>
+      <div class="notes-list" id="webapp-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'webapp')"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="webapp-input" type="text"
+          placeholder="App feature or fix…"
+          onkeydown="if(event.key==='Enter') addNoteItem('webapp')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('webapp')">Add</button>
+      </div>
+    </div>
+
+    <!-- Card 7: Market & Display To-Do -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        🏪 Market &amp; Display To-Do
+        <span class="notes-card-count" id="market-count"></span>
+      </div>
+      <div class="notes-list" id="market-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'market')"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="market-input" type="text"
+          placeholder="Market or display task…"
+          onkeydown="if(event.key==='Enter') addNoteItem('market')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('market')">Add</button>
       </div>
     </div>
 

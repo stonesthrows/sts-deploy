@@ -17,6 +17,8 @@ const BLOCK_MAP = {
   followup: 'Follow-up',
   toorder:  'To Order',
   restock:  'Inventory Restock',
+  webapp:   'Webapp Updates',
+  market:   'Market & Display To-Do',
 };
 
 const PREFIX_TRIGGERS = {
@@ -25,6 +27,8 @@ const PREFIX_TRIGGERS = {
   toorder:  ['order', 'orders', 'buy'],
   todo:     ['to do:', 'to-do:', 'todo:'],
   studio:   ['design:', 'idea:'],
+  webapp:   ['webapp:', 'web app:', 'app update:'],
+  market:   ['market:', 'booth:', 'display:'],
 };
 
 // ── Detection ────────────────────────────────
@@ -35,11 +39,15 @@ function autoDetect(text) {
   const orderWords    = ['order ', 'orders ', 'buy ', 'from rio', 'from stuller', 'from otto', 'from halstead', 'pick up'];
   const todoWords     = ['to do:', 'to-do:', 'todo:', 'finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
   const designWords   = ['design ', 'idea ', 'sketch ', 'concept ', 'inspiration', 'try making', 'experiment'];
+  const webappWords   = ['webapp', 'web app', 'app update', 'app bug', 'app feature', 'site update', 'website '];
+  const marketWords   = ['for market', 'market display', 'booth ', 'vendor display', 'display stand', 'market to-do', 'market todo'];
   for (const w of followupWords) { if (t.includes(w)) return 'followup'; }
   for (const w of restockWords)  { if (t.includes(w)) return 'restock';  }
   for (const w of orderWords)    { if (t.includes(w)) return 'toorder';  }
   for (const w of todoWords)     { if (t.includes(w)) return 'todo';     }
   for (const w of designWords)   { if (t.includes(w)) return 'studio';   }
+  for (const w of webappWords)   { if (t.includes(w)) return 'webapp';   }
+  for (const w of marketWords)   { if (t.includes(w)) return 'market';   }
   return null;
 }
 
@@ -165,10 +173,10 @@ export async function onRequest({ request, env }) {
   // Check for explicit bucket prefix: "restock: ...", "todo: ...", etc.
   let category = null;
   let text = body;
-  const prefixMatch = body.match(/^(todo|order|toorder|followup|follow.?up|restock|studio|design)[:\s]+(.+)/is);
+  const prefixMatch = body.match(/^(todo|order|toorder|followup|follow.?up|restock|studio|design|webapp|web.?app|market|booth)[:\s]+(.+)/is);
   if (prefixMatch) {
     const p = prefixMatch[1].toLowerCase().replace(/[\s-]/g, '');
-    category = { todo: 'todo', toorder: 'toorder', order: 'toorder', followup: 'followup', followup: 'followup', restock: 'restock', studio: 'studio', design: 'studio' }[p] || null;
+    category = { todo: 'todo', toorder: 'toorder', order: 'toorder', followup: 'followup', restock: 'restock', studio: 'studio', design: 'studio', webapp: 'webapp', webapp: 'webapp', market: 'market', booth: 'market' }[p] || null;
     text = prefixMatch[2].trim();
   }
 
@@ -179,7 +187,7 @@ export async function onRequest({ request, env }) {
   if (!category) {
     return twimlResponse(
       'Can\'t detect bucket. Reply with a prefix:\n' +
-      'todo: / followup: / order: / restock: / design:\n' +
+      'todo: / followup: / order: / restock: / design: / webapp: / market:\n' +
       'e.g. "restock: ' + body + '"'
     );
   }
@@ -197,7 +205,7 @@ export async function onRequest({ request, env }) {
     return twimlResponse('Error saving note: ' + err.message);
   }
 
-  const label = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-up', toorder: 'To Order', restock: 'Inventory Restock' }[category];
+  const label = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-up', toorder: 'To Order', restock: 'Inventory Restock', webapp: 'Webapp Updates', market: 'Market & Display To-Do' }[category];
   return twimlResponse(
     parts.length > 1
       ? `Saved ${parts.length} items to ${label} ✓\n` + parts.map((p, i) => `${i + 1}. ${p}`).join('\n')

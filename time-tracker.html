@@ -97,6 +97,14 @@
   .saving-badge { display: none; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; margin-top: 0.6rem; text-align: center; }
   .saving-badge.visible { display: block; }
 
+  /* ── Clock-in status badge ── */
+  .clock-status { display: none; margin-top: 0.6rem; font-size: 11px; font-weight: 600; padding: 0.4rem 0.75rem; border-radius: 6px; }
+  .clock-status.visible { display: block; }
+  .clock-status.checking { color: var(--text3); background: var(--card-head-bg); border: 1px solid var(--bdr-light); }
+  .clock-status.clocked-in { color: var(--green); background: #edf7f0; border: 1px solid #b2d8bc; }
+  .clock-status.not-clocked-in { color: #7a2810; background: #fdf0ec; border: 1px solid #f0b8a8; }
+  .clock-status.error { color: var(--text3); background: var(--card-head-bg); border: 1px solid var(--bdr-light); }
+
   /* ── Shared log + config ── */
   .log-section { border-top: 1px solid var(--bdr); padding-top: 1.5rem; }
   .log-title { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2); text-transform: uppercase; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
@@ -184,6 +192,7 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   id: i,
   selectedItem: null, selectedEmployee: null,
   running: false, startTime: null, tickInterval: null, debounce: null,
+  clockStatus: 'unknown', // 'unknown' | 'checking' | 'clocked-in' | 'not-clocked-in' | 'error'
 }));
 
 // ── Shared ───────────────────────────────────────────────────────────────────
@@ -245,6 +254,7 @@ function buildCard(tid) {
     <div class="step" id="t${tid}-step-employee">
       <div class="step-label">02 — Who's working?</div>
       <div class="employee-grid" id="t${tid}-employee-grid"></div>
+      <div class="clock-status" id="t${tid}-clock-status"></div>
     </div>
 
     <div class="step dimmed" id="t${tid}-step-timer">
@@ -308,7 +318,9 @@ function renderEmployees() {
         $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
         T[tid].selectedEmployee = emp;
+        T[tid].clockStatus = 'unknown';
         checkReady(tid);
+        checkClockIn(tid);
       };
       grid.appendChild(btn);
     });
@@ -395,9 +407,45 @@ function clearSelection(tid) {
   checkReady(tid);
 }
 function checkReady(tid) {
-  const ok = T[tid].selectedItem && T[tid].selectedEmployee;
-  $t(tid, 'step-timer').classList.toggle('dimmed', !ok);
-  $t(tid, 'start-btn').disabled = !ok || T[tid].running;
+  const hasSelections = T[tid].selectedItem && T[tid].selectedEmployee;
+  const blockedByClockIn = T[tid].clockStatus === 'not-clocked-in';
+  $t(tid, 'step-timer').classList.toggle('dimmed', !hasSelections);
+  $t(tid, 'start-btn').disabled = !hasSelections || T[tid].running || blockedByClockIn;
+}
+
+async function checkClockIn(tid) {
+  const emp = T[tid].selectedEmployee;
+  if (!emp) return;
+  const badge = $t(tid, 'clock-status');
+
+  // No token — skip check silently
+  if (!CFG.sqToken) { T[tid].clockStatus = 'unknown'; badge.className = 'clock-status'; return; }
+
+  T[tid].clockStatus = 'checking';
+  badge.className = 'clock-status checking visible';
+  badge.textContent = '⏳ Checking clock-in status…';
+  checkReady(tid);
+
+  try {
+    const data = await sq(`/labor/shifts?employee_id=${emp.id}&status=OPEN&limit=5`);
+    const openShifts = (data.shifts || []).filter(s => !s.end_at);
+    if (openShifts.length > 0) {
+      const since = new Date(openShifts[0].start_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      T[tid].clockStatus = 'clocked-in';
+      badge.className = 'clock-status clocked-in visible';
+      badge.textContent = `✓ Clocked in since ${since}`;
+    } else {
+      T[tid].clockStatus = 'not-clocked-in';
+      badge.className = 'clock-status not-clocked-in visible';
+      badge.textContent = `⚠ ${emp.name} is not currently clocked in to Square`;
+    }
+  } catch(e) {
+    // API error — don't block, just note it
+    T[tid].clockStatus = 'error';
+    badge.className = 'clock-status error visible';
+    badge.textContent = 'Could not verify clock-in status';
+  }
+  checkReady(tid);
 }
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
@@ -476,7 +524,10 @@ function resetTimer(tid) {
   $t(tid, 'step-product').classList.remove('dimmed'); $t(tid, 'step-employee').classList.remove('dimmed');
   $t(tid, 'notes-input').value = ''; clearSelection(tid);
   $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
-  T[tid].selectedItem = null; T[tid].selectedEmployee = null; checkReady(tid);
+  T[tid].selectedItem = null; T[tid].selectedEmployee = null;
+  T[tid].clockStatus = 'unknown';
+  $t(tid, 'clock-status').className = 'clock-status';
+  checkReady(tid);
 }
 
 // ── Log ───────────────────────────────────────────────────────────────────────
