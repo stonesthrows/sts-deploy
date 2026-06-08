@@ -82,8 +82,19 @@ function updateCustTabCounts() {
   });
 }
 
-// Rebuild CUSTOMERS from ORDERS so the two are always in sync
+// Rebuild CUSTOMERS from ORDERS, preserving Notion-sourced fields (notionPageId, notes)
 function refreshCustomersFromOrders() {
+  // Keep a snapshot of Notion-sourced extra fields keyed by lowercase name
+  const extras = {};
+  CUSTOMERS.forEach(c => {
+    if (c.notionPageId || c.notes) {
+      extras[c.name.toLowerCase()] = {
+        notionPageId: c.notionPageId,
+        notes:        c.notes,
+      };
+    }
+  });
+
   const map = {};
   ORDERS.forEach(o => {
     if (!o.name) return;
@@ -106,8 +117,74 @@ function refreshCustomersFromOrders() {
     if (!['complete','delivered'].includes(o.stage)) map[key].activeOrders++;
     if (o.deadline && o.deadline > map[key].lastContact) map[key].lastContact = o.deadline;
   });
+
+  // Re-attach Notion extras
+  Object.keys(map).forEach(key => {
+    if (extras[key]) Object.assign(map[key], extras[key]);
+  });
+
   CUSTOMERS.length = 0;
   Object.values(map).forEach(c => CUSTOMERS.push(c));
+}
+
+// ── Notion sync ──────────────────────────────
+
+async function loadCustomersFromNotion() {
+  try {
+    const r = await fetch('/api/notion-customers');
+    if (!r.ok) return;
+    const notionCustomers = await r.json();
+    // Merge notionPageId and notes into matching CUSTOMERS entries; add any Notion-only records
+    notionCustomers.forEach(nc => {
+      const existing = CUSTOMERS.find(c => c.name.toLowerCase() === nc.name.toLowerCase());
+      if (existing) {
+        existing.notionPageId = nc.notionPageId;
+        if (nc.notes) existing.notes = nc.notes;
+        if (nc.phone && !existing.phone) existing.phone = nc.phone;
+      } else {
+        // Customer exists in Notion but has no orders yet — show them anyway
+        CUSTOMERS.push({
+          name:         nc.name,
+          email:        nc.email || '',
+          phone:        nc.phone || '',
+          notes:        nc.notes || '',
+          lastContact:  nc.lastContact || '',
+          totalOrders:  nc.totalOrders || 0,
+          totalValue:   nc.totalValue  || 0,
+          activeOrders: 0,
+          notionPageId: nc.notionPageId,
+        });
+      }
+    });
+    renderCustomers();
+  } catch (e) {
+    console.log('Notion customers load skipped:', e.message);
+  }
+}
+
+async function upsertCustomerToNotion(customer) {
+  try {
+    const payload = {
+      name:         customer.name,
+      email:        customer.email || '',
+      phone:        customer.phone || '',
+      notes:        customer.notes || '',
+      lastContact:  customer.lastContact || new Date().toISOString().slice(0,10),
+      totalOrders:  customer.totalOrders || 0,
+      totalValue:   customer.totalValue  || 0,
+      notionPageId: customer.notionPageId || null,
+    };
+    const r = await fetch('/api/notion-customers', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!r.ok) return;
+    const { notionPageId } = await r.json();
+    if (notionPageId) customer.notionPageId = notionPageId;
+  } catch (e) {
+    console.log('Notion customer upsert skipped:', e.message);
+  }
 }
 
 function renderCustomers() {

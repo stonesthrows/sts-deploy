@@ -23,6 +23,8 @@ const STAGE_TO_CU = {
   'sketch':         'Sketch Approved',
   'quote':          'Estimate Sent',
   'est-appr':       'Estimate Approved',
+  'deposit-wait':   'Waiting on Deposit',
+  'deposit-paid':   'Deposit Paid',
   'order-mat':      'Order Materials',
   'materials':      'Waiting on Materials',
   'build':          'At the Bench',

@@ -88,9 +88,9 @@ CRM.registerTab({
         </div>
 
       </div>`;
+  },
 
-    Orders._renderRecent();
-  }
+  onActivate() { Orders._renderRecent(); }
 });
 
 window.Orders = (() => {
@@ -133,13 +133,6 @@ window.Orders = (() => {
     orders.unshift(order);
     CRM.save('orders', orders);
 
-    // Also push into workflow app orders if available
-    try {
-      const wfOrders = JSON.parse(localStorage.getItem('sts-orders') || '[]');
-      wfOrders.unshift({ ...order, photo: null });
-      localStorage.setItem('sts-orders', JSON.stringify(wfOrders));
-    } catch(e) {}
-
     CRM.toast(`Order saved — ${name}`);
     clearForm();
     _renderRecent();
@@ -152,6 +145,21 @@ window.Orders = (() => {
     });
   }
 
+  function markComplete(id) {
+    const orders = CRM.load('orders', []);
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const input = prompt(`Final price for ${order.name}:`, order.price || '');
+    if (input === null) return;
+    const price = parseFloat(input) || order.price || 0;
+    order.price = price;
+    order.stage = 'Completed';
+    order.completedAt = new Date().toISOString();
+    CRM.save('orders', orders);
+    CRM.toast(`${order.name} marked complete`);
+    _renderRecent();
+  }
+
   function _renderRecent() {
     const el = document.getElementById('orders-recent');
     if (!el) return;
@@ -160,20 +168,26 @@ window.Orders = (() => {
       el.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No orders yet</p></div>`;
       return;
     }
-    el.innerHTML = orders.slice(0,10).map(o => `
+    el.innerHTML = orders.slice(0,10).map(o => {
+      const done = (o.stage || '').toLowerCase().includes('complet');
+      return `
       <div class="list-row">
         <div class="avatar">${CRM.initials(o.name)}</div>
         <div class="list-row-main">
           <div class="list-row-title">${esc(o.name)}</div>
           <div class="list-row-sub">${esc(o.stage)} · ${esc(o.source)}${o.price ? ' · ' + CRM.fmtPrice(o.price) : ''}</div>
         </div>
-        <div class="list-row-meta">${CRM.fmtDate(o.created)}</div>
-      </div>`).join('');
+        <div class="list-row-meta" style="display:flex;align-items:center;gap:8px;">
+          <span>${CRM.fmtDate(o.created)}</span>
+          ${done ? '' : `<button class="btn btn-outline btn-sm" onclick="Orders.markComplete('${o.id}')">✓ Complete</button>`}
+        </div>
+      </div>`;
+    }).join('');
   }
 
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { onTypeChange, submit, clearForm, _renderRecent };
+  return { onTypeChange, submit, clearForm, _renderRecent, markComplete };
 })();

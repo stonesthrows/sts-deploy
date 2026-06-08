@@ -43,17 +43,9 @@ CRM.registerTab({
 window.SalesTab = (() => {
 
   function _getCompleted() {
-    // Pull from CRM orders + workflow orders, deduplicate by id
-    const crmOrders = CRM.load('orders', []);
-    let wfOrders = [];
-    try { wfOrders = JSON.parse(localStorage.getItem('sts-orders') || '[]'); } catch(e) {}
-    const all = [...crmOrders, ...wfOrders];
-    const seen = new Set();
-    return all.filter(o => {
-      if (seen.has(o.id)) return false;
-      seen.add(o.id);
-      return (o.stage || '').toLowerCase().includes('complet');
-    });
+    return CRM.load('orders', []).filter(o =>
+      (o.stage || '').toLowerCase().includes('complet')
+    );
   }
 
   function render() {

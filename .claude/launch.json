@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sts-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3777", "."],
+      "port": 3777
+    }
+  ]
+}

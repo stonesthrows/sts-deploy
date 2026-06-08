@@ -12,11 +12,12 @@ var BLOCK_MAP = {
   todo:     'To-Do',
   followup: 'Follow-up',
   toorder:  'To Order',
+  restock:  'Inventory Restock',
 };
 
 // ── Load ─────────────────────────────────────
 function loadNotes() {
-  ['studio','todo','followup','toorder'].forEach(function(key) {
+  ['studio','todo','followup','toorder','restock'].forEach(function(key) {
     renderNotesList(key, []);
   });
   var spinner = document.getElementById('notes-loading');
@@ -30,7 +31,7 @@ function loadNotes() {
         return;
       }
       NOTES_DATA = res.data || [];
-      ['studio','todo','followup','toorder'].forEach(function(key) {
+      ['studio','todo','followup','toorder','restock'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
@@ -49,7 +50,7 @@ function refreshNotes() {
     .then(function(res) {
       if (!res.ok) return;
       NOTES_DATA = res.data || [];
-      ['studio','todo','followup','toorder'].forEach(function(key) {
+      ['studio','todo','followup','toorder','restock'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
@@ -186,13 +187,17 @@ function renderNotesList(key, items) {
 // ── Quick Capture ────────────────────────────
 function autoDetectBlock(text) {
   var t = text.toLowerCase();
-  var followupWords = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
-  var orderWords    = ['order ', 'orders ', 'buy ', 'restock', 'need more', 'running low', 'from rio', 'from stuller', 'from otto', 'from halstead', 'get more', 'pick up'];
-  var todoWords     = ['finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
+  var followupWords  = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
+  var restockWords   = ['restock', 'replenish', 'low on ', 'out of ', 'running out', 'running low', 'need more', 'get more', 'stock up', 'studio stock'];
+  var orderWords     = ['order ', 'orders ', 'buy ', 'from rio', 'from stuller', 'from otto', 'from halstead', 'pick up'];
+  var todoWords      = ['finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
+  var designWords    = ['design ', 'idea ', 'sketch ', 'concept ', 'inspiration', 'try making', 'experiment'];
   for (var i = 0; i < followupWords.length; i++) { if (t.indexOf(followupWords[i]) !== -1) return 'followup'; }
-  for (var i = 0; i < orderWords.length; i++)    { if (t.indexOf(orderWords[i])    !== -1) return 'toorder'; }
-  for (var i = 0; i < todoWords.length; i++)     { if (t.indexOf(todoWords[i])     !== -1) return 'todo'; }
-  return 'studio';
+  for (var i = 0; i < restockWords.length;  i++) { if (t.indexOf(restockWords[i])  !== -1) return 'restock';  }
+  for (var i = 0; i < orderWords.length;    i++) { if (t.indexOf(orderWords[i])    !== -1) return 'toorder';  }
+  for (var i = 0; i < todoWords.length;     i++) { if (t.indexOf(todoWords[i])     !== -1) return 'todo';     }
+  for (var i = 0; i < designWords.length;   i++) { if (t.indexOf(designWords[i])   !== -1) return 'studio';   }
+  return null;
 }
 
 function quickCapture() {
@@ -202,15 +207,26 @@ function quickCapture() {
   var text = input.value.trim();
   if (!text) return;
   var cat = catSel ? catSel.value : 'auto';
-  if (cat === 'auto') cat = autoDetectBlock(text);
+  if (cat === 'auto') {
+    cat = autoDetectBlock(text);
+    if (!cat) {
+      // No keyword match — require the user to pick a bucket explicitly
+      if (catSel) {
+        catSel.style.outline = '2px solid var(--accent)';
+        catSel.style.borderColor = 'var(--accent)';
+        setTimeout(function() { catSel.style.outline = ''; catSel.style.borderColor = ''; }, 2500);
+      }
+      toast('Can\'t auto-detect bucket — please pick one', '⚠');
+      return;
+    }
+  }
   input.value = '';
 
-  // Temporarily set the target input and call addNoteItem
   var targetInput = document.getElementById(cat + '-input');
   if (targetInput) {
     targetInput.value = text;
     addNoteItem(cat);
-    var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order' };
+    var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order', restock: 'Inventory Restock' };
     toast('Added to ' + (labels[cat] || cat), '⚡');
     input.focus();
   }
@@ -339,7 +355,7 @@ function notesDrop(event, targetKey) {
 
   var newBlock = BLOCK_MAP[targetKey];
   item.block = newBlock;
-  ['studio','todo','followup','toorder'].forEach(function(k) {
+  ['studio','todo','followup','toorder','restock'].forEach(function(k) {
     renderNotesList(k, itemsFor(k));
   });
 
@@ -349,7 +365,7 @@ function notesDrop(event, targetKey) {
     body: JSON.stringify({ block: newBlock }),
   }).catch(function() {
     item.block = BLOCK_MAP[fromKey];
-    ['studio','todo','followup','toorder'].forEach(function(k) {
+    ['studio','todo','followup','toorder','restock'].forEach(function(k) {
       renderNotesList(k, itemsFor(k));
     });
     toast('Failed to move note', '⚠');

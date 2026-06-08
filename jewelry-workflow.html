@@ -1474,9 +1474,10 @@
       outline: none; cursor: pointer;
     }
     .notes-capture-select:focus { border-color: var(--accent); }
-    .notes-layout { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
-    @media (max-width: 900px) { .notes-layout { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 560px) { .notes-layout { grid-template-columns: 1fr; } }
+    .notes-layout { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    @media (max-width: 1200px) { .notes-layout { grid-template-columns: 1fr 1fr 1fr; } }
+    @media (max-width: 750px)  { .notes-layout { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 480px)  { .notes-layout { grid-template-columns: 1fr; } }
     .notes-card {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
       overflow: hidden; display: flex; flex-direction: column; min-height: 420px;
@@ -2827,6 +2828,7 @@
       <option value="todo">To-Do</option>
       <option value="followup">Follow-up</option>
       <option value="toorder">To Order</option>
+      <option value="restock">Inventory Restock</option>
     </select>
     <button class="btn btn-gold btn-sm" onclick="quickCapture()">Add</button>
   </div>
@@ -2893,6 +2895,21 @@
         <button class="btn btn-gold btn-sm" onclick="addNoteItem('toorder')">Add</button>
       </div>
       <div id="toorder-suggest"></div>
+    </div>
+
+    <!-- Card 5: Inventory Restock checklist -->
+    <div class="notes-card">
+      <div class="notes-card-head">
+        📦 Inventory Restock
+        <span class="notes-card-count" id="restock-count"></span>
+      </div>
+      <div class="notes-list" id="restock-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'restock')"></div>
+      <div class="notes-add-row">
+        <input class="notes-add-input" id="restock-input" type="text"
+          placeholder="Item running low…"
+          onkeydown="if(event.key==='Enter') addNoteItem('restock')">
+        <button class="btn btn-gold btn-sm" onclick="addNoteItem('restock')">Add</button>
+      </div>
     </div>
 
   </div>

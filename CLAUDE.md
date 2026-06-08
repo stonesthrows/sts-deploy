@@ -26,6 +26,9 @@ Main nav tabs (`nav-tab`) → some have sub-nav tabs (`sub-nav-tab`):
 - **Supplies** (parent) → Supplier Order, Order History
 - **Inventory** (parent) → Earrings, Rings, Pendants
 - **Triplog** (standalone)
+- **Perm. Jewelry** (parent) → Calculator, Reference
+- **Calendar** (standalone)
+- **Timer** (standalone) — STS Work Timer, loaded in iframe from `time-tracker.html`
 
 Tab switching logic lives in `js/app.js`: `switchParent()`, `switchTab()`, `switchSubTab()`.
 
