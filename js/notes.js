@@ -185,6 +185,26 @@ function renderNotesList(key, items) {
 }
 
 // ── Quick Capture ────────────────────────────
+var PREFIX_TRIGGERS = {
+  followup: ['follow up', 'follow-up'],
+  restock:  ['restock', 'replenish', 'low on', 'out of', 'running out', 'running low', 'need more', 'get more', 'stock up'],
+  toorder:  ['order', 'orders', 'buy'],
+  todo:     ['to do:', 'to-do:', 'todo:'],
+  studio:   ['design:', 'idea:'],
+};
+
+function stripTriggerPrefix(text, key) {
+  var triggers = PREFIX_TRIGGERS[key] || [];
+  var t = text.toLowerCase();
+  for (var i = 0; i < triggers.length; i++) {
+    var trigger = triggers[i];
+    if (t.indexOf(trigger) === 0) {
+      return text.slice(trigger.length).replace(/^[\s:,\-]+/, '').trim();
+    }
+  }
+  return text;
+}
+
 function autoDetectBlock(text) {
   var t = text.toLowerCase();
   var followupWords  = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
@@ -207,7 +227,8 @@ function quickCapture() {
   var text = input.value.trim();
   if (!text) return;
   var cat = catSel ? catSel.value : 'auto';
-  if (cat === 'auto') {
+  var wasAuto = (cat === 'auto');
+  if (wasAuto) {
     cat = autoDetectBlock(text);
     if (!cat) {
       // No keyword match — require the user to pick a bucket explicitly
@@ -219,6 +240,7 @@ function quickCapture() {
       toast('Can\'t auto-detect bucket — please pick one', '⚠');
       return;
     }
+    text = stripTriggerPrefix(text, cat);
   }
   input.value = '';
 
