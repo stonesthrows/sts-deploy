@@ -328,14 +328,23 @@ function gtSendReply(btn) {
 
   var fullBody = body + '\n\n--\nKyle Gross\n512-217-3455\nwww.stonesthrowjewelry.com\nStones Throw Studio · Sunset Valley Farmers Market';
 
+  var timeout = setTimeout(function() {
+    btn.textContent = '▶ Send';
+    btn.disabled    = false;
+    alert('Send timed out — check your Gmail Sent folder to see if it went through.');
+  }, 10000);
+
   _sendReply(threadId, to, subject, fullBody, msgId, refs)
     .then(function(){
+      clearTimeout(timeout);
       compose.innerHTML = '<div class="gt-sent-msg">✓ Reply sent!</div>';
       var replyBtn = card.querySelector('.gt-reply-btn');
       if (replyBtn) replyBtn.style.display = 'none';
-      card.querySelector('.gt-unread-dot') && card.querySelector('.gt-unread-dot').remove();
+      var dot = card.querySelector('.gt-unread-dot');
+      if (dot) dot.remove();
     })
     .catch(function(e){
+      clearTimeout(timeout);
       btn.textContent = '▶ Send';
       btn.disabled    = false;
       alert('Send failed: ' + (e.message || 'Unknown error'));
