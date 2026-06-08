@@ -373,7 +373,7 @@ async function searchCatalog(tid, query) {
       }
     });
     renderResults(tid, rows, query);
-  } catch(e) { console.error('searchCatalog error:', e); mockSearch(tid, query); }
+  } catch(e) { console.error('searchCatalog error:', e); renderResults(tid, [], '⚠ ' + (e.message || e)); }
   finally { $t(tid, 'spinner').classList.remove('active'); }
 }
 
