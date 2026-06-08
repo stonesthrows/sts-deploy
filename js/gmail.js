@@ -195,7 +195,10 @@ function _renderThread(t) {
         '<button class="gt-body-btn" onclick="gtShowCustomer(this);event.stopPropagation()">👤 Customer</button>' +
       '</div>' +
       '<div class="gt-invoice-compose" style="display:none">' +
-        '<div class="gt-inv-title">📋 Square Invoice Draft</div>' +
+        '<div class="gt-inv-type-row">' +
+          '<button class="gt-inv-type-btn active" data-type="invoice"  onclick="gtInvSetType(this);event.stopPropagation()">📋 Invoice</button>' +
+          '<button class="gt-inv-type-btn"        data-type="estimate" onclick="gtInvSetType(this);event.stopPropagation()">📄 Estimate</button>' +
+        '</div>' +
         '<div class="gt-inv-items">' +
           '<div class="gt-inv-item-row">' +
             '<input class="gt-inv-desc" type="text" placeholder="Item (e.g. Custom Figaro Chain)" onclick="event.stopPropagation()">' +
@@ -205,7 +208,7 @@ function _renderThread(t) {
         '</div>' +
         '<button class="gt-inv-add-btn" onclick="gtInvAddItem(this);event.stopPropagation()">+ Add item</button>' +
         '<div class="gt-inv-fields">' +
-          '<label>Due date <input class="gt-inv-due" type="date" onclick="event.stopPropagation()"></label>' +
+          '<label><span class="gt-inv-due-label">Due date</span> <input class="gt-inv-due" type="date" onclick="event.stopPropagation()"></label>' +
           '<label>Note <input class="gt-inv-note" type="text" placeholder="Optional note to customer…" onclick="event.stopPropagation()"></label>' +
         '</div>' +
         '<div class="gt-inv-foot">' +
@@ -762,6 +765,16 @@ function _gtInvDefaultDue() {
   return d.toISOString().split('T')[0];
 }
 
+function gtInvSetType(btn) {
+  var row = btn.closest('.gt-inv-type-row');
+  row.querySelectorAll('.gt-inv-type-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  var isEstimate = btn.dataset.type === 'estimate';
+  var compose    = btn.closest('.gt-invoice-compose');
+  var dueLabel   = compose.querySelector('.gt-inv-due-label');
+  if (dueLabel) dueLabel.textContent = isEstimate ? 'Valid until' : 'Due date';
+}
+
 function gtShowInvoice(btn) {
   var card        = btn.closest('.gt-thread');
   var compose     = card.querySelector('.gt-invoice-compose');
@@ -815,6 +828,8 @@ function gtSubmitInvoice(btn) {
   });
   if (!items.length) { status.textContent = 'Add at least one item with a price.'; return; }
 
+  var activeTypeBtn = compose.querySelector('.gt-inv-type-btn.active');
+  var invType = (activeTypeBtn && activeTypeBtn.dataset.type === 'estimate') ? 'ESTIMATE' : 'INVOICE';
   var dueDate = compose.querySelector('.gt-inv-due').value || _gtInvDefaultDue();
   var note    = compose.querySelector('.gt-inv-note').value.trim();
 
@@ -863,24 +878,27 @@ function gtSubmitInvoice(btn) {
   .then(function(ids) {
     return _gtSqCall('/v2/invoices', 'POST', {
       idempotency_key: 'sts-inv-' + Date.now(),
-      invoice: {
+      invoice: Object.assign({
+        invoice_type:      invType,
         location_id:       _gtSqLocation(),
         order_id:          ids.orderId,
         primary_recipient: { customer_id: ids.customerId },
-        payment_requests:  [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }],
         delivery_method:   'EMAIL',
         description:       note,
         accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
-      }
+      }, invType === 'INVOICE' ? {
+        payment_requests: [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }]
+      } : {})
     });
   })
   .then(function(d4) {
     btn.textContent = 'Create Draft';
     btn.disabled    = false;
     if (d4.invoice) {
-      var url = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      var url      = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      var typeWord = invType === 'ESTIMATE' ? 'estimate' : 'invoice';
       compose.innerHTML =
-        '<div class="gt-inv-success">✓ Draft invoice created — ' +
+        '<div class="gt-inv-success">✓ Draft ' + typeWord + ' created — ' +
         '<a href="' + url + '" target="_blank" class="gt-inv-link" onclick="event.stopPropagation()">Review &amp; Send in Square →</a>' +
         '</div>';
     } else {
