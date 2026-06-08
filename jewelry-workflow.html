@@ -4479,7 +4479,7 @@
 <script>
 function timerTabInit() {
   const iframe = document.getElementById('timer-iframe');
-  if (!iframe.src) iframe.src = 'time-tracker.html';
+  if (!iframe.getAttribute('src')) iframe.src = 'time-tracker.html';
 }
 </script>
 </body>
