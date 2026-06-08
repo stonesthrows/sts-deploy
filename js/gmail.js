@@ -559,7 +559,7 @@ function fetchGmailDirect() {
       return Promise.all(ids.map(function(id){
         return fetch(
           'https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
-          '?format=metadata&metadataHeaders=Subject,From,Date',
+          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date',
           { headers: hdrs }
         ).then(function(r){ return r.ok ? r.json() : null; });
       }));
