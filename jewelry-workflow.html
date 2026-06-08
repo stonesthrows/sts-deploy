@@ -1474,9 +1474,9 @@
       outline: none; cursor: pointer;
     }
     .notes-capture-select:focus { border-color: var(--accent); }
-    .notes-layout { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; }
-    @media (max-width: 1400px) { .notes-layout { grid-template-columns: repeat(4, 1fr); } }
-    @media (max-width: 900px)  { .notes-layout { grid-template-columns: 1fr 1fr; } }
+    .notes-layout { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+    @media (max-width: 1200px) { .notes-layout { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 750px)  { .notes-layout { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 480px)  { .notes-layout { grid-template-columns: 1fr; } }
     .notes-card {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
@@ -2826,7 +2826,6 @@
       <option value="auto">Auto-detect</option>
       <option value="studio">Design Ideas</option>
       <option value="todo">To-Do</option>
-      <option value="followup">Follow-up</option>
       <option value="toorder">To Order</option>
       <option value="restock">Inventory Restock</option>
       <option value="webapp">Webapp Updates</option>
@@ -2852,22 +2851,7 @@
       </div>
     </div>
 
-    <!-- Card 2: Follow-ups checklist -->
-    <div class="notes-card">
-      <div class="notes-card-head">
-        📞 Follow-ups
-        <span class="notes-card-count" id="followup-count"></span>
-      </div>
-      <div class="notes-list" id="followup-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'followup')"></div>
-      <div class="notes-add-row">
-        <input class="notes-add-input" id="followup-input" type="text"
-          placeholder="Add a follow-up…"
-          onkeydown="if(event.key==='Enter') addNoteItem('followup')">
-        <button class="btn btn-gold btn-sm" onclick="addNoteItem('followup')">Add</button>
-      </div>
-    </div>
-
-    <!-- Card 3: To-Do checklist -->
+    <!-- Card 2: To-Do checklist -->
     <div class="notes-card">
       <div class="notes-card-head">
         ✅ To-Do

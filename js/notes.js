@@ -10,7 +10,6 @@ var _dragNote = null;  // { pageId, fromKey } set on dragstart
 var BLOCK_MAP = {
   studio:   'Design Ideas',
   todo:     'To-Do',
-  followup: 'Follow-up',
   toorder:  'To Order',
   restock:  'Inventory Restock',
   webapp:   'Webapp Updates',
@@ -19,7 +18,7 @@ var BLOCK_MAP = {
 
 // ── Load ─────────────────────────────────────
 function loadNotes() {
-  ['studio','todo','followup','toorder','restock','webapp','market'].forEach(function(key) {
+  ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
     renderNotesList(key, []);
   });
   var spinner = document.getElementById('notes-loading');
@@ -33,7 +32,7 @@ function loadNotes() {
         return;
       }
       NOTES_DATA = res.data || [];
-      ['studio','todo','followup','toorder','restock','webapp','market'].forEach(function(key) {
+      ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
@@ -52,7 +51,7 @@ function refreshNotes() {
     .then(function(res) {
       if (!res.ok) return;
       NOTES_DATA = res.data || [];
-      ['studio','todo','followup','toorder','restock','webapp','market'].forEach(function(key) {
+      ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
@@ -258,7 +257,6 @@ function groupSizes(parts) {
 
 // ── Quick Capture ─────────────────────────────
 var PREFIX_TRIGGERS = {
-  followup: ['follow up', 'follow-up'],
   restock:  ['restock', 'replenish', 'low on', 'out of', 'running out', 'running low', 'need more', 'get more', 'stock up'],
   toorder:  ['order', 'orders', 'buy'],
   todo:     ['to do:', 'to-do:', 'todo:'],
@@ -281,14 +279,12 @@ function stripTriggerPrefix(text, key) {
 
 function autoDetectBlock(text) {
   var t = text.toLowerCase();
-  var followupWords  = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
-  var restockWords   = ['restock', 'replenish', 'low on ', 'out of ', 'running out', 'running low', 'need more', 'get more', 'stock up', 'studio stock', 'size '];
-  var orderWords     = ['order ', 'orders ', 'buy ', 'from rio', 'from stuller', 'from otto', 'from halstead', 'pick up'];
-  var todoWords      = ['to do:', 'to-do:', 'todo:', 'finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
-  var designWords    = ['design ', 'idea ', 'sketch ', 'concept ', 'inspiration', 'try making', 'experiment'];
-  var webappWords    = ['webapp', 'web app', 'app update', 'app bug', 'app feature', 'site update', 'website '];
-  var marketWords    = ['for market', 'market display', 'booth ', 'vendor display', 'display stand', 'market to-do', 'market todo'];
-  for (var i = 0; i < followupWords.length; i++) { if (t.indexOf(followupWords[i]) !== -1) return 'followup'; }
+  var restockWords  = ['restock', 'replenish', 'low on ', 'out of ', 'running out', 'running low', 'need more', 'get more', 'stock up', 'studio stock', 'size '];
+  var orderWords    = ['order ', 'orders ', 'buy ', 'from rio', 'from stuller', 'from otto', 'from halstead', 'pick up'];
+  var todoWords     = ['to do:', 'to-do:', 'todo:', 'finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
+  var designWords   = ['design ', 'idea ', 'sketch ', 'concept ', 'inspiration', 'try making', 'experiment'];
+  var webappWords   = ['webapp', 'web app', 'app update', 'app bug', 'app feature', 'site update', 'website '];
+  var marketWords   = ['for market', 'market display', 'booth ', 'vendor display', 'display stand', 'market to-do', 'market todo'];
   for (var i = 0; i < restockWords.length;  i++) { if (t.indexOf(restockWords[i])  !== -1) return 'restock';  }
   for (var i = 0; i < orderWords.length;    i++) { if (t.indexOf(orderWords[i])    !== -1) return 'toorder';  }
   for (var i = 0; i < todoWords.length;     i++) { if (t.indexOf(todoWords[i])     !== -1) return 'todo';     }
@@ -327,7 +323,7 @@ function quickCapture() {
   if (targetInput) {
     var rawParts = text.split(/[,;]+/).map(function(p) { return p.trim(); }).filter(function(p) { return p.length > 0; });
     var parts = groupSizes(rawParts);
-    var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order', restock: 'Inventory Restock', webapp: 'Webapp Updates', market: 'Market & Display To-Do' };
+    var labels = { studio: 'Design Ideas', todo: 'To-Do', toorder: 'To Order', restock: 'Inventory Restock', webapp: 'Webapp Updates', market: 'Market & Display To-Do' };
     parts.forEach(function(part) {
       targetInput.value = formatNoteText(part);
       addNoteItem(cat);
@@ -463,7 +459,7 @@ function notesDrop(event, targetKey) {
 
   var newBlock = BLOCK_MAP[targetKey];
   item.block = newBlock;
-  ['studio','todo','followup','toorder','restock','webapp','market'].forEach(function(k) {
+  ['studio','todo','toorder','restock','webapp','market'].forEach(function(k) {
     renderNotesList(k, itemsFor(k));
   });
 
@@ -473,7 +469,7 @@ function notesDrop(event, targetKey) {
     body: JSON.stringify({ block: newBlock }),
   }).catch(function() {
     item.block = BLOCK_MAP[fromKey];
-    ['studio','todo','followup','toorder','restock','webapp','market'].forEach(function(k) {
+    ['studio','todo','toorder','restock','webapp','market'].forEach(function(k) {
       renderNotesList(k, itemsFor(k));
     });
     toast('Failed to move note', '⚠');
