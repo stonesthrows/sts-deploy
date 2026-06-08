@@ -427,7 +427,19 @@ async function checkClockIn(tid) {
   checkReady(tid);
 
   try {
-    const data = await sq(`/labor/shifts?team_member_id=${emp.id}&status=OPEN&limit=5`);
+    const data = await sq('/labor/shifts/search', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: {
+          filter: {
+            team_member_ids: [emp.id],
+            status: 'OPEN',
+            location_ids: [CFG.sqLocation]
+          }
+        },
+        limit: 5
+      })
+    });
     const openShifts = (data.shifts || []).filter(s => !s.end_at);
     if (openShifts.length > 0) {
       const since = new Date(openShifts[0].start_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -437,13 +449,15 @@ async function checkClockIn(tid) {
     } else {
       T[tid].clockStatus = 'not-clocked-in';
       badge.className = 'clock-status not-clocked-in visible';
-      badge.textContent = `⚠ ${emp.name} is not currently clocked in to Square`;
+      // Debug: show raw count + any errors from Square
+      const errMsg = data.errors ? data.errors.map(e => e.detail || e.code).join('; ') : '';
+      badge.textContent = `⚠ ${emp.name} not clocked in (${(data.shifts||[]).length} shifts found${errMsg ? ' · ' + errMsg : ''})`;
     }
   } catch(e) {
     // API error — don't block, just note it
     T[tid].clockStatus = 'error';
     badge.className = 'clock-status error visible';
-    badge.textContent = 'Could not verify clock-in status';
+    badge.textContent = `Could not verify clock-in status: ${e.message||e}`;
   }
   checkReady(tid);
 }
