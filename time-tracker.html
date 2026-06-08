@@ -281,9 +281,14 @@ async function searchCatalog(query) {
   $('spinner').classList.add('active');
   try {
     if (!S.sqToken) { mockSearch(query); return; }
-    const data = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
+    // Step 1 — find matching item IDs
+    const searchData = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
+    const found = searchData.objects || [];
+    if (!found.length) { renderResults([], query); return; }
+    // Step 2 — batch-retrieve full objects so we get complete variation lists
+    const fullData = await sq('/catalog/batch-retrieve', { method: 'POST', body: JSON.stringify({ object_ids: found.map(o => o.id) }) });
     const rows = [];
-    (data.objects || []).forEach(obj => {
+    (fullData.objects || []).forEach(obj => {
       const itemName = obj.item_data?.name || 'Unnamed';
       const category = obj.item_data?.category_name || '';
       const variations = obj.item_data?.variations || [];
@@ -299,7 +304,7 @@ async function searchCatalog(query) {
       }
     });
     renderResults(rows, query);
-  } catch { mockSearch(query); } finally { $('spinner').classList.remove('active'); }
+  } catch(e) { console.error('searchCatalog error:', e); mockSearch(query); } finally { $('spinner').classList.remove('active'); }
 }
 const MOCK = [
   { id: 'i1', name: 'Custom Engagement Ring', sku: 'RING-001', price: '850.00', category: 'Rings' },
