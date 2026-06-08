@@ -4,19 +4,31 @@
 <body>
 <script>
 (function () {
-  if (location.hash && location.hash.includes('access_token')) {
-    var p = new URLSearchParams(location.hash.slice(1));
-    var t = p.get('access_token');
-    if (t && window.opener) {
-      window.opener.postMessage(
-        { type: 'sts-gcal-oauth', token: t, expiresIn: p.get('expires_in') || '3600' },
-        location.origin
-      );
-      window.close();
-    }
+  var params = new URLSearchParams(location.search);
+  var hash   = new URLSearchParams(location.hash.slice(1));
+
+  // Authorization code flow (PKCE)
+  var code = params.get('code');
+  if (code && window.opener) {
+    window.opener.postMessage(
+      { type: 'sts-gcal-code', code: code },
+      location.origin
+    );
+    window.close();
+    return;
+  }
+
+  // Legacy implicit flow fallback
+  var token = hash.get('access_token');
+  if (token && window.opener) {
+    window.opener.postMessage(
+      { type: 'sts-google-oauth', token: token, expiresIn: hash.get('expires_in') || '3600' },
+      location.origin
+    );
+    window.close();
   }
 })();
 </script>
-<p style="font-family:sans-serif;padding:24px">Connecting to Google Calendar…</p>
+<p style="font-family:sans-serif;padding:24px;color:#555">Connecting to Google…</p>
 </body>
 </html>

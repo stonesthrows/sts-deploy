@@ -512,7 +512,8 @@ async function createGoogleContact(d, token) {
 // ── Integrations modal ───────────────────────
 
 function openIntegrationsModal() {
-  document.getElementById('int-google-client-id').value = localStorage.getItem('sts-google-client-id') || '';
+  document.getElementById('int-google-client-id').value     = localStorage.getItem('sts-google-client-id')     || '';
+  document.getElementById('int-google-client-secret').value = localStorage.getItem('sts-google-client-secret') || '';
   document.getElementById('int-anthropic-key').value    = localStorage.getItem('sts-anthropic-key')    || '';
   document.getElementById('int-clickup-token').value    = localStorage.getItem('sts-clickup-token')    || '';
   document.getElementById('int-clickup-list-id').value  = localStorage.getItem('sts-clickup-list-id')  || '';
@@ -525,14 +526,16 @@ function closeIntegrationsModal() {
 }
 
 function saveIntegrations() {
-  const prev          = localStorage.getItem('sts-google-client-id');
-  const googleClientId = document.getElementById('int-google-client-id').value.trim();
+  const prev             = localStorage.getItem('sts-google-client-id');
+  const googleClientId   = document.getElementById('int-google-client-id').value.trim();
+  const googleClientSec  = document.getElementById('int-google-client-secret').value.trim();
   const anthropicKey   = document.getElementById('int-anthropic-key').value.trim();
   const clickupToken   = document.getElementById('int-clickup-token').value.trim();
   const clickupListId  = document.getElementById('int-clickup-list-id').value.trim();
   const squareToken    = document.getElementById('int-square-token').value.trim();
 
-  googleClientId ? localStorage.setItem('sts-google-client-id', googleClientId) : localStorage.removeItem('sts-google-client-id');
+  googleClientId  ? localStorage.setItem('sts-google-client-id',     googleClientId)  : localStorage.removeItem('sts-google-client-id');
+  googleClientSec ? localStorage.setItem('sts-google-client-secret', googleClientSec) : localStorage.removeItem('sts-google-client-secret');
   anthropicKey   ? localStorage.setItem('sts-anthropic-key',    anthropicKey)   : localStorage.removeItem('sts-anthropic-key');
   clickupToken   ? localStorage.setItem('sts-clickup-token',    clickupToken)   : localStorage.removeItem('sts-clickup-token');
   clickupListId  ? localStorage.setItem('sts-clickup-list-id',  clickupListId)  : localStorage.removeItem('sts-clickup-list-id');

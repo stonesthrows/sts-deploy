@@ -1,14 +1,17 @@
 // ════════════════════════════════════════════
 //  CALENDAR  —  js/calendar.js
 //  Google Calendar API v3 + Gmail date scanner
+//  Uses PKCE auth code flow for persistent sessions
 // ════════════════════════════════════════════
 
-const CAL_TOKEN_KEY  = 'sts-gcal-token';
-const CAL_EXPIRY_KEY = 'sts-gcal-token-expiry';
+const CAL_TOKEN_KEY    = 'sts-gcal-token';
+const CAL_EXPIRY_KEY   = 'sts-gcal-token-expiry';
+const CAL_REFRESH_KEY  = 'sts-gcal-refresh-token';
+const CAL_VERIFIER_KEY = 'sts-gcal-pkce-verifier';
 
-let _calOauthCallback = null;
-let _calCurrentDate   = new Date();
-let _calEvents        = [];
+let _calCurrentDate = new Date();
+let _calEvents      = [];
+let _calRefreshTimer = null;
 
 // ── Token helpers ─────────────────────────────
 
@@ -19,64 +22,196 @@ function calGetToken() {
   return null;
 }
 
-function calClearToken() {
+function calGetRefreshToken() {
+  return localStorage.getItem(CAL_REFRESH_KEY);
+}
+
+function calSaveTokens(data) {
+  localStorage.setItem(CAL_TOKEN_KEY,   data.access_token);
+  localStorage.setItem(CAL_EXPIRY_KEY,  String(Date.now() + data.expires_in * 1000));
+  if (data.refresh_token) {
+    localStorage.setItem(CAL_REFRESH_KEY, data.refresh_token);
+  }
+  calScheduleRefresh(data.expires_in);
+}
+
+function calClearTokens() {
   localStorage.removeItem(CAL_TOKEN_KEY);
   localStorage.removeItem(CAL_EXPIRY_KEY);
+  localStorage.removeItem(CAL_REFRESH_KEY);
+  localStorage.removeItem(CAL_VERIFIER_KEY);
+  if (_calRefreshTimer) clearTimeout(_calRefreshTimer);
   calShowConnect();
+}
+
+// ── Auto-refresh ──────────────────────────────
+
+function calScheduleRefresh(expiresInSeconds) {
+  if (_calRefreshTimer) clearTimeout(_calRefreshTimer);
+  // Refresh 5 minutes before expiry
+  const delay = Math.max((expiresInSeconds - 300) * 1000, 10000);
+  _calRefreshTimer = setTimeout(calSilentRefresh, delay);
+}
+
+async function calSilentRefresh() {
+  const refreshToken = calGetRefreshToken();
+  const clientId     = localStorage.getItem('sts-google-client-id');
+  const clientSecret = localStorage.getItem('sts-google-client-secret');
+  if (!refreshToken || !clientId || !clientSecret) return;
+
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        refresh_token: refreshToken,
+        client_id:     clientId,
+        client_secret: clientSecret,
+        grant_type:    'refresh_token'
+      }).toString()
+    });
+    const data = await r.json();
+    if (data.access_token) {
+      calSaveTokens(data);
+    } else {
+      console.warn('Calendar silent refresh failed', data);
+    }
+  } catch (err) {
+    console.warn('Calendar silent refresh error', err);
+    // Retry in 2 minutes
+    _calRefreshTimer = setTimeout(calSilentRefresh, 120000);
+  }
+}
+
+// ── PKCE helpers ──────────────────────────────
+
+function calPKCEVerifier() {
+  const arr = new Uint8Array(64);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function calPKCEChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 }
 
 // ── OAuth ─────────────────────────────────────
 
+// Listen for the auth code coming back from calendar-oauth.html
 window.addEventListener('message', function (e) {
   if (e.origin !== window.location.origin) return;
-  if (!e.data || e.data.type !== 'sts-google-oauth') return;
-  if (!_calOauthCallback) return;
-  localStorage.setItem(CAL_TOKEN_KEY, e.data.token);
-  localStorage.setItem(CAL_EXPIRY_KEY, String(Date.now() + parseInt(e.data.expiresIn) * 1000));
-  toast('Google Calendar + Gmail connected ✓', '📅');
-  const cb = _calOauthCallback; _calOauthCallback = null; cb();
+  if (!e.data || e.data.type !== 'sts-gcal-code') return;
+  calHandleCode(e.data.code);
 });
 
-function calTriggerOAuth(callback) {
+async function calTriggerOAuth() {
   const clientId = localStorage.getItem('sts-google-client-id');
   if (!clientId) {
     openIntegrationsModal();
     toast('Set your Google Client ID in Integrations first', 'ℹ');
     return;
   }
-  _calOauthCallback = callback;
-  const redirectUri = window.location.origin + window.location.pathname;
+  if (!localStorage.getItem('sts-google-client-secret')) {
+    openIntegrationsModal();
+    toast('Add your OAuth Client Secret in Integrations for persistent login', 'ℹ');
+    return;
+  }
+
+  const verifier   = calPKCEVerifier();
+  const challenge  = await calPKCEChallenge(verifier);
+  localStorage.setItem(CAL_VERIFIER_KEY, verifier);
+
+  const redirectUri = window.location.origin + '/calendar-oauth.html';
   const scopes = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/gmail.readonly'
   ].join(' ');
+
   const url = 'https://accounts.google.com/o/oauth2/v2/auth'
-    + '?client_id='    + encodeURIComponent(clientId)
-    + '&redirect_uri=' + encodeURIComponent(redirectUri)
-    + '&response_type=token'
-    + '&scope='        + encodeURIComponent(scopes)
+    + '?client_id='             + encodeURIComponent(clientId)
+    + '&redirect_uri='          + encodeURIComponent(redirectUri)
+    + '&response_type=code'
+    + '&scope='                 + encodeURIComponent(scopes)
+    + '&code_challenge='        + encodeURIComponent(challenge)
+    + '&code_challenge_method=S256'
+    + '&access_type=offline'
     + '&prompt=consent'
     + '&login_hint=kyle%40stonesthrowjewelry.com';
+
   const popup = window.open(url, 'gcal-oauth', 'width=520,height=620,scrollbars=yes,resizable=yes');
   if (!popup) {
     toast('Popup blocked — allow popups and try again', '⚠');
-    _calOauthCallback = null;
+    localStorage.removeItem(CAL_VERIFIER_KEY);
   }
 }
 
-// ── Calendar API helpers ──────────────────────
+async function calHandleCode(code) {
+  const verifier    = localStorage.getItem(CAL_VERIFIER_KEY);
+  const clientId    = localStorage.getItem('sts-google-client-id');
+  const clientSecret = localStorage.getItem('sts-google-client-secret');
+  const redirectUri  = window.location.origin + '/calendar-oauth.html';
 
-function calFetch(path, options) {
-  const token = calGetToken();
-  if (!token) return Promise.reject(new Error('no-token'));
+  if (!verifier || !clientId || !clientSecret) {
+    toast('OAuth setup incomplete — check Integrations', '⚠');
+    return;
+  }
+  localStorage.removeItem(CAL_VERIFIER_KEY);
+
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id:     clientId,
+        client_secret: clientSecret,
+        redirect_uri:  redirectUri,
+        code_verifier: verifier,
+        grant_type:    'authorization_code'
+      }).toString()
+    });
+    const data = await r.json();
+    if (!data.access_token) {
+      console.error('Token exchange failed', data);
+      toast('Google auth failed — check console', '⚠');
+      return;
+    }
+    calSaveTokens(data);
+    toast('Google Calendar connected ✓ (stays connected)', '📅');
+    calHideConnect();
+    calLoadEvents();
+  } catch (err) {
+    console.error('Token exchange error', err);
+    toast('Google auth error', '⚠');
+  }
+}
+
+// ── API helpers ───────────────────────────────
+
+async function calEnsureToken() {
+  if (calGetToken()) return calGetToken();
+  if (calGetRefreshToken()) {
+    await calSilentRefresh();
+    return calGetToken();
+  }
+  return null;
+}
+
+async function calFetch(path, options) {
+  const token = await calEnsureToken();
+  if (!token) throw new Error('no-token');
   return fetch('https://www.googleapis.com/calendar/v3' + path, Object.assign({
     headers: { Authorization: 'Bearer ' + token }
   }, options || {}));
 }
 
-function gmailFetch(path) {
-  const token = calGetToken();
-  if (!token) return Promise.reject(new Error('no-token'));
+async function gmailFetch(path) {
+  const token = await calEnsureToken();
+  if (!token) throw new Error('no-token');
   return fetch('https://www.googleapis.com/gmail/v1' + path, {
     headers: { Authorization: 'Bearer ' + token }
   });
@@ -84,7 +219,7 @@ function gmailFetch(path) {
 
 // ── Load calendar events ──────────────────────
 
-function calLoadEvents() {
+async function calLoadEvents() {
   const y = _calCurrentDate.getFullYear();
   const m = _calCurrentDate.getMonth();
   const timeMin = new Date(y, m, 1).toISOString();
@@ -95,17 +230,16 @@ function calLoadEvents() {
     + '&timeMax=' + encodeURIComponent(timeMax)
     + '&singleEvents=true&orderBy=startTime&maxResults=200';
 
-  calFetch(url)
-    .then(function (r) {
-      if (r.status === 401) { calClearToken(); return; }
-      return r.json();
-    })
-    .then(function (data) {
-      if (!data || !data.items) return;
-      _calEvents = data.items;
-      calRender();
-    })
-    .catch(function (err) { if (err.message !== 'no-token') console.error('Calendar load error', err); });
+  try {
+    const r = await calFetch(url);
+    if (r.status === 401) { calClearTokens(); return; }
+    const data = await r.json();
+    if (!data || !data.items) return;
+    _calEvents = data.items;
+    calRender();
+  } catch (err) {
+    if (err.message !== 'no-token') console.error('Calendar load error', err);
+  }
 }
 
 // ── Render ────────────────────────────────────
@@ -237,9 +371,9 @@ function calToggleAllDay() {
     document.getElementById('cal-ev-all-day').checked ? 'none' : '';
 }
 
-function calSaveEvent() {
-  const token = calGetToken();
-  if (!token) { calTriggerOAuth(calSaveEvent); return; }
+async function calSaveEvent() {
+  const token = await calEnsureToken();
+  if (!token) { calTriggerOAuth(); return; }
 
   const title   = document.getElementById('cal-ev-title').value.trim();
   const date    = document.getElementById('cal-ev-date').value;
@@ -261,181 +395,151 @@ function calSaveEvent() {
   const saveBtn = document.getElementById('cal-save-btn');
   saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
 
-  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-    .then(function (r) {
-      if (r.status === 401) { calClearToken(); throw new Error('auth'); }
-      if (!r.ok) throw new Error('api-error');
-      return r.json();
-    })
-    .then(function () { toast('Event saved ✓', '📅'); calCloseAddModal(); calLoadEvents(); })
-    .catch(function (err) { if (err.message !== 'auth') toast('Failed to save event', '⚠'); })
-    .finally(function () { saveBtn.disabled = false; saveBtn.textContent = 'Save Event'; });
+  try {
+    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.status === 401) { calClearTokens(); return; }
+    if (!r.ok) throw new Error('api-error');
+    toast('Event saved ✓', '📅');
+    calCloseAddModal();
+    calLoadEvents();
+  } catch (err) {
+    toast('Failed to save event', '⚠');
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Event';
+  }
 }
 
 // ════════════════════════════════════════════
 //  GMAIL DATE SCANNER
 // ════════════════════════════════════════════
 
-// Search queries that catch date-sensitive emails
 const GMAIL_SCAN_QUERIES = [
   'newer_than:60d (deadline OR "due date" OR "due by" OR "by end of")',
-  'newer_than:60d (meeting OR appointment OR interview OR "phone call" OR "zoom" OR "video call")',
+  'newer_than:60d (meeting OR appointment OR interview OR "phone call" OR zoom OR "video call")',
   'newer_than:60d ("application deadline" OR "apply by" OR "applications due" OR "submission deadline")',
   'newer_than:60d (schedule OR "follow up" OR "follow-up" OR reminder OR "don\'t forget")',
 ];
 
-// Date extraction: returns { dateStr: 'YYYY-MM-DD', label: 'human-readable' } or null
 function calExtractDate(text) {
   if (!text) return null;
-  const now   = new Date();
-  const year  = now.getFullYear();
-
+  const now  = new Date();
+  const year = now.getFullYear();
   const MONTHS = {
     jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,
     may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,
     oct:10,october:10,nov:11,november:11,dec:12,december:12
   };
-
-  // ISO / numeric: 2026-06-15 or 6/15/2026 or 6/15/26
+  // ISO: 2026-06-15
   const isoMatch = text.match(/\b(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\b/);
   if (isoMatch) {
     const d = new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2])-1, parseInt(isoMatch[3]));
     if (!isNaN(d)) return { dateStr: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
   }
+  // US: 6/15/2026
   const usMatch = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (usMatch) {
     const y2 = usMatch[3] ? (parseInt(usMatch[3]) < 100 ? 2000+parseInt(usMatch[3]) : parseInt(usMatch[3])) : year;
     const d  = new Date(y2, parseInt(usMatch[1])-1, parseInt(usMatch[2]));
-    if (!isNaN(d) && d.getMonth() === parseInt(usMatch[1])-1) {
+    if (!isNaN(d) && d.getMonth() === parseInt(usMatch[1])-1)
       return { dateStr: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
-    }
   }
-
-  // "June 15" / "June 15, 2026" / "15 June 2026"
-  const monthWordRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{4}))?\b/i;
-  const mwMatch = text.match(monthWordRe);
+  // "June 15" / "June 15, 2026"
+  const mwMatch = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{4}))?\b/i);
   if (mwMatch) {
     const mo = MONTHS[mwMatch[1].toLowerCase()];
-    const dy = parseInt(mwMatch[2]);
-    const yr = mwMatch[3] ? parseInt(mwMatch[3]) : year;
-    const d  = new Date(yr, mo-1, dy);
+    const d  = new Date(mwMatch[3] ? parseInt(mwMatch[3]) : year, mo-1, parseInt(mwMatch[2]));
     if (!isNaN(d)) return { dateStr: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
   }
-
-  // "15 June 2026" order
-  const dmyRe = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?(?:\s+(\d{4}))?\b/i;
-  const dmyMatch = text.match(dmyRe);
+  // "15 June 2026"
+  const dmyMatch = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?(?:\s+(\d{4}))?\b/i);
   if (dmyMatch) {
     const mo = MONTHS[dmyMatch[2].toLowerCase()];
-    const dy = parseInt(dmyMatch[1]);
-    const yr = dmyMatch[3] ? parseInt(dmyMatch[3]) : year;
-    const d  = new Date(yr, mo-1, dy);
+    const d  = new Date(dmyMatch[3] ? parseInt(dmyMatch[3]) : year, mo-1, parseInt(dmyMatch[1]));
     if (!isNaN(d)) return { dateStr: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
   }
-
-  // Relative: "tomorrow", "next Monday" etc.
+  // Relative
   const lower = text.toLowerCase();
   if (/\btomorrow\b/.test(lower)) {
     const d = new Date(now); d.setDate(d.getDate()+1);
     return { dateStr: d.toISOString().slice(0,10), label: 'Tomorrow (' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' };
   }
-  const nextDayMatch = lower.match(/\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
-  if (nextDayMatch) {
+  const nextDay = lower.match(/\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+  if (nextDay) {
     const DAYS = {monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sunday:0};
-    const target = DAYS[nextDayMatch[1]];
     const d = new Date(now);
-    let diff = target - d.getDay();
-    if (diff <= 0) diff += 7;
+    let diff = DAYS[nextDay[1]] - d.getDay(); if (diff <= 0) diff += 7;
     d.setDate(d.getDate() + diff);
-    return { dateStr: d.toISOString().slice(0,10), label: 'Next ' + nextDayMatch[1].charAt(0).toUpperCase()+nextDayMatch[1].slice(1) + ' (' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' };
+    return { dateStr: d.toISOString().slice(0,10), label: 'Next ' + nextDay[1].charAt(0).toUpperCase()+nextDay[1].slice(1) + ' (' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' };
   }
-
   return null;
 }
 
-// Classify what kind of date item this is
 function calClassifyEmail(subject, snippet) {
-  const text = (subject + ' ' + snippet).toLowerCase();
-  if (/interview|phone screen|hiring|offer/.test(text))               return { tag: 'Interview', color: '#7B61FF' };
-  if (/application|apply|submission|deadline/.test(text))             return { tag: 'Deadline', color: '#E05C3A' };
-  if (/meeting|zoom|call|video|conference|sync/.test(text))           return { tag: 'Meeting', color: '#3A7BD5' };
-  if (/appointment|visit|consultation/.test(text))                    return { tag: 'Appointment', color: '#2BAE66' };
-  if (/reminder|follow.?up|don.t forget|due/.test(text))             return { tag: 'Reminder', color: '#C9983A' };
+  const t = (subject + ' ' + snippet).toLowerCase();
+  if (/interview|phone screen|hiring|offer/.test(t))         return { tag: 'Interview',   color: '#7B61FF' };
+  if (/application|apply|submission|deadline/.test(t))       return { tag: 'Deadline',    color: '#E05C3A' };
+  if (/meeting|zoom|call|video|conference|sync/.test(t))     return { tag: 'Meeting',     color: '#3A7BD5' };
+  if (/appointment|visit|consultation/.test(t))              return { tag: 'Appointment', color: '#2BAE66' };
+  if (/reminder|follow.?up|don.t forget|due/.test(t))        return { tag: 'Reminder',    color: '#C9983A' };
   return { tag: 'Date', color: '#6A8898' };
 }
 
 let _scanResults = [];
 
-function calScanGmail() {
-  const token = calGetToken();
-  if (!token) { calTriggerOAuth(calScanGmail); return; }
+async function calScanGmail() {
+  const token = await calEnsureToken();
+  if (!token) { calTriggerOAuth(); return; }
 
-  const panel  = document.getElementById('cal-scan-panel');
-  const list   = document.getElementById('cal-scan-list');
+  const panel = document.getElementById('cal-scan-panel');
+  const list  = document.getElementById('cal-scan-list');
   panel.style.display = '';
   list.innerHTML = '<div class="cal-empty" style="padding:16px">Scanning Gmail…</div>';
   _scanResults = [];
 
-  // Run all search queries in parallel, dedupe by message ID
-  const seen = {};
-  const allIds = [];
+  const seen = {}, allIds = [];
+  try {
+    await Promise.all(GMAIL_SCAN_QUERIES.map(async function (q) {
+      const r    = await gmailFetch('/users/me/messages?maxResults=15&q=' + encodeURIComponent(q));
+      const data = r.ok ? await r.json() : { messages: [] };
+      (data.messages || []).forEach(function (m) {
+        if (!seen[m.id]) { seen[m.id] = true; allIds.push(m.id); }
+      });
+    }));
 
-  Promise.all(GMAIL_SCAN_QUERIES.map(function (q) {
-    return gmailFetch('/users/me/messages?maxResults=15&q=' + encodeURIComponent(q))
-      .then(function (r) { return r.ok ? r.json() : { messages: [] }; })
-      .then(function (data) {
-        (data.messages || []).forEach(function (m) {
-          if (!seen[m.id]) { seen[m.id] = true; allIds.push(m.id); }
-        });
-      })
-      .catch(function () {});
-  }))
-  .then(function () {
     if (!allIds.length) {
       list.innerHTML = '<div class="cal-empty" style="padding:16px">No date-related emails found in the last 60 days.</div>';
       return;
     }
-    // Fetch metadata for each message (subject + snippet + date)
-    return Promise.all(allIds.slice(0, 40).map(function (id) {
-      return gmailFetch('/users/me/messages/' + id + '?format=metadata&metadataHeaders=Subject&metadataHeaders=Date')
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .catch(function () { return null; });
+
+    const messages = await Promise.all(allIds.slice(0, 40).map(async function (id) {
+      const r = await gmailFetch('/users/me/messages/' + id + '?format=metadata&metadataHeaders=Subject&metadataHeaders=Date');
+      return r.ok ? r.json() : null;
     }));
-  })
-  .then(function (messages) {
-    if (!messages) return;
+
     const results = [];
     messages.forEach(function (msg) {
       if (!msg) return;
-      const headers  = (msg.payload && msg.payload.headers) || [];
-      const subject  = (headers.find(function (h) { return h.name === 'Subject'; }) || {}).value || '(No subject)';
-      const snippet  = msg.snippet || '';
-      const combined = subject + ' ' + snippet;
-
-      const dateInfo = calExtractDate(combined);
+      const headers = (msg.payload && msg.payload.headers) || [];
+      const subject = (headers.find(function (h) { return h.name === 'Subject'; }) || {}).value || '(No subject)';
+      const snippet = msg.snippet || '';
+      const dateInfo = calExtractDate(subject + ' ' + snippet);
       if (!dateInfo) return;
-
-      // Skip dates in the past (>30 days ago)
       const d = new Date(dateInfo.dateStr);
       if (d < new Date(Date.now() - 30 * 86400000)) return;
-
-      const classify = calClassifyEmail(subject, snippet);
-      results.push({ subject, snippet, dateInfo, classify, msgId: msg.id });
+      results.push({ subject, snippet, dateInfo, classify: calClassifyEmail(subject, snippet) });
     });
 
-    // Sort by date ascending
     results.sort(function (a, b) { return a.dateInfo.dateStr.localeCompare(b.dateInfo.dateStr); });
     _scanResults = results;
     calRenderScanResults();
-  })
-  .catch(function (err) {
+  } catch (err) {
     console.error('Gmail scan error', err);
     list.innerHTML = '<div class="cal-empty" style="padding:16px;color:#c00">Scan failed — try reconnecting.</div>';
-  });
+  }
 }
 
 function calRenderScanResults() {
@@ -459,8 +563,7 @@ function calRenderScanResults() {
 
 function calScanAddEvent(i) {
   const r = _scanResults[i];
-  if (!r) return;
-  calOpenAddModal(r.dateInfo.dateStr, r.subject);
+  if (r) calOpenAddModal(r.dateInfo.dateStr, r.subject);
 }
 
 function calCloseScanPanel() {
@@ -482,22 +585,29 @@ function calHideConnect() {
 }
 
 function calConnect() {
-  calTriggerOAuth(function () {
-    calHideConnect();
-    calLoadEvents();
-  });
+  calTriggerOAuth();
 }
 
 // ── Init ──────────────────────────────────────
 
-function calInit() {
+async function calInit() {
   if (window._calInited) {
-    if (calGetToken()) calLoadEvents();
+    const token = await calEnsureToken();
+    if (token) calLoadEvents();
     return;
   }
   window._calInited = true;
   _calCurrentDate = new Date();
-  const token = calGetToken();
-  if (token) { calHideConnect(); calLoadEvents(); }
-  else        { calShowConnect(); }
+
+  const token = await calEnsureToken();
+  if (token) {
+    calHideConnect();
+    calLoadEvents();
+    // Resume auto-refresh timer based on stored expiry
+    const expiry = parseInt(localStorage.getItem(CAL_EXPIRY_KEY) || '0');
+    const remaining = Math.max(Math.floor((expiry - Date.now()) / 1000), 10);
+    calScheduleRefresh(remaining);
+  } else {
+    calShowConnect();
+  }
 }

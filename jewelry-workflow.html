@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v85-calendar -->
+<!-- deploy-version: v86-calendar-persistent -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -4289,7 +4289,9 @@
       <div class="int-section-title">Google</div>
       <label for="int-google-client-id">OAuth Client ID</label>
       <input type="text" id="int-google-client-id" placeholder="123456789.apps.googleusercontent.com">
-      <p class="int-hint">Used for Google Drive bag scans and Contacts sync. Create one at console.cloud.google.com.</p>
+      <label for="int-google-client-secret" style="margin-top:8px">OAuth Client Secret</label>
+      <input type="password" id="int-google-client-secret" placeholder="GOCSPX-…">
+      <p class="int-hint">Client ID + Secret are used for Google Drive, Contacts, and Calendar. The secret enables long-lived Calendar sessions (no more reconnecting). Get both at console.cloud.google.com → APIs &amp; Services → Credentials.</p>
     </div>
 
     <div class="int-section">
