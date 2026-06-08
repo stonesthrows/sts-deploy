@@ -166,7 +166,10 @@ function _renderThread(t) {
     : '';
   var tid = _esc(t.threadId || '');
 
-  return '<div class="gt-thread' + priCls + '" data-thread-id="' + tid + '" onclick="gtExpandThread(this)">' +
+  var fromEmail = _esc(t.email || '');
+  var fromName  = _esc(t.from  || '');
+
+  return '<div class="gt-thread' + priCls + '" data-thread-id="' + tid + '" data-from-email="' + fromEmail + '" data-from-name="' + fromName + '" onclick="gtExpandThread(this)">' +
     '<div class="gt-thread-top">' +
       _avatar(t.from, t.category) +
       '<div class="gt-meta">' +
@@ -188,6 +191,27 @@ function _renderThread(t) {
       '<div class="gt-body-actions">' +
         '<button class="gt-body-btn gt-reply-btn" onclick="gtShowReply(this);event.stopPropagation()">↩ Reply</button>' +
         '<button class="gt-body-btn gt-trash-btn" onclick="gtTrash(this);event.stopPropagation()">🗑 Trash</button>' +
+        '<button class="gt-body-btn gt-inv-btn" onclick="gtShowInvoice(this);event.stopPropagation()">📋 Invoice</button>' +
+      '</div>' +
+      '<div class="gt-invoice-compose" style="display:none">' +
+        '<div class="gt-inv-title">📋 Square Invoice Draft</div>' +
+        '<div class="gt-inv-items">' +
+          '<div class="gt-inv-item-row">' +
+            '<input class="gt-inv-desc" type="text" placeholder="Item (e.g. Custom Figaro Chain)" onclick="event.stopPropagation()">' +
+            '<input class="gt-inv-price" type="number" placeholder="0.00" min="0" step="0.01" onclick="event.stopPropagation()">' +
+            '<button class="gt-inv-rm" onclick="gtInvRemoveItem(this);event.stopPropagation()">−</button>' +
+          '</div>' +
+        '</div>' +
+        '<button class="gt-inv-add-btn" onclick="gtInvAddItem(this);event.stopPropagation()">+ Add item</button>' +
+        '<div class="gt-inv-fields">' +
+          '<label>Due date <input class="gt-inv-due" type="date" onclick="event.stopPropagation()"></label>' +
+          '<label>Note <input class="gt-inv-note" type="text" placeholder="Optional note to customer…" onclick="event.stopPropagation()"></label>' +
+        '</div>' +
+        '<div class="gt-inv-foot">' +
+          '<button class="btn btn-gold btn-sm" onclick="gtSubmitInvoice(this);event.stopPropagation()">Create Draft</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="gtCancelInvoice(this);event.stopPropagation()">Cancel</button>' +
+          '<span class="gt-inv-status"></span>' +
+        '</div>' +
       '</div>' +
       '<div class="gt-reply-compose" style="display:none">' +
         '<textarea class="gt-reply-input" placeholder="Type your reply…" onclick="event.stopPropagation()" rows="5"></textarea>' +
@@ -682,6 +706,159 @@ function loadCachedThreads() {
     if (d && d.threads && d.threads.length) { loadGmailThreads(d); return true; }
   } catch(e){}
   return false;
+}
+
+// ── Square Invoice ────────────────────────────
+
+function _gtSqCall(path, method, body) {
+  var token = localStorage.getItem('sts-square-token');
+  if (!token) return Promise.reject(new Error('No Square token — add it in ⚙ Integrations'));
+  return fetch('/api/square', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: path, method: method || 'GET', body: body, token: token })
+  }).then(function(r){ return r.json(); });
+}
+
+function _gtSqLocation() {
+  return localStorage.getItem('sts-square-location') || '';
+}
+
+function _gtInvDefaultDue() {
+  var d = new Date(); d.setDate(d.getDate() + 7);
+  return d.toISOString().split('T')[0];
+}
+
+function gtShowInvoice(btn) {
+  var card        = btn.closest('.gt-thread');
+  var compose     = card.querySelector('.gt-invoice-compose');
+  var replyCompose = card.querySelector('.gt-reply-compose');
+  if (replyCompose) replyCompose.style.display = 'none';
+  compose.style.display = '';
+  var due = compose.querySelector('.gt-inv-due');
+  if (due && !due.value) due.value = _gtInvDefaultDue();
+}
+
+function gtCancelInvoice(btn) {
+  var compose = btn.closest('.gt-invoice-compose');
+  compose.style.display = 'none';
+  compose.querySelector('.gt-inv-status').textContent = '';
+}
+
+function gtInvAddItem(btn) {
+  var itemList = btn.closest('.gt-invoice-compose').querySelector('.gt-inv-items');
+  var row = document.createElement('div');
+  row.className = 'gt-inv-item-row';
+  row.innerHTML =
+    '<input class="gt-inv-desc" type="text" placeholder="Item description" onclick="event.stopPropagation()">' +
+    '<input class="gt-inv-price" type="number" placeholder="0.00" min="0" step="0.01" onclick="event.stopPropagation()">' +
+    '<button class="gt-inv-rm" onclick="gtInvRemoveItem(this);event.stopPropagation()">−</button>';
+  itemList.appendChild(row);
+  row.querySelector('.gt-inv-desc').focus();
+}
+
+function gtInvRemoveItem(btn) {
+  var row  = btn.closest('.gt-inv-item-row');
+  var list = row.parentNode;
+  if (list.querySelectorAll('.gt-inv-item-row').length > 1) row.remove();
+}
+
+function gtSubmitInvoice(btn) {
+  var card    = btn.closest('.gt-thread');
+  var compose = btn.closest('.gt-invoice-compose');
+  var status  = compose.querySelector('.gt-inv-status');
+
+  var customerEmail = card.dataset.fromEmail || '';
+  var customerName  = card.dataset.fromName  || '';
+
+  if (!customerEmail) { status.textContent = 'No email address — expand the thread first.'; return; }
+  if (!_gtSqLocation()) { status.textContent = 'No Location ID — add it in ⚙ Integrations.'; return; }
+
+  var items = [];
+  compose.querySelectorAll('.gt-inv-item-row').forEach(function(row) {
+    var desc  = row.querySelector('.gt-inv-desc').value.trim();
+    var price = parseFloat(row.querySelector('.gt-inv-price').value) || 0;
+    if (desc && price > 0) items.push({ name: desc, price: price });
+  });
+  if (!items.length) { status.textContent = 'Add at least one item with a price.'; return; }
+
+  var dueDate = compose.querySelector('.gt-inv-due').value || _gtInvDefaultDue();
+  var note    = compose.querySelector('.gt-inv-note').value.trim();
+
+  btn.textContent = 'Creating…';
+  btn.disabled    = true;
+  status.textContent = '';
+
+  // Step 1: find or create Square customer by email
+  _gtSqCall('/v2/customers/search', 'POST', {
+    query: { filter: { email_address: { exact: customerEmail } } }
+  })
+  .then(function(d) {
+    if (d.customers && d.customers.length) return d.customers[0].id;
+    var parts = customerName.split(' ');
+    return _gtSqCall('/v2/customers', 'POST', {
+      idempotency_key: 'sts-cust-' + customerEmail.replace(/\W/g, '') + Date.now(),
+      given_name:    parts[0] || customerName,
+      family_name:   parts.slice(1).join(' ') || '',
+      email_address: customerEmail
+    }).then(function(d2) {
+      if (d2.customer) return d2.customer.id;
+      throw new Error(((d2.errors || [])[0] || {}).detail || 'Could not create customer');
+    });
+  })
+  // Step 2: create order with line items
+  .then(function(customerId) {
+    return _gtSqCall('/v2/orders', 'POST', {
+      idempotency_key: 'sts-ord-' + Date.now(),
+      order: {
+        location_id: _gtSqLocation(),
+        customer_id: customerId,
+        line_items: items.map(function(item) {
+          return {
+            name: item.name,
+            quantity: '1',
+            base_price_money: { amount: Math.round(item.price * 100), currency: 'USD' }
+          };
+        })
+      }
+    }).then(function(d3) {
+      if (d3.order) return { customerId: customerId, orderId: d3.order.id };
+      throw new Error(((d3.errors || [])[0] || {}).detail || 'Could not create order');
+    });
+  })
+  // Step 3: create draft invoice
+  .then(function(ids) {
+    return _gtSqCall('/v2/invoices', 'POST', {
+      idempotency_key: 'sts-inv-' + Date.now(),
+      invoice: {
+        location_id:       _gtSqLocation(),
+        order_id:          ids.orderId,
+        primary_recipient: { customer_id: ids.customerId },
+        payment_requests:  [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }],
+        delivery_method:   'EMAIL',
+        description:       note,
+        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
+      }
+    });
+  })
+  .then(function(d4) {
+    btn.textContent = 'Create Draft';
+    btn.disabled    = false;
+    if (d4.invoice) {
+      var url = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      compose.innerHTML =
+        '<div class="gt-inv-success">✓ Draft invoice created — ' +
+        '<a href="' + url + '" target="_blank" class="gt-inv-link" onclick="event.stopPropagation()">Review &amp; Send in Square →</a>' +
+        '</div>';
+    } else {
+      throw new Error(((d4.errors || [])[0] || {}).detail || 'Invoice creation failed');
+    }
+  })
+  .catch(function(e) {
+    btn.textContent   = 'Create Draft';
+    btn.disabled      = false;
+    status.textContent = '⚠ ' + (e.message || 'Unknown error');
+  });
 }
 
 // ── Auto-init ─────────────────────────────────

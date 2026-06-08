@@ -511,13 +511,15 @@ async function createGoogleContact(d, token) {
 
 // ── Integrations modal ───────────────────────
 
+function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+function getField(id)      { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
 function openIntegrationsModal() {
-  document.getElementById('int-google-client-id').value     = localStorage.getItem('sts-google-client-id')     || '';
-  document.getElementById('int-google-client-secret').value = localStorage.getItem('sts-google-client-secret') || '';
-  document.getElementById('int-anthropic-key').value    = localStorage.getItem('sts-anthropic-key')    || '';
-  document.getElementById('int-clickup-token').value    = localStorage.getItem('sts-clickup-token')    || '';
-  document.getElementById('int-clickup-list-id').value  = localStorage.getItem('sts-clickup-list-id')  || '';
-  document.getElementById('int-square-token').value     = localStorage.getItem('sts-square-token')     || '';
+  setField('int-google-client-id',     localStorage.getItem('sts-google-client-id')     || '');
+  setField('int-google-client-secret', localStorage.getItem('sts-google-client-secret') || '');
+  setField('int-anthropic-key',        localStorage.getItem('sts-anthropic-key')        || '');
+  setField('int-square-token',    localStorage.getItem('sts-square-token')    || '');
+  setField('int-square-location', localStorage.getItem('sts-square-location') || '');
   document.getElementById('integrationsModalBg').classList.add('open');
 }
 
@@ -526,23 +528,37 @@ function closeIntegrationsModal() {
 }
 
 function saveIntegrations() {
-  const prev             = localStorage.getItem('sts-google-client-id');
-  const googleClientId   = document.getElementById('int-google-client-id').value.trim();
-  const googleClientSec  = document.getElementById('int-google-client-secret').value.trim();
-  const anthropicKey   = document.getElementById('int-anthropic-key').value.trim();
-  const clickupToken   = document.getElementById('int-clickup-token').value.trim();
-  const clickupListId  = document.getElementById('int-clickup-list-id').value.trim();
-  const squareToken    = document.getElementById('int-square-token').value.trim();
+  const prev            = localStorage.getItem('sts-google-client-id');
+  const googleClientId  = getField('int-google-client-id');
+  const googleClientSec = getField('int-google-client-secret');
+  const anthropicKey    = getField('int-anthropic-key');
+  const squareToken    = getField('int-square-token');
+  const squareLocation = getField('int-square-location');
 
   googleClientId  ? localStorage.setItem('sts-google-client-id',     googleClientId)  : localStorage.removeItem('sts-google-client-id');
   googleClientSec ? localStorage.setItem('sts-google-client-secret', googleClientSec) : localStorage.removeItem('sts-google-client-secret');
-  anthropicKey   ? localStorage.setItem('sts-anthropic-key',    anthropicKey)   : localStorage.removeItem('sts-anthropic-key');
-  clickupToken   ? localStorage.setItem('sts-clickup-token',    clickupToken)   : localStorage.removeItem('sts-clickup-token');
-  clickupListId  ? localStorage.setItem('sts-clickup-list-id',  clickupListId)  : localStorage.removeItem('sts-clickup-list-id');
-  squareToken    ? localStorage.setItem('sts-square-token',     squareToken)    : localStorage.removeItem('sts-square-token');
+  anthropicKey    ? localStorage.setItem('sts-anthropic-key',        anthropicKey)    : localStorage.removeItem('sts-anthropic-key');
+  squareToken     ? localStorage.setItem('sts-square-token',         squareToken)     : localStorage.removeItem('sts-square-token');
+  squareLocation  ? localStorage.setItem('sts-square-location',      squareLocation)  : localStorage.removeItem('sts-square-location');
 
   // Invalidate token if client ID changed
   if (googleClientId !== prev) clearGoogleToken();
+
+  // Auto-detect Square location ID if token set but no location saved
+  if (squareToken && !squareLocation) {
+    fetch('/api/square', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/v2/locations', method: 'GET', token: squareToken })
+    }).then(r => r.json()).then(d => {
+      const loc = (d.locations || []).find(l => l.status === 'ACTIVE') || (d.locations || [])[0];
+      if (loc) {
+        localStorage.setItem('sts-square-location', loc.id);
+        setField('int-square-location', loc.id);
+        toast('Square location auto-detected: ' + (loc.name || loc.id), '📍');
+      }
+    }).catch(() => {});
+  }
 
   closeIntegrationsModal();
   toast('Integrations saved ✓', '✓');

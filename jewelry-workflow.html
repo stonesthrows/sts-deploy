@@ -1400,6 +1400,28 @@
     .gt-reply-foot { display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap; }
     .gt-reply-sig { font-size:11px;color:var(--text3);margin-left:auto; }
     .gt-sent-msg { font-size:13px;font-weight:600;color:#2D6A3F;padding:8px 0; }
+    /* Square invoice form */
+    .gt-invoice-compose { border-top:1px solid var(--bdr);padding-top:12px;margin-top:4px; }
+    .gt-inv-title { font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:10px;letter-spacing:0.3px; }
+    .gt-inv-items { display:flex;flex-direction:column;gap:6px;margin-bottom:8px; }
+    .gt-inv-item-row { display:flex;gap:6px;align-items:center; }
+    .gt-inv-desc { flex:1;font-size:13px;font-family:inherit;padding:6px 9px;border:1px solid var(--bdr);border-radius:6px;background:#FDFAF6;color:var(--text);outline:none;min-width:0; }
+    .gt-inv-desc:focus { border-color:var(--accent); }
+    .gt-inv-price { width:90px;font-size:13px;font-family:inherit;padding:6px 9px;border:1px solid var(--bdr);border-radius:6px;background:#FDFAF6;color:var(--text);outline:none;text-align:right;flex-shrink:0; }
+    .gt-inv-price:focus { border-color:var(--accent); }
+    .gt-inv-rm { width:28px;height:28px;border:1px solid var(--bdr);border-radius:5px;background:var(--card-bg);color:var(--text3);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;line-height:1; }
+    .gt-inv-rm:hover { background:#FFF0F0;border-color:#D06060;color:#8B2020; }
+    .gt-inv-add-btn { font-size:12px;color:var(--accent);background:none;border:none;padding:2px 0;cursor:pointer;font-weight:600;margin-bottom:10px;display:block; }
+    .gt-inv-add-btn:hover { text-decoration:underline; }
+    .gt-inv-fields { display:flex;flex-direction:column;gap:7px;margin-bottom:10px; }
+    .gt-inv-fields label { display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);font-weight:600; }
+    .gt-inv-due,.gt-inv-note { flex:1;font-size:13px;font-family:inherit;padding:5px 8px;border:1px solid var(--bdr);border-radius:6px;background:#FDFAF6;color:var(--text);outline:none;min-width:0; }
+    .gt-inv-due:focus,.gt-inv-note:focus { border-color:var(--accent); }
+    .gt-inv-foot { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
+    .gt-inv-status { font-size:12px;color:#8B2020; }
+    .gt-inv-success { font-size:13px;font-weight:600;color:#2D6A3F;padding:10px 0; }
+    .gt-inv-link { color:var(--accent);text-decoration:none; }
+    .gt-inv-link:hover { text-decoration:underline; }
 
     /* ── Order Materials ─────────────────────── */
     .materials-layout {
@@ -4360,7 +4382,9 @@
       <div class="int-section-title">Square</div>
       <label for="int-square-token">Access Token</label>
       <input type="password" id="int-square-token" placeholder="EAAAl…">
-      <p class="int-hint">Used for live inventory sync. Get a token at developer.squareup.com → Your App → Credentials. Use a Production token for live data.</p>
+      <label for="int-square-location" style="margin-top:8px;">Location ID</label>
+      <input type="text" id="int-square-location" placeholder="Auto-detected when you save">
+      <p class="int-hint">Get both at developer.squareup.com → Your App → Credentials (Production). Location ID is auto-detected from your token when you save.</p>
     </div>
 
     <div class="int-foot">
