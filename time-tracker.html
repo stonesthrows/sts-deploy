@@ -527,16 +527,29 @@ async function stopTimer(tid) {
 }
 
 async function saveToNotion(session) {
-  if (!CFG.notionToken) { session.error = 'No Notion token — add one in API settings'; renderLog(); return; }
-  const savingBadge = document.querySelector(`[id$="-saving-badge"]`); // fallback — find first visible
-  const label = `${session.item.name} — ${session.employee.name}`;
-  const date  = session.timestamp.slice(0, 10);
-  const body  = { parent: { database_id: NOTION_DB }, properties: { Session: { title: [{ text: { content: label } }] }, 'Item Name': { rich_text: [{ text: { content: session.item.name } }] }, 'SKU': { rich_text: [{ text: { content: session.item.sku || '' } }] }, 'Category': { rich_text: [{ text: { content: session.item.category || '' } }] }, 'Employee': { rich_text: [{ text: { content: session.employee.name } }] }, 'Square Item ID': { rich_text: [{ text: { content: session.item.id || '' } }] }, 'Duration (min)': { number: parseFloat((session.totalMs / 60000).toFixed(2)) }, 'Clocked-Out Deducted (min)': { number: parseFloat((session.clockedOutMs / 60000).toFixed(2)) }, 'Net Work Time (min)': { number: parseFloat((session.netMs / 60000).toFixed(2)) }, 'Date': { date: { start: date } }, 'Notes': { rich_text: [{ text: { content: session.notes || '' } }] }, ...(session.pieces != null ? { 'Pieces Made': { number: session.pieces } } : {}) } };
+  const payload = {
+    itemName:     session.item.name,
+    sku:          session.item.sku        || '',
+    category:     session.item.category   || '',
+    employeeName: session.employee.name,
+    squareItemId: session.item.id         || '',
+    totalMin:     parseFloat((session.totalMs    / 60000).toFixed(2)),
+    dedMin:       parseFloat((session.clockedOutMs / 60000).toFixed(2)),
+    netMin:       parseFloat((session.netMs      / 60000).toFixed(2)),
+    date:         session.timestamp.slice(0, 10),
+    notes:        session.notes || '',
+    pieces:       session.pieces != null ? session.pieces : undefined,
+  };
   try {
-    const res = await fetch('https://api.notion.com/v1/pages', { method: 'POST', headers: { 'Authorization': 'Bearer ' + CFG.notionToken, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch('/api/notion-timesession', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
     if (res.ok) { session.saved = true; showToast('Saved to Notion ✓'); }
-    else { const err = await res.json(); session.error = err.message || 'Notion error ' + res.status; showToast('Notion save failed — check token', true); }
-  } catch(e) { session.error = 'Network error saving to Notion'; showToast('Notion save failed', true); }
+    else { session.error = data.error || 'Notion error ' + res.status; showToast('Notion save failed — ' + session.error, true); }
+  } catch(e) { session.error = 'Network error: ' + e.message; showToast('Notion save failed', true); }
   finally { renderLog(); }
 }
 

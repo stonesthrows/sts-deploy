@@ -1,0 +1,63 @@
+// ════════════════════════════════════════════
+//  Notion Time-Session Proxy  —  /api/notion-timesession
+//  Creates a work-session page in the STS Work Sessions database
+//  Requires env var: NOTION_TOKEN
+// ════════════════════════════════════════════
+
+const NOTION_API = 'https://api.notion.com/v1';
+const NOTION_VER = '2022-06-28';
+const DB_ID      = 'e59ae574e5ee4d569395e15bd56450e9';
+
+const CORS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function jsonResp(data, status) {
+  return new Response(JSON.stringify(data), {
+    status: status || 200,
+    headers: Object.assign({ 'Content-Type': 'application/json' }, CORS),
+  });
+}
+
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
+export async function onRequestPost(context) {
+  var token = context.env.NOTION_TOKEN;
+  if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
+
+  var s = await context.request.json();
+
+  var label = (s.itemName || '') + ' — ' + (s.employeeName || '');
+  var props = {
+    'Session':                      { title:     [{ text: { content: label } }] },
+    'Item Name':                    { rich_text: [{ text: { content: s.itemName    || '' } }] },
+    'SKU':                          { rich_text: [{ text: { content: s.sku         || '' } }] },
+    'Category':                     { rich_text: [{ text: { content: s.category    || '' } }] },
+    'Employee':                     { rich_text: [{ text: { content: s.employeeName|| '' } }] },
+    'Square Item ID':               { rich_text: [{ text: { content: s.squareItemId|| '' } }] },
+    'Duration (min)':               { number: s.totalMin    != null ? s.totalMin    : null },
+    'Clocked-Out Deducted (min)':   { number: s.dedMin      != null ? s.dedMin      : null },
+    'Net Work Time (min)':          { number: s.netMin      != null ? s.netMin      : null },
+    'Date':                         { date:   { start: s.date || new Date().toISOString().slice(0,10) } },
+    'Notes':                        { rich_text: [{ text: { content: (s.notes || '').slice(0, 2000) } }] },
+  };
+  if (s.pieces != null) props['Pieces Made'] = { number: s.pieces };
+
+  var res = await fetch(NOTION_API + '/pages', {
+    method: 'POST',
+    headers: {
+      'Authorization':  'Bearer ' + token,
+      'Notion-Version': NOTION_VER,
+      'Content-Type':   'application/json',
+    },
+    body: JSON.stringify({ parent: { database_id: DB_ID }, properties: props }),
+  });
+
+  var data = await res.json();
+  if (!res.ok) return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
+  return jsonResp({ notionPageId: data.id });
+}
