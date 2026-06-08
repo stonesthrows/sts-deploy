@@ -206,6 +206,28 @@
     .sub-nav-tab:hover { color: var(--accent-mid); }
     .sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
 
+    /* ── Sub-sub-nav (3rd level, e.g. Supplies within Operations) ── */
+    .sub-sub-nav {
+      display: none;
+      background: #F0EBE3;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--hdr-pill);
+    }
+    .sub-sub-nav.active { display: flex; }
+    .sub-sub-nav-tab {
+      padding: 8px 14px;
+      color: #7A7268;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sub-sub-nav-tab:hover { color: var(--accent-mid); }
+    .sub-sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
     /* ── Layout ──────────────────────────────── */
     .content { padding: 20px 24px; }
     .tab-panel { display: none; }
@@ -2464,20 +2486,14 @@
   <div class="nav-tab" data-tab="production" onclick="switchTab('production',this)">
     🔨 Production
   </div>
-  <div class="nav-tab" data-tab="sales" onclick="switchTab('sales',this)">
-    📊 Sales
-  </div>
   <div class="nav-tab" data-tab="notes" onclick="switchTab('notes',this)">
     📝 Notes
   </div>
-  <div class="nav-tab" data-parent="supplies" onclick="switchParent('supplies',this)">
-    📦 Supplies
+  <div class="nav-tab" data-parent="operations" onclick="switchParent('operations',this)">
+    ⚙️ Operations
   </div>
   <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
     💎 Inventory
-  </div>
-  <div class="nav-tab" data-tab="triplog" onclick="switchTab('triplog',this);tlInit()">
-    🚗 Trips
   </div>
   <div class="nav-tab" data-parent="perm-jewelry" onclick="switchParent('perm-jewelry',this)">
     ⛓️ Perm. Jewelry
@@ -2500,12 +2516,25 @@
   </div>
 </div>
 
-<!-- Sub-nav (Supplies) -->
-<div class="sub-nav" id="sub-nav-supplies">
-  <div class="sub-nav-tab active" data-tab="supplier" onclick="switchSubTab('supplier',this);ohInitSupplier()">
+<!-- Sub-nav (Operations) -->
+<div class="sub-nav" id="sub-nav-operations">
+  <div class="sub-nav-tab active" data-tab="sales" onclick="switchOpsTab('sales',this)">
+    📊 Sales
+  </div>
+  <div class="sub-nav-tab" data-tab="supplies" onclick="switchOpsTab('supplies',this)">
+    📦 Supplies
+  </div>
+  <div class="sub-nav-tab" data-tab="triplog" onclick="switchOpsTab('triplog',this);tlInit()">
+    🚗 Trips
+  </div>
+</div>
+
+<!-- Sub-sub-nav (Supplies within Operations) -->
+<div class="sub-sub-nav" id="sub-sub-nav-supplies">
+  <div class="sub-sub-nav-tab active" data-tab="supplier" onclick="switchSuppliesTab('supplier',this);ohInitSupplier()">
     📦 Order Materials
   </div>
-  <div class="sub-nav-tab" data-tab="order-history" onclick="switchSubTab('order-history',this);ohInitHistory()">
+  <div class="sub-sub-nav-tab" data-tab="order-history" onclick="switchSuppliesTab('order-history',this);ohInitHistory()">
     📋 Order History
   </div>
 </div>

@@ -37,7 +37,7 @@ function toast(msg, icon='✓') {
 // ════════════════════════════════════════════
 // Sub-tabs that live under Custom Orders
 const SUB_TABS = new Set(['dashboard','new-order','customers']);
-// Sub-tabs that live under Supplies
+// Sub-tabs that live under Supplies (within Operations)
 const SUPPLIES_TABS = new Set(['supplier','order-history']);
 
 function switchTab(id, el) {
@@ -49,12 +49,14 @@ function switchTab(id, el) {
     switchSubTab(id, subEl);
     return;
   }
-  // If this is a Supplies sub-tab
+  // If this is a Supplies sub-tab, route via Operations
   if (SUPPLIES_TABS.has(id)) {
-    const parentEl = document.querySelector('[data-parent="supplies"]');
-    switchParent('supplies', parentEl);
-    const subEl = el || document.querySelector('[data-tab="' + id + '"].sub-nav-tab');
-    switchSubTab(id, subEl);
+    const parentEl = document.querySelector('[data-parent="operations"]');
+    switchParent('operations', parentEl);
+    const suppliesTab = document.querySelector('#sub-nav-operations .sub-nav-tab[data-tab="supplies"]');
+    switchOpsTab('supplies', suppliesTab);
+    const subEl = el || document.querySelector('#sub-sub-nav-supplies .sub-sub-nav-tab[data-tab="' + id + '"]');
+    switchSuppliesTab(id, subEl);
     if (id === 'supplier')      ohInitSupplier();
     if (id === 'order-history') ohInitHistory();
     return;
@@ -63,11 +65,44 @@ function switchTab(id, el) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.sub-nav').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   if (el) el.classList.add('active');
   if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
   if (id === 'production') setTimeout(renderProduction, 0);
   if (id === 'gmail') loadScheduledBrief();
+}
+
+// Switch between Sales / Supplies / Trips within Operations sub-nav
+function switchOpsTab(id, el) {
+  document.querySelectorAll('#sub-nav-operations .sub-nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  if (id === 'supplies') {
+    const ssn = document.getElementById('sub-sub-nav-supplies');
+    if (ssn) ssn.classList.add('active');
+    document.querySelectorAll('.sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
+    const firstSub = ssn && ssn.querySelector('.sub-sub-nav-tab');
+    if (firstSub) firstSub.classList.add('active');
+    const firstId = firstSub ? firstSub.getAttribute('data-tab') : 'supplier';
+    const panel = document.getElementById('tab-' + firstId);
+    if (panel) panel.classList.add('active');
+    ohInitSupplier();
+  } else {
+    const panel = document.getElementById('tab-' + id);
+    if (panel) panel.classList.add('active');
+    if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
+  }
+}
+
+// Switch between sub-tabs within the Supplies sub-sub-nav
+function switchSuppliesTab(id, el) {
+  document.querySelectorAll('.sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
 }
 
 // One-time inits for Supplies sub-tabs
@@ -79,9 +114,10 @@ function ohInitHistory() {
 }
 
 function switchParent(parentId, el) {
-  // Activate this parent nav tab, hide all sub-navs, show the right one
+  // Activate this parent nav tab, hide all sub-navs and sub-sub-navs, show the right one
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.sub-nav').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
   if (el) el.classList.add('active');
   const subNav = document.getElementById('sub-nav-' + parentId);
   if (subNav) subNav.classList.add('active');
@@ -93,7 +129,7 @@ function switchParent(parentId, el) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + defaultId);
   if (panel) panel.classList.add('active');
-  if (parentId === 'supplies') ohInitSupplier();
+  if (parentId === 'operations') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
 }
 
 function switchSubTab(id, el) {
