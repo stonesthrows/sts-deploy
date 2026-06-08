@@ -328,21 +328,24 @@ function selectItem(item) { S.selectedItem = item; $('search-input').style.displ
 function clearSelection() { S.selectedItem = null; $('search-input').style.display = ''; $('search-input').value = ''; $('selected-item').classList.remove('visible'); checkReady(); }
 function checkReady() { const ok = S.selectedItem && S.selectedEmployee; $('step-timer').classList.toggle('dimmed', !ok); $('start-btn').disabled = !ok || S.running; }
 function startTimer() {
-  S.running = true; S.startTime = Date.now(); S.elapsed = 0;
+  S.running = true; S.startTime = Date.now();
   localStorage.setItem('sts_activeTimer', JSON.stringify({ startTime: S.startTime, item: S.selectedItem, employee: S.selectedEmployee }));
+  _runningUI();
+}
+function _runningUI() {
   $('start-btn').style.display = 'none'; $('stop-btn').style.display = ''; $('timer-status').textContent = 'Running';
-  $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed');
+  $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed'); $('step-timer').classList.remove('dimmed');
+  clearInterval(S.tickInterval);
   S.tickInterval = setInterval(() => { $('timer-display').textContent = fmt(Date.now() - S.startTime); }, 1000);
 }
 function resumeTimer(saved) {
   S.selectedItem = saved.item; S.selectedEmployee = saved.employee; S.startTime = saved.startTime; S.running = true;
-  selectItem(saved.item);
-  document.querySelectorAll('.emp-btn').forEach(b => { if (b.dataset.id === saved.employee.id) b.classList.add('selected'); });
-  S.selectedEmployee = saved.employee;
-  $('start-btn').style.display = 'none'; $('stop-btn').style.display = ''; $('timer-status').textContent = 'Running';
-  $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed');
-  $('step-timer').classList.remove('dimmed');
-  S.tickInterval = setInterval(() => { $('timer-display').textContent = fmt(Date.now() - S.startTime); }, 1000);
+  // Restore product display directly (avoid selectItem side-effects)
+  $('search-input').style.display = 'none';
+  $('sel-name').textContent = saved.item.name;
+  $('sel-meta').textContent = [saved.item.category, saved.item.sku, saved.item.price ? '$' + saved.item.price : null].filter(Boolean).join(' · ');
+  $('selected-item').classList.add('visible');
+  _runningUI();
   showToast('Timer resumed — running since ' + new Date(S.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
 }
 async function stopTimer() {
@@ -404,9 +407,18 @@ function renderLog() {
 }
 async function boot() {
   loadConfig();
-  await loadEmployees();
+  // Restore any in-progress timer immediately — before any API calls
   const saved = localStorage.getItem('sts_activeTimer');
-  if (saved) { try { resumeTimer(JSON.parse(saved)); } catch(e) { localStorage.removeItem('sts_activeTimer'); } }
+  if (saved) {
+    try { resumeTimer(JSON.parse(saved)); } catch(e) { console.error('Resume error:', e); localStorage.removeItem('sts_activeTimer'); }
+  }
+  // Load employees; once done, highlight the active one if timer is running
+  await loadEmployees();
+  if (S.selectedEmployee) {
+    document.querySelectorAll('.emp-btn').forEach(b => {
+      if (b.dataset.id === S.selectedEmployee.id) b.classList.add('selected');
+    });
+  }
 }
 boot();
 </script>
