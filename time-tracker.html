@@ -282,7 +282,23 @@ async function searchCatalog(query) {
   try {
     if (!S.sqToken) { mockSearch(query); return; }
     const data = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
-    renderResults((data.objects || []).map(obj => { const v = (obj.item_data?.variations || [])[0]?.item_variation_data; return { id: obj.id, name: obj.item_data?.name || 'Unnamed', sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category: obj.item_data?.category_name || '' }; }), query);
+    const rows = [];
+    (data.objects || []).forEach(obj => {
+      const itemName = obj.item_data?.name || 'Unnamed';
+      const category = obj.item_data?.category_name || '';
+      const variations = obj.item_data?.variations || [];
+      if (variations.length <= 1) {
+        const v = variations[0]?.item_variation_data;
+        rows.push({ id: variations[0]?.id || obj.id, name: itemName, sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category });
+      } else {
+        variations.forEach(variation => {
+          const v = variation.item_variation_data;
+          const varName = v?.name || '';
+          rows.push({ id: variation.id, name: varName ? `${itemName} — ${varName}` : itemName, sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category });
+        });
+      }
+    });
+    renderResults(rows, query);
   } catch { mockSearch(query); } finally { $('spinner').classList.remove('active'); }
 }
 const MOCK = [
