@@ -2486,17 +2486,14 @@
   <div class="nav-tab" data-tab="production" onclick="switchTab('production',this)">
     🔨 Production
   </div>
-  <div class="nav-tab" data-tab="notes" onclick="switchTab('notes',this)">
-    📝 Notes
-  </div>
   <div class="nav-tab" data-parent="operations" onclick="switchParent('operations',this)">
     ⚙️ Operations
   </div>
   <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
     💎 Inventory
   </div>
-  <div class="nav-tab" data-parent="perm-jewelry" onclick="switchParent('perm-jewelry',this)">
-    ⛓️ Perm. Jewelry
+  <div class="nav-tab" data-parent="tools" onclick="switchParent('tools',this)">
+    🛠️ Tools
   </div>
   <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
     📅 Calendar
@@ -2549,12 +2546,22 @@
   </div>
 </div>
 
-<!-- Sub-nav (Perm Jewelry) -->
-<div class="sub-nav" id="sub-nav-perm-jewelry">
-  <div class="sub-nav-tab active" data-tab="pj-calc" onclick="switchSubTab('pj-calc',this)">
+<!-- Sub-nav (Tools) -->
+<div class="sub-nav" id="sub-nav-tools">
+  <div class="sub-nav-tab active" data-tab="notes" onclick="switchToolsTab('notes',this)">
+    📝 Notes
+  </div>
+  <div class="sub-nav-tab" data-tab="perm-jewelry" onclick="switchToolsTab('perm-jewelry',this)">
+    ⛓️ Perm. Jewelry
+  </div>
+</div>
+
+<!-- Sub-sub-nav (Perm Jewelry within Tools) -->
+<div class="sub-sub-nav" id="sub-sub-nav-perm-jewelry">
+  <div class="sub-sub-nav-tab active" data-tab="pj-calc" onclick="switchPermJewelryTab('pj-calc',this)">
     🔢 Calculator
   </div>
-  <div class="sub-nav-tab" data-tab="pj-ref" onclick="switchSubTab('pj-ref',this);pjBuildRef()">
+  <div class="sub-sub-nav-tab" data-tab="pj-ref" onclick="switchPermJewelryTab('pj-ref',this);pjBuildRef()">
     📋 Reference
   </div>
 </div>

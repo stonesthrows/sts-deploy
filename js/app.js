@@ -98,7 +98,37 @@ function switchOpsTab(id, el) {
 
 // Switch between sub-tabs within the Supplies sub-sub-nav
 function switchSuppliesTab(id, el) {
-  document.querySelectorAll('.sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#sub-sub-nav-supplies .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
+}
+
+// Switch between Notes / Perm. Jewelry within Tools sub-nav
+function switchToolsTab(id, el) {
+  document.querySelectorAll('#sub-nav-tools .sub-nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  if (id === 'perm-jewelry') {
+    const ssn = document.getElementById('sub-sub-nav-perm-jewelry');
+    if (ssn) ssn.classList.add('active');
+    document.querySelectorAll('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
+    const firstSub = ssn && ssn.querySelector('.sub-sub-nav-tab');
+    if (firstSub) firstSub.classList.add('active');
+    const firstId = firstSub ? firstSub.getAttribute('data-tab') : 'pj-calc';
+    const panel = document.getElementById('tab-' + firstId);
+    if (panel) panel.classList.add('active');
+  } else {
+    const panel = document.getElementById('tab-' + id);
+    if (panel) panel.classList.add('active');
+  }
+}
+
+// Switch between sub-tabs within the Perm Jewelry sub-sub-nav
+function switchPermJewelryTab(id, el) {
+  document.querySelectorAll('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + id);
