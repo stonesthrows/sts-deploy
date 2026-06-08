@@ -2423,6 +2423,9 @@
   <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
     📅 Calendar
   </div>
+  <div class="nav-tab" data-tab="timer" onclick="switchTab('timer',this);timerTabInit()">
+    ⏱ Timer
+  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -4453,6 +4456,11 @@
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
+<!-- ═══════════════════ TIMER TAB ═══════════════════ -->
+<div id="tab-timer" class="tab-panel">
+  <iframe id="timer-iframe" src="" style="width:100%;height:calc(100vh - 100px);border:none;display:block;" allowtransparency="true"></iframe>
+</div>
+
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
@@ -4468,5 +4476,11 @@
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js"></script>
 <script src="js/calendar.js"></script>
+<script>
+function timerTabInit() {
+  const iframe = document.getElementById('timer-iframe');
+  if (!iframe.src) iframe.src = 'time-tracker.html';
+}
+</script>
 </body>
 </html>

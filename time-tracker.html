@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STS Work Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C96A;
+    --gold-dim: #8B6E30;
+    --ink: #1A1714;
+    --ink-2: #2E2923;
+    --surface: #F5F0E8;
+    --surface-2: #EDE6D6;
+    --muted: #8A8070;
+    --muted-2: #6B6055;
+    --green: #4A7C59;
+    --red: #A0402A;
+    --border: rgba(201,168,76,0.2);
+    --border-strong: rgba(201,168,76,0.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--surface);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+  .app { position: relative; z-index: 1; width: 100%; max-width: 680px; }
+
+  header { text-align: center; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .wordmark { font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 0.3em; color: var(--gold); text-transform: uppercase; margin-bottom: 0.4rem; }
+  header h1 { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; font-weight: 400; }
+
+  .step { background: var(--ink-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; transition: border-color 0.2s, opacity 0.2s; }
+  .step.active { border-color: var(--border-strong); }
+  .step.dimmed { opacity: 0.38; pointer-events: none; }
+  .step-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.25em; color: var(--gold-dim); text-transform: uppercase; margin-bottom: 0.75rem; }
+
+  .search-wrap { position: relative; }
+  .search-wrap input { width: 100%; background: var(--ink); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--surface); font-family: 'DM Sans', sans-serif; font-size: 15px; padding: 0.75rem 1rem 0.75rem 2.75rem; outline: none; transition: border-color 0.2s; }
+  .search-wrap input:focus { border-color: var(--gold); }
+  .search-wrap input::placeholder { color: var(--muted); }
+  .search-icon { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 16px; }
+  .spinner { position: absolute; right: 0.9rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+  .spinner.active { display: block; }
+  @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+  .results { margin-top: 0.5rem; display: none; flex-direction: column; gap: 0.35rem; max-height: 280px; overflow-y: auto; }
+  .results.visible { display: flex; }
+  .results::-webkit-scrollbar { width: 4px; }
+  .results::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+  .result-item { background: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: border-color 0.15s, background 0.15s; }
+  .result-item:hover { border-color: var(--gold); background: rgba(201,168,76,0.06); }
+  .result-name { font-size: 14px; color: var(--surface); }
+  .result-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; margin-left: 1rem; }
+  .result-price { color: var(--gold-light); }
+
+  .selected-item { display: none; background: rgba(201,168,76,0.08); border: 1px solid var(--border-strong); border-radius: 8px; padding: 0.875rem 1rem; align-items: center; justify-content: space-between; gap: 1rem; }
+  .selected-item.visible { display: flex; }
+  .selected-name { font-size: 15px; color: var(--surface); font-weight: 500; }
+  .selected-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .clear-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px; flex-shrink: 0; transition: color 0.15s; }
+  .clear-btn:hover { color: var(--surface); }
+
+  .employee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .emp-btn { background: var(--ink); border: 1px solid var(--border); border-radius: 8px; color: var(--surface); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 0.75rem 1rem; cursor: pointer; text-align: left; transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; gap: 0.6rem; }
+  .emp-btn:hover { border-color: var(--gold); background: rgba(201,168,76,0.06); }
+  .emp-btn.selected { border-color: var(--gold); background: rgba(201,168,76,0.1); }
+  .emp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--gold-dim); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: var(--ink); flex-shrink: 0; font-family: 'DM Mono', monospace; }
+
+  .timer-section { text-align: center; padding: 0.5rem 0; }
+  .timer-display { font-family: 'DM Mono', monospace; font-size: 56px; font-weight: 400; letter-spacing: 0.05em; color: var(--gold-light); line-height: 1; margin-bottom: 0.5rem; transition: color 0.3s; }
+  .timer-status { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 1.5rem; min-height: 16px; }
+  .btn-row { display: flex; gap: 0.75rem; justify-content: center; }
+  .btn { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; padding: 0.75rem 2rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+  .btn-start { background: var(--gold); color: var(--ink); }
+  .btn-start:hover { background: var(--gold-light); }
+  .btn-start:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-stop { background: transparent; border: 1px solid var(--red); color: #d4614a; }
+  .btn-stop:hover { background: rgba(160,64,42,0.15); }
+  .btn-stop:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .notes-row { margin-top: 1rem; }
+  .notes-input { width: 100%; background: var(--ink); border: 1px solid var(--border); border-radius: 8px; color: var(--surface); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 0.65rem 0.875rem; outline: none; resize: none; height: 60px; transition: border-color 0.2s; }
+  .notes-input:focus { border-color: var(--gold-dim); }
+  .notes-input::placeholder { color: var(--muted); }
+
+  .saving-badge { display: none; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--gold-dim); text-transform: uppercase; margin-top: 0.75rem; text-align: center; }
+  .saving-badge.visible { display: block; }
+
+  .log-section { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+  .log-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.25em; color: var(--gold-dim); text-transform: uppercase; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+  .notion-link { font-size: 11px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; transition: border-color 0.15s, color 0.15s; }
+  .notion-link:hover { border-color: var(--gold-dim); color: var(--gold-dim); }
+  .log-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 1.5rem 0; }
+  .log-entry { background: var(--ink-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.875rem 1rem; margin-bottom: 0.5rem; display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: start; }
+  .log-item-name { font-size: 14px; color: var(--surface); font-weight: 500; }
+  .log-item-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .log-duration { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--gold-light); text-align: right; }
+  .log-ded { font-size: 10px; color: var(--muted); margin-top: 2px; text-align: right; }
+  .log-saved { font-size: 10px; color: var(--green); margin-top: 2px; text-align: right; }
+  .log-err { font-size: 10px; color: var(--red); margin-top: 2px; text-align: right; }
+
+  .config-panel { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+  .config-toggle { background: none; border: none; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 0; transition: color 0.15s; }
+  .config-toggle:hover { color: var(--gold-dim); }
+  .config-body { display: none; margin-top: 1rem; flex-direction: column; gap: 0.75rem; }
+  .config-body.open { display: flex; }
+  .config-row { display: flex; flex-direction: column; gap: 0.35rem; }
+  .config-label { font-size: 12px; color: var(--muted); }
+  .config-input { background: var(--ink); border: 1px solid var(--border); border-radius: 6px; color: var(--surface); font-family: 'DM Mono', monospace; font-size: 13px; padding: 0.6rem 0.875rem; outline: none; width: 100%; transition: border-color 0.2s; }
+  .config-input:focus { border-color: var(--gold); }
+  .config-hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .config-save { background: var(--gold-dim); border: none; border-radius: 6px; color: var(--ink); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.6rem 1.25rem; cursor: pointer; align-self: flex-start; transition: background 0.15s; }
+  .config-save:hover { background: var(--gold); }
+
+  .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 0.75rem 1.25rem; font-size: 13px; color: var(--surface); opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 100; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: rgba(160,64,42,0.6); color: #d4614a; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="wordmark">Stones Throw Studio</div>
+    <h1>Work Timer</h1>
+  </header>
+
+  <div class="step active" id="step-product">
+    <div class="step-label">01 — Select product</div>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="search-input" placeholder="Type to search your Square catalog…" autocomplete="off">
+      <div class="spinner" id="spinner"></div>
+    </div>
+    <div class="results" id="results"></div>
+    <div class="selected-item" id="selected-item">
+      <div>
+        <div class="selected-name" id="sel-name"></div>
+        <div class="selected-meta" id="sel-meta"></div>
+      </div>
+      <button class="clear-btn" onclick="clearSelection()" title="Change item">✕</button>
+    </div>
+  </div>
+
+  <div class="step" id="step-employee">
+    <div class="step-label">02 — Who's working?</div>
+    <div class="employee-grid" id="employee-grid"></div>
+  </div>
+
+  <div class="step dimmed" id="step-timer">
+    <div class="step-label">03 — Timer</div>
+    <div class="timer-section">
+      <div class="timer-display" id="timer-display">00:00:00</div>
+      <div class="timer-status" id="timer-status"></div>
+      <div class="btn-row">
+        <button class="btn btn-start" id="start-btn" onclick="startTimer()" disabled>Start</button>
+        <button class="btn btn-stop" id="stop-btn" onclick="stopTimer()" style="display:none">Stop &amp; Save</button>
+      </div>
+      <div class="notes-row">
+        <textarea class="notes-input" id="notes-input" placeholder="Optional notes (e.g. stone type, special instructions)…"></textarea>
+      </div>
+      <div class="saving-badge" id="saving-badge">Saving to Notion…</div>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <div class="log-title">
+      <span>Session log</span>
+      <a class="notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
+    </div>
+    <div id="log-list"><div class="log-empty">No sessions recorded yet</div></div>
+  </div>
+
+  <div class="config-panel">
+    <button class="config-toggle" onclick="toggleConfig()">⚙ API settings</button>
+    <div class="config-body" id="config-body">
+      <div style="font-size:12px;color:var(--muted);padding:0.25rem 0 0.5rem;">Square catalog search + timecard reconciliation at stop.</div>
+      <div class="config-row">
+        <label class="config-label">Square Access Token</label>
+        <input class="config-input" id="sq-token" type="password" placeholder="sq0atp-…" autocomplete="off">
+      </div>
+      <div class="config-row">
+        <label class="config-label">Square Location ID</label>
+        <input class="config-input" id="sq-location" type="text" placeholder="D7EZ98V48F79A">
+      </div>
+      <div class="config-row">
+        <label class="config-label">Square Environment</label>
+        <select class="config-input" id="sq-env">
+          <option value="production">Production</option>
+          <option value="sandbox">Sandbox</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label class="config-label">Notion Integration Token</label>
+        <input class="config-input" id="notion-token" type="password" placeholder="secret_…" autocomplete="off">
+        <span class="config-hint">Create an internal integration at notion.so/my-integrations and share the STS Work Sessions database with it.</span>
+      </div>
+      <button class="config-save" onclick="saveConfig()">Save &amp; reload</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const NOTION_DB = 'e59ae574e5ee4d569395e15bd56450e9';
+const S = {
+  sqToken: '', sqLocation: 'D7EZ98V48F79A', sqEnv: 'production',
+  notionToken: '', notionProxy: '',
+  selectedItem: null, selectedEmployee: null,
+  running: false, startTime: null, elapsed: 0, tickInterval: null,
+  sessions: [], employees: []
+};
+const $ = id => document.getElementById(id);
+const sqBase = () => S.sqEnv === 'sandbox' ? 'https://connect.squareupsandbox.com/v2' : 'https://connect.squareup.com/v2';
+function sq(path, opts = {}) {
+  return fetch(sqBase() + path, { ...opts, headers: { 'Authorization': 'Bearer ' + S.sqToken, 'Content-Type': 'application/json', 'Square-Version': '2024-01-18', ...(opts.headers || {}) } }).then(r => r.json());
+}
+function fmt(ms) {
+  const s = Math.floor(ms / 1000);
+  return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60].map(n => String(n).padStart(2,'0')).join(':');
+}
+let toastTimer;
+function showToast(msg, error = false) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (error ? ' error' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+function toggleConfig() { $('config-body').classList.toggle('open'); }
+function saveConfig() {
+  S.sqToken = $('sq-token').value.trim(); S.sqLocation = $('sq-location').value.trim() || 'D7EZ98V48F79A';
+  S.sqEnv = $('sq-env').value; S.notionToken = $('notion-token').value.trim();
+  ['sqToken','sqLocation','sqEnv','notionToken'].forEach(k => localStorage.setItem('sts_' + k, S[k]));
+  showToast('Config saved'); loadEmployees();
+}
+function loadConfig() {
+  ['sqToken','sqLocation','sqEnv','notionToken'].forEach(k => { S[k] = localStorage.getItem('sts_' + k) || S[k]; });
+  $('sq-token').value = S.sqToken; $('sq-location').value = S.sqLocation; $('sq-env').value = S.sqEnv; $('notion-token').value = S.notionToken;
+}
+async function loadEmployees() {
+  if (!S.sqToken) { useMockEmployees(); return; }
+  try {
+    const data = await sq('/team-members?location_ids=' + S.sqLocation);
+    const members = (data.team_members || []).filter(m => m.status === 'ACTIVE');
+    if (members.length) { S.employees = members.map(m => ({ id: m.id, name: m.display_name || [m.given_name, m.family_name].filter(Boolean).join(' ') })); renderEmployees(); } else { useMockEmployees(); }
+  } catch { useMockEmployees(); }
+}
+function useMockEmployees() { S.employees = [{ id: 'emp_stevana', name: 'Stevana Schafer' }, { id: 'emp_kyle', name: 'Kyle' }]; renderEmployees(); }
+function renderEmployees() {
+  const grid = $('employee-grid'); grid.innerHTML = '';
+  S.employees.forEach(emp => {
+    const init = emp.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    const btn = document.createElement('button'); btn.className = 'emp-btn'; btn.dataset.id = emp.id;
+    btn.innerHTML = `<div class="emp-avatar">${init}</div>${emp.name}`;
+    btn.onclick = () => { document.querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); S.selectedEmployee = emp; checkReady(); };
+    grid.appendChild(btn);
+  });
+}
+let debounce;
+$('search-input').addEventListener('input', () => {
+  const q = $('search-input').value.trim(); clearTimeout(debounce);
+  if (q.length < 2) { hideResults(); return; }
+  debounce = setTimeout(() => searchCatalog(q), 350);
+});
+async function searchCatalog(query) {
+  $('spinner').classList.add('active');
+  try {
+    if (!S.sqToken) { mockSearch(query); return; }
+    const data = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ text_filter: { keyword: query }, object_types: ['ITEM'], limit: 20 }) });
+    renderResults((data.objects || []).map(obj => { const v = (obj.item_data?.variations || [])[0]?.item_variation_data; return { id: obj.id, name: obj.item_data?.name || 'Unnamed', sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category: obj.item_data?.category_name || '' }; }), query);
+  } catch { mockSearch(query); } finally { $('spinner').classList.remove('active'); }
+}
+const MOCK = [
+  { id: 'i1', name: 'Custom Engagement Ring', sku: 'RING-001', price: '850.00', category: 'Rings' },
+  { id: 'i2', name: 'Argentium Silver Band', sku: 'RING-002', price: '120.00', category: 'Rings' },
+  { id: 'i3', name: 'Gypsy Set Ring', sku: 'RING-003', price: '200.00', category: 'Rings' },
+  { id: 'i4', name: 'Gold Fill Bezel Earrings', sku: 'EARR-001', price: '75.00', category: 'Earrings' },
+  { id: 'i5', name: 'Seamless Hoop Set', sku: 'HOOP-001', price: '65.00', category: 'Hoops' },
+  { id: 'i6', name: 'Permanent Bracelet — Chain', sku: 'PERM-001', price: '55.00', category: 'Permanent' },
+  { id: 'i7', name: 'Custom Ear Cuff', sku: 'CUFF-001', price: '90.00', category: 'Ear Cuffs' },
+  { id: 'i8', name: 'Nose Ring — Gold Fill', sku: 'NOSE-001', price: '40.00', category: 'Nose Rings' },
+];
+function mockSearch(q) { const lq = q.toLowerCase(); renderResults(MOCK.filter(i => i.name.toLowerCase().includes(lq) || i.sku.toLowerCase().includes(lq) || i.category.toLowerCase().includes(lq)), q); }
+function renderResults(items, query) {
+  const box = $('results'); box.innerHTML = '';
+  if (!items.length) { box.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:0.5rem 0;text-align:center">No items matching "${query}"</div>`; }
+  else { items.forEach(item => { const d = document.createElement('div'); d.className = 'result-item'; d.innerHTML = `<div><div class="result-name">${item.name}</div><div class="result-meta">${item.category}${item.sku ? ' · ' + item.sku : ''}</div></div><div class="result-meta result-price">${item.price ? '$' + item.price : '—'}</div>`; d.onclick = () => selectItem(item); box.appendChild(d); }); }
+  box.classList.add('visible');
+}
+function hideResults() { $('results').classList.remove('visible'); $('results').innerHTML = ''; }
+function selectItem(item) { S.selectedItem = item; $('search-input').style.display = 'none'; hideResults(); $('sel-name').textContent = item.name; $('sel-meta').textContent = [item.category, item.sku, item.price ? '$' + item.price : null].filter(Boolean).join(' · '); $('selected-item').classList.add('visible'); checkReady(); }
+function clearSelection() { S.selectedItem = null; $('search-input').style.display = ''; $('search-input').value = ''; $('selected-item').classList.remove('visible'); checkReady(); }
+function checkReady() { const ok = S.selectedItem && S.selectedEmployee; $('step-timer').classList.toggle('dimmed', !ok); $('start-btn').disabled = !ok || S.running; }
+function startTimer() {
+  S.running = true; S.startTime = Date.now(); S.elapsed = 0;
+  $('start-btn').style.display = 'none'; $('stop-btn').style.display = ''; $('timer-status').textContent = 'Running';
+  $('step-product').classList.add('dimmed'); $('step-employee').classList.add('dimmed');
+  S.tickInterval = setInterval(() => { $('timer-display').textContent = fmt(Date.now() - S.startTime); }, 1000);
+}
+async function stopTimer() {
+  clearInterval(S.tickInterval);
+  const totalWall = Date.now() - S.startTime;
+  $('stop-btn').disabled = true; $('timer-status').textContent = 'Reconciling…';
+  let clockedOutMs = 0;
+  if (S.sqToken && S.selectedEmployee) {
+    try {
+      const from = new Date(S.startTime).toISOString(); const to = new Date().toISOString();
+      const data = await sq(`/labor/shifts?employee_id=${S.selectedEmployee.id}&start_at_min=${from}&start_at_max=${to}`);
+      const shifts = data.shifts || [];
+      if (shifts.length) {
+        let workedMs = 0;
+        shifts.forEach(shift => { const cin = Math.max(new Date(shift.start_at).getTime(), S.startTime); const cout = shift.end_at ? Math.min(new Date(shift.end_at).getTime(), Date.now()) : Date.now(); if (cout > cin) workedMs += (cout - cin); });
+        clockedOutMs = Math.max(0, totalWall - workedMs);
+      }
+    } catch(e) { console.warn('Timecard reconcile failed:', e); }
+  }
+  const netMs = Math.max(0, totalWall - clockedOutMs);
+  const notes = $('notes-input').value.trim();
+  $('timer-status').textContent = 'Done';
+  const session = { item: S.selectedItem, employee: S.selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: new Date().toISOString(), saved: false, error: null };
+  S.sessions.unshift(session); renderLog(); showToast('Session recorded — ' + fmt(netMs));
+  saveToNotion(session); resetTimer();
+}
+async function saveToNotion(session) {
+  if (!S.notionToken) { session.error = 'No Notion token — add one in API settings'; renderLog(); return; }
+  $('saving-badge').classList.add('visible');
+  const label = `${session.item.name} — ${session.employee.name}`;
+  const date = session.timestamp.slice(0, 10);
+  const body = { parent: { database_id: NOTION_DB }, properties: { Session: { title: [{ text: { content: label } }] }, 'Item Name': { rich_text: [{ text: { content: session.item.name } }] }, 'SKU': { rich_text: [{ text: { content: session.item.sku || '' } }] }, 'Category': { rich_text: [{ text: { content: session.item.category || '' } }] }, 'Employee': { rich_text: [{ text: { content: session.employee.name } }] }, 'Square Item ID': { rich_text: [{ text: { content: session.item.id || '' } }] }, 'Duration (min)': { number: parseFloat((session.totalMs / 60000).toFixed(2)) }, 'Clocked-Out Deducted (min)': { number: parseFloat((session.clockedOutMs / 60000).toFixed(2)) }, 'Net Work Time (min)': { number: parseFloat((session.netMs / 60000).toFixed(2)) }, 'Date': { date: { start: date } }, 'Notes': { rich_text: [{ text: { content: session.notes || '' } }] } } };
+  const endpoint = S.notionProxy ? S.notionProxy.replace(/\/$/, '') + '/pages' : 'https://api.notion.com/v1/pages';
+  try {
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Authorization': 'Bearer ' + S.notionToken, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) { session.saved = true; showToast('Saved to Notion ✓'); } else { const err = await res.json(); session.error = err.message || 'Notion error ' + res.status; showToast('Notion save failed — check token', true); }
+  } catch(e) { session.error = 'CORS blocked. Run this file locally or add a proxy URL.'; showToast('Notion needs a proxy — see API settings', true); }
+  finally { $('saving-badge').classList.remove('visible'); renderLog(); }
+}
+function resetTimer() {
+  S.running = false; $('timer-display').textContent = '00:00:00'; $('timer-status').textContent = '';
+  $('stop-btn').disabled = false; $('start-btn').style.display = ''; $('stop-btn').style.display = 'none';
+  $('step-product').classList.remove('dimmed'); $('step-employee').classList.remove('dimmed');
+  $('notes-input').value = ''; clearSelection();
+  document.querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
+  S.selectedItem = null; S.selectedEmployee = null; checkReady();
+}
+function renderLog() {
+  const list = $('log-list');
+  if (!S.sessions.length) { list.innerHTML = '<div class="log-empty">No sessions recorded yet</div>'; return; }
+  list.innerHTML = S.sessions.map(s => {
+    const d = new Date(s.timestamp);
+    const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    const ded = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
+    const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
+    return `<div class="log-entry"><div><div class="log-item-name">${s.item.name}</div><div class="log-item-meta">${s.employee.name} · ${label}</div>${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}</div><div><div class="log-duration">${fmt(s.netMs)}</div>${ded}${status}</div></div>`;
+  }).join('');
+}
+loadConfig(); loadEmployees();
+</script>
+</body>
+</html>
