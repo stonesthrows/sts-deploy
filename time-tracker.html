@@ -228,10 +228,12 @@ const $card = tid => document.getElementById(`card-${tid}`);
 // ── Square proxy ─────────────────────────────────────────────────────────────
 function sq(path, opts = {}) {
   const bodyObj = opts.body ? JSON.parse(opts.body) : undefined;
+  const payload = { path: '/v2' + path, method: opts.method || 'GET', body: bodyObj };
+  if (CFG.sqToken) payload.token = CFG.sqToken; // omit when empty — server uses env var
   return fetch('/api/square', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: '/v2' + path, method: opts.method || 'GET', body: bodyObj, token: CFG.sqToken }),
+    body: JSON.stringify(payload),
   }).then(r => r.json());
 }
 
@@ -307,7 +309,6 @@ function buildCards() {
 
 // ── Employees ────────────────────────────────────────────────────────────────
 async function loadEmployees() {
-  if (!CFG.sqToken) { useMockEmployees(); return; }
   try {
     const data = await sq('/team-members?location_ids=' + CFG.sqLocation);
     const members = (data.team_members || []).filter(m => m.status === 'ACTIVE');
@@ -350,7 +351,7 @@ function renderEmployees() {
 async function searchCatalog(tid, query) {
   $t(tid, 'spinner').classList.add('active');
   try {
-    if (!CFG.sqToken) { mockSearch(tid, query); return; }
+    // token omitted intentionally — server uses env var if no client token
     const searchData = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
     const found = searchData.objects || [];
     if (!found.length) { renderResults(tid, [], query); return; }

@@ -7,8 +7,9 @@ export async function onRequestPost(context) {
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { path, method = 'GET', body, token } = payload;
+  const { path, method = 'GET', body, token: clientToken } = payload;
 
+  const token = clientToken || context.env.SQUARE_TOKEN;
   if (!token) return jsonResponse({ error: 'Missing token' }, 400);
   if (!path)  return jsonResponse({ error: 'Missing path'  }, 400);
 
