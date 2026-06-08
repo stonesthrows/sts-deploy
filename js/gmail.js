@@ -454,7 +454,27 @@ function gtTrash(btn) {
     method:  'POST',
     headers: { 'Authorization': 'Bearer ' + _gmailAccessToken }
   }).then(function(r){
-    if (!r.ok) { btn.textContent = '🗑 Trash'; btn.disabled = false; return; }
+    if (r.status === 401 || r.status === 403) {
+      // Token expired — clear it, re-auth silently, tell user to retry
+      _gmailAccessToken = null; _gmailTokenExpiry = 0;
+      try {
+        localStorage.removeItem('sts-gmail-token');
+        localStorage.removeItem('sts-gmail-token-expiry');
+        localStorage.removeItem('sts-gmail-scope');
+      } catch(e) {}
+      _updateAuthUI(false);
+      btn.textContent = '🗑 Trash';
+      btn.disabled    = false;
+      if (typeof toast === 'function') toast('Session expired — reconnecting Gmail…', '🔑');
+      gmailSignIn();
+      return;
+    }
+    if (!r.ok) {
+      btn.textContent = '🗑 Trash';
+      btn.disabled    = false;
+      if (typeof toast === 'function') toast('Trash failed (' + r.status + ') — try again', '⚠️');
+      return;
+    }
     card.style.transition  = 'opacity 0.25s';
     card.style.opacity     = '0';
     setTimeout(function(){
@@ -467,9 +487,11 @@ function gtTrash(btn) {
         setTimeout(function(){ card.remove(); }, 310);
       }, 20);
     }, 250);
-  }).catch(function(){
+  }).catch(function(e){
+    console.error('Trash error:', e);
     btn.textContent = '🗑 Trash';
     btn.disabled    = false;
+    if (typeof toast === 'function') toast('Trash failed — check connection', '⚠️');
   });
 }
 
