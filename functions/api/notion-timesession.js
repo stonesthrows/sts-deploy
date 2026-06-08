@@ -47,17 +47,29 @@ export async function onRequestPost(context) {
   };
   if (s.pieces != null) props['Pieces Made'] = { number: s.pieces };
 
-  var res = await fetch(NOTION_API + '/pages', {
-    method: 'POST',
-    headers: {
-      'Authorization':  'Bearer ' + token,
-      'Notion-Version': NOTION_VER,
-      'Content-Type':   'application/json',
-    },
-    body: JSON.stringify({ parent: { database_id: DB_ID }, properties: props }),
-  });
+  async function notionPost(properties) {
+    return fetch(NOTION_API + '/pages', {
+      method: 'POST',
+      headers: {
+        'Authorization':  'Bearer ' + token,
+        'Notion-Version': NOTION_VER,
+        'Content-Type':   'application/json',
+      },
+      body: JSON.stringify({ parent: { database_id: DB_ID }, properties }),
+    });
+  }
 
+  var res  = await notionPost(props);
   var data = await res.json();
+
+  // If Notion rejected because Pieces Made doesn't exist yet, retry without it
+  if (!res.ok && s.pieces != null && data.message && data.message.includes('Pieces Made')) {
+    var propsWithout = Object.assign({}, props);
+    delete propsWithout['Pieces Made'];
+    res  = await notionPost(propsWithout);
+    data = await res.json();
+  }
+
   if (!res.ok) return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
   return jsonResp({ notionPageId: data.id });
 }
