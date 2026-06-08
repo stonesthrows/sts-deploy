@@ -427,7 +427,7 @@ async function checkClockIn(tid) {
   checkReady(tid);
 
   try {
-    const data = await sq(`/labor/shifts?employee_id=${emp.id}&status=OPEN&limit=5`);
+    const data = await sq(`/labor/shifts?team_member_id=${emp.id}&status=OPEN&limit=5`);
     const openShifts = (data.shifts || []).filter(s => !s.end_at);
     if (openShifts.length > 0) {
       const since = new Date(openShifts[0].start_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -483,7 +483,7 @@ async function stopTimer(tid) {
   if (CFG.sqToken && T[tid].selectedEmployee) {
     try {
       const from = new Date(T[tid].startTime).toISOString(), to = new Date().toISOString();
-      const data = await sq(`/labor/shifts?employee_id=${T[tid].selectedEmployee.id}&start_at_min=${from}&start_at_max=${to}`);
+      const data = await sq(`/labor/shifts?team_member_id=${T[tid].selectedEmployee.id}&start_at_min=${from}&start_at_max=${to}`);
       const shifts = data.shifts || [];
       if (shifts.length) {
         let workedMs = 0;
