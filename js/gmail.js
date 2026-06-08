@@ -541,13 +541,13 @@ function fetchGmailDirect() {
 
   fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=30', { headers: hdrs })
     .then(function(r){
-      if (r.status === 401) {
+      if (r.status === 401 || r.status === 403) {
         _gmailAccessToken = null; _gmailTokenExpiry = 0;
         try { localStorage.removeItem('sts-gmail-token'); localStorage.removeItem('sts-gmail-token-expiry'); localStorage.removeItem('sts-gmail-scope'); } catch(e){}
         _updateAuthUI(false);
         document.getElementById('gt-loading').style.display = 'none';
         document.getElementById('gt-empty').style.display   = '';
-        if (tsEl) tsEl.textContent = 'Session expired — click Connect Gmail';
+        if (tsEl) tsEl.textContent = 'Access denied — disconnect and reconnect Gmail';
         throw new Error('HANDLED_401');
       }
       if (!r.ok) throw new Error('Gmail API error ' + r.status);
