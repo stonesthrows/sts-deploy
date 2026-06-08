@@ -184,6 +184,30 @@ function renderNotesList(key, items) {
   }).join('');
 }
 
+// ── Note text formatting ──────────────────────
+function singularize(word) {
+  if (word.length <= 3) return word;
+  var lw = word.toLowerCase();
+  if (/(?:ss|us|is|as|os|ies)$/.test(lw)) return word;
+  if (lw.slice(-1) === 's') return word.slice(0, -1);
+  return word;
+}
+
+function formatNoteText(text) {
+  var sizeMatch = text.match(/^(.+?)\s+size\s+(.+)$/i);
+  if (!sizeMatch) {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  var namePart  = sizeMatch[1].trim();
+  var sizePart  = sizeMatch[2].trim();
+  var titled = namePart.split(' ').map(function(w) {
+    var s = singularize(w);
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  }).join(' ');
+  if (!/ring/i.test(namePart)) titled += ' Ring';
+  return titled + ' size ' + sizePart;
+}
+
 // ── Quick Capture helpers ─────────────────────
 function isNumericSize(s) {
   return /^\d+(\.\d+)?$/.test(s.trim());
@@ -283,7 +307,7 @@ function quickCapture() {
     var parts = groupSizes(rawParts);
     var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order', restock: 'Inventory Restock' };
     parts.forEach(function(part) {
-      targetInput.value = part.charAt(0).toUpperCase() + part.slice(1);
+      targetInput.value = formatNoteText(part);
       addNoteItem(cat);
     });
     var msg = parts.length > 1
