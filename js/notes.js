@@ -184,7 +184,40 @@ function renderNotesList(key, items) {
   }).join('');
 }
 
-// ── Quick Capture ────────────────────────────
+// ── Quick Capture helpers ─────────────────────
+function isNumericSize(s) {
+  return /^\d+(\.\d+)?$/.test(s.trim());
+}
+
+function groupSizes(parts) {
+  var items = [];
+  var currentBase = null;
+  var extraSizes = [];
+
+  parts.forEach(function(part) {
+    if (isNumericSize(part)) {
+      extraSizes.push(part.trim());
+    } else {
+      if (currentBase !== null) {
+        items.push(extraSizes.length > 0
+          ? currentBase + ', ' + extraSizes.join(', ')
+          : currentBase);
+      }
+      currentBase = part;
+      extraSizes = [];
+    }
+  });
+
+  if (currentBase !== null) {
+    items.push(extraSizes.length > 0
+      ? currentBase + ', ' + extraSizes.join(', ')
+      : currentBase);
+  }
+
+  return items;
+}
+
+// ── Quick Capture ─────────────────────────────
 var PREFIX_TRIGGERS = {
   followup: ['follow up', 'follow-up'],
   restock:  ['restock', 'replenish', 'low on', 'out of', 'running out', 'running low', 'need more', 'get more', 'stock up'],
@@ -246,10 +279,11 @@ function quickCapture() {
 
   var targetInput = document.getElementById(cat + '-input');
   if (targetInput) {
-    var parts = text.split(/[,;]+/).map(function(p) { return p.trim(); }).filter(function(p) { return p.length > 0; });
+    var rawParts = text.split(/[,;]+/).map(function(p) { return p.trim(); }).filter(function(p) { return p.length > 0; });
+    var parts = groupSizes(rawParts);
     var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order', restock: 'Inventory Restock' };
     parts.forEach(function(part) {
-      targetInput.value = part;
+      targetInput.value = part.charAt(0).toUpperCase() + part.slice(1);
       addNoteItem(cat);
     });
     var msg = parts.length > 1
