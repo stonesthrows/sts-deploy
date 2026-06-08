@@ -1,91 +1,117 @@
 // ════════════════════════════════════════════
-//  GMAIL OVERVIEW  —  pages/gmail.js
-//  Brief rendering and scheduled JSON loader
+//  GMAIL  —  js/gmail.js
+//  Live thread view
 // ════════════════════════════════════════════
 
-
-// Convert plain-text bullet section to styled HTML
-function renderSection(text) {
-  if (!text || !text.trim()) return '<span class="gb-empty">Nothing to report.</span>';
-  var trimmed = text.trim();
-  // Non-bullet single-line messages (e.g. "No new customer emails.")
-  if (!trimmed.startsWith('-')) {
-    return '<span class="gb-empty">' + trimmed + '</span>';
-  }
-  var items = trimmed.split('\n')
-    .filter(function(l){ return l.trim().startsWith('-'); })
-    .map(function(l){
-      var content = l.replace(/^[-–]\s*/, '');
-      // **bold** → <strong>
-      content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      return '<li>' + content + '</li>';
-    });
-  return '<ul class="gb-list">' + items.join('') + '</ul>';
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function renderPriority(text) {
-  if (!text || !text.trim()) return 'Nothing flagged for today.';
-  return text.trim().replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+function _avatar(from, category) {
+  var initial = (from || '?').trim().charAt(0).toUpperCase();
+  var cls = category === 'business' ? ' gt-av-biz' : category === 'fyi' ? ' gt-av-fyi' : '';
+  return '<div class="gt-avatar' + cls + '">' + initial + '</div>';
 }
 
-function showBrief(data) {
-  var el;
-  el = document.getElementById('go-customers');  if (el) el.innerHTML = renderSection(data.customers || '');
-  el = document.getElementById('go-business');   if (el) el.innerHTML = renderSection(data.business  || '');
-  el = document.getElementById('go-sales-gmail');if (el) el.innerHTML = renderSection(data.sales     || '');
-  el = document.getElementById('go-priority');   if (el) el.innerHTML = renderPriority(data.priority  || '');
-  document.getElementById('go-run-banner').style.display = 'none';
-  document.getElementById('go-grid').style.display = '';
-  var label = data.date ? ('Brief — ' + data.date) : 'Brief loaded';
-  var tsEl = document.getElementById('gmail-last-run');
-  if (tsEl) tsEl.textContent = label;
+function _renderThread(t) {
+  var priCls = t.priority === 'high' ? ' gt-high' : t.priority === 'medium' ? ' gt-medium' : '';
+  var actionHtml = t.action
+    ? '<div class="gt-action"><span class="gt-action-text">↩ ' + _esc(t.action) + '</span></div>'
+    : '';
+  return '<div class="gt-thread' + priCls + '">' +
+    _avatar(t.from, t.category) +
+    '<div class="gt-meta">' +
+      '<div class="gt-row1">' +
+        '<span class="gt-from">' + _esc(t.from) + '</span>' +
+        '<span class="gt-date">' + _esc(t.age || t.date || '') + '</span>' +
+      '</div>' +
+      '<div class="gt-subject">' + _esc(t.subject) + '</div>' +
+      '<div class="gt-snippet">' + _esc(t.snippet) + '</div>' +
+      actionHtml +
+    '</div>' +
+  '</div>';
+}
+
+function _formatTs(iso) {
   try {
-    localStorage.setItem('sts-gmail-ts', label);
-    localStorage.setItem('sts-gmail-overview', JSON.stringify({
-      customers: data.customers || '', business: data.business || '',
-      salesGmail: data.sales || '', priority: data.priority || ''
-    }));
+    var d = new Date(iso), now = new Date();
+    var diffM = Math.round((now - d) / 60000);
+    if (diffM < 2)   return 'just now';
+    if (diffM < 60)  return diffM + 'm ago';
+    if (diffM < 120) return '1 hour ago';
+    if (diffM < 1440) return Math.round(diffM / 60) + 'h ago';
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  } catch(e) { return iso; }
+}
+
+function _section(idBase, threads) {
+  var sec = document.getElementById('gt-' + idBase + '-section');
+  if (!sec) return;
+  if (!threads.length) { sec.style.display = 'none'; return; }
+  document.getElementById('gt-' + idBase + '-list').innerHTML = threads.map(_renderThread).join('');
+  document.getElementById('gt-' + idBase + '-count').textContent = threads.length;
+  sec.style.display = '';
+}
+
+// Called by Claude (via safeSendPrompt response) or by loadScheduledBrief
+function loadGmailThreads(data) {
+  var threads = data.threads || [];
+  _section('reply', threads.filter(function(t){ return t.category === 'needs-reply'; }));
+  _section('biz',   threads.filter(function(t){ return t.category === 'business'; }));
+  _section('fyi',   threads.filter(function(t){ return t.category === 'fyi'; }));
+
+  document.getElementById('gt-loading').style.display = 'none';
+  document.getElementById('gt-empty').style.display   = 'none';
+  document.getElementById('gt-content').style.display = '';
+
+  var ts = data.fetchedAt ? 'Fetched ' + _formatTs(data.fetchedAt) : 'Live data';
+  var tsEl = document.getElementById('gmail-last-run');
+  if (tsEl) tsEl.textContent = ts;
+
+  try {
+    localStorage.setItem('sts-gmail-threads', JSON.stringify(data));
+    localStorage.setItem('sts-gmail-ts', data.fetchedAt || new Date().toISOString());
   } catch(e) {}
 }
 
 function runGmailOverview() {
-  safeSendPrompt('run morning gmail overview');
+  document.getElementById('gt-loading').style.display = 'flex';
+  document.getElementById('gt-content').style.display = 'none';
+  document.getElementById('gt-empty').style.display   = 'none';
   var tsEl = document.getElementById('gmail-last-run');
-  if (tsEl) tsEl.textContent = 'Sent to chat — reload page when done';
-  toast('Running in chat — reload the page once it\'s done', '📧');
+  if (tsEl) tsEl.textContent = 'Fetching…';
+  safeSendPrompt(
+    'Fetch my Gmail inbox live. Use the gmail MCP search_threads tool to get the 25 most recent inbox threads. ' +
+    'For each thread use get_thread to read the content. Score each by importance to my jewelry business. ' +
+    'Categorize each thread as: "needs-reply" (requires action/response from me), ' +
+    '"business" (orders, shipping, invoices, vendor notifications — no reply needed), ' +
+    'or "fyi" (automated, newsletters, low priority). ' +
+    'Then call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: [ ' +
+    '{ from, email, subject, snippet, date, age, category, priority, action } ] }) ' +
+    'where priority is "high"/"medium"/"low" and action is a short phrase describing what I need to do (for needs-reply only).'
+  );
 }
 
-// Fetch the JSON written by the scheduled task
 function loadScheduledBrief() {
   fetch('./gmail-brief.json?t=' + Date.now())
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
-      if (!data) return;
-      var hasContent = (data.customers || data.business || data.sales || data.priority);
-      if (!hasContent) return;
-      showBrief(data);
+      if (data && data.threads) { loadGmailThreads(data); }
+      // Ignore legacy plain-text format — rely on cache instead
     })
     .catch(function(){});
 }
 
-// Fall back to localStorage (for sessions without a fresh JSON)
-function loadGmailOverview() {
+function loadCachedThreads() {
   try {
-    var saved = localStorage.getItem('sts-gmail-overview');
-    if (!saved) return;
+    var saved = localStorage.getItem('sts-gmail-threads');
+    if (!saved) return false;
     var d = JSON.parse(saved);
-    var hasContent = (d.customers || d.business || d.salesGmail || d.priority);
-    if (!hasContent) return;
-    showBrief({ customers: d.customers, business: d.business, sales: d.salesGmail, priority: d.priority });
-    var ts = localStorage.getItem('sts-gmail-ts');
-    if (ts) { var tsEl = document.getElementById('gmail-last-run'); if (tsEl) tsEl.textContent = ts; }
+    if (d && d.threads && d.threads.length) { loadGmailThreads(d); return true; }
   } catch(e) {}
+  return false;
 }
 
-function saveGmailOverview() {} // kept for compatibility; showBrief handles saving now
-
-// ── Auto-init (app.js loads before gmail.js, so call here instead) ──────────
-loadGmailOverview();
+// ── Auto-init ────────────────────────────
+loadCachedThreads();
 loadScheduledBrief();
-
-// ============================================================
