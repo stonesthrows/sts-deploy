@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>STS Phone</title>
+  <meta name="theme-color" content="#1E3D50">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="STS">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:           #4E7A94;
+      --hdr:          #1E3D50;
+      --hdr-bdr:      #2E5C78;
+      --accent:       #C9983A;
+      --accent-light: #E8C878;
+      --accent-bg:    #FDF6E8;
+      --accent-border:#E8D0A0;
+      --card-bg:      #FFFFFF;
+      --bdr:          #B0CDE0;
+      --text:         #1A2E38;
+      --text2:        #4A6878;
+      --text-dim:     #7A9AAA;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      font-size: 15px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--hdr);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--hdr-bdr);
+      gap: 10px;
+    }
+    .header-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+    }
+
+    /* ── Tab bar ── */
+    .tabs {
+      display: flex;
+      background: #1A3448;
+      border-bottom: 2px solid var(--hdr-bdr);
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: #7A9AAA;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 13px 0;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn.active {
+      color: var(--accent-light);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Restock page ── */
+    .restock-wrap {
+      padding: 16px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .card-head {
+      background: #EBF5FB;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--bdr);
+    }
+    .card-head-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text2);
+    }
+    .card-count {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* add input */
+    .add-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid #F4EFE8;
+    }
+    .add-input {
+      flex: 1;
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .add-input:focus { border-color: var(--accent); }
+    .add-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 20px;
+      width: 38px;
+      height: 38px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .add-btn:active { background: #b8882a; }
+
+    /* list */
+    .note-list { min-height: 40px; }
+    .note-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      border-bottom: 1px solid #F4EFE8;
+    }
+    .note-row:last-child { border-bottom: none; }
+    .note-cb {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .note-text {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .note-text.done {
+      text-decoration: line-through;
+      color: #B0A898;
+    }
+    .note-del {
+      color: #C4A0A0;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+      background: none;
+      border: none;
+    }
+    .note-empty {
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .note-saving { opacity: 0.45; }
+
+    /* loading */
+    .loading-row {
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    /* ── Timer page ── */
+    .timer-wrap {
+      height: calc(100dvh - 110px);
+    }
+    .timer-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1E3D50;
+      color: #E8C878;
+      border: 1px solid #2E5C78;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.err { border-color: rgba(180,60,40,0.6); color: #E07060; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">Stones Throw Studio</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('restock')">Restock</button>
+  <button class="tab-btn" onclick="showTab('timer')">Timer</button>
+</div>
+
+<!-- Restock -->
+<div class="page active" id="page-restock">
+  <div class="restock-wrap">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-head-title">Inventory Restock</span>
+        <span class="card-count" id="restock-count"></span>
+      </div>
+      <div class="add-row">
+        <input class="add-input" id="restock-input" type="text" placeholder="Add item to restock…" autocomplete="off">
+        <button class="add-btn" onclick="addRestock()">+</button>
+      </div>
+      <div class="note-list" id="restock-list">
+        <div class="loading-row">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Timer -->
+<div class="page" id="page-timer">
+  <div class="timer-wrap">
+    <iframe src="time-tracker.html" title="STS Work Timer"></iframe>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Tab switching ──────────────────────────────
+  function showTab(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── Toast ─────────────────────────────────────
+  let _toastTimer;
+  function toast(msg, err) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (err ? ' err' : '');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // ── Notes data ────────────────────────────────
+  const BLOCK = 'Inventory Restock';
+  let notesData = [];   // full list from API, filtered to BLOCK
+  let _poller;
+
+  function itemsFor() {
+    return notesData.filter(n => n.block === BLOCK);
+  }
+
+  function loadRestock() {
+    fetch('/api/notion-notes')
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        if (!ok) { toast('Notion error — check connection', true); return; }
+        notesData = data || [];
+        render();
+      })
+      .catch(() => toast('Could not reach server', true));
+
+    if (!_poller) _poller = setInterval(refreshRestock, 30000);
+  }
+
+  function refreshRestock() {
+    fetch('/api/notion-notes')
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => { if (ok) { notesData = data || []; render(); } })
+      .catch(() => {});
+  }
+
+  // ── Render ────────────────────────────────────
+  function render() {
+    const items  = itemsFor();
+    const list   = document.getElementById('restock-list');
+    const count  = document.getElementById('restock-count');
+
+    const pending = items.filter(i => !i.done).length;
+    count.textContent = pending > 0 ? pending + ' left' : (items.length ? 'all done ✓' : '');
+
+    if (!items.length) {
+      list.innerHTML = '<div class="note-empty">Nothing to restock</div>';
+      return;
+    }
+
+    list.innerHTML = items.map((item, idx) => {
+      const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const textClass = 'note-text' + (item.done ? ' done' : '');
+      const wrap = item._saving ? ' class="note-row note-saving"' : ' class="note-row"';
+      return `<div${wrap}>
+        <input class="note-cb" type="checkbox" ${item.done ? 'checked' : ''}
+          onchange="toggleRestock(${idx})">
+        <span class="${textClass}">${esc(item.text)}</span>
+        ${item._saving ? '' : `<button class="note-del" onclick="deleteRestock(${idx})" title="Remove">×</button>`}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Add ───────────────────────────────────────
+  function addRestock() {
+    const input = document.getElementById('restock-input');
+    const text  = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const temp = { notionPageId: null, text, block: BLOCK, done: false, _saving: true };
+    notesData.push(temp);
+    render();
+
+    fetch('/api/notion-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, block: BLOCK }),
+    })
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          notesData.splice(notesData.indexOf(temp), 1);
+          render();
+          toast('Save failed — ' + (data.error || 'unknown'), true);
+          return;
+        }
+        temp.notionPageId = data.notionPageId;
+        temp._saving = false;
+        render();
+      })
+      .catch(err => {
+        notesData.splice(notesData.indexOf(temp), 1);
+        render();
+        toast('Failed: ' + err, true);
+      });
+  }
+
+  // allow Enter key to add
+  document.getElementById('restock-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addRestock();
+  });
+
+  // ── Toggle ────────────────────────────────────
+  function toggleRestock(idx) {
+    const item = itemsFor()[idx];
+    if (!item || !item.notionPageId) return;
+    item.done = !item.done;
+    render();
+
+    fetch('/api/notion-notes?pageId=' + encodeURIComponent(item.notionPageId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done: item.done }),
+    }).catch(() => {
+      item.done = !item.done;
+      render();
+      toast('Update failed', true);
+    });
+  }
+
+  // ── Delete ────────────────────────────────────
+  function deleteRestock(idx) {
+    const items = itemsFor();
+    const item  = items[idx];
+    if (!item) return;
+    const gi = notesData.indexOf(item);
+    notesData.splice(gi, 1);
+    render();
+
+    if (!item.notionPageId) return;
+    fetch('/api/notion-notes?pageId=' + encodeURIComponent(item.notionPageId), {
+      method: 'DELETE',
+    }).catch(() => {
+      notesData.splice(gi, 0, item);
+      render();
+      toast('Delete failed', true);
+    });
+  }
+
+  loadRestock();
+</script>
+</body>
+</html>
