@@ -301,7 +301,6 @@ function quickCapture() {
   if (wasAuto) {
     cat = autoDetectBlock(text);
     if (!cat) {
-      // No keyword match — require the user to pick a bucket explicitly
       if (catSel) {
         catSel.style.outline = '2px solid var(--accent)';
         catSel.style.borderColor = 'var(--accent)';
@@ -310,9 +309,11 @@ function quickCapture() {
       toast('Can\'t auto-detect bucket — please pick one', '⚠');
       return;
     }
-    text = stripTriggerPrefix(text, cat);
   }
+  // Strip trigger prefix regardless of auto or manual — cleans "restock X" typed into a manually-selected bucket
+  text = stripTriggerPrefix(text, cat);
   input.value = '';
+  if (catSel) catSel.value = 'auto';
 
   var targetInput = document.getElementById(cat + '-input');
   if (targetInput) {
