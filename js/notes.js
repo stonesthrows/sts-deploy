@@ -246,10 +246,16 @@ function quickCapture() {
 
   var targetInput = document.getElementById(cat + '-input');
   if (targetInput) {
-    targetInput.value = text;
-    addNoteItem(cat);
+    var parts = text.split(/[,;]+/).map(function(p) { return p.trim(); }).filter(function(p) { return p.length > 0; });
     var labels = { studio: 'Design Ideas', todo: 'To-Do', followup: 'Follow-ups', toorder: 'To Order', restock: 'Inventory Restock' };
-    toast('Added to ' + (labels[cat] || cat), '⚡');
+    parts.forEach(function(part) {
+      targetInput.value = part;
+      addNoteItem(cat);
+    });
+    var msg = parts.length > 1
+      ? 'Added ' + parts.length + ' items to ' + (labels[cat] || cat)
+      : 'Added to ' + (labels[cat] || cat);
+    toast(msg, '⚡');
     input.focus();
   }
 }
