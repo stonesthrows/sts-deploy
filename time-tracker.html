@@ -299,12 +299,12 @@ async function loadEmployees() {
     const members = (data.team_members || []).filter(m => m.status === 'ACTIVE');
     employees = members.length
       ? members.map(m => ({ id: m.id, name: m.display_name || [m.given_name, m.family_name].filter(Boolean).join(' ') }))
-      : [{ id: 'emp_stevana', name: 'Stevana Schafer' }, { id: 'emp_vanessa', name: 'Vanessa' }];
+      : [{ id: 'Q5gZGbDStWUysIE3CKhJ', name: 'Stevana Schafer' }, { id: 'TMAMWG-ZS9lqZWKm', name: 'Vanessa Bigley' }];
   } catch { useMockEmployees(); }
   renderEmployees();
 }
 function useMockEmployees() {
-  employees = [{ id: 'emp_stevana', name: 'Stevana Schafer' }, { id: 'emp_kyle', name: 'Kyle' }];
+  employees = [{ id: 'Q5gZGbDStWUysIE3CKhJ', name: 'Stevana Schafer' }, { id: 'TMAMWG-ZS9lqZWKm', name: 'Vanessa Bigley' }];
 }
 function renderEmployees() {
   for (let tid = 0; tid < NUM_TIMERS; tid++) {
