@@ -53,7 +53,12 @@ function _section(idBase, threads) {
   sec.style.display = '';
 }
 
-// Called by Claude (via safeSendPrompt response) or by loadScheduledBrief
+// Returns true if we're running inside Claude (Cowork iframe or with sendPrompt available)
+function _inClaudeContext() {
+  return (typeof sendPrompt === 'function') || (window !== window.parent);
+}
+
+// Called by Claude after fetching threads
 function loadGmailThreads(data) {
   var threads = data.threads || [];
   _section('reply', threads.filter(function(t){ return t.category === 'needs-reply'; }));
@@ -75,31 +80,63 @@ function loadGmailThreads(data) {
 }
 
 function runGmailOverview() {
-  document.getElementById('gt-loading').style.display = 'flex';
-  document.getElementById('gt-content').style.display = 'none';
-  document.getElementById('gt-empty').style.display   = 'none';
-  var tsEl = document.getElementById('gmail-last-run');
-  if (tsEl) tsEl.textContent = 'Fetching…';
-  safeSendPrompt(
-    'Fetch my Gmail inbox live. Use the gmail MCP search_threads tool to get the 25 most recent inbox threads. ' +
-    'For each thread use get_thread to read the content. Score each by importance to my jewelry business. ' +
-    'Categorize each thread as: "needs-reply" (requires action/response from me), ' +
-    '"business" (orders, shipping, invoices, vendor notifications — no reply needed), ' +
-    'or "fyi" (automated, newsletters, low priority). ' +
-    'Then call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: [ ' +
-    '{ from, email, subject, snippet, date, age, category, priority, action } ] }) ' +
-    'where priority is "high"/"medium"/"low" and action is a short phrase describing what I need to do (for needs-reply only).'
-  );
+  if (_inClaudeContext()) {
+    // Running inside Claude — trigger live fetch via chat
+    document.getElementById('gt-loading').style.display = 'flex';
+    document.getElementById('gt-content').style.display = 'none';
+    document.getElementById('gt-empty').style.display   = 'none';
+    var tsEl = document.getElementById('gmail-last-run');
+    if (tsEl) tsEl.textContent = 'Fetching…';
+    safeSendPrompt(
+      'Fetch my Gmail inbox live. Use the gmail MCP search_threads tool to get the 25 most recent inbox threads. ' +
+      'For each thread use get_thread to read the content. Score each by importance to my jewelry business. ' +
+      'Categorize each thread as: "needs-reply" (requires action/response from me), ' +
+      '"business" (orders, shipping, invoices, vendor notifications — no reply needed), ' +
+      'or "fyi" (automated, newsletters, low priority). ' +
+      'Then call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: [ ' +
+      '{ from, email, subject, snippet, date, age, category, priority, action } ] }) ' +
+      'where priority is "high"/"medium"/"low" and action is a short phrase describing what I need to do (for needs-reply only).'
+    );
+  } else {
+    // Standalone deployed app — try refreshing from the JSON file Claude last wrote
+    _refreshFromJson(true);
+  }
 }
 
-function loadScheduledBrief() {
+// Fetch gmail-brief.json from server; if showFeedback=true, update UI with result
+function _refreshFromJson(showFeedback) {
+  if (showFeedback) {
+    document.getElementById('gt-loading').style.display = 'flex';
+    document.getElementById('gt-content').style.display = 'none';
+    document.getElementById('gt-empty').style.display   = 'none';
+    var tsEl = document.getElementById('gmail-last-run');
+    if (tsEl) tsEl.textContent = 'Refreshing…';
+  }
   fetch('./gmail-brief.json?t=' + Date.now())
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
-      if (data && data.threads) { loadGmailThreads(data); }
-      // Ignore legacy plain-text format — rely on cache instead
+      if (data && data.threads && data.threads.length) {
+        loadGmailThreads(data);
+      } else if (showFeedback) {
+        // No structured data in JSON — show "ask Claude" state
+        document.getElementById('gt-loading').style.display = 'none';
+        document.getElementById('gt-content').style.display = 'none';
+        var empty = document.getElementById('gt-empty');
+        empty.style.display = '';
+        var msgEl = empty.querySelector('.gt-empty-msg');
+        var hintEl = empty.querySelector('.gt-empty-hint');
+        if (msgEl) msgEl.textContent = 'No live data available';
+        if (hintEl) hintEl.textContent = 'Open this app in Claude and ask it to fetch your Gmail inbox.';
+        var tsEl = document.getElementById('gmail-last-run');
+        if (tsEl) tsEl.textContent = 'Not fetched';
+      }
     })
-    .catch(function(){});
+    .catch(function(){
+      if (showFeedback) {
+        document.getElementById('gt-loading').style.display = 'none';
+        document.getElementById('gt-empty').style.display = '';
+      }
+    });
 }
 
 function loadCachedThreads() {
@@ -114,4 +151,4 @@ function loadCachedThreads() {
 
 // ── Auto-init ────────────────────────────
 loadCachedThreads();
-loadScheduledBrief();
+_refreshFromJson(false);
