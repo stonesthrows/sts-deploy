@@ -541,6 +541,15 @@ function fetchGmailDirect() {
 
   fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=30', { headers: hdrs })
     .then(function(r){
+      if (r.status === 401) {
+        _gmailAccessToken = null; _gmailTokenExpiry = 0;
+        try { localStorage.removeItem('sts-gmail-token'); localStorage.removeItem('sts-gmail-token-expiry'); localStorage.removeItem('sts-gmail-scope'); } catch(e){}
+        _updateAuthUI(false);
+        document.getElementById('gt-loading').style.display = 'none';
+        document.getElementById('gt-empty').style.display   = '';
+        if (tsEl) tsEl.textContent = 'Session expired — click Connect Gmail';
+        throw new Error('HANDLED_401');
+      }
       if (!r.ok) throw new Error('Gmail API error ' + r.status);
       return r.json();
     })
@@ -601,6 +610,7 @@ function fetchGmailDirect() {
       loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: threads });
     })
     .catch(function(e){
+      if (e && e.message === 'HANDLED_401') return;  // already showed UI
       console.error('Gmail API error:', e);
       document.getElementById('gt-loading').style.display = 'none';
       document.getElementById('gt-empty').style.display   = '';
