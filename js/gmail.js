@@ -277,12 +277,11 @@ function gtExpandThread(el) {
     contentEl.style.display = '';
 
     var actionsEl = el.querySelector('.gt-body-actions');
-    actionsEl.dataset.threadId = thread.id;
     actionsEl.dataset.toEmail  = fromEmail;
     actionsEl.dataset.subject  = subject;
     actionsEl.dataset.msgId    = msgId;
     actionsEl.dataset.refs     = refs;
-    actionsEl.style.display    = '';
+    actionsEl.style.display    = 'flex';
 
     el.classList.add('gt-body-loaded');
   })
@@ -375,10 +374,11 @@ function _sendReply(threadId, to, subject, body, inReplyTo, references) {
 // ── Trash ─────────────────────────────────────
 
 function gtTrash(btn) {
-  var card      = btn.closest('.gt-thread');
-  var actionsEl = card.querySelector('.gt-body-actions');
-  var threadId  = actionsEl.dataset.threadId;
+  var card     = btn.closest('.gt-thread');
+  var threadId = card.dataset.threadId;  // always set from _renderThread
 
+  if (!threadId) { alert('No thread ID — try reconnecting Gmail.'); return; }
+  if (!_gmailTokenValid()) { alert('Gmail not connected — click Connect Gmail first.'); return; }
   if (!confirm('Move this conversation to Trash?')) return;
   btn.textContent = 'Moving…';
   btn.disabled    = true;
