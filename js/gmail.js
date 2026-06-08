@@ -1,11 +1,11 @@
 // ════════════════════════════════════════════
 //  GMAIL  —  js/gmail.js
 //  Standalone Gmail via Google OAuth + REST API
-//  Falls back to Claude MCP when in Claude context
+//  Read, reply, trash — no Claude required
 // ════════════════════════════════════════════
 
 var GMAIL_CLIENT_ID = '787985557761-4g12h5j9a6h3okq75onbrsv5vo6br719.apps.googleusercontent.com';
-var GMAIL_SCOPE     = 'https://www.googleapis.com/auth/gmail.readonly';
+var GMAIL_SCOPE     = 'https://www.googleapis.com/auth/gmail.modify';
 
 var _gmailTokenClient = null;
 var _gmailAccessToken = null;
@@ -24,7 +24,7 @@ function _decodeSnippet(s) {
 }
 
 function _formatAge(date) {
-  var d   = (date instanceof Date) ? date : new Date(date);
+  var d = (date instanceof Date) ? date : new Date(date);
   var now = new Date();
   var diffM = Math.round((now - d) / 60000);
   if (diffM < 2)    return 'just now';
@@ -45,13 +45,50 @@ function _gmailTokenValid() {
   return !!_gmailAccessToken && Date.now() < _gmailTokenExpiry - 60000;
 }
 
+// ── Email body extraction ─────────────────────
+
+function _b64decode(data) {
+  try {
+    var raw = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+    try { return decodeURIComponent(escape(raw)); } catch(e) { return raw; }
+  } catch(e) { return ''; }
+}
+
+function _findPart(payload, mimeType) {
+  if (!payload) return null;
+  if (payload.mimeType === mimeType && payload.body && payload.body.data) return payload.body.data;
+  var parts = payload.parts || [];
+  for (var i = 0; i < parts.length; i++) {
+    var found = _findPart(parts[i], mimeType);
+    if (found) return found;
+  }
+  return null;
+}
+
+function _extractBody(message) {
+  if (!message || !message.payload) return '';
+  var plain = _findPart(message.payload, 'text/plain');
+  if (plain) return _b64decode(plain);
+  var html = _findPart(message.payload, 'text/html');
+  if (html) {
+    return _b64decode(html)
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, '\n\n').trim();
+  }
+  return _decodeSnippet(message.snippet || '(No body)');
+}
+
 // ── Categorization ───────────────────────────
 
 function _categorize(senderEmail, subject, labelIds) {
   var se = senderEmail.toLowerCase();
-  var su = subject.toLowerCase();
-
-  // Skip: pure marketing / social / noise
   var skipDomains = [
     'facebookmail.com','linkedin.com','twitter.com','instagram.com',
     'strikingly.com','qualtrics-survey.com','judge.me',
@@ -60,15 +97,13 @@ function _categorize(senderEmail, subject, labelIds) {
     'openrouter.ai','affirm.com','interactivebrokers.com',
     'email.shopify.com','shop.tiktok.com'
   ];
-  for (var i = 0; i < skipDomains.length; i++) {
-    if (se.includes(skipDomains[i])) return 'skip';
-  }
+  for (var i = 0; i < skipDomains.length; i++) if (se.includes(skipDomains[i])) return 'skip';
   if (se === 'memories@facebookmail.com') return 'skip';
-  if (se.includes('calendar-notification@google.com') && su.includes('no events')) return 'skip';
-  if (se.includes('google.com') && su.includes('security talks')) return 'skip';
-  if (se.includes('email.etsy.com') && !su.includes('order') && !su.includes('sale') && !su.includes('funds')) return 'skip';
+  if (se.includes('calendar-notification@google.com')) return 'skip';
+  if (se.includes('google.com') && subject.toLowerCase().includes('security talks')) return 'skip';
+  if (se.includes('email.etsy.com') && !subject.toLowerCase().match(/order|sale|funds/)) return 'skip';
+  if (se.includes('email.shopify.com') || se.includes('shop.tiktok.com')) return 'skip';
 
-  // Business: known transaction / operational senders
   var bizPatterns = [
     't.shopifyemail.com','support@etsy.com','seller.etsy.com',
     'noreply@messaging.squareup.com','noreply.squarefinancialservices@squareup',
@@ -76,91 +111,65 @@ function _categorize(senderEmail, subject, labelIds) {
     'cpa.texas.gov','service@paypal.com','riogrande','stuller.com',
     'stamps.com','forms-receipts-noreply@google.com'
   ];
-  for (var j = 0; j < bizPatterns.length; j++) {
-    if (se.includes(bizPatterns[j])) return 'business';
-  }
+  for (var j = 0; j < bizPatterns.length; j++) if (se.includes(bizPatterns[j])) return 'business';
 
-  // fyi: anything left that's clearly auto-generated
-  if (se.includes('noreply') || se.includes('no-reply') ||
-      se.includes('donotreply') || se.includes('do.not.reply') ||
-      se.includes('notification') || se.includes('automated') ||
-      se.includes('automail') || se.includes('@e.') || se.includes('@email.')) {
-    return 'fyi';
-  }
+  if (se.includes('noreply') || se.includes('no-reply') || se.includes('donotreply') ||
+      se.includes('do.not.reply') || se.includes('notification') || se.includes('automated') ||
+      se.includes('automail') || se.includes('@e.') || se.includes('@email.')) return 'fyi';
 
-  // needs-reply: personal email domains
   var personal = ['gmail.com','yahoo.com','hotmail.com','outlook.com',
                   'icloud.com','me.com','aol.com','protonmail.com','msn.com'];
-  for (var k = 0; k < personal.length; k++) {
-    if (se.endsWith('@' + personal[k])) return 'needs-reply';
-  }
+  for (var k = 0; k < personal.length; k++) if (se.endsWith('@' + personal[k])) return 'needs-reply';
 
-  // needs-reply: known business contacts who write personally
   var replyBiz = ['melqua.com','austinjuniorforum.org','ccfm.atx'];
-  for (var m = 0; m < replyBiz.length; m++) {
-    if (se.includes(replyBiz[m])) return 'needs-reply';
-  }
+  for (var m = 0; m < replyBiz.length; m++) if (se.includes(replyBiz[m])) return 'needs-reply';
 
   return 'fyi';
 }
 
 function _getPriority(category, senderEmail, subject, isImportant) {
   if (category !== 'needs-reply') {
-    // Business high: new orders, tax deadlines, security alerts
-    if (subject.includes('order') || subject.includes('tax') || subject.includes('due date') ||
-        subject.includes('profile update') || subject.includes('refund')) return 'medium';
+    if (subject.match(/order|tax|due date|profile update|refund/i)) return 'medium';
     return 'low';
   }
   if (isImportant) return 'high';
-  // Customer inquiry is high priority
-  var custSigns = ['estimate','quote','order','ring','necklace','pendant','bracelet',
-                   'earring','chain','available','price','custom','repair','size'];
-  var su = subject.toLowerCase();
-  for (var i = 0; i < custSigns.length; i++) {
-    if (su.includes(custSigns[i])) return 'high';
-  }
+  if (subject.match(/estimate|quote|order|ring|necklace|pendant|bracelet|earring|chain|available|price|custom|repair|size/i)) return 'high';
   return 'medium';
 }
 
 function _getDeadline(subject, snippet) {
-  var text = (subject + ' ' + snippet).toLowerCase();
-  var m;
-  m = text.match(/due (?:on )?(\w+ \d+(?:st|nd|rd|th)?)/i);
-  if (m) return m[1].replace(/(st|nd|rd|th)$/i,'');
-  if (text.includes('june 10') || text.includes('jun 10') || text.includes('june 10th')) return 'Jun 10';
-  if (text.includes('june 22') || text.includes('jun 22') || text.includes('06/22')) return 'Jun 22';
-  if (text.includes('wednesday')) {
-    var wed = new Date(); wed.setDate(wed.getDate() + ((3 - wed.getDay() + 7) % 7));
-    return wed.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  }
+  var text = subject + ' ' + snippet;
+  if (text.match(/june 10|jun 10/i)) return 'Jun 10';
+  if (text.match(/june 22|jun 22|06\/22/i)) return 'Jun 22';
+  var m = text.match(/due (?:on )?(\w+ \d+)/i);
+  if (m) return m[1];
   return null;
 }
 
 function _getAction(fromName, subject, snippet) {
-  var su = subject.toLowerCase(), sn = snippet.toLowerCase();
-  if (su.includes('estimate') && sn.includes('yes')) return fromName + ' said YES — confirm order details';
-  if (su.includes('estimate') || su.includes('quote'))  return 'Reply with estimate or next steps';
-  if (su.includes('available') || su.includes('stackable') || su.includes('bead'))
-    return 'Reply: confirm availability / sizing';
-  if (su.includes('survey'))   return 'Complete survey by deadline';
-  if (su.includes('trail') || su.includes('listing')) return 'Check your listing — reply with corrections';
-  if (su.includes('security') || su.includes('quote') || su.includes('appointment'))
-    return 'Respond to appointment / quote request';
+  if (subject.match(/estimate|quote/i) && snippet.match(/yes|proceed|would like/i))
+    return fromName + ' said YES — confirm order details';
+  if (subject.match(/estimate|quote/i)) return 'Reply with estimate or next steps';
+  if (subject.match(/available|stackable|bead/i)) return 'Reply: confirm availability / sizing';
+  if (subject.match(/survey/i))        return 'Complete survey by deadline';
+  if (subject.match(/trail|listing/i)) return 'Check your listing — reply with corrections';
+  if (subject.match(/security|quote|appointment/i)) return 'Respond to appointment/quote request';
   return 'Reply to ' + fromName;
 }
 
 // ── Render ───────────────────────────────────
 
 function _renderThread(t) {
-  var priCls     = t.priority === 'high' ? ' gt-high' : t.priority === 'medium' ? ' gt-medium' : '';
-  var unreadDot  = t.unread ? '<span class="gt-unread-dot"></span>' : '';
+  var priCls       = t.priority === 'high' ? ' gt-high' : t.priority === 'medium' ? ' gt-medium' : '';
+  var unreadDot    = t.unread ? '<span class="gt-unread-dot"></span>' : '';
   var deadlineBadge = t.deadline ? '<span class="gt-deadline-badge">⏰ Due ' + _esc(t.deadline) + '</span>' : '';
-  var actionHtml = t.action ? '<div class="gt-action"><span class="gt-action-text">↩ ' + _esc(t.action) + '</span></div>' : '';
-  var gmailBtn   = t.gmailUrl
+  var actionHtml   = t.action ? '<div class="gt-action"><span class="gt-action-text">↩ ' + _esc(t.action) + '</span></div>' : '';
+  var gmailBtn     = t.gmailUrl
     ? '<a class="gt-gmail-btn" href="' + _esc(t.gmailUrl) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail">✉</a>'
     : '';
+  var tid = _esc(t.threadId || '');
 
-  return '<div class="gt-thread' + priCls + '" onclick="gtToggleExpand(this)">' +
+  return '<div class="gt-thread' + priCls + '" data-thread-id="' + tid + '" onclick="gtExpandThread(this)">' +
     '<div class="gt-thread-top">' +
       _avatar(t.from, t.category) +
       '<div class="gt-meta">' +
@@ -176,10 +185,24 @@ function _renderThread(t) {
         deadlineBadge +
       '</div>' +
     '</div>' +
+    '<div class="gt-body-wrap">' +
+      '<div class="gt-body-loading">⏳ Loading…</div>' +
+      '<div class="gt-body-content"></div>' +
+      '<div class="gt-body-actions">' +
+        '<button class="gt-body-btn gt-reply-btn" onclick="gtShowReply(this);event.stopPropagation()">↩ Reply</button>' +
+        '<button class="gt-body-btn gt-trash-btn" onclick="gtTrash(this);event.stopPropagation()">🗑 Trash</button>' +
+      '</div>' +
+      '<div class="gt-reply-compose" style="display:none">' +
+        '<textarea class="gt-reply-input" placeholder="Type your reply…" onclick="event.stopPropagation()" rows="5"></textarea>' +
+        '<div class="gt-reply-foot">' +
+          '<button class="btn btn-gold btn-sm" onclick="gtSendReply(this);event.stopPropagation()">▶ Send</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="gtCancelReply(this);event.stopPropagation()">Cancel</button>' +
+          '<span class="gt-reply-sig">— Kyle Gross · 512-217-3455 · stonesthrowjewelry.com</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
   '</div>';
 }
-
-function gtToggleExpand(el) { el.classList.toggle('gt-expanded'); }
 
 function _section(idBase, threads) {
   var sec = document.getElementById('gt-' + idBase + '-section');
@@ -205,15 +228,183 @@ function _renderPriorityBanner(threads) {
 function _renderStats(threads) {
   var el = document.getElementById('gt-stats');
   if (!el) return;
-  var replyCount = threads.filter(function(t){ return t.category === 'needs-reply'; }).length;
+  var replyCount  = threads.filter(function(t){ return t.category === 'needs-reply'; }).length;
   var unreadCount = threads.filter(function(t){ return t.unread; }).length;
   var html = '';
   if (replyCount)  html += '<span class="gt-stat gt-stat-reply">↩ ' + replyCount + ' need' + (replyCount === 1 ? 's' : '') + ' reply</span>';
   if (unreadCount) html += '<span class="gt-stat">📬 ' + unreadCount + ' unread</span>';
-  threads.filter(function(t){ return t.deadline; }).forEach(function(t) {
+  threads.filter(function(t){ return t.deadline; }).forEach(function(t){
     html += '<span class="gt-stat gt-stat-deadline">⏰ ' + _esc((t.from||'').split(' ')[0]) + ' due ' + _esc(t.deadline) + '</span>';
   });
   el.innerHTML = html;
+}
+
+// ── Expand / read ─────────────────────────────
+
+function gtExpandThread(el) {
+  var isExpanded = el.classList.toggle('gt-expanded');
+  if (!isExpanded || el.classList.contains('gt-body-loaded')) return;
+
+  var threadId = el.dataset.threadId;
+  if (!threadId || !_gmailTokenValid()) return;
+
+  var loadingEl = el.querySelector('.gt-body-loading');
+  if (loadingEl) loadingEl.style.display = '';
+
+  fetch(
+    'https://www.googleapis.com/gmail/v1/users/me/threads/' + threadId + '?format=full',
+    { headers: { 'Authorization': 'Bearer ' + _gmailAccessToken } }
+  )
+  .then(function(r){ return r.json(); })
+  .then(function(thread) {
+    var msgs    = thread.messages || [];
+    var lastMsg = msgs[msgs.length - 1];
+    if (!lastMsg) return;
+
+    var hdrs = {};
+    ((lastMsg.payload && lastMsg.payload.headers) || []).forEach(function(h){
+      hdrs[h.name.toLowerCase()] = h.value;
+    });
+    var fromRaw   = hdrs['from'] || '';
+    var fromEmail = (fromRaw.match(/<([^>]+)>/) || ['', fromRaw])[1].trim();
+    var subject   = hdrs['subject'] || '';
+    var msgId     = hdrs['message-id'] || '';
+    var refs      = ((hdrs['references'] || '') + ' ' + msgId).trim();
+
+    if (loadingEl) loadingEl.style.display = 'none';
+
+    var contentEl = el.querySelector('.gt-body-content');
+    contentEl.textContent = _extractBody(lastMsg);
+    contentEl.style.display = '';
+
+    var actionsEl = el.querySelector('.gt-body-actions');
+    actionsEl.dataset.threadId = thread.id;
+    actionsEl.dataset.toEmail  = fromEmail;
+    actionsEl.dataset.subject  = subject;
+    actionsEl.dataset.msgId    = msgId;
+    actionsEl.dataset.refs     = refs;
+    actionsEl.style.display    = '';
+
+    el.classList.add('gt-body-loaded');
+  })
+  .catch(function(){
+    if (loadingEl) loadingEl.textContent = 'Could not load message.';
+  });
+}
+
+// ── Reply ─────────────────────────────────────
+
+function gtShowReply(btn) {
+  var card    = btn.closest('.gt-thread');
+  var compose = card.querySelector('.gt-reply-compose');
+  compose.style.display = '';
+  compose.querySelector('.gt-reply-input').focus();
+  btn.style.display = 'none';
+}
+
+function gtCancelReply(btn) {
+  var card    = btn.closest('.gt-thread');
+  var compose = card.querySelector('.gt-reply-compose');
+  compose.style.display = 'none';
+  compose.querySelector('.gt-reply-input').value = '';
+  var replyBtn = card.querySelector('.gt-reply-btn');
+  if (replyBtn) replyBtn.style.display = '';
+}
+
+function gtSendReply(btn) {
+  var card      = btn.closest('.gt-thread');
+  var compose   = card.querySelector('.gt-reply-compose');
+  var textarea  = compose.querySelector('.gt-reply-input');
+  var body      = textarea.value.trim();
+  if (!body) { textarea.focus(); return; }
+
+  var actionsEl = card.querySelector('.gt-body-actions');
+  var threadId  = actionsEl.dataset.threadId;
+  var to        = actionsEl.dataset.toEmail;
+  var subject   = actionsEl.dataset.subject;
+  var msgId     = actionsEl.dataset.msgId;
+  var refs      = actionsEl.dataset.refs;
+
+  btn.textContent = 'Sending…';
+  btn.disabled    = true;
+
+  var fullBody = body + '\n\n--\nKyle Gross\n512-217-3455\nwww.stonesthrowjewelry.com\nStones Throw Studio · Sunset Valley Farmers Market';
+
+  _sendReply(threadId, to, subject, fullBody, msgId, refs)
+    .then(function(){
+      compose.innerHTML = '<div class="gt-sent-msg">✓ Reply sent!</div>';
+      var replyBtn = card.querySelector('.gt-reply-btn');
+      if (replyBtn) replyBtn.style.display = 'none';
+      card.querySelector('.gt-unread-dot') && card.querySelector('.gt-unread-dot').remove();
+    })
+    .catch(function(e){
+      btn.textContent = '▶ Send';
+      btn.disabled    = false;
+      alert('Send failed: ' + (e.message || 'Unknown error'));
+    });
+}
+
+function _sendReply(threadId, to, subject, body, inReplyTo, references) {
+  if (!subject.match(/^re:/i)) subject = 'Re: ' + subject;
+  var msg = [
+    'To: ' + to,
+    'Subject: ' + subject,
+    'In-Reply-To: ' + inReplyTo,
+    'References: ' + references,
+    'Content-Type: text/plain; charset=UTF-8',
+    'MIME-Version: 1.0',
+    '',
+    body
+  ].join('\r\n');
+
+  var encoded = btoa(unescape(encodeURIComponent(msg)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  return fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+    method:  'POST',
+    headers: {
+      'Authorization': 'Bearer ' + _gmailAccessToken,
+      'Content-Type':  'application/json'
+    },
+    body: JSON.stringify({ raw: encoded, threadId: threadId })
+  }).then(function(r){
+    if (!r.ok) return r.json().then(function(e){ throw new Error((e.error && e.error.message) || 'Send failed'); });
+    return r.json();
+  });
+}
+
+// ── Trash ─────────────────────────────────────
+
+function gtTrash(btn) {
+  var card      = btn.closest('.gt-thread');
+  var actionsEl = card.querySelector('.gt-body-actions');
+  var threadId  = actionsEl.dataset.threadId;
+
+  if (!confirm('Move this conversation to Trash?')) return;
+  btn.textContent = 'Moving…';
+  btn.disabled    = true;
+
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + threadId + '/trash', {
+    method:  'POST',
+    headers: { 'Authorization': 'Bearer ' + _gmailAccessToken }
+  }).then(function(r){
+    if (!r.ok) { btn.textContent = '🗑 Trash'; btn.disabled = false; return; }
+    card.style.transition  = 'opacity 0.25s';
+    card.style.opacity     = '0';
+    setTimeout(function(){
+      card.style.overflow      = 'hidden';
+      card.style.transition    = 'max-height 0.3s ease, margin-bottom 0.3s ease';
+      card.style.maxHeight     = card.offsetHeight + 'px';
+      setTimeout(function(){
+        card.style.maxHeight     = '0';
+        card.style.marginBottom  = '0';
+        setTimeout(function(){ card.remove(); }, 310);
+      }, 20);
+    }, 250);
+  }).catch(function(){
+    btn.textContent = '🗑 Trash';
+    btn.disabled    = false;
+  });
 }
 
 // ── Public: load threads into UI ──────────────
@@ -233,9 +424,7 @@ function loadGmailThreads(data) {
   var tsEl = document.getElementById('gmail-last-run');
   if (tsEl) tsEl.textContent = data.fetchedAt ? 'Fetched ' + _formatAge(data.fetchedAt) : 'Live data';
 
-  try {
-    localStorage.setItem('sts-gmail-threads', JSON.stringify(data));
-  } catch(e) {}
+  try { localStorage.setItem('sts-gmail-threads', JSON.stringify(data)); } catch(e){}
 }
 
 // ── Google OAuth ──────────────────────────────
@@ -246,31 +435,40 @@ function initGmailAuth() {
   }
   _gmailTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GMAIL_CLIENT_ID,
-    scope: GMAIL_SCOPE,
-    callback: function(resp) {
+    scope:     GMAIL_SCOPE,
+    callback:  function(resp) {
       if (resp.error) { _updateAuthUI(false); return; }
       _gmailAccessToken = resp.access_token;
       _gmailTokenExpiry = Date.now() + resp.expires_in * 1000;
       try {
-        localStorage.setItem('sts-gmail-token', _gmailAccessToken);
+        localStorage.setItem('sts-gmail-token',        _gmailAccessToken);
         localStorage.setItem('sts-gmail-token-expiry', String(_gmailTokenExpiry));
-      } catch(e) {}
+        localStorage.setItem('sts-gmail-scope',        GMAIL_SCOPE);
+      } catch(e){}
       _updateAuthUI(true);
       fetchGmailDirect();
     }
   });
 
-  // Restore saved token
+  // Restore saved token — only if scope matches
   try {
-    var tok = localStorage.getItem('sts-gmail-token');
-    var exp = parseInt(localStorage.getItem('sts-gmail-token-expiry') || '0');
-    if (tok && Date.now() < exp - 60000) {
+    var tok       = localStorage.getItem('sts-gmail-token');
+    var exp       = parseInt(localStorage.getItem('sts-gmail-token-expiry') || '0');
+    var savedScope = localStorage.getItem('sts-gmail-scope');
+    if (tok && Date.now() < exp - 60000 && savedScope === GMAIL_SCOPE) {
       _gmailAccessToken = tok;
       _gmailTokenExpiry = exp;
       _updateAuthUI(true);
       return;
     }
-  } catch(e) {}
+  } catch(e){}
+
+  // Clear stale token (old scope or expired)
+  try {
+    localStorage.removeItem('sts-gmail-token');
+    localStorage.removeItem('sts-gmail-token-expiry');
+    localStorage.removeItem('sts-gmail-scope');
+  } catch(e){}
   _updateAuthUI(false);
 }
 
@@ -287,7 +485,8 @@ function gmailSignOut() {
   try {
     localStorage.removeItem('sts-gmail-token');
     localStorage.removeItem('sts-gmail-token-expiry');
-  } catch(e) {}
+    localStorage.removeItem('sts-gmail-scope');
+  } catch(e){}
   _updateAuthUI(false);
   document.getElementById('gt-content').style.display = 'none';
   document.getElementById('gt-empty').style.display   = '';
@@ -311,10 +510,7 @@ function _updateAuthUI(signedIn) {
 // ── Direct Gmail API fetch ────────────────────
 
 function fetchGmailDirect() {
-  if (!_gmailTokenValid()) {
-    if (_gmailTokenClient) { _gmailTokenClient.requestAccessToken({ prompt: '' }); return; }
-    gmailSignIn(); return;
-  }
+  if (!_gmailTokenValid()) { gmailSignIn(); return; }
 
   document.getElementById('gt-loading').style.display = 'flex';
   document.getElementById('gt-content').style.display = 'none';
@@ -322,49 +518,44 @@ function fetchGmailDirect() {
   var tsEl = document.getElementById('gmail-last-run');
   if (tsEl) tsEl.textContent = 'Fetching…';
 
-  var headers = { 'Authorization': 'Bearer ' + _gmailAccessToken };
+  var hdrs = { 'Authorization': 'Bearer ' + _gmailAccessToken };
 
-  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=in:inbox+-in:draft+newer_than:14d&maxResults=30', { headers: headers })
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=in:inbox+-in:draft+newer_than:14d&maxResults=30', { headers: hdrs })
     .then(function(r){ return r.json(); })
-    .then(function(listData) {
+    .then(function(listData){
       var ids = (listData.threads || []).map(function(t){ return t.id; });
       return Promise.all(ids.map(function(id){
         return fetch(
           'https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
           '?format=metadata&metadataHeaders=Subject,From,Date',
-          { headers: headers }
+          { headers: hdrs }
         ).then(function(r){ return r.json(); });
       }));
     })
-    .then(function(threadDetails) {
+    .then(function(threadDetails){
       var threads = [];
-      threadDetails.forEach(function(thread) {
-        var msgs = thread.messages || [];
+      threadDetails.forEach(function(thread){
+        var msgs    = thread.messages || [];
         var lastMsg = msgs[msgs.length - 1];
         if (!lastMsg) return;
 
-        var hdrs = {};
-        ((lastMsg.payload && lastMsg.payload.headers) || []).forEach(function(h){
-          hdrs[h.name.toLowerCase()] = h.value;
+        var h = {};
+        ((lastMsg.payload && lastMsg.payload.headers) || []).forEach(function(hdr){
+          h[hdr.name.toLowerCase()] = hdr.value;
         });
 
-        var rawFrom  = hdrs['from'] || '';
-        var fromName = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g, '').trim();
+        var rawFrom   = h['from'] || '';
+        var fromName  = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g, '').trim();
         var fromEmail = (rawFrom.match(/<([^>]+)>/) || ['', rawFrom])[1].trim();
-        var subject  = hdrs['subject'] || '(no subject)';
-        var snippet  = _decodeSnippet(lastMsg.snippet || '');
-        var labelIds = lastMsg.labelIds || [];
-        var isUnread = labelIds.indexOf('UNREAD') !== -1;
-        var isImportant = labelIds.indexOf('IMPORTANT') !== -1;
-        var dateStr  = hdrs['date'] || '';
-        var dateObj  = dateStr ? new Date(dateStr) : new Date();
+        var subject   = h['subject'] || '(no subject)';
+        var snippet   = _decodeSnippet(lastMsg.snippet || '');
+        var labelIds  = lastMsg.labelIds || [];
+        var isUnread  = labelIds.indexOf('UNREAD')    !== -1;
+        var isImp     = labelIds.indexOf('IMPORTANT') !== -1;
+        var dateObj   = h['date'] ? new Date(h['date']) : new Date();
 
         var category = _categorize(fromEmail, subject, labelIds);
         if (category === 'skip') return;
-
-        var priority = _getPriority(category, fromEmail, subject, isImportant);
-        var deadline = _getDeadline(subject, snippet);
-        var action   = category === 'needs-reply' ? _getAction(fromName || fromEmail, subject, snippet) : null;
 
         threads.push({
           threadId: thread.id,
@@ -375,17 +566,17 @@ function fetchGmailDirect() {
           date:     dateObj.toISOString(),
           age:      _formatAge(dateObj),
           category: category,
-          priority: priority,
-          action:   action,
+          priority: _getPriority(category, fromEmail, subject, isImp),
+          action:   category === 'needs-reply' ? _getAction(fromName || fromEmail, subject, snippet) : null,
           unread:   isUnread,
-          deadline: deadline,
+          deadline: _getDeadline(subject, snippet),
           gmailUrl: 'https://mail.google.com/mail/u/0/#inbox/' + thread.id
         });
       });
 
       loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: threads });
     })
-    .catch(function(e) {
+    .catch(function(e){
       console.error('Gmail API error:', e);
       document.getElementById('gt-loading').style.display = 'none';
       document.getElementById('gt-empty').style.display   = '';
@@ -403,12 +594,9 @@ function runGmailOverview() {
     document.getElementById('gt-content').style.display = 'none';
     document.getElementById('gt-empty').style.display   = 'none';
     safeSendPrompt(
-      'Fetch my Gmail inbox using the Gmail MCP. ' +
-      'Use search_threads with query "in:inbox -in:draft newer_than:7d" and pageSize 50. ' +
-      'Categorize each thread as "needs-reply", "business", or "fyi". Skip pure marketing/newsletter/spam. ' +
-      'For needs-reply use get_thread for better action descriptions. ' +
-      'Then call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: ' +
-      '[{ threadId, from, email, subject, snippet, date, age, category, priority, action, unread, deadline, gmailUrl }] }) ' +
+      'Fetch my Gmail inbox using the Gmail MCP. Use search_threads with query "in:inbox -in:draft newer_than:7d" and pageSize 50. ' +
+      'Categorize as needs-reply/business/fyi, skip pure marketing. Use get_thread for needs-reply detail. ' +
+      'Call loadGmailThreads({ fetchedAt: new Date().toISOString(), threads: [{ threadId, from, email, subject, snippet, date, age, category, priority, action, unread, deadline, gmailUrl }] }) ' +
       'where gmailUrl = "https://mail.google.com/mail/u/0/#inbox/" + threadId.'
     );
   } else {
@@ -433,15 +621,14 @@ function _refreshFromJson(showFeedback) {
   }
   fetch('./gmail-brief.json?t=' + Date.now())
     .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(data) {
-      if (data && data.threads && data.threads.length) {
-        loadGmailThreads(data);
-      } else if (showFeedback) {
+    .then(function(data){
+      if (data && data.threads && data.threads.length) { loadGmailThreads(data); }
+      else if (showFeedback) {
         document.getElementById('gt-loading').style.display = 'none';
         document.getElementById('gt-empty').style.display   = '';
       }
     })
-    .catch(function() {
+    .catch(function(){
       if (showFeedback) {
         document.getElementById('gt-loading').style.display = 'none';
         document.getElementById('gt-empty').style.display   = '';
@@ -455,11 +642,10 @@ function loadCachedThreads() {
     if (!saved) return false;
     var d = JSON.parse(saved);
     if (d && d.threads && d.threads.length) { loadGmailThreads(d); return true; }
-  } catch(e) {}
+  } catch(e){}
   return false;
 }
 
 // ── Auto-init ─────────────────────────────────
-// Load cached display immediately, then init OAuth
 loadCachedThreads() || _refreshFromJson(false);
 initGmailAuth();
