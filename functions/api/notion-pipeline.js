@@ -7,7 +7,7 @@
 
 const NOTION_API  = 'https://api.notion.com/v1';
 const NOTION_VER  = '2022-06-28';
-const PIPELINE_DB = 'edee1ecc-7d11-428a-9efc-d17b8cbf195d';
+const PIPELINE_DB = '62de37d7-be83-48eb-a611-f494006d8085';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
