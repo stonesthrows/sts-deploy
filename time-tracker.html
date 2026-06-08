@@ -281,7 +281,7 @@ async function searchCatalog(query) {
   $('spinner').classList.add('active');
   try {
     if (!S.sqToken) { mockSearch(query); return; }
-    const data = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ text_filter: { keyword: query }, object_types: ['ITEM'], limit: 20 }) });
+    const data = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
     renderResults((data.objects || []).map(obj => { const v = (obj.item_data?.variations || [])[0]?.item_variation_data; return { id: obj.id, name: obj.item_data?.name || 'Unnamed', sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category: obj.item_data?.category_name || '' }; }), query);
   } catch { mockSearch(query); } finally { $('spinner').classList.remove('active'); }
 }
