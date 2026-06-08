@@ -194,18 +194,31 @@ function singularize(word) {
 }
 
 function formatNoteText(text) {
-  var sizeMatch = text.match(/^(.+?)\s+size\s+(.+)$/i);
-  if (!sizeMatch) {
-    return text.charAt(0).toUpperCase() + text.slice(1);
+  // Pattern 1: "size 8 spinners" → "Spinner Ring size 8"
+  var reverseMatch = text.match(/^size\s+([\d.]+)\s+(.+)$/i);
+  if (reverseMatch) {
+    var sizePart = reverseMatch[1].trim();
+    var namePart = reverseMatch[2].trim();
+    var titled = namePart.split(' ').map(function(w) {
+      var s = singularize(w);
+      return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    }).join(' ');
+    if (!/ring/i.test(namePart)) titled += ' Ring';
+    return titled + ' size ' + sizePart;
   }
-  var namePart  = sizeMatch[1].trim();
-  var sizePart  = sizeMatch[2].trim();
-  var titled = namePart.split(' ').map(function(w) {
-    var s = singularize(w);
-    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-  }).join(' ');
-  if (!/ring/i.test(namePart)) titled += ' Ring';
-  return titled + ' size ' + sizePart;
+  // Pattern 2: "cats size 5,6.5" → "Cat Ring size 5, 6.5"
+  var forwardMatch = text.match(/^(.+?)\s+size\s+(.+)$/i);
+  if (forwardMatch) {
+    var namePart  = forwardMatch[1].trim();
+    var sizePart  = forwardMatch[2].trim();
+    var titled = namePart.split(' ').map(function(w) {
+      var s = singularize(w);
+      return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    }).join(' ');
+    if (!/ring/i.test(namePart)) titled += ' Ring';
+    return titled + ' size ' + sizePart;
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // ── Quick Capture helpers ─────────────────────
@@ -265,7 +278,7 @@ function stripTriggerPrefix(text, key) {
 function autoDetectBlock(text) {
   var t = text.toLowerCase();
   var followupWords  = ['follow up', 'follow-up', 'call ', 'email ', 'contact ', 'reach out', 'check with', 'remind ', 'text '];
-  var restockWords   = ['restock', 'replenish', 'low on ', 'out of ', 'running out', 'running low', 'need more', 'get more', 'stock up', 'studio stock'];
+  var restockWords   = ['restock', 'replenish', 'low on ', 'out of ', 'running out', 'running low', 'need more', 'get more', 'stock up', 'studio stock', 'size '];
   var orderWords     = ['order ', 'orders ', 'buy ', 'from rio', 'from stuller', 'from otto', 'from halstead', 'pick up'];
   var todoWords      = ['to do:', 'to-do:', 'todo:', 'finish ', 'complete ', 'make ', 'build ', 'fix ', 'clean ', 'update ', 'prepare ', 'ship ', 'solder ', 'set ', 'polish ', 'sand ', 'drill ', 'cut ', 'resize '];
   var designWords    = ['design ', 'idea ', 'sketch ', 'concept ', 'inspiration', 'try making', 'experiment'];
