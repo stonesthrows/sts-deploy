@@ -606,24 +606,33 @@ function fetchGmailDirect() {
     .then(function(threadDetails){
       var threads = [];
       (threadDetails || []).filter(Boolean).forEach(function(thread){
-        var msgs    = thread.messages || [];
-        var lastMsg = msgs[msgs.length - 1];
-        if (!lastMsg) return;
+        var msgs     = thread.messages || [];
+        var lastMsg  = msgs[msgs.length - 1];
+        var firstMsg = msgs[0];
+        if (!firstMsg) return;
 
+        // Use first message for From/Subject (so replied threads don't vanish —
+        // last message would be kyle@stonesthrowjewelry.com after a reply)
         var h = {};
-        ((lastMsg.payload && lastMsg.payload.headers) || []).forEach(function(hdr){
+        ((firstMsg.payload && firstMsg.payload.headers) || []).forEach(function(hdr){
           h[hdr.name.toLowerCase()] = hdr.value;
+        });
+        // But use last message for snippet, labels, and date (most recent activity)
+        var hLast = {};
+        ((lastMsg && lastMsg.payload && lastMsg.payload.headers) || []).forEach(function(hdr){
+          hLast[hdr.name.toLowerCase()] = hdr.value;
         });
 
         var rawFrom   = h['from'] || '';
         var fromName  = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g, '').trim();
         var fromEmail = (rawFrom.match(/<([^>]+)>/) || ['', rawFrom])[1].trim();
-        var subject   = h['subject'] || '(no subject)';
-        var snippet   = _decodeSnippet(lastMsg.snippet || '');
-        var labelIds  = lastMsg.labelIds || [];
+        var subject   = h['subject'] || hLast['subject'] || '(no subject)';
+        var snippet   = _decodeSnippet((lastMsg || firstMsg).snippet || '');
+        var labelIds  = (lastMsg || firstMsg).labelIds || [];
         var isUnread  = labelIds.indexOf('UNREAD')    !== -1;
         var isImp     = labelIds.indexOf('IMPORTANT') !== -1;
-        var dateObj   = h['date'] ? new Date(h['date']) : new Date();
+        var dateStr   = hLast['date'] || h['date'] || '';
+        var dateObj   = dateStr ? new Date(dateStr) : new Date();
 
         var category = _categorize(fromEmail, subject);
         console.log('[Gmail] from:', fromEmail, '| subject:', subject, '| cat:', category);
