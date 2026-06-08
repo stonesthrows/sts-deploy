@@ -625,6 +625,9 @@ async function inventoryConfirm() {
       confirmBtn.textContent = 'Retry';
       return;
     }
+    s.inventoryAdded = s.pieces;
+    try { localStorage.setItem('sts_sessions', JSON.stringify(sessions)); } catch(e) {}
+    renderLog();
     showToast(`+${s.pieces} added to Square ✓`);
     inventoryDone();
   } catch(e) {
@@ -667,7 +670,7 @@ function renderLog() {
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
     const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
     const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--gold-dim)">${s.timerLabel}</span>` : '';
-    const piecesTag = s.pieces != null ? `<div class="log-ded" style="color:var(--text2);">${s.pieces} piece${s.pieces !== 1 ? 's' : ''}</div>` : '';
+    const piecesTag = s.pieces != null ? `<div class="log-ded" style="color:var(--text2);">${s.pieces} piece${s.pieces !== 1 ? 's' : ''}${s.inventoryAdded ? ' · <span style="color:var(--green)">+' + s.inventoryAdded + ' added to Square ✓</span>' : ''}</div>` : '';
     return `<div class="log-entry" style="position:relative;">
       <div style="flex:1;min-width:0;">
         <div class="log-item-name">${s.item.name}${timerTag}</div>
