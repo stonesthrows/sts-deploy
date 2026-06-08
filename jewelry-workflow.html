@@ -2424,9 +2424,6 @@
   <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
     📅 Calendar
   </div>
-  <div class="nav-tab" data-tab="timer" onclick="switchTab('timer',this);timerTabInit()">
-    ⏱ Timer
-  </div>
 </div>
 
 <!-- Sub-nav (Custom Orders) -->
@@ -2454,14 +2451,11 @@
 
 <!-- Sub-nav (Inventory) -->
 <div class="sub-nav" id="sub-nav-inventory">
-  <div class="sub-nav-tab active" data-tab="inv-earrings" onclick="invSwitchMain('earrings',this)">
-    🪬 Earrings
+  <div class="sub-nav-tab active" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
+    💎 Adjust Inventory
   </div>
-  <div class="sub-nav-tab" data-tab="inv-rings" onclick="invSwitchMain('rings',this)">
-    💍 Rings
-  </div>
-  <div class="sub-nav-tab" data-tab="inv-pendants" onclick="invSwitchMain('pendants',this)">
-    📿 Pendants
+  <div class="sub-nav-tab" data-tab="timer" onclick="switchSubTab('timer',this);timerTabInit()">
+    ⏱ Timer
   </div>
 </div>
 
@@ -3089,7 +3083,17 @@
 </div>
 
 <!-- ═══════════════════ INVENTORY ═══════════════════ -->
-<div id="tab-inv-earrings" class="tab-panel">
+<div id="tab-inv-adjust" class="tab-panel">
+
+<!-- Category nav (Earrings / Rings / Pendants) inside the panel -->
+<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
+  <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
+  <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings')">💍 Rings</button>
+  <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants')">📿 Pendants</button>
+</div>
+
+<!-- Earrings panel -->
+<div id="inv-main-earrings" class="inv-main-panel">
 <div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
   <div>
     <div class="page-title">💎 Earrings Inventory</div>
@@ -3126,8 +3130,8 @@
 </div>
 </div>
 
-<!-- Inventory: Rings placeholder -->
-<div id="tab-inv-rings" class="tab-panel">
+<!-- Rings panel -->
+<div id="inv-main-rings" class="inv-main-panel" style="display:none">
   <div class="page-bar">
     <div>
       <div class="page-title">💍 Rings Inventory</div>
@@ -3136,14 +3140,16 @@
   </div>
 </div>
 
-<!-- Inventory: Pendants placeholder -->
-<div id="tab-inv-pendants" class="tab-panel">
+<!-- Pendants panel -->
+<div id="inv-main-pendants" class="inv-main-panel" style="display:none">
   <div class="page-bar">
     <div>
       <div class="page-title">📿 Pendants Inventory</div>
       <div class="page-sub">Coming soon — add pendant products to get started</div>
     </div>
   </div>
+</div>
+
 </div>
 
 <style>

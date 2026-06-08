@@ -266,8 +266,13 @@ function invSwitchSub(sub, el) {
 
 // ── Main tab switching (Earrings / Rings / Pendants) ──
 
-function invSwitchMain(type, el) {
-  switchSubTab('inv-' + type, el);
+function invSwitchMain(type) {
+  document.querySelectorAll('.inv-main-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('inv-main-' + type);
+  if (panel) panel.style.display = '';
+  document.querySelectorAll('[id^="inv-main-tab-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('inv-main-tab-' + type);
+  if (btn) btn.classList.add('active');
 }
 
 // ── Refresh ──────────────────────────────────
