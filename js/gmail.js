@@ -611,10 +611,19 @@ function fetchGmailDirect() {
         var firstMsg = msgs[0];
         if (!firstMsg) return;
 
-        // Use first message for From/Subject (so replied threads don't vanish —
-        // last message would be kyle@stonesthrowjewelry.com after a reply)
+        // Find the first message NOT sent by Kyle so categorization survives
+        // threads where Kyle sent the first or last message
+        var customerMsg = msgs.find(function(m) {
+          var mh = {};
+          ((m.payload && m.payload.headers) || []).forEach(function(hdr){
+            mh[hdr.name.toLowerCase()] = hdr.value;
+          });
+          var fe = (mh['from'] || '').toLowerCase();
+          return !fe.includes('stonesthrowjewelry.com') && !fe.includes('kyle@');
+        }) || firstMsg;
+
         var h = {};
-        ((firstMsg.payload && firstMsg.payload.headers) || []).forEach(function(hdr){
+        ((customerMsg.payload && customerMsg.payload.headers) || []).forEach(function(hdr){
           h[hdr.name.toLowerCase()] = hdr.value;
         });
         // But use last message for snippet, labels, and date (most recent activity)
