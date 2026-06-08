@@ -266,8 +266,16 @@ function buildCard(tid) {
           <button class="btn btn-start" id="t${tid}-start-btn" onclick="startTimer(${tid})" disabled>Start</button>
           <button class="btn btn-stop"  id="t${tid}-stop-btn"  onclick="stopTimer(${tid})"  style="display:none">Stop &amp; Save</button>
         </div>
-        <div class="notes-row">
-          <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…"></textarea>
+        <div class="notes-row" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;">
+          <div style="flex:1;">
+            <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…" style="width:100%;"></textarea>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;">
+            <label style="font-size:10px;color:var(--text2);white-space:nowrap;font-weight:600;letter-spacing:0.03em;">PIECES MADE</label>
+            <input type="number" min="0" step="1" id="t${tid}-pieces-input"
+              style="width:68px;padding:6px 8px;border:1px solid var(--bdr);border-radius:8px;font-size:18px;font-weight:700;text-align:center;background:var(--card-bg);color:var(--text);-moz-appearance:textfield;"
+              placeholder="0">
+          </div>
         </div>
         <div class="saving-badge" id="t${tid}-saving-badge">Saving to Notion…</div>
       </div>
@@ -508,8 +516,10 @@ async function stopTimer(tid) {
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const notes = $t(tid, 'notes-input').value.trim();
+  const piecesRaw = $t(tid, 'pieces-input').value.trim();
+  const pieces = piecesRaw !== '' ? parseInt(piecesRaw, 10) : null;
   $t(tid, 'timer-status').textContent = 'Done';
-  const session = { timerLabel: `Timer ${tid + 1}`, item: T[tid].selectedItem, employee: T[tid].selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: new Date().toISOString(), saved: false, error: null };
+  const session = { timerLabel: `Timer ${tid + 1}`, item: T[tid].selectedItem, employee: T[tid].selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, pieces, timestamp: new Date().toISOString(), saved: false, error: null };
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid + 1} — ${fmt(netMs)} recorded`);
   saveToNotion(session);
@@ -521,7 +531,7 @@ async function saveToNotion(session) {
   const savingBadge = document.querySelector(`[id$="-saving-badge"]`); // fallback — find first visible
   const label = `${session.item.name} — ${session.employee.name}`;
   const date  = session.timestamp.slice(0, 10);
-  const body  = { parent: { database_id: NOTION_DB }, properties: { Session: { title: [{ text: { content: label } }] }, 'Item Name': { rich_text: [{ text: { content: session.item.name } }] }, 'SKU': { rich_text: [{ text: { content: session.item.sku || '' } }] }, 'Category': { rich_text: [{ text: { content: session.item.category || '' } }] }, 'Employee': { rich_text: [{ text: { content: session.employee.name } }] }, 'Square Item ID': { rich_text: [{ text: { content: session.item.id || '' } }] }, 'Duration (min)': { number: parseFloat((session.totalMs / 60000).toFixed(2)) }, 'Clocked-Out Deducted (min)': { number: parseFloat((session.clockedOutMs / 60000).toFixed(2)) }, 'Net Work Time (min)': { number: parseFloat((session.netMs / 60000).toFixed(2)) }, 'Date': { date: { start: date } }, 'Notes': { rich_text: [{ text: { content: session.notes || '' } }] } } };
+  const body  = { parent: { database_id: NOTION_DB }, properties: { Session: { title: [{ text: { content: label } }] }, 'Item Name': { rich_text: [{ text: { content: session.item.name } }] }, 'SKU': { rich_text: [{ text: { content: session.item.sku || '' } }] }, 'Category': { rich_text: [{ text: { content: session.item.category || '' } }] }, 'Employee': { rich_text: [{ text: { content: session.employee.name } }] }, 'Square Item ID': { rich_text: [{ text: { content: session.item.id || '' } }] }, 'Duration (min)': { number: parseFloat((session.totalMs / 60000).toFixed(2)) }, 'Clocked-Out Deducted (min)': { number: parseFloat((session.clockedOutMs / 60000).toFixed(2)) }, 'Net Work Time (min)': { number: parseFloat((session.netMs / 60000).toFixed(2)) }, 'Date': { date: { start: date } }, 'Notes': { rich_text: [{ text: { content: session.notes || '' } }] }, ...(session.pieces != null ? { 'Pieces Made': { number: session.pieces } } : {}) } };
   try {
     const res = await fetch('https://api.notion.com/v1/pages', { method: 'POST', headers: { 'Authorization': 'Bearer ' + CFG.notionToken, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) { session.saved = true; showToast('Saved to Notion ✓'); }
@@ -536,7 +546,7 @@ function resetTimer(tid) {
   $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = '';
   $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
   $t(tid, 'step-product').classList.remove('dimmed'); $t(tid, 'step-employee').classList.remove('dimmed');
-  $t(tid, 'notes-input').value = ''; clearSelection(tid);
+  $t(tid, 'notes-input').value = ''; $t(tid, 'pieces-input').value = ''; clearSelection(tid);
   $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
   T[tid].selectedItem = null; T[tid].selectedEmployee = null;
   T[tid].clockStatus = 'unknown';
@@ -554,7 +564,8 @@ function renderLog() {
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
     const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
     const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--gold-dim)">${s.timerLabel}</span>` : '';
-    return `<div class="log-entry"><div><div class="log-item-name">${s.item.name}${timerTag}</div><div class="log-item-meta">${s.employee.name} · ${label}</div>${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}</div><div><div class="log-duration">${fmt(s.netMs)}</div>${ded}${status}</div></div>`;
+    const piecesTag = s.pieces != null ? `<div class="log-ded" style="color:var(--text2);">${s.pieces} piece${s.pieces !== 1 ? 's' : ''}</div>` : '';
+    return `<div class="log-entry"><div><div class="log-item-name">${s.item.name}${timerTag}</div><div class="log-item-meta">${s.employee.name} · ${label}</div>${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}</div><div><div class="log-duration">${fmt(s.netMs)}</div>${piecesTag}${ded}${status}</div></div>`;
   }).join('');
 }
 
