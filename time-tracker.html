@@ -547,7 +547,7 @@ async function saveToNotion(session) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (res.ok) { session.saved = true; showToast('Saved to Notion ✓'); }
+    if (res.ok) { session.saved = true; session.notionPageId = data.notionPageId || null; showToast('Saved to Notion ✓'); }
     else { session.error = data.error || 'Notion error ' + res.status; showToast('Notion save failed — ' + session.error, true); }
   } catch(e) { session.error = 'Network error: ' + e.message; showToast('Notion save failed', true); }
   finally { renderLog(); }
@@ -571,15 +571,47 @@ function resetTimer(tid) {
 function renderLog() {
   const list = $g('log-list');
   if (!sessions.length) { list.innerHTML = '<div class="log-empty">No sessions recorded yet</div>'; return; }
-  list.innerHTML = sessions.map(s => {
+  list.innerHTML = sessions.map((s, i) => {
     const d = new Date(s.timestamp);
     const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
     const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
     const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--gold-dim)">${s.timerLabel}</span>` : '';
     const piecesTag = s.pieces != null ? `<div class="log-ded" style="color:var(--text2);">${s.pieces} piece${s.pieces !== 1 ? 's' : ''}</div>` : '';
-    return `<div class="log-entry"><div><div class="log-item-name">${s.item.name}${timerTag}</div><div class="log-item-meta">${s.employee.name} · ${label}</div>${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}</div><div><div class="log-duration">${fmt(s.netMs)}</div>${piecesTag}${ded}${status}</div></div>`;
+    return `<div class="log-entry" style="position:relative;">
+      <div style="flex:1;min-width:0;">
+        <div class="log-item-name">${s.item.name}${timerTag}</div>
+        <div class="log-item-meta">${s.employee.name} · ${label}</div>
+        ${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div class="log-duration">${fmt(s.netMs)}</div>
+        ${piecesTag}${ded}${status}
+      </div>
+      <button onclick="deleteSession(${i})" title="Delete entry"
+        style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-dim);opacity:0;transition:opacity .15s;padding:2px 5px;border-radius:4px;"
+        onmouseenter="this.style.opacity=1;this.style.color='var(--red)'"
+        onmouseleave="this.style.opacity=0;this.style.color='var(--text-dim)'">✕</button>
+    </div>`;
   }).join('');
+}
+
+async function deleteSession(i) {
+  const s = sessions[i];
+  if (!s) return;
+  if (!confirm(`Delete this session?\n${s.item.name} — ${s.employee.name}`)) return;
+
+  // Archive in Notion if we have the page ID
+  if (s.notionPageId) {
+    try {
+      await fetch(`/api/notion-timesession?pageId=${s.notionPageId}`, { method: 'DELETE' });
+    } catch(e) { /* non-fatal — remove locally regardless */ }
+  }
+
+  sessions.splice(i, 1);
+  try { localStorage.setItem('sts_sessions', JSON.stringify(sessions)); } catch(e) {}
+  renderLog();
+  showToast('Entry deleted');
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────

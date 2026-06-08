@@ -10,7 +10,7 @@ const DB_ID      = 'e59ae574e5ee4d569395e15bd56450e9';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -23,6 +23,25 @@ function jsonResp(data, status) {
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
+}
+
+export async function onRequestDelete(context) {
+  var token = context.env.NOTION_TOKEN;
+  if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
+
+  var pageId = new URL(context.request.url).searchParams.get('pageId');
+  if (!pageId) return jsonResp({ error: 'pageId required' }, 400);
+
+  await fetch(NOTION_API + '/pages/' + pageId, {
+    method: 'PATCH',
+    headers: {
+      'Authorization':  'Bearer ' + token,
+      'Notion-Version': NOTION_VER,
+      'Content-Type':   'application/json',
+    },
+    body: JSON.stringify({ archived: true }),
+  });
+  return jsonResp({ ok: true });
 }
 
 export async function onRequestPost(context) {
