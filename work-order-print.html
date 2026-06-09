@@ -31,30 +31,31 @@
     }
 
     /* ── Print: 8.5×11, form rotated 90° CW into top half ──
-       The form (5.25in × 8in portrait) is positioned at left:8in,
-       then rotate(-90deg) with transform-origin:top-left rotates it
-       so it paints into x:0→8in, y:0→5.25in.
-       overflow:visible (not hidden) lets the transform render correctly. */
+       .print-area is static (not a positioning context).
+       .form-content anchors to body at top:5.25in / left:0 —
+       its layout box IS within page bounds — then rotate(90deg) +
+       transform-origin:top-left maps it visually into x:0→8in,
+       y:0→5.25in (the top half of the letter page).
+       Cut the strip and rotate CCW to attach to the order bag. */
     @media print {
-      body { margin: 0; padding: 0; background: #fff; }
+      body {
+        margin: 0; padding: 0; background: #fff;
+        position: relative;
+        height: 10.5in;
+      }
       .no-print { display: none !important; }
       @page {
         size: 8.5in 11in portrait;
         margin: 0.25in;
       }
-      .print-area {
-        position: relative;
-        width: 8in;
-        height: 5.25in;
-        overflow: visible;
-      }
+      .print-area { position: static; display: block; }
       .form-content {
         position: absolute;
-        top: 0;
-        left: 8in;
+        top: 5.25in;
+        left: 0;
         width: 5.25in;
         height: 8in;
-        transform: rotate(-90deg);
+        transform: rotate(90deg);
         transform-origin: top left;
         padding: 8px 10px;
         background: #fff;
