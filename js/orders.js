@@ -734,11 +734,15 @@ function clearEstimate() {
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
+  const sa = o.shippingAddress;
+  const addrLine = sa
+    ? [sa.street, sa.street2, sa.city && sa.state ? `${sa.city}, ${sa.state} ${sa.zip}`.trim() : (sa.city || sa.zip), sa.country !== 'United States' ? sa.country : ''].filter(Boolean).join('\n')
+    : (o.address || '');
   const p = new URLSearchParams({
     name:      o.name        || '',
     email:     o.email       || '',
     phone:     o.phone       || '',
-    address:   o.address     || '',
+    address:   addrLine,
     desc:      o.desc        || '',
     notes:     o.notes       || '',
     materials: o.materials   || '',
