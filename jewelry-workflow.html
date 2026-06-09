@@ -2663,7 +2663,7 @@
           </div>
           <div class="fg">
             <label>Pickup Location</label>
-            <select id="f-pickup">
+            <select id="f-pickup" onchange="toggleShippingAddress()">
               <option value="">— Select location —</option>
               <option value="Bell Market">Bell Market</option>
               <option value="Mueller Market">Mueller Market</option>
@@ -2673,6 +2673,10 @@
               <option value="Studio">Studio</option>
               <option value="To be Shipped">📦 To be Shipped</option>
             </select>
+          </div>
+          <div class="fg full" id="shipping-address-row" style="display:none;">
+            <label>Shipping Address</label>
+            <textarea id="f-shipping-address" placeholder="Street address, City, State, ZIP" style="min-height:60px;"></textarea>
           </div>
           <div class="fg">
             <label>Contacted Via</label>
@@ -3857,6 +3861,50 @@
 })();
 </script>
 
+<!-- Mileage Reconciliation Modal -->
+<div class="tl-modal-overlay" id="reconOverlay" onclick="odoCloseReconcile()"></div>
+<div class="tl-modal recon-modal" id="reconModal">
+  <div class="tl-modal-head">
+    <span>🔧 Mileage Reconciliation — <span id="reconPeriod"></span></span>
+    <button class="tl-modal-close" onclick="odoCloseReconcile()">×</button>
+  </div>
+  <div class="recon-summary">
+    <div class="recon-stat">
+      <div class="recon-stat-label">Actual (Odometer)</div>
+      <div class="recon-stat-val"><span id="reconActual">—</span> mi</div>
+    </div>
+    <div class="recon-stat-sep">vs</div>
+    <div class="recon-stat">
+      <div class="recon-stat-label">Recorded (TripLog)</div>
+      <div class="recon-stat-val"><span id="reconRecorded">—</span> mi</div>
+    </div>
+    <div class="recon-stat-sep">→</div>
+    <div class="recon-stat">
+      <div class="recon-stat-label">Gap</div>
+      <div class="recon-stat-val"><span id="reconGap" class="recon-gap">—</span></div>
+    </div>
+  </div>
+  <div class="recon-table-wrap">
+    <table class="tl-table" style="margin:0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Route</th>
+          <th style="text-align:right">Original</th>
+          <th style="text-align:right">Proposed</th>
+        </tr>
+      </thead>
+      <tbody id="reconTripBody"></tbody>
+    </table>
+  </div>
+  <div class="tl-modal-foot">
+    <div style="font-size:11px;color:var(--text-dim)">Gap distributed proportionally across all trips</div>
+    <div style="flex:1"></div>
+    <button class="btn btn-outline btn-sm" onclick="odoCloseReconcile()">Cancel</button>
+    <button id="reconApplyBtn" class="btn btn-gold btn-sm" onclick="odoApplyReconcile()">Apply & Sync</button>
+  </div>
+</div>
+
 <!-- TripLog Edit Modal -->
 <div class="tl-modal-overlay" id="tlEditOverlay" onclick="tlCloseEdit()"></div>
 <div class="tl-modal" id="tlEditModal">
@@ -4140,6 +4188,22 @@
   cursor: default;
 }
 .tl-edit-dot.tl-sync-fail { color: #c0392b; }
+
+/* ── Reconciliation Modal ── */
+.recon-modal { max-width: 620px; }
+.recon-summary {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 20px; border-bottom: 1px solid var(--bdr);
+}
+.recon-stat { display: flex; flex-direction: column; gap: 3px; }
+.recon-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
+.recon-stat-val { font-size: 20px; font-weight: 800; color: var(--text); }
+.recon-stat-sep { font-size: 16px; color: var(--text-dim); }
+.recon-gap { font-size: 20px; font-weight: 800; }
+.recon-over  { color: #2D7A4A; }
+.recon-under { color: #c0392b; }
+.recon-diff { font-size: 11px; font-weight: 700; margin-left: 4px; }
+.recon-table-wrap { padding: 12px 16px; max-height: 320px; overflow-y: auto; }
 /* ── Edit Modal ── */
 .tl-modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -4291,7 +4355,7 @@
         </div>
         <div class="eo-field">
           <label>Pickup Location</label>
-          <select id="eo-pickup" onchange="toggleShippingAddress()">
+          <select id="eo-pickup" onchange="toggleEditShippingAddress()">
             <option value="">— Select location —</option>
             <option value="Bell Market">Bell Market</option>
             <option value="Mueller Market">Mueller Market</option>

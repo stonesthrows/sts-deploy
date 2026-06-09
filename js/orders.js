@@ -184,12 +184,12 @@ function openOrderCard(id) {
   document.getElementById('eo-notes').value      = o.notes         || '';
   document.getElementById('eo-sketch').value     = o.sketchDesc    || '';
   document.getElementById('eo-address').value    = o.address       || '';
-  toggleShippingAddress();
+  toggleEditShippingAddress();
 
   document.getElementById('editOrderModalBg').classList.add('open');
 }
 
-function toggleShippingAddress() {
+function toggleEditShippingAddress() {
   const pickup = document.getElementById('eo-pickup').value;
   const wrap   = document.getElementById('eo-shipping-wrap');
   if (wrap) wrap.style.display = pickup === 'To be Shipped' ? 'block' : 'none';
@@ -357,6 +357,7 @@ function submitOrder() {
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
+  const shippingAddress = pickup === 'To be Shipped' ? (document.getElementById('f-shipping-address').value.trim() || null) : null;
   const contactSource = document.getElementById('f-source').value || null;
   const newId      = 'u' + Date.now();
   const stage      = orderType === 'estimate' ? 'needs-est' : orderType === 'repair' ? 'intake-repair' : 'intake-custom';
@@ -375,6 +376,7 @@ function submitOrder() {
     phone:     document.getElementById('f-phone').value.trim(),
     takeIn:        takeIn,
     pickup:        pickup,
+    shippingAddress: shippingAddress,
     contactSource: contactSource,
     orderType:     orderType,
   });
@@ -428,8 +430,14 @@ function submitOrder() {
 }
 
 
+function toggleShippingAddress() {
+  const pickup = document.getElementById('f-pickup');
+  const row = document.getElementById('shipping-address-row');
+  if (row) row.style.display = pickup && pickup.value === 'To be Shipped' ? '' : 'none';
+}
+
 function clearForm() {
-  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-price','f-notes']
+  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-price','f-notes','f-shipping-address']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
@@ -438,6 +446,7 @@ function clearForm() {
   if (pickup) pickup.value = '';
   const source = document.getElementById('f-source');
   if (source) source.value = '';
+  toggleShippingAddress();
   setOrderType('order');
 }
 
