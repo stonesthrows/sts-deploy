@@ -2508,6 +2508,9 @@
   <div class="sub-nav-tab" data-tab="customers" onclick="switchSubTab('customers',this)">
     👥 Customers
   </div>
+  <div class="sub-nav-tab" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+    ✚ New Order
+  </div>
 </div>
 
 <!-- Sub-nav (Operations) -->
@@ -3898,7 +3901,7 @@
     <button id="tlEditResetBtn" class="btn btn-outline btn-sm" onclick="tlResetEdit()" style="display:none">↺ Reset to Original</button>
     <div style="flex:1"></div>
     <button class="btn btn-outline btn-sm" onclick="tlCloseEdit()">Cancel</button>
-    <button class="btn btn-gold btn-sm" onclick="tlSaveEdit()">Save Changes</button>
+    <button id="tlEditSaveBtn" class="btn btn-gold btn-sm" onclick="tlSaveEdit()">Save Changes</button>
   </div>
 </div>
 
@@ -4135,6 +4138,7 @@
   font-size: 13px; color: #C9983A; margin-right: 4px;
   cursor: default;
 }
+.tl-edit-dot.tl-sync-fail { color: #c0392b; }
 /* ── Edit Modal ── */
 .tl-modal-overlay {
   display: none; position: fixed; inset: 0;
