@@ -187,11 +187,14 @@
     .size-val { flex: 1; padding: 2px 3px; font-size: 8px; min-height: 15px; }
 
     /* Line items */
-    .li-block { border: 1px solid #000; border-top: none; border-bottom: none; }
-    .li-head { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; }
+    .li-block {
+      border: 1px solid #000; border-top: none; border-bottom: none;
+      display: flex; flex-direction: column; flex: 2; min-height: 0;
+    }
+    .li-head { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; flex-shrink: 0; }
     .li-hd { flex: 1; font-weight: bold; font-size: 8px; padding: 1px 3px; border-right: 1px solid #000; }
     .li-ha { width: 52px; font-weight: bold; font-size: 8px; padding: 1px 3px; text-align: right; }
-    .li-row { display: flex; border-bottom: 1px solid #ddd; min-height: 13px; }
+    .li-row { display: flex; border-bottom: 1px solid #ddd; flex: 1; min-height: 13px; }
     .li-row:last-child { border-bottom: none; }
     .li-d { flex: 1; padding: 1px 3px; border-right: 1px solid #ddd; font-size: 8px; }
     .li-a { width: 52px; padding: 1px 3px; text-align: right; font-size: 8px; }
@@ -285,9 +288,9 @@
     <div class="cg-val" id="c-address" contenteditable="true"></div>
   </div>
 
-  <div class="sec-block first grow2">
+  <div class="sec-block first" style="max-height:1cm; display:flex; flex-direction:column; flex-shrink:0;">
     <div class="sec-head">Job Description</div>
-    <div class="sec-body tall" id="j-desc" contenteditable="true"></div>
+    <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0;"></div>
   </div>
 
   <div class="size-row">
