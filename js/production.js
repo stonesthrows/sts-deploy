@@ -7,54 +7,161 @@ function renderProduction() {
   var grid = document.getElementById('prodGrid');
   if (!grid) return;
 
-  var buildStages = ['build','ready-pick','order-mat','materials'];
+  var doneStages = ['complete', 'delivered'];
   var activeOrders = ORDERS.filter(function(o) {
-    return buildStages.includes(o.stage);
+    return !doneStages.includes(o.stage);
   });
 
-  if (!activeOrders.length) {
-    grid.innerHTML = '<div class="prod-placeholder" style="grid-column:1/-1">No orders currently in production.</div>';
-    return;
-  }
-
+  // Stage display config — ordered by workflow position
+  var stageSeq = [
+    'intake-custom','intake-repair','needs-est',
+    'repair',
+    'sketch-needs','sketch-wait','sketch',
+    'quote','est-appr',
+    'deposit-wait','deposit-paid',
+    'order-mat','materials','build',
+    'contact-need','contact-done',
+    'ready-pick'
+  ];
   var stageLabels = {
-    'order-mat':   'Order Materials',
-    'materials':   'Waiting on Materials',
-    'build':       'At the Bench',
-    'ready-pick':  'Ready for Pickup'
+    'intake-custom':  'Custom Intake',
+    'intake-repair':  'Repair Intake',
+    'needs-est':      'Estimate Intake',
+    'repair':         'Repairs',
+    'sketch-needs':   'Needs Sketch',
+    'sketch-wait':    'Waiting on Sketch Approval',
+    'sketch':         'Sketch Approved',
+    'quote':          'Estimate Sent',
+    'est-appr':       'Estimate Approved',
+    'deposit-wait':   'Waiting on Deposit',
+    'deposit-paid':   'Deposit Paid',
+    'order-mat':      'Order Materials',
+    'materials':      'Waiting on Materials',
+    'build':          'At the Bench',
+    'contact-need':   'Need to Contact Customer',
+    'contact-done':   'Contacted Customer',
+    'ready-pick':     'Ready for Pickup'
   };
   var stageColors = {
-    'order-mat':  '#A86028',
-    'materials':  '#9050CC',
-    'build':      '#2A68B8',
-    'ready-pick': '#1E84A8'
+    'intake-custom':  '#7A8CA0',
+    'intake-repair':  '#7A8CA0',
+    'needs-est':      '#7A8CA0',
+    'repair':         '#C06030',
+    'sketch-needs':   '#B07830',
+    'sketch-wait':    '#B07830',
+    'sketch':         '#B07830',
+    'quote':          '#8860A8',
+    'est-appr':       '#8860A8',
+    'deposit-wait':   '#4880B8',
+    'deposit-paid':   '#4880B8',
+    'order-mat':      '#A86028',
+    'materials':      '#9050CC',
+    'build':          '#2A68B8',
+    'contact-need':   '#C04848',
+    'contact-done':   '#C04848',
+    'ready-pick':     '#1E84A8'
   };
 
   var html = '';
-  buildStages.forEach(function(stage) {
-    var stageOrders = activeOrders.filter(function(o){ return o.stage === stage; });
-    if (!stageOrders.length) return;
-    html += '<div class="prod-card">';
-    html += '<div class="prod-card-head" style="border-left:3px solid ' + (stageColors[stage]||'#999') + '">'
-          + stageLabels[stage] + ' <span style="font-weight:400;color:#9A8860;margin-left:6px">(' + stageOrders.length + ')</span></div>';
-    html += '<div class="prod-card-body">';
-    stageOrders.forEach(function(o) {
-      var dl = deadlineInfo(o.deadline);
-      html += '<div style="padding:9px 0;border-bottom:1px solid #F4EFE8;display:flex;justify-content:space-between;align-items:flex-start">';
-      html += '<div>'
-            + '<div style="font-size:13px;font-weight:700;color:var(--text)">' + o.name + '</div>'
-            + '<div style="font-size:11.5px;color:#6A6460;margin-top:2px">' + o.desc + '</div>'
-            + '</div>';
-      html += '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-            + '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>'
-            + (o.price ? '<div style="font-size:11px;color:#9A8860;margin-top:3px">$' + o.price.toLocaleString() + '</div>' : '')
-            + '</div>';
-      html += '</div>';
+
+  // ── Section header ───────────────────────────────────────────
+  function sectionHeader(label, count, color) {
+    return '<div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:12px 0 4px">'
+         + '<div style="height:2px;flex:1;background:' + color + ';opacity:0.25"></div>'
+         + '<span style="font-size:11px;font-weight:700;letter-spacing:.08em;color:' + color + ';text-transform:uppercase">' + label + '</span>'
+         + '<span style="font-size:11px;color:#9A8860;font-weight:400">(' + count + ')</span>'
+         + '<div style="height:2px;flex:1;background:' + color + ';opacity:0.25"></div>'
+         + '</div>';
+  }
+
+  // ── Custom Orders ────────────────────────────────────────────
+  if (activeOrders.length) {
+    html += sectionHeader('Custom Orders', activeOrders.length, '#B8860B');
+    stageSeq.forEach(function(stage) {
+      var stageOrders = activeOrders.filter(function(o){ return o.stage === stage; });
+      if (!stageOrders.length) return;
+      html += '<div class="prod-card">';
+      html += '<div class="prod-card-head" style="border-left:3px solid ' + (stageColors[stage]||'#999') + '">'
+            + (stageLabels[stage]||stage) + ' <span style="font-weight:400;color:#9A8860;margin-left:6px">(' + stageOrders.length + ')</span></div>';
+      html += '<div class="prod-card-body">';
+      stageOrders.forEach(function(o) {
+        var dl = deadlineInfo(o.deadline);
+        html += '<div style="padding:9px 0;border-bottom:1px solid #F4EFE8;display:flex;justify-content:space-between;align-items:flex-start">';
+        html += '<div>'
+              + '<div style="font-size:13px;font-weight:700;color:var(--text)">' + o.name + '</div>'
+              + '<div style="font-size:11.5px;color:#6A6460;margin-top:2px">' + o.desc + '</div>'
+              + '</div>';
+        html += '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
+              + '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>'
+              + (o.price ? '<div style="font-size:11px;color:#9A8860;margin-top:3px">$' + o.price.toLocaleString() + '</div>' : '')
+              + '</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
     });
-    html += '</div></div>';
+  }
+
+  // ── Etsy & Shopify Orders ─────────────────────────────────────
+  var orderThreads = (typeof _cachedOrderThreads !== 'undefined') ? _cachedOrderThreads : [];
+
+  // Also try reading from localStorage if global hasn't been populated yet
+  if (!orderThreads.length) {
+    try {
+      var saved = localStorage.getItem('sts-gmail-threads');
+      if (saved) {
+        var d = JSON.parse(saved);
+        orderThreads = (d.threads || []).filter(function(t){ return t.category === 'orders'; });
+      }
+    } catch(e) {}
+  }
+
+  var etsyThreads    = orderThreads.filter(function(t){ return t.email && t.email.toLowerCase().indexOf('etsy') >= 0; });
+  var shopifyThreads = orderThreads.filter(function(t){ return t.email && t.email.toLowerCase().indexOf('shopify') >= 0; });
+  var otherThreads   = orderThreads.filter(function(t){
+    var em = (t.email || '').toLowerCase();
+    return em.indexOf('etsy') < 0 && em.indexOf('shopify') < 0;
   });
 
-  grid.innerHTML = html || '<div class="prod-placeholder" style="grid-column:1/-1">No active production orders.</div>';
+  function renderThreadCard(threads, label, color) {
+    if (!threads.length) return '';
+    var out = '';
+    out += '<div class="prod-card">';
+    out += '<div class="prod-card-head" style="border-left:3px solid ' + color + '">'
+         + label + ' <span style="font-weight:400;color:#9A8860;margin-left:6px">(' + threads.length + ')</span></div>';
+    out += '<div class="prod-card-body">';
+    threads.forEach(function(t) {
+      var unreadDot = t.unread ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#e05;margin-right:5px;vertical-align:middle"></span>' : '';
+      var gmailLink = t.gmailUrl
+        ? ' <a href="' + t.gmailUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#9A8860;text-decoration:none;margin-left:4px" title="Open in Gmail">↗</a>'
+        : '';
+      out += '<div style="padding:9px 0;border-bottom:1px solid #F4EFE8">';
+      out += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+      out += '<div style="flex:1;min-width:0">'
+           + '<div style="font-size:13px;font-weight:700;color:var(--text)">' + unreadDot + t.subject + gmailLink + '</div>'
+           + (t.snippet ? '<div style="font-size:11.5px;color:#6A6460;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + t.snippet + '</div>' : '')
+           + '</div>';
+      out += '<div style="text-align:right;flex-shrink:0;margin-left:12px;font-size:11px;color:#9A8860">' + (t.age || '') + '</div>';
+      out += '</div>';
+      out += '</div>';
+    });
+    out += '</div></div>';
+    return out;
+  }
+
+  var platformTotal = etsyThreads.length + shopifyThreads.length + otherThreads.length;
+  if (platformTotal > 0) {
+    html += sectionHeader('Platform Orders', platformTotal, '#1a7a4a');
+    html += renderThreadCard(etsyThreads,    'Etsy Orders',    '#F1641E');
+    html += renderThreadCard(shopifyThreads, 'Shopify Orders', '#96bf48');
+    if (otherThreads.length) html += renderThreadCard(otherThreads, 'Other Order Emails', '#888');
+  }
+
+  if (!activeOrders.length && !platformTotal) {
+    grid.innerHTML = '<div class="prod-placeholder" style="grid-column:1/-1">No active orders right now.</div>';
+    return;
+  }
+
+  grid.innerHTML = html;
 }
 
 // ============================================================

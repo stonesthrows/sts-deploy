@@ -445,7 +445,12 @@ function gtTrash(btn) {
   var threadId = card.dataset.threadId;
 
   if (!threadId) { if (typeof toast === 'function') toast('No thread ID — try reconnecting Gmail.', '⚠️'); return; }
-  if (!_gmailTokenValid()) { gmailSignIn(); if (typeof toast === 'function') toast('Reconnecting Gmail — try again in a moment.', '🔑'); return; }
+  if (!_gmailTokenValid()) {
+    if (typeof toast === 'function') toast('Gmail not connected — sign in with the Connect Gmail button', '🔑');
+    _updateAuthUI(false);
+    gmailSignIn(true);
+    return;
+  }
 
   // Two-step confirm (no native confirm() which gets silently blocked in PWA/iframe)
   if (btn.dataset.confirmPending !== '1') {
@@ -481,8 +486,8 @@ function gtTrash(btn) {
       _updateAuthUI(false);
       btn.textContent = '🗑 Trash';
       btn.disabled    = false;
-      if (typeof toast === 'function') toast('Session expired — reconnecting Gmail…', '🔑');
-      gmailSignIn();
+      if (typeof toast === 'function') toast('Session expired — sign in again with Connect Gmail', '🔑');
+      gmailSignIn(true);
       return;
     }
     if (!r.ok) {
@@ -513,8 +518,15 @@ function gtTrash(btn) {
 
 // ── Public: load threads into UI ──────────────
 
+// Global cache of order threads (Etsy + Shopify) for use by renderProduction()
+var _cachedOrderThreads = [];
+
 function loadGmailThreads(data) {
   var threads = data.threads || [];
+
+  // Cache order threads so the Production tab can use them
+  _cachedOrderThreads = threads.filter(function(t){ return t.category === 'orders'; });
+  if (typeof renderProduction === 'function') renderProduction();
 
   document.getElementById('gt-loading').style.display = 'none';
 
@@ -551,7 +563,11 @@ function initGmailAuth() {
     client_id: GMAIL_CLIENT_ID,
     scope:     GMAIL_SCOPE,
     callback:  function(resp) {
-      if (resp.error) { _updateAuthUI(false); return; }
+      if (resp.error) {
+        _updateAuthUI(false);
+        if (typeof toast === 'function') toast('Gmail sign-in failed — click Connect Gmail', '🔑');
+        return;
+      }
       _gmailAccessToken = resp.access_token;
       _gmailTokenExpiry = Date.now() + resp.expires_in * 1000;
       try {
@@ -586,9 +602,9 @@ function initGmailAuth() {
   _updateAuthUI(false);
 }
 
-function gmailSignIn() {
-  if (!_gmailTokenClient) { initGmailAuth(); setTimeout(gmailSignIn, 600); return; }
-  _gmailTokenClient.requestAccessToken({ prompt: '' });
+function gmailSignIn(forcePopup) {
+  if (!_gmailTokenClient) { initGmailAuth(); setTimeout(function(){ gmailSignIn(forcePopup); }, 600); return; }
+  _gmailTokenClient.requestAccessToken({ prompt: forcePopup ? 'select_account' : '' });
 }
 
 function gmailSignOut() {

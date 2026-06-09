@@ -2478,13 +2478,10 @@
 <!-- Nav -->
 <div class="nav">
   <div class="nav-tab active" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
-    ✏️ Custom Orders <span class="nav-badge" id="badge-active">6</span>
+    ✏️ Orders <span class="nav-badge" id="badge-active">6</span>
   </div>
   <div class="nav-tab" data-tab="gmail" onclick="switchTab('gmail',this)">
     📧 Gmail
-  </div>
-  <div class="nav-tab" data-tab="production" onclick="switchTab('production',this)">
-    🔨 Production
   </div>
   <div class="nav-tab" data-parent="operations" onclick="switchParent('operations',this)">
     ⚙️ Operations
@@ -2503,10 +2500,10 @@
 <!-- Sub-nav (Custom Orders) -->
 <div class="sub-nav active" id="sub-nav-custom-orders">
   <div class="sub-nav-tab active" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
-    📋 Orders <span class="nav-badge" id="badge-active-sub"></span>
+    📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
   </div>
-  <div class="sub-nav-tab" data-tab="new-order" onclick="switchSubTab('new-order',this)">
-    ＋ New Order
+<div class="sub-nav-tab" data-tab="production" onclick="switchSubTab('production',this)">
+    🔨 Production
   </div>
   <div class="sub-nav-tab" data-tab="customers" onclick="switchSubTab('customers',this)">
     👥 Customers
@@ -2609,7 +2606,6 @@
       <button class="notion-chip" onclick="syncGmail()">⟳ Sync Gmail</button>
       <button class="notion-chip" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
       <button class="notion-chip" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ Add Order</button>
     </div>
   </div>
 
@@ -2617,8 +2613,7 @@
 
 </div>
 
-<!-- ═══════════════════ NEW ORDER ═══════════════════ -->
-<div id="tab-new-order" class="tab-panel">
+<div id="tab-new-order" class="tab-panel" style="display:none!important">
   <div class="form-wrap">
     <div class="form-card">
       <div class="form-head">
@@ -2803,7 +2798,6 @@
       <input type="text" placeholder="Search customers…" oninput="filterCustomers(this.value)" id="custSearch">
     </div>
     <button class="notion-chip" id="syncCustomersBtn" onclick="syncCustomersFromNotion()" title="Pull latest customers from Notion">↻ Sync Customers</button>
-    <button class="btn btn-gold btn-sm" onclick="switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">＋ New Order</button>
   </div>
 
   <!-- Sub-tabs -->
@@ -2836,7 +2830,7 @@
     </div>
     <div class="gt-auth-bar">
       <span class="gt-auth-status" id="gt-auth-status"></span>
-      <button id="gt-signin-btn" class="btn btn-gold btn-sm" onclick="gmailSignIn()" style="display:none;">🔑 Connect Gmail</button>
+      <button id="gt-signin-btn" class="btn btn-gold btn-sm" onclick="gmailSignIn(true)" style="display:none;">🔑 Connect Gmail</button>
       <button id="gt-signout-btn" class="btn btn-ghost btn-sm" onclick="gmailSignOut()" style="display:none;">Disconnect</button>
       <button class="btn btn-ghost btn-sm" onclick="runGmailOverview()">⟳ Refresh</button>
     </div>
@@ -2883,7 +2877,7 @@
   <div class="page-bar">
     <div>
       <div class="page-title">🔨 Production</div>
-      <div class="page-sub">Orders currently being worked on or ready to hand off</div>
+      <div class="page-sub">All active orders — Custom, Etsy &amp; Shopify</div>
     </div>
   </div>
   <div class="prod-grid" id="prodGrid">
