@@ -750,6 +750,7 @@ function printOrder(id) {
     deadline:  o.deadline    || '',
     price:     o.price       || '',
     deposit:   o.deposit     || '',
+    ringSize:  o.ringSize    || '',
     pickup:    o.pickup      || '',
     source:    o.contactSource || '',
     stage:     o.stage       || ''

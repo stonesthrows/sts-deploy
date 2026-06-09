@@ -309,6 +309,8 @@
     <div class="cg-val" id="c-phone" contenteditable="true"></div>
     <div class="cg-lbl">Address</div>
     <div class="cg-val" id="c-address" contenteditable="true"></div>
+    <div class="cg-lbl">Quoted $</div>
+    <div class="cg-val" id="c-price" contenteditable="true"></div>
   </div>
 
   <div class="jd-size-row">
@@ -392,7 +394,9 @@
   const materials = p.get('materials') || '';
   const takeIn    = p.get('takeIn')    || '';
   const deadline  = p.get('deadline')  || '';
+  const price     = p.get('price')     || '';
   const deposit   = p.get('deposit')   || '';
+  const ringSize  = p.get('ringSize')  || '';
   const pickup    = p.get('pickup')    || '';
   const stage     = p.get('stage')     || '';
 
@@ -428,7 +432,8 @@
   addrEl.style.whiteSpace = 'pre-wrap';
   addrEl.textContent = address;
   document.getElementById('j-desc').textContent = desc;
-  document.getElementById('j-size').textContent = size;
+  document.getElementById('j-size').textContent = ringSize;
+  if (price) document.getElementById('c-price').textContent = '$' + parseFloat(price).toFixed(2);
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
   const dep0 = parseFloat(deposit) || 0;
