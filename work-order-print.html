@@ -8,336 +8,202 @@
 
     body {
       font-family: Calibri, Arial, sans-serif;
-      font-size: 10px;
+      font-size: 9px;
       background: #fff;
       color: #000;
-      padding: 12px 16px;
     }
 
-    /* ── Header block ── */
-    .header {
-      margin-bottom: 8px;
-    }
-    .shop-name {
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 0.5px;
-    }
-    .shop-sub {
-      font-size: 10px;
-      color: #555;
-      margin-top: 1px;
-      margin-bottom: 5px;
-    }
+    /* ── Header ── */
+    .header { margin-bottom: 4px; }
+    .shop-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
+    .shop-sub  { font-size: 8px; color: #555; margin-top: 1px; margin-bottom: 3px; }
 
-    /* ── Inline checkbox row (Order Type & Pickup) ── */
+    /* ── Checkbox / label rows ── */
     .inline-chk-row {
-      display: flex;
-      align-items: center;
-      border: 1px solid #000;
-      margin-bottom: 0;
+      display: flex; align-items: center;
+      border: 1px solid #000; margin-bottom: 0;
     }
-    .inline-chk-row + .inline-chk-row {
-      border-top: none;
-    }
+    .inline-chk-row + .inline-chk-row { border-top: none; }
     .inline-chk-label {
-      font-weight: bold;
-      font-size: 9.5px;
-      padding: 3px 8px;
-      border-right: 1px solid #000;
-      white-space: nowrap;
-      background: #f0f0f0;
-      min-width: 80px;
-      align-self: stretch;
-      display: flex;
-      align-items: center;
+      font-weight: bold; font-size: 8.5px;
+      padding: 2px 6px; border-right: 1px solid #000;
+      white-space: nowrap; background: #f0f0f0;
+      min-width: 70px; align-self: stretch;
+      display: flex; align-items: center;
     }
-    .inline-chk-items {
-      display: flex;
-      align-items: center;
-      flex-wrap: nowrap;
-    }
+    .inline-chk-items { display: flex; align-items: center; flex-wrap: nowrap; }
     .chk-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 10px;
-      font-size: 9.5px;
-      border-right: 1px solid #e0e0e0;
-      white-space: nowrap;
+      display: flex; align-items: center; gap: 3px;
+      padding: 2px 8px; font-size: 8.5px;
+      border-right: 1px solid #e0e0e0; white-space: nowrap;
     }
     .chk-item:last-child { border-right: none; }
     .chk-box {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #555;
-      flex-shrink: 0;
-      position: relative;
+      display: inline-block; width: 10px; height: 10px;
+      border: 1px solid #555; flex-shrink: 0; position: relative;
     }
     .chk-box.checked { background: #222; }
     .chk-box.checked::after {
-      content: '✓';
-      color: #fff;
-      font-size: 9px;
-      position: absolute;
-      top: -1px;
-      left: 1px;
-      line-height: 1;
+      content: '✓'; color: #fff; font-size: 8px;
+      position: absolute; top: -1px; left: 1px; line-height: 1;
     }
 
-    /* ── Inline date row ── */
+    /* ── Date row ── */
     .date-row-inline {
-      display: flex;
-      align-items: center;
-      border: 1px solid #000;
-      border-top: none;
-      margin-bottom: 8px;
+      display: flex; align-items: center;
+      border: 1px solid #000; border-top: none; margin-bottom: 4px;
     }
-    .date-row-inline .inline-chk-label {
-      border-right: 1px solid #000;
-      min-width: 80px;
-    }
-    .date-pair {
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
+    .date-row-inline .inline-chk-label { min-width: 70px; }
+    .date-pair { display: flex; align-items: center; }
     .date-field {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 10px;
-      font-size: 9.5px;
+      display: flex; align-items: center; gap: 4px;
+      padding: 2px 8px; font-size: 8.5px;
       border-right: 1px solid #e0e0e0;
     }
     .date-field:last-child { border-right: none; }
-    .date-field-label { font-weight: bold; font-size: 9.5px; white-space: nowrap; }
+    .date-field-label { font-weight: bold; font-size: 8.5px; white-space: nowrap; }
     .date-value {
-      border: 1px solid #999;
-      padding: 1px 6px;
-      min-width: 80px;
-      font-size: 9.5px;
-      background: #fff;
+      border: 1px solid #999; padding: 1px 4px;
+      min-width: 68px; font-size: 8.5px; background: #fff;
     }
 
-    /* ── Customer info grid ── */
+    /* ── Customer grid ── */
     .customer-grid {
-      display: grid;
-      grid-template-columns: 80px 1fr;
-      border: 1px solid #000;
-      border-bottom: none;
+      display: grid; grid-template-columns: 68px 1fr;
+      border: 1px solid #000; border-bottom: none;
     }
     .cg-label {
-      font-weight: bold;
-      padding: 3px 6px;
-      border-right: 1px solid #000;
-      border-bottom: 1px solid #000;
-      background: #f0f0f0;
-      font-size: 9.5px;
+      font-weight: bold; padding: 2px 5px;
+      border-right: 1px solid #000; border-bottom: 1px solid #000;
+      background: #f0f0f0; font-size: 8.5px;
     }
     .cg-value {
-      padding: 3px 6px;
-      border-bottom: 1px solid #000;
-      min-height: 22px;
-      font-size: 9.5px;
+      padding: 2px 5px; border-bottom: 1px solid #000;
+      min-height: 16px; font-size: 8.5px;
     }
 
-    /* ── Job / Size section ── */
+    /* ── Job / Size ── */
     .job-section {
-      display: grid;
-      grid-template-columns: 1fr 120px;
-      border: 1px solid #000;
-      border-top: none;
-      border-bottom: none;
+      display: grid; grid-template-columns: 1fr 100px;
+      border: 1px solid #000; border-top: none; border-bottom: none;
     }
     .job-header {
-      font-weight: bold;
-      text-align: center;
-      padding: 3px 6px;
-      border-right: 1px solid #000;
-      border-bottom: 1px solid #000;
-      background: #d0d0d0;
-      font-size: 9.5px;
+      font-weight: bold; text-align: center; padding: 2px 5px;
+      border-right: 1px solid #000; border-bottom: 1px solid #000;
+      background: #d0d0d0; font-size: 8.5px;
     }
     .size-header {
-      font-weight: bold;
-      text-align: center;
-      padding: 3px 6px;
-      border-bottom: 1px solid #000;
-      background: #d0d0d0;
-      font-size: 9.5px;
+      font-weight: bold; text-align: center; padding: 2px 5px;
+      border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
     }
     .job-body {
-      padding: 4px 6px;
-      min-height: 44px;
-      border-right: 1px solid #000;
-      border-bottom: 1px solid #000;
-      font-size: 9.5px;
-      white-space: pre-wrap;
-      line-height: 1.5;
+      padding: 3px 5px; min-height: 36px;
+      border-right: 1px solid #000; border-bottom: 1px solid #000;
+      font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
     .size-body {
-      padding: 4px 6px;
-      min-height: 44px;
-      border-bottom: 1px solid #000;
-      font-size: 9.5px;
+      padding: 3px 5px; min-height: 36px;
+      border-bottom: 1px solid #000; font-size: 8.5px;
     }
 
     /* ── Notes + Line items ── */
     .bottom-section {
-      display: grid;
-      grid-template-columns: 1fr 220px;
-      border: 1px solid #000;
-      border-top: none;
+      display: grid; grid-template-columns: 1fr 180px;
+      border: 1px solid #000; border-top: none;
     }
     .notes-col { border-right: 1px solid #000; }
     .notes-header {
-      font-weight: bold;
-      text-align: center;
-      padding: 3px 6px;
-      border-bottom: 1px solid #000;
-      background: #d0d0d0;
-      font-size: 9.5px;
+      font-weight: bold; text-align: center; padding: 2px 5px;
+      border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
     }
     .notes-body {
-      padding: 4px 6px;
-      min-height: 80px;
-      font-size: 9.5px;
-      white-space: pre-wrap;
-      line-height: 1.6;
+      padding: 3px 5px; min-height: 60px;
+      font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
     .li-row {
-      display: flex;
-      border-bottom: 1px solid #ccc;
-      min-height: 22px;
+      display: flex; border-bottom: 1px solid #ccc; min-height: 17px;
     }
     .li-row:last-child { border-bottom: none; }
     .li-desc {
-      flex: 1;
-      padding: 3px 6px;
-      border-right: 1px solid #ccc;
-      font-size: 9.5px;
+      flex: 1; padding: 2px 5px;
+      border-right: 1px solid #ccc; font-size: 8.5px;
     }
     .li-amt {
-      width: 70px;
-      padding: 3px 6px;
-      text-align: right;
-      font-size: 9.5px;
+      width: 56px; padding: 2px 5px;
+      text-align: right; font-size: 8.5px;
     }
     .totals-section { border-top: 1px solid #000; }
     .t-row {
-      display: flex;
-      border-bottom: 1px solid #ccc;
-      min-height: 22px;
+      display: flex; border-bottom: 1px solid #ccc; min-height: 17px;
     }
     .t-row:last-child { border-bottom: none; }
     .t-label {
-      flex: 1;
-      padding: 3px 6px;
-      text-align: right;
-      font-size: 9.5px;
-      border-right: 1px solid #ccc;
+      flex: 1; padding: 2px 5px; text-align: right;
+      font-size: 8.5px; border-right: 1px solid #ccc;
     }
     .t-val {
-      width: 70px;
-      padding: 3px 6px;
-      text-align: right;
-      font-size: 9.5px;
+      width: 56px; padding: 2px 5px;
+      text-align: right; font-size: 8.5px;
     }
-    .t-row.bold .t-label,
-    .t-row.bold .t-val { font-weight: bold; }
+    .t-row.bold .t-label, .t-row.bold .t-val { font-weight: bold; }
 
     /* paid row */
     .paid-row {
-      display: flex;
-      border-top: 1px solid #000;
-      min-height: 24px;
+      display: flex; border-top: 1px solid #000; min-height: 18px;
     }
     .paid-label {
-      padding: 3px 6px;
-      font-weight: bold;
-      font-size: 9.5px;
-      border-right: 1px solid #ccc;
-      display: flex;
-      align-items: center;
+      padding: 2px 5px; font-weight: bold; font-size: 8.5px;
+      border-right: 1px solid #ccc; display: flex; align-items: center;
     }
     .paid-option {
-      flex: 1;
-      padding: 3px 6px;
-      font-size: 9.5px;
+      flex: 1; padding: 2px 4px; font-size: 8.5px;
       border-right: 1px solid #ccc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 3px;
     }
     .paid-option:last-child { border-right: none; }
 
-    /* ── Pickup row at bottom ── */
+    /* ── Pickup row ── */
     .pickup-row {
-      display: flex;
-      align-items: center;
-      border: 1px solid #000;
-      border-top: none;
+      display: flex; align-items: center;
+      border: 1px solid #000; border-top: none;
     }
 
-    /* ── Half-sheet label sizing (OL400WX: 8.5" × 5.5") ── */
+    /* ── Print: OL400WX half-sheet 8.5" × 5.5" ── */
     @media print {
-      body { padding: 0; margin: 0; }
+      body { padding: 0; }
       .no-print { display: none !important; }
       @page {
         size: 8.5in 5.5in;
-        margin: 0.2in 0.25in;
+        margin: 0.18in 0.22in;
       }
     }
 
-    /* Screen preview also matches half-sheet proportions */
+    /* Screen preview */
     @media screen {
-      body {
-        max-width: 8in;
-        padding: 14px 18px;
-      }
+      body { max-width: 8in; padding: 10px 14px; }
     }
 
-    .print-bar { text-align: center; margin-bottom: 14px; }
+    /* Print bar */
+    .print-bar { text-align: center; margin-bottom: 10px; }
     .print-btn {
-      background: #7A5C3A;
-      color: #fff;
-      border: none;
-      padding: 8px 22px;
-      font-size: 13px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-family: inherit;
+      background: #7A5C3A; color: #fff; border: none;
+      padding: 7px 20px; font-size: 12px; border-radius: 5px;
+      cursor: pointer; font-family: inherit;
     }
     .print-btn:hover { background: #5e4428; }
 
-    /* editable fields */
-    [contenteditable] {
-      outline: none;
-      cursor: text;
-    }
-    [contenteditable]:hover,
-    [contenteditable]:focus {
-      background: #fffbe6;
-      box-shadow: inset 0 0 0 1px #c8a84b;
-    }
-    .date-value[contenteditable]:hover,
-    .date-value[contenteditable]:focus {
-      background: #fffbe6;
-      box-shadow: inset 0 0 0 1px #c8a84b;
+    /* Editable fields */
+    [contenteditable] { outline: none; cursor: text; }
+    [contenteditable]:hover, [contenteditable]:focus {
+      background: #fffbe6; box-shadow: inset 0 0 0 1px #c8a84b;
     }
     @media print {
-      [contenteditable]:hover,
-      [contenteditable]:focus,
+      [contenteditable]:hover, [contenteditable]:focus,
       .date-value[contenteditable] {
-        background: transparent !important;
-        box-shadow: none !important;
+        background: transparent !important; box-shadow: none !important;
       }
     }
 
-    /* clickable checkboxes */
     .chk-box { cursor: pointer; }
   </style>
 </head>
@@ -347,13 +213,13 @@
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
 
-<!-- ── Header ── -->
+<!-- Header -->
 <div class="header">
   <div class="shop-name">Stones Throw Studio</div>
   <div class="shop-sub">Custom Jewelry</div>
 </div>
 
-<!-- ── Order Type (inline checkboxes) ── -->
+<!-- Order Type -->
 <div class="inline-chk-row">
   <div class="inline-chk-label">Order Type</div>
   <div class="inline-chk-items">
@@ -363,7 +229,7 @@
   </div>
 </div>
 
-<!-- ── Date / Due Date (inline) ── -->
+<!-- Dates -->
 <div class="date-row-inline">
   <div class="inline-chk-label">Date</div>
   <div class="date-pair">
@@ -378,7 +244,7 @@
   </div>
 </div>
 
-<!-- ── Customer info ── -->
+<!-- Customer info -->
 <div class="customer-grid">
   <div class="cg-label">Name</div>
   <div class="cg-value" id="c-name" contenteditable="true"></div>
@@ -393,7 +259,7 @@
   <div class="cg-value" id="c-address" contenteditable="true"></div>
 </div>
 
-<!-- ── Job Description / Size ── -->
+<!-- Job Description / Size -->
 <div class="job-section">
   <div class="job-header">Job Description</div>
   <div class="size-header">Size / Details</div>
@@ -401,7 +267,7 @@
   <div class="size-body" id="j-size" contenteditable="true"></div>
 </div>
 
-<!-- ── Notes + Line items ── -->
+<!-- Notes + Line items -->
 <div class="bottom-section">
   <div class="notes-col">
     <div class="notes-header">Notes / Materials</div>
@@ -413,17 +279,14 @@
     <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
     <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
     <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
 
     <div class="totals-section">
       <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
-      <div class="t-row"><div class="t-label">Tax Rate</div><div class="t-val">8%</div></div>
-      <div class="t-row"><div class="t-label">Sales Tax</div><div class="t-val" id="t-salestax"></div></div>
+      <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
       <div class="t-row"><div class="t-label">Shipping</div><div class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></div></div>
       <div class="t-row bold"><div class="t-label">Total</div><div class="t-val" id="t-total"></div></div>
       <div class="t-row"><div class="t-label">Deposit</div><div class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="t-row bold"><div class="t-label">New Total</div><div class="t-val" id="t-newtotal"></div></div>
+      <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
       <div class="paid-row">
         <div class="paid-label">Paid</div>
         <div class="paid-option"><span class="chk-box"></span> Cash</div>
@@ -434,14 +297,16 @@
   </div>
 </div>
 
-<!-- ── Pickup Location (inline, at bottom) ── -->
+<!-- Pickup -->
 <div class="pickup-row">
   <div class="inline-chk-label">Pickup</div>
   <div class="inline-chk-items">
     <div class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell Market</div>
     <div class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller Market</div>
     <div class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral Crossing</div>
+    <div class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset Valley</div>
     <div class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</div>
+    <div class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</div>
   </div>
 </div>
 
@@ -491,7 +356,6 @@
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 
-  // Seed deposit from order data if present
   const depositNum = parseFloat(deposit) || 0;
   if (depositNum) document.getElementById('t-deposit').textContent = fmtMoney(depositNum);
 
@@ -501,7 +365,6 @@
   }
 
   function recalc() {
-    // Sum all line item amounts
     const subtotal = Array.from(document.querySelectorAll('.li-amt'))
       .reduce((sum, el) => sum + parseAmt(el), 0);
     const tax      = subtotal * 0.08;
@@ -518,28 +381,26 @@
 
   recalc();
 
-  // Make all checkboxes clickable to toggle
   document.querySelectorAll('.chk-box').forEach(box => {
     box.addEventListener('click', () => box.classList.toggle('checked'));
   });
 
-  // Check a box (called on load to pre-fill)
   function check(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('checked');
   }
 
-  // Order type
   if (stage === 'intake-repair')                           check('ot-repair');
   else if (stage === 'needs-est' || stage === 'est-sent')  check('ot-estimate');
   else if (stage)                                          check('ot-custom');
 
-  // Pickup location
   const pk = pickup.toLowerCase();
   if (pk.includes('bell'))       check('pk-bell');
   if (pk.includes('mueller'))    check('pk-mueller');
   if (pk.includes('chaparral'))  check('pk-chaparral');
+  if (pk.includes('sunset'))     check('pk-sunset');
   if (pk.includes('studio'))     check('pk-studio');
+  if (pk.includes('ship'))       check('pk-ship');
 </script>
 </body>
 </html>
