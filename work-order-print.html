@@ -136,8 +136,8 @@
       background: #eee;
     }
     .cg-val {
-      font-size: 8px; padding: 2px 3px;
-      border-bottom: 1px solid #000; min-height: 15px;
+      font-size: 9.5px; padding: 2px 3px;
+      border-bottom: 1px solid #000; min-height: 16px;
       white-space: pre-wrap;
     }
 
@@ -173,18 +173,21 @@
     .sec-block.grow  .sec-body,
     .sec-block.grow2 .sec-body { flex: 1; min-height: 0; }
 
-    /* Size row */
-    .size-row {
-      display: flex; align-items: stretch;
-      border: 1px solid #000; border-top: none; border-bottom: none;
+    /* Job Description + Size side-by-side */
+    .jd-size-row {
+      display: flex; align-items: stretch; flex-shrink: 0;
+      border: 1px solid #000; border-top: 1px solid #000; border-bottom: none;
     }
-    .size-lbl {
-      font-weight: bold; font-size: 8px; padding: 2px 3px;
-      background: #eee; border-right: 1px solid #000;
-      white-space: nowrap; display: flex; align-items: center;
-      min-width: 62px;
+    .jd-panel {
+      flex: 1; display: flex; flex-direction: column;
+      border-right: 1px solid #000; overflow: hidden;
     }
-    .size-val { flex: 1; padding: 2px 3px; font-size: 8px; min-height: 15px; }
+    .size-panel {
+      width: 1.1in; display: flex; flex-direction: column;
+    }
+    .jd-panel .sec-head, .size-panel .sec-head {
+      border-top: none;
+    }
 
     /* Line items */
     .li-block {
@@ -246,10 +249,10 @@
 
     /* ── Layout setting variants (applied via data-* on .form-content) ── */
 
-    /* Job Description height */
-    .form-content[data-jd="small"]  #jd-block { max-height: 1cm;   }
-    .form-content[data-jd="medium"] #jd-block { max-height: 2cm;   }
-    .form-content[data-jd="large"]  #jd-block { max-height: 3.5cm; }
+    /* Job Description + Size row height */
+    .form-content[data-jd="small"]  .jd-size-row { max-height: 1cm;   }
+    .form-content[data-jd="medium"] .jd-size-row { max-height: 2cm;   }
+    .form-content[data-jd="large"]  .jd-size-row { max-height: 3.5cm; }
 
     /* Notes height (flex weight) */
     .form-content[data-ns="small"]  .sec-block.grow { flex: 0.4; }
@@ -261,8 +264,8 @@
     .form-content[data-font="medium"] { font-size: 9px;   }
     .form-content[data-font="large"]  { font-size: 10.5px; }
 
-    /* Size row visibility */
-    .form-content[data-sizerow="0"] .size-row { display: none; }
+    /* Size panel visibility */
+    .form-content[data-sizerow="0"] .size-panel { display: none; }
   </style>
 </head>
 <body>
@@ -308,14 +311,15 @@
     <div class="cg-val" id="c-address" contenteditable="true"></div>
   </div>
 
-  <div class="sec-block first" id="jd-block" style="display:flex; flex-direction:column; flex-shrink:0;">
-    <div class="sec-head">Job Description</div>
-    <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden;"></div>
-  </div>
-
-  <div class="size-row">
-    <div class="size-lbl">Size / Details</div>
-    <div class="size-val" id="j-size" contenteditable="true"></div>
+  <div class="jd-size-row">
+    <div class="jd-panel">
+      <div class="sec-head">Job Description</div>
+      <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden;"></div>
+    </div>
+    <div class="size-panel">
+      <div class="sec-head">Size / Details</div>
+      <div class="sec-body" id="j-size" contenteditable="true" style="flex:1; min-height:0;"></div>
+    </div>
   </div>
 
   <div class="sec-block grow">
