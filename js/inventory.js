@@ -3,6 +3,21 @@
 //  Reads & writes Square catalog inventory counts
 // ════════════════════════════════════════════
 
+// Square category IDs → ring sub-tabs
+const INV_RING_CAT_IDS = {
+  'stackable':  ['77KNH35GU32XUN7P56SOMVG2', 'AQKGEIJODPWO2JW67B6P7L7W'],
+  'spirit':     ['ZIICMTQVHNGD4RCNGMWYS3JB'],
+  'adjustable': ['F3ANHOLJKPDCK3BVNRG55R4A'],
+  'geometric':  ['R5VVEETOKEH4T2TORR4ST2DD', 'R47DX3MHU2CQ6MKWN5QLKG3T'],
+  'symbolic':   ['PZBEBEWWCI3MS52THSF2E2DM'],
+  'meditation': ['KCBQ7S6OOBEATCBNCH4IWSZ5', 'A6V47F3AH7YYNTSXD7NA67PZ', 'M3YFHGUF7HUS2IZMXTIUOC6W'],
+};
+
+// Item name substrings to exclude per ring sub-tab
+const INV_RING_EXCLUDE = {
+  'symbolic': ['horseshoe', 'rainbow'],
+};
+
 // Square category IDs → earring sub-tabs
 // Ear Cuffs root + all sub-categories; others are single category
 const INV_CAT_IDS = {
@@ -24,9 +39,11 @@ const INV_CAT_IDS = {
 
 const INV_LOCATION_ID = 'D7EZ98V48F79A';
 
-let _invData    = {};  // { [sub]: { items, counts } }
-let _invDirty   = {};  // { varId: newQty } — unsaved edits
-let _invCurSub  = 'ear-cuffs';
+let _invData       = {};  // { [sub]: { items, counts } }
+let _invDirty      = {};  // { varId: newQty } — unsaved edits
+let _invCurSub     = 'ear-cuffs';
+let _invRingCurSub = 'stackable';
+let _invRingLoaded = false;
 
 // ── Square API helper (routes through /api/square proxy to avoid CORS) ──────
 
@@ -60,7 +77,7 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  const catIds = INV_CAT_IDS[sub];
+  const catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub];
   if (!catIds) return;
 
   _invSetPanelHtml(sub, '<div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div>');
@@ -128,10 +145,13 @@ function _invRenderSub(sub) {
     return;
   }
 
+  const excludes = (INV_RING_EXCLUDE[sub] || []).map(s => s.toLowerCase());
+
   let html = '';
   items.forEach(item => {
     const name = item.item_data?.name || 'Unnamed';
     if (q && !name.toLowerCase().includes(q)) return;
+    if (excludes.some(ex => name.toLowerCase().includes(ex))) return;
 
     const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted);
     html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
@@ -159,7 +179,7 @@ function _invRenderSub(sub) {
             style="${dirty ? 'background:var(--accent-bg);' : ''}">
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
-        <button class="inv-set-btn" onclick="invSaveOne('${varId}')">Set</button>
+        <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
       </div>`;
     });
 
@@ -191,10 +211,10 @@ function invMarkDirty(varId, val) {
   if (input) input.style.background = 'var(--accent-bg)';
 }
 
-async function invSaveOne(varId) {
+async function invSaveOne(varId, sub) {
   const input = document.getElementById('inv-inp-' + varId);
   const qty   = parseInt(input?.value) || 0;
-  await _invSaveCount({ [varId]: qty });
+  await _invSaveCount({ [varId]: qty }, sub);
 }
 
 async function invUpdateAll() {
@@ -214,7 +234,8 @@ async function invUpdateAll() {
   }
 }
 
-async function _invSaveCount(qtyMap) {
+async function _invSaveCount(qtyMap, sub) {
+  sub = sub || _invCurSub;
   const changes = Object.entries(qtyMap).map(([varId, qty]) => ({
     type: 'PHYSICAL_COUNT',
     physical_count: {
@@ -236,12 +257,13 @@ async function _invSaveCount(qtyMap) {
 
   // Update local cache and clear dirty flags
   Object.entries(qtyMap).forEach(([varId, qty]) => {
-    if (_invData[_invCurSub]) _invData[_invCurSub].counts[varId] = qty;
+    if (_invData[sub]) _invData[sub].counts[varId] = qty;
     delete _invDirty[varId];
   });
 
-  _invRenderSub(_invCurSub);
-  _invUpdateCountLabel();
+  _invRenderSub(sub);
+  if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
+  else _invUpdateCountLabel();
 }
 
 // ── Filter ───────────────────────────────────
@@ -295,6 +317,71 @@ function _invUpdateCountLabel() {
   if (!label) return;
   if (!data) { label.textContent = ''; return; }
   const total      = data.items.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+// ── Rings tab ────────────────────────────────
+
+async function invLoadRings() {
+  if (_invData[_invRingCurSub]) return;
+  await _invLoadSub(_invRingCurSub);
+  _invRingLoaded = true;
+}
+
+function invSwitchRingSub(sub, el) {
+  _invRingCurSub = sub;
+  document.querySelectorAll('.inv-ring-sub-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.inv-ring-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('inv-rsub-' + sub);
+  if (panel) panel.style.display = '';
+  if (!_invData[sub]) _invLoadSub(sub);
+  else _invRenderSub(sub);
+  _invUpdateRingCountLabel();
+}
+
+function invRingFilter(val) {
+  _invRenderSub(_invRingCurSub);
+}
+
+async function invUpdateAllRings() {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+  const btn = document.getElementById('invRingUpdateAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await _invSaveCount(Object.fromEntries(entries), _invRingCurSub);
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshRings() {
+  const btn = document.getElementById('invRingRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  Object.keys(INV_RING_CAT_IDS).forEach(sub => { delete _invData[sub]; });
+  _invDirty = {};
+  _invRingLoaded = false;
+  await invLoadRings();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+
+function _invUpdateRingCountLabel() {
+  const data  = _invData[_invRingCurSub];
+  const label = document.getElementById('invRingCountLabel');
+  if (!label) return;
+  if (!data) { label.textContent = ''; return; }
+  const excludes = (INV_RING_EXCLUDE[_invRingCurSub] || []).map(s => s.toLowerCase());
+  const visible  = data.items.filter(i => {
+    const n = (i.item_data?.name || '').toLowerCase();
+    return !excludes.some(ex => n.includes(ex));
+  });
+  const total      = visible.length;
   const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
   label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
     (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
