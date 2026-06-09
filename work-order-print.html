@@ -32,30 +32,19 @@
       }
     }
 
-    /* ── Print: landscape letter, form in left half ──
-       Page: 11" wide × 8.5" tall (landscape).
-       Form fills left ~5.25" — cut down the middle for a
-       5.5"×8.5" portrait label. No rotation needed. */
+    /* ── Print: 5.5"×8.5" half-sheet label (OL400WX) ── */
     @media print {
       body { margin: 0; padding: 0; background: #fff; }
       .no-print { display: none !important; }
       @page {
-        size: 11in 8.5in landscape;
-        margin: 0.25in;
+        size: 5.5in 8.5in portrait;
+        margin: 0.2in;
       }
       .form-content {
-        width: 5in;
-        padding: 8px 10px;
+        width: 100%;
+        padding: 0;
       }
-      /* Dashed cut line at the midpoint */
-      .cut-line {
-        position: fixed;
-        top: 0;
-        left: 5.25in;
-        width: 0;
-        height: 8.5in;
-        border-left: 1px dashed #aaa;
-      }
+      .cut-line { display: none; }
     }
 
     /* ── Shared form styles ── */
@@ -210,7 +199,7 @@
 <div class="print-bar no-print">
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
-<p class="screen-note no-print">Prints landscape — form fills left half. Cut down the middle for a 5.5"×8.5" label to attach to the order bag.</p>
+<p class="screen-note no-print">Prints on a 5.5"×8.5" half-sheet label (OL400WX). Load the label in your printer and print directly.</p>
 
 <!-- Dashed cut guide shown on print -->
 <div class="cut-line"></div>
