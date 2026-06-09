@@ -2603,6 +2603,7 @@
 
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
+    <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
     <div class="kanban-actions">
       <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
       <button class="notion-chip" id="notionSyncBtn" onclick="notionSyncFromNotion()" title="Pull latest orders from Notion">↻ Sync Notion</button>
