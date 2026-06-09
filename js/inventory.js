@@ -138,7 +138,8 @@ function _invRenderSub(sub) {
   if (!data) return;
 
   const { items, counts } = data;
-  const q = (document.getElementById('invSearch')?.value || '').toLowerCase();
+  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : 'invSearch';
+  const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
     _invSetPanelHtml(sub, '<div style="padding:32px;text-align:center;color:var(--text-dim)">No items found in this category</div>');
@@ -190,7 +191,8 @@ function _invRenderSub(sub) {
 }
 
 function _invSetPanelHtml(sub, html) {
-  const panel = document.getElementById('inv-sub-' + sub);
+  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : 'inv-sub-';
+  const panel = document.getElementById(prefix + sub);
   if (panel) panel.innerHTML = html;
 }
 
