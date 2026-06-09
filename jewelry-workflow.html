@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v88-square-server-token -->
+<!-- deploy-version: v89-gmail-scan-panel -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -4034,6 +4034,48 @@
   transition: border-color .15s;
 }
 .cal-inp:focus { border-color: var(--accent); }
+/* ── Gmail scan rows ─────────────────── */
+.cal-scan-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bdr-light);
+}
+.cal-scan-row:last-child { border-bottom: none; }
+.cal-scan-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.cal-scan-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+.cal-scan-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
+.cal-scan-subject {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-scan-snippet {
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.cal-scan-add { margin-top: 2px; }
 /* ── end Calendar ─────────────────────── */
 
 .tl-stat-icon {
@@ -4522,7 +4564,8 @@
         <div class="page-title">📅 Calendar</div>
         <div class="page-sub">kyle@stonesthrowjewelry.com</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="calScanGmail()" title="Scan Gmail for dates">📧 Scan Gmail</button>
         <button class="btn btn-outline btn-sm" onclick="calConnect()" title="Reconnect">↻ Reconnect</button>
         <button class="btn btn-gold btn-sm" onclick="calOpenAddModal()">＋ Add Event</button>
       </div>
@@ -4547,6 +4590,18 @@
       </div>
 
     </div>
+
+    <!-- Gmail scan results panel -->
+    <div id="cal-scan-panel" style="display:none;padding:0 20px 20px">
+      <div class="cal-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:13px;color:var(--text);text-transform:uppercase;letter-spacing:0.5px">📧 Dates found in Gmail</div>
+          <button class="cal-nav-btn" onclick="calCloseScanPanel()" title="Close" style="font-size:18px">×</button>
+        </div>
+        <div id="cal-scan-list"></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Add Event modal -->
