@@ -197,8 +197,12 @@ function openOrderCard(id) {
 
 function toggleEditShippingAddress() {
   const pickup = document.getElementById('eo-pickup').value;
+  const show   = pickup === 'To be Shipped';
   const wrap   = document.getElementById('eo-shipping-wrap');
-  if (wrap) wrap.style.display = pickup === 'To be Shipped' ? 'block' : 'none';
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-addr]').forEach(el => {
+    el.style.display = show ? '' : 'none';
+  });
 }
 
 function closeEditOrderModal() {
