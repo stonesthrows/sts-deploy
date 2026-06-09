@@ -13,7 +13,7 @@
       color: #000;
     }
 
-    /* ── Screen: normal portrait preview ── */
+    /* ── Screen preview ── */
     @media screen {
       body { background: #888; padding: 20px; }
       .screen-note {
@@ -21,44 +21,40 @@
         margin-bottom: 10px; font-family: Arial, sans-serif;
       }
       .form-content {
-        width: 5.25in;
-        min-height: 8in;
+        width: 5in;
         background: #fff;
         padding: 10px 12px;
         margin: 0 auto;
         box-shadow: 0 4px 20px rgba(0,0,0,.4);
       }
+      .cut-line {
+        display: none; /* hide on screen */
+      }
     }
 
-    /* ── Print: 8.5×11, form rotated 90° CW into top half ──
-       .print-area is static (not a positioning context).
-       .form-content anchors to body at top:5.25in / left:0 —
-       its layout box IS within page bounds — then rotate(90deg) +
-       transform-origin:top-left maps it visually into x:0→8in,
-       y:0→5.25in (the top half of the letter page).
-       Cut the strip and rotate CCW to attach to the order bag. */
+    /* ── Print: landscape letter, form in left half ──
+       Page: 11" wide × 8.5" tall (landscape).
+       Form fills left ~5.25" — cut down the middle for a
+       5.5"×8.5" portrait label. No rotation needed. */
     @media print {
-      body {
-        margin: 0; padding: 0; background: #fff;
-        position: relative;
-        height: 10.5in;
-      }
+      body { margin: 0; padding: 0; background: #fff; }
       .no-print { display: none !important; }
       @page {
-        size: 8.5in 11in portrait;
+        size: 11in 8.5in landscape;
         margin: 0.25in;
       }
-      .print-area { position: static; display: block; }
       .form-content {
-        position: absolute;
-        top: 5.25in;
-        left: 0;
-        width: 5.25in;
-        height: 8in;
-        transform: rotate(90deg);
-        transform-origin: top left;
+        width: 5in;
         padding: 8px 10px;
-        background: #fff;
+      }
+      /* Dashed cut line at the midpoint */
+      .cut-line {
+        position: fixed;
+        top: 0;
+        left: 5.25in;
+        width: 0;
+        height: 8.5in;
+        border-left: 1px dashed #aaa;
       }
     }
 
@@ -75,13 +71,13 @@
     .inline-chk-label {
       font-weight: bold; font-size: 8.5px; padding: 2px 5px;
       border-right: 1px solid #000; white-space: nowrap;
-      background: #f0f0f0; min-width: 68px; align-self: stretch;
+      background: #f0f0f0; min-width: 64px; align-self: stretch;
       display: flex; align-items: center;
     }
     .inline-chk-items { display: flex; align-items: center; flex-wrap: nowrap; }
     .chk-item {
       display: flex; align-items: center; gap: 3px;
-      padding: 2px 7px; font-size: 8.5px;
+      padding: 2px 6px; font-size: 8.5px;
       border-right: 1px solid #e0e0e0; white-space: nowrap;
     }
     .chk-item:last-child { border-right: none; }
@@ -103,18 +99,18 @@
     .date-pair { display: flex; align-items: center; }
     .date-field {
       display: flex; align-items: center; gap: 4px;
-      padding: 2px 7px; font-size: 8.5px;
+      padding: 2px 6px; font-size: 8.5px;
       border-right: 1px solid #e0e0e0;
     }
     .date-field:last-child { border-right: none; }
     .date-field-label { font-weight: bold; font-size: 8.5px; white-space: nowrap; }
     .date-value {
       border: 1px solid #999; padding: 1px 4px;
-      min-width: 62px; font-size: 8.5px; background: #fff;
+      min-width: 60px; font-size: 8.5px; background: #fff;
     }
 
     .customer-grid {
-      display: grid; grid-template-columns: 64px 1fr;
+      display: grid; grid-template-columns: 60px 1fr;
       border: 1px solid #000; border-bottom: none;
     }
     .cg-label {
@@ -133,7 +129,7 @@
       border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
     }
     .job-body {
-      padding: 3px 4px; min-height: 46px;
+      padding: 3px 4px; min-height: 44px;
       border-bottom: 1px solid #000;
       font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
@@ -145,7 +141,7 @@
     .size-label {
       font-weight: bold; font-size: 8.5px; padding: 2px 4px;
       background: #f0f0f0; border-right: 1px solid #000;
-      white-space: nowrap; display: flex; align-items: center; min-width: 68px;
+      white-space: nowrap; display: flex; align-items: center; min-width: 64px;
     }
     .size-value { flex: 1; padding: 2px 4px; font-size: 8.5px; min-height: 18px; }
 
@@ -155,32 +151,32 @@
       border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
     }
     .notes-body {
-      padding: 3px 4px; min-height: 50px;
+      padding: 3px 4px; min-height: 44px;
       font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
 
     .li-section { border: 1px solid #000; border-top: none; border-bottom: none; }
     .li-header-row { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; }
     .li-hdr-desc { flex: 1; font-weight: bold; font-size: 8.5px; padding: 2px 4px; border-right: 1px solid #000; }
-    .li-hdr-amt  { width: 58px; font-weight: bold; font-size: 8.5px; padding: 2px 4px; text-align: right; }
-    .li-row { display: flex; border-bottom: 1px solid #ccc; min-height: 15px; }
+    .li-hdr-amt  { width: 56px; font-weight: bold; font-size: 8.5px; padding: 2px 4px; text-align: right; }
+    .li-row { display: flex; border-bottom: 1px solid #ccc; min-height: 14px; }
     .li-row:last-child { border-bottom: none; }
     .li-desc { flex: 1; padding: 2px 4px; border-right: 1px solid #ccc; font-size: 8.5px; }
-    .li-amt  { width: 58px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
+    .li-amt  { width: 56px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
 
     .totals-section { border: 1px solid #000; border-top: none; border-bottom: none; }
-    .t-row { display: flex; border-bottom: 1px solid #ccc; min-height: 15px; }
+    .t-row { display: flex; border-bottom: 1px solid #ccc; min-height: 14px; }
     .t-row:last-child { border-bottom: none; }
     .t-label { flex: 1; padding: 2px 4px; text-align: right; font-size: 8.5px; border-right: 1px solid #ccc; }
-    .t-val   { width: 58px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
+    .t-val   { width: 56px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
     .t-row.bold .t-label, .t-row.bold .t-val { font-weight: bold; }
 
     .paid-row {
-      display: flex; border: 1px solid #000; border-top: none; border-bottom: none; min-height: 17px;
+      display: flex; border: 1px solid #000; border-top: none; border-bottom: none; min-height: 16px;
     }
     .paid-label {
       padding: 2px 4px; font-weight: bold; font-size: 8.5px;
-      border-right: 1px solid #ccc; display: flex; align-items: center; min-width: 46px;
+      border-right: 1px solid #ccc; display: flex; align-items: center; min-width: 44px;
     }
     .paid-option {
       flex: 1; padding: 2px 3px; font-size: 8.5px;
@@ -214,106 +210,107 @@
 <div class="print-bar no-print">
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
-<p class="screen-note no-print">Screen preview (portrait). On print: form rotates 90° CW — cut top half, rotate CCW to attach to bag.</p>
+<p class="screen-note no-print">Prints landscape — form fills left half. Cut down the middle for a 5.5"×8.5" label to attach to the order bag.</p>
 
-<div class="print-area">
-  <div class="form-content">
+<!-- Dashed cut guide shown on print -->
+<div class="cut-line"></div>
 
-    <div class="header">
-      <div class="shop-name">Stones Throw Studio</div>
-      <div class="shop-sub">Custom Jewelry</div>
-    </div>
+<div class="form-content">
 
-    <div class="inline-chk-row">
-      <div class="inline-chk-label">Order Type</div>
-      <div class="inline-chk-items">
-        <div class="chk-item"><span class="chk-box" id="ot-custom"></span> Custom Order</div>
-        <div class="chk-item"><span class="chk-box" id="ot-estimate"></span> Estimate Request</div>
-        <div class="chk-item"><span class="chk-box" id="ot-repair"></span> Repair</div>
-      </div>
-    </div>
-
-    <div class="date-row-inline">
-      <div class="inline-chk-label">Date</div>
-      <div class="date-pair">
-        <div class="date-field">
-          <span class="date-field-label">Taken In:</span>
-          <span class="date-value" id="hdr-date" contenteditable="true"></span>
-        </div>
-        <div class="date-field">
-          <span class="date-field-label">Due:</span>
-          <span class="date-value" id="hdr-due" contenteditable="true"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="customer-grid">
-      <div class="cg-label">Name</div>
-      <div class="cg-value" id="c-name" contenteditable="true"></div>
-      <div class="cg-label">Email</div>
-      <div class="cg-value" id="c-email" contenteditable="true"></div>
-      <div class="cg-label">Phone</div>
-      <div class="cg-value" id="c-phone" contenteditable="true"></div>
-      <div class="cg-label">Address</div>
-      <div class="cg-value" id="c-address" contenteditable="true"></div>
-    </div>
-
-    <div class="job-section">
-      <div class="job-header">Job Description</div>
-      <div class="job-body" id="j-desc" contenteditable="true"></div>
-    </div>
-
-    <div class="size-row">
-      <div class="size-label">Size / Details</div>
-      <div class="size-value" id="j-size" contenteditable="true"></div>
-    </div>
-
-    <div class="notes-section">
-      <div class="notes-header">Notes / Materials</div>
-      <div class="notes-body" id="n-notes" contenteditable="true"></div>
-    </div>
-
-    <div class="li-section">
-      <div class="li-header-row">
-        <div class="li-hdr-desc">Item / Description</div>
-        <div class="li-hdr-amt">Amount</div>
-      </div>
-      <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    </div>
-
-    <div class="totals-section">
-      <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
-      <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
-      <div class="t-row"><div class="t-label">Shipping</div><div class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="t-row bold"><div class="t-label">Total</div><div class="t-val" id="t-total"></div></div>
-      <div class="t-row"><div class="t-label">Deposit</div><div class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
-    </div>
-
-    <div class="paid-row">
-      <div class="paid-label">Paid By</div>
-      <div class="paid-option"><span class="chk-box"></span> Cash</div>
-      <div class="paid-option"><span class="chk-box"></span> Credit</div>
-      <div class="paid-option"><span class="chk-box"></span> Check</div>
-      <div class="paid-option"><span class="chk-box"></span> Venmo</div>
-    </div>
-
-    <div class="pickup-row">
-      <div class="inline-chk-label">Pickup</div>
-      <div class="inline-chk-items">
-        <div class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell</div>
-        <div class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller</div>
-        <div class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral</div>
-        <div class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset</div>
-        <div class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</div>
-        <div class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</div>
-      </div>
-    </div>
-
+  <div class="header">
+    <div class="shop-name">Stones Throw Studio</div>
+    <div class="shop-sub">Custom Jewelry</div>
   </div>
+
+  <div class="inline-chk-row">
+    <div class="inline-chk-label">Order Type</div>
+    <div class="inline-chk-items">
+      <div class="chk-item"><span class="chk-box" id="ot-custom"></span> Custom Order</div>
+      <div class="chk-item"><span class="chk-box" id="ot-estimate"></span> Estimate Request</div>
+      <div class="chk-item"><span class="chk-box" id="ot-repair"></span> Repair</div>
+    </div>
+  </div>
+
+  <div class="date-row-inline">
+    <div class="inline-chk-label">Date</div>
+    <div class="date-pair">
+      <div class="date-field">
+        <span class="date-field-label">Taken In:</span>
+        <span class="date-value" id="hdr-date" contenteditable="true"></span>
+      </div>
+      <div class="date-field">
+        <span class="date-field-label">Due:</span>
+        <span class="date-value" id="hdr-due" contenteditable="true"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="customer-grid">
+    <div class="cg-label">Name</div>
+    <div class="cg-value" id="c-name" contenteditable="true"></div>
+    <div class="cg-label">Email</div>
+    <div class="cg-value" id="c-email" contenteditable="true"></div>
+    <div class="cg-label">Phone</div>
+    <div class="cg-value" id="c-phone" contenteditable="true"></div>
+    <div class="cg-label">Address</div>
+    <div class="cg-value" id="c-address" contenteditable="true"></div>
+  </div>
+
+  <div class="job-section">
+    <div class="job-header">Job Description</div>
+    <div class="job-body" id="j-desc" contenteditable="true"></div>
+  </div>
+
+  <div class="size-row">
+    <div class="size-label">Size / Details</div>
+    <div class="size-value" id="j-size" contenteditable="true"></div>
+  </div>
+
+  <div class="notes-section">
+    <div class="notes-header">Notes / Materials</div>
+    <div class="notes-body" id="n-notes" contenteditable="true"></div>
+  </div>
+
+  <div class="li-section">
+    <div class="li-header-row">
+      <div class="li-hdr-desc">Item / Description</div>
+      <div class="li-hdr-amt">Amount</div>
+    </div>
+    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+  </div>
+
+  <div class="totals-section">
+    <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
+    <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
+    <div class="t-row"><div class="t-label">Shipping</div><div class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></div></div>
+    <div class="t-row bold"><div class="t-label">Total</div><div class="t-val" id="t-total"></div></div>
+    <div class="t-row"><div class="t-label">Deposit</div><div class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></div></div>
+    <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
+  </div>
+
+  <div class="paid-row">
+    <div class="paid-label">Paid By</div>
+    <div class="paid-option"><span class="chk-box"></span> Cash</div>
+    <div class="paid-option"><span class="chk-box"></span> Credit</div>
+    <div class="paid-option"><span class="chk-box"></span> Check</div>
+    <div class="paid-option"><span class="chk-box"></span> Venmo</div>
+  </div>
+
+  <div class="pickup-row">
+    <div class="inline-chk-label">Pickup</div>
+    <div class="inline-chk-items">
+      <div class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell</div>
+      <div class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller</div>
+      <div class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral</div>
+      <div class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset</div>
+      <div class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</div>
+      <div class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
