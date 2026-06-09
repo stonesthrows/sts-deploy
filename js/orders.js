@@ -183,7 +183,13 @@ function openOrderCard(id) {
   document.getElementById('eo-paid-by').value    = o.paidBy        || '';
   document.getElementById('eo-notes').value      = o.notes         || '';
   document.getElementById('eo-sketch').value     = o.sketchDesc    || '';
-  document.getElementById('eo-address').value    = o.address       || '';
+  const sa = o.shippingAddress || {};
+  document.getElementById('eo-addr-street').value  = sa.street  || o.address || '';
+  document.getElementById('eo-addr-street2').value = sa.street2 || '';
+  document.getElementById('eo-addr-city').value    = sa.city    || '';
+  document.getElementById('eo-addr-state').value   = sa.state   || '';
+  document.getElementById('eo-addr-zip').value     = sa.zip     || '';
+  document.getElementById('eo-addr-country').value = sa.country || 'United States';
   toggleEditShippingAddress();
 
   document.getElementById('editOrderModalBg').classList.add('open');
@@ -258,7 +264,14 @@ function saveOrderEdit() {
   o.paidBy        = document.getElementById('eo-paid-by').value          || '';
   o.notes         = document.getElementById('eo-notes').value.trim()     || '';
   o.sketchDesc    = document.getElementById('eo-sketch').value.trim()    || '';
-  o.address       = document.getElementById('eo-address').value.trim()   || '';
+  o.shippingAddress = o.pickup === 'To be Shipped' ? {
+    street:  document.getElementById('eo-addr-street').value.trim(),
+    street2: document.getElementById('eo-addr-street2').value.trim(),
+    city:    document.getElementById('eo-addr-city').value.trim(),
+    state:   document.getElementById('eo-addr-state').value.trim(),
+    zip:     document.getElementById('eo-addr-zip').value.trim(),
+    country: document.getElementById('eo-addr-country').value.trim() || 'United States',
+  } : null;
 
   updateCompletedToggle();
   renderKanban();

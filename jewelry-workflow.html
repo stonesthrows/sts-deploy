@@ -4435,9 +4435,31 @@
           <label>Sketch Notes</label>
           <textarea id="eo-sketch" rows="2" placeholder="Sketch description or approval notes…"></textarea>
         </div>
-        <div class="eo-field full" id="eo-shipping-wrap" style="display:none">
-          <label>Ship To Address</label>
-          <input type="text" id="eo-address" placeholder="Full shipping address">
+        <div id="eo-shipping-wrap" style="display:none">
+          <div class="eo-field full">
+            <label>Street Address</label>
+            <input type="text" id="eo-addr-street" placeholder="142 Palm Avenue">
+          </div>
+          <div class="eo-field full">
+            <label>Address Line 2</label>
+            <input type="text" id="eo-addr-street2" placeholder="Apt, Suite, Unit (optional)">
+          </div>
+          <div class="eo-field">
+            <label>City</label>
+            <input type="text" id="eo-addr-city" placeholder="Tampa">
+          </div>
+          <div class="eo-field">
+            <label>State / Province</label>
+            <input type="text" id="eo-addr-state" placeholder="FL">
+          </div>
+          <div class="eo-field">
+            <label>Postal / Zip Code</label>
+            <input type="text" id="eo-addr-zip" placeholder="33619">
+          </div>
+          <div class="eo-field">
+            <label>Country</label>
+            <input type="text" id="eo-addr-country" placeholder="United States">
+          </div>
         </div>
       </div>
     </div>
