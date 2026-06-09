@@ -357,7 +357,14 @@ function submitOrder() {
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
-  const shippingAddress = pickup === 'To be Shipped' ? (document.getElementById('f-shipping-address').value.trim() || null) : null;
+  const shippingAddress = pickup === 'To be Shipped' ? {
+    street:  document.getElementById('f-addr-street').value.trim(),
+    street2: document.getElementById('f-addr-street2').value.trim(),
+    city:    document.getElementById('f-addr-city').value.trim(),
+    state:   document.getElementById('f-addr-state').value.trim(),
+    zip:     document.getElementById('f-addr-zip').value.trim(),
+    country: document.getElementById('f-addr-country').value.trim() || 'United States',
+  } : null;
   const contactSource = document.getElementById('f-source').value || null;
   const newId      = 'u' + Date.now();
   const stage      = orderType === 'estimate' ? 'needs-est' : orderType === 'repair' ? 'intake-repair' : 'intake-custom';
@@ -432,12 +439,18 @@ function submitOrder() {
 
 function toggleShippingAddress() {
   const pickup = document.getElementById('f-pickup');
-  const row = document.getElementById('shipping-address-row');
-  if (row) row.style.display = pickup && pickup.value === 'To be Shipped' ? '' : 'none';
+  const show = pickup && pickup.value === 'To be Shipped';
+  ['shipping-address-row','shipping-address-row-2','shipping-address-row-3',
+   'shipping-address-row-4','shipping-address-row-5','shipping-address-row-6']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? '' : 'none';
+    });
 }
 
 function clearForm() {
-  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-price','f-notes','f-shipping-address']
+  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-price','f-notes',
+   'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
