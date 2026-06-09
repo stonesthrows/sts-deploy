@@ -13,73 +13,60 @@
       color: #000;
     }
 
-    /* ── Print: 8.5×11 letter, content rotated 90° CW into top half ── */
+    /* ── Screen: normal portrait preview ── */
+    @media screen {
+      body { background: #888; padding: 20px; }
+      .screen-note {
+        text-align: center; color: #fff; font-size: 12px;
+        margin-bottom: 10px; font-family: Arial, sans-serif;
+      }
+      .form-content {
+        width: 5.25in;
+        min-height: 8in;
+        background: #fff;
+        padding: 10px 12px;
+        margin: 0 auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      }
+    }
+
+    /* ── Print: 8.5×11, form rotated 90° CW into top half ──
+       The form (5.25in × 8in portrait) is positioned at left:8in,
+       then rotate(-90deg) with transform-origin:top-left rotates it
+       so it paints into x:0→8in, y:0→5.25in.
+       overflow:visible (not hidden) lets the transform render correctly. */
     @media print {
-      body { padding: 0; margin: 0; }
+      body { margin: 0; padding: 0; background: #fff; }
       .no-print { display: none !important; }
       @page {
         size: 8.5in 11in portrait;
         margin: 0.25in;
       }
-    }
-
-    /* Outer container — occupies top half of printable area (8in × 5.25in) */
-    .print-area {
-      position: relative;
-      width: 8in;
-      height: 5.25in;
-      overflow: hidden;
-    }
-
-    /*
-      Form content: designed as 5.25in wide × 8in tall (portrait).
-      Rotated 90° CW so its top appears on the RIGHT edge of the page.
-      When the cut strip is rotated 90° CCW to attach to the bag, it reads normally.
-
-      Math: rotate(-90deg) + origin top-left + left: 8in places the form
-      correctly into the top-half content area.
-    */
-    .form-content {
-      position: absolute;
-      top: 0;
-      left: 8in;
-      width: 5.25in;
-      height: 8in;
-      transform: rotate(-90deg);
-      transform-origin: top left;
-      padding: 8px 10px;
-    }
-
-    /* ── Screen preview ── */
-    @media screen {
-      body { background: #888; padding: 20px; }
       .print-area {
+        position: relative;
+        width: 8in;
+        height: 5.25in;
+        overflow: visible;
+      }
+      .form-content {
+        position: absolute;
+        top: 0;
+        left: 8in;
+        width: 5.25in;
+        height: 8in;
+        transform: rotate(-90deg);
+        transform-origin: top left;
+        padding: 8px 10px;
         background: #fff;
-        box-shadow: 0 4px 20px rgba(0,0,0,.4);
-        margin: 0 auto;
-      }
-      .screen-note {
-        text-align: center; color: #fff; font-size: 13px;
-        margin-bottom: 10px; font-family: Arial, sans-serif;
       }
     }
 
-    /* ── Print bar ── */
-    .print-bar { text-align: center; margin-bottom: 12px; }
-    .print-btn {
-      background: #7A5C3A; color: #fff; border: none;
-      padding: 8px 22px; font-size: 13px; border-radius: 5px;
-      cursor: pointer; font-family: inherit;
-    }
-    .print-btn:hover { background: #5e4428; }
-
-    /* ─────────────── FORM STYLES (5.25" wide × 8" tall) ─────────────── */
+    /* ── Shared form styles ── */
 
     .header { margin-bottom: 4px; }
     .shop-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
     .shop-sub  { font-size: 8px; color: #555; margin-top: 1px; margin-bottom: 3px; }
 
-    /* Checkbox rows */
     .inline-chk-row {
       display: flex; align-items: center; border: 1px solid #000;
     }
@@ -100,6 +87,7 @@
     .chk-box {
       display: inline-block; width: 10px; height: 10px;
       border: 1px solid #555; flex-shrink: 0; position: relative;
+      cursor: pointer;
     }
     .chk-box.checked { background: #222; }
     .chk-box.checked::after {
@@ -107,7 +95,6 @@
       position: absolute; top: -1px; left: 1px; line-height: 1;
     }
 
-    /* Date row */
     .date-row-inline {
       display: flex; align-items: center;
       border: 1px solid #000; border-top: none; margin-bottom: 4px;
@@ -125,7 +112,6 @@
       min-width: 62px; font-size: 8.5px; background: #fff;
     }
 
-    /* Customer grid */
     .customer-grid {
       display: grid; grid-template-columns: 64px 1fr;
       border: 1px solid #000; border-bottom: none;
@@ -140,7 +126,6 @@
       min-height: 16px; font-size: 8.5px;
     }
 
-    /* Job Description */
     .job-section { border: 1px solid #000; border-top: none; border-bottom: none; }
     .job-header {
       font-weight: bold; text-align: center; padding: 2px 4px;
@@ -152,7 +137,6 @@
       font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
 
-    /* Size row */
     .size-row {
       display: flex; align-items: stretch;
       border: 1px solid #000; border-top: none; border-bottom: none;
@@ -164,7 +148,6 @@
     }
     .size-value { flex: 1; padding: 2px 4px; font-size: 8.5px; min-height: 18px; }
 
-    /* Notes */
     .notes-section { border: 1px solid #000; border-top: none; border-bottom: none; }
     .notes-header {
       font-weight: bold; text-align: center; padding: 2px 4px;
@@ -175,7 +158,6 @@
       font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
     }
 
-    /* Line items */
     .li-section { border: 1px solid #000; border-top: none; border-bottom: none; }
     .li-header-row { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; }
     .li-hdr-desc { flex: 1; font-weight: bold; font-size: 8.5px; padding: 2px 4px; border-right: 1px solid #000; }
@@ -185,7 +167,6 @@
     .li-desc { flex: 1; padding: 2px 4px; border-right: 1px solid #ccc; font-size: 8.5px; }
     .li-amt  { width: 58px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
 
-    /* Totals */
     .totals-section { border: 1px solid #000; border-top: none; border-bottom: none; }
     .t-row { display: flex; border-bottom: 1px solid #ccc; min-height: 15px; }
     .t-row:last-child { border-bottom: none; }
@@ -193,7 +174,6 @@
     .t-val   { width: 58px; padding: 2px 4px; text-align: right; font-size: 8.5px; }
     .t-row.bold .t-label, .t-row.bold .t-val { font-weight: bold; }
 
-    /* Paid row */
     .paid-row {
       display: flex; border: 1px solid #000; border-top: none; border-bottom: none; min-height: 17px;
     }
@@ -208,23 +188,24 @@
     }
     .paid-option:last-child { border-right: none; }
 
-    /* Pickup row */
     .pickup-row {
-      display: flex; align-items: center; flex-wrap: wrap;
+      display: flex; align-items: center; flex-wrap: nowrap;
       border: 1px solid #000; border-top: none;
     }
 
-    /* Editable fields */
     [contenteditable] { outline: none; cursor: text; }
-    [contenteditable]:hover, [contenteditable]:focus {
-      background: #fffbe6; box-shadow: inset 0 0 0 1px #c8a84b;
-    }
+    [contenteditable]:hover, [contenteditable]:focus { background: #fffbe6; }
     @media print {
-      [contenteditable]:hover, [contenteditable]:focus {
-        background: transparent !important; box-shadow: none !important;
-      }
+      [contenteditable]:hover, [contenteditable]:focus { background: transparent !important; }
     }
-    .chk-box { cursor: pointer; }
+
+    .print-bar { text-align: center; margin-bottom: 10px; }
+    .print-btn {
+      background: #7A5C3A; color: #fff; border: none;
+      padding: 8px 22px; font-size: 13px; border-radius: 5px;
+      cursor: pointer; font-family: inherit;
+    }
+    .print-btn:hover { background: #5e4428; }
   </style>
 </head>
 <body>
@@ -232,18 +213,16 @@
 <div class="print-bar no-print">
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
-<p class="screen-note no-print">Preview shows how the form will appear on the printed page — rotated 90° CW. Cut the top half and rotate CCW to attach to the order bag.</p>
+<p class="screen-note no-print">Screen preview (portrait). On print: form rotates 90° CW — cut top half, rotate CCW to attach to bag.</p>
 
 <div class="print-area">
   <div class="form-content">
 
-    <!-- Header -->
     <div class="header">
       <div class="shop-name">Stones Throw Studio</div>
       <div class="shop-sub">Custom Jewelry</div>
     </div>
 
-    <!-- Order Type -->
     <div class="inline-chk-row">
       <div class="inline-chk-label">Order Type</div>
       <div class="inline-chk-items">
@@ -253,7 +232,6 @@
       </div>
     </div>
 
-    <!-- Dates -->
     <div class="date-row-inline">
       <div class="inline-chk-label">Date</div>
       <div class="date-pair">
@@ -268,7 +246,6 @@
       </div>
     </div>
 
-    <!-- Customer info -->
     <div class="customer-grid">
       <div class="cg-label">Name</div>
       <div class="cg-value" id="c-name" contenteditable="true"></div>
@@ -280,25 +257,21 @@
       <div class="cg-value" id="c-address" contenteditable="true"></div>
     </div>
 
-    <!-- Job Description -->
     <div class="job-section">
       <div class="job-header">Job Description</div>
       <div class="job-body" id="j-desc" contenteditable="true"></div>
     </div>
 
-    <!-- Size / Details -->
     <div class="size-row">
       <div class="size-label">Size / Details</div>
       <div class="size-value" id="j-size" contenteditable="true"></div>
     </div>
 
-    <!-- Notes / Materials -->
     <div class="notes-section">
       <div class="notes-header">Notes / Materials</div>
       <div class="notes-body" id="n-notes" contenteditable="true"></div>
     </div>
 
-    <!-- Line items -->
     <div class="li-section">
       <div class="li-header-row">
         <div class="li-hdr-desc">Item / Description</div>
@@ -310,7 +283,6 @@
       <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
     </div>
 
-    <!-- Totals -->
     <div class="totals-section">
       <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
       <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
@@ -320,7 +292,6 @@
       <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
     </div>
 
-    <!-- Paid by -->
     <div class="paid-row">
       <div class="paid-label">Paid By</div>
       <div class="paid-option"><span class="chk-box"></span> Cash</div>
@@ -329,7 +300,6 @@
       <div class="paid-option"><span class="chk-box"></span> Venmo</div>
     </div>
 
-    <!-- Pickup -->
     <div class="pickup-row">
       <div class="inline-chk-label">Pickup</div>
       <div class="inline-chk-items">
@@ -342,8 +312,8 @@
       </div>
     </div>
 
-  </div><!-- /form-content -->
-</div><!-- /print-area -->
+  </div>
+</div>
 
 <script>
   function fmt(d) {
@@ -360,7 +330,6 @@
   }
 
   const p = new URLSearchParams(window.location.search);
-
   const name      = p.get('name')      || '';
   const email     = p.get('email')     || '';
   const phone     = p.get('phone')     || '';
@@ -411,11 +380,11 @@
 
   function check(id) { const el = document.getElementById(id); if (el) el.classList.add('checked'); }
 
-  if      (stage === 'intake-repair')                          check('ot-repair');
-  else if (stage === 'needs-est' || stage === 'est-sent')      check('ot-estimate');
-  else if (stage)                                              check('ot-custom');
+  if      (stage === 'intake-repair')                     check('ot-repair');
+  else if (stage === 'needs-est' || stage === 'est-sent') check('ot-estimate');
+  else if (stage)                                         check('ot-custom');
 
-  const pk = pickup.toLowerCase();
+  const pk = (pickup || '').toLowerCase();
   if (pk.includes('bell'))      check('pk-bell');
   if (pk.includes('mueller'))   check('pk-mueller');
   if (pk.includes('chaparral')) check('pk-chaparral');
