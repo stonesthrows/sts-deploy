@@ -169,19 +169,24 @@
       border: 1px solid #000; border-top: none;
     }
 
-    /* ── Print: 5.5" × 8.5" portrait — rotates correctly on OL400WX ── */
+    /* ── Print: 8.5" × 11" letter, content fills top half only ── */
+    .content-wrap {
+      max-height: 5in;
+      overflow: hidden;
+    }
+
     @media print {
       body { padding: 0; }
       .no-print { display: none !important; }
       @page {
-        size: 5.5in 8.5in portrait;
-        margin: 0.2in 0.22in;
+        size: 8.5in 11in portrait;
+        margin: 0.3in 0.4in;
       }
     }
 
     /* Screen preview */
     @media screen {
-      body { max-width: 5in; padding: 10px 14px; }
+      body { max-width: 7.5in; padding: 10px 20px; }
     }
 
     /* Print bar */
@@ -212,6 +217,8 @@
 <div class="print-bar no-print">
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
+
+<div class="content-wrap">
 
 <!-- Header -->
 <div class="header">
@@ -319,7 +326,9 @@
     <div class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</div>
     <div class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</div>
   </div>
-</div>
+</div><!-- /pickup-row -->
+
+</div><!-- /content-wrap -->
 
 <script>
   function fmt(d) {
