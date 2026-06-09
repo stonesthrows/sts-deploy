@@ -8,33 +8,33 @@
 
     body {
       font-family: Calibri, Arial, sans-serif;
-      font-size: 9px;
+      font-size: 9.5px;
       background: #fff;
       color: #000;
     }
 
     /* ── Header ── */
     .header { margin-bottom: 4px; }
-    .shop-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
-    .shop-sub  { font-size: 8px; color: #555; margin-top: 1px; margin-bottom: 3px; }
+    .shop-name { font-size: 14px; font-weight: bold; letter-spacing: 0.5px; }
+    .shop-sub  { font-size: 9px; color: #555; margin-top: 1px; margin-bottom: 4px; }
 
     /* ── Checkbox / label rows ── */
     .inline-chk-row {
       display: flex; align-items: center;
-      border: 1px solid #000; margin-bottom: 0;
+      border: 1px solid #000;
     }
     .inline-chk-row + .inline-chk-row { border-top: none; }
     .inline-chk-label {
-      font-weight: bold; font-size: 8.5px;
+      font-weight: bold; font-size: 9px;
       padding: 2px 6px; border-right: 1px solid #000;
       white-space: nowrap; background: #f0f0f0;
-      min-width: 70px; align-self: stretch;
+      min-width: 72px; align-self: stretch;
       display: flex; align-items: center;
     }
     .inline-chk-items { display: flex; align-items: center; flex-wrap: nowrap; }
     .chk-item {
       display: flex; align-items: center; gap: 3px;
-      padding: 2px 8px; font-size: 8.5px;
+      padding: 2px 8px; font-size: 9px;
       border-right: 1px solid #e0e0e0; white-space: nowrap;
     }
     .chk-item:last-child { border-right: none; }
@@ -51,20 +51,20 @@
     /* ── Date row ── */
     .date-row-inline {
       display: flex; align-items: center;
-      border: 1px solid #000; border-top: none; margin-bottom: 4px;
+      border: 1px solid #000; border-top: none; margin-bottom: 5px;
     }
-    .date-row-inline .inline-chk-label { min-width: 70px; }
-    .date-pair { display: flex; align-items: center; }
+    .date-row-inline .inline-chk-label { min-width: 72px; }
+    .date-pair { display: flex; align-items: center; flex-wrap: wrap; }
     .date-field {
       display: flex; align-items: center; gap: 4px;
-      padding: 2px 8px; font-size: 8.5px;
+      padding: 2px 8px; font-size: 9px;
       border-right: 1px solid #e0e0e0;
     }
     .date-field:last-child { border-right: none; }
-    .date-field-label { font-weight: bold; font-size: 8.5px; white-space: nowrap; }
+    .date-field-label { font-weight: bold; font-size: 9px; white-space: nowrap; }
     .date-value {
       border: 1px solid #999; padding: 1px 4px;
-      min-width: 68px; font-size: 8.5px; background: #fff;
+      min-width: 65px; font-size: 9px; background: #fff;
     }
 
     /* ── Customer grid ── */
@@ -75,88 +75,89 @@
     .cg-label {
       font-weight: bold; padding: 2px 5px;
       border-right: 1px solid #000; border-bottom: 1px solid #000;
-      background: #f0f0f0; font-size: 8.5px;
+      background: #f0f0f0; font-size: 9px;
     }
     .cg-value {
       padding: 2px 5px; border-bottom: 1px solid #000;
-      min-height: 16px; font-size: 8.5px;
+      min-height: 17px; font-size: 9px;
     }
 
-    /* ── Job / Size ── */
+    /* ── Job / Size section — stacked for portrait ── */
     .job-section {
-      display: grid; grid-template-columns: 1fr 100px;
       border: 1px solid #000; border-top: none; border-bottom: none;
     }
     .job-header {
       font-weight: bold; text-align: center; padding: 2px 5px;
-      border-right: 1px solid #000; border-bottom: 1px solid #000;
-      background: #d0d0d0; font-size: 8.5px;
-    }
-    .size-header {
-      font-weight: bold; text-align: center; padding: 2px 5px;
-      border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
+      border-bottom: 1px solid #000;
+      background: #d0d0d0; font-size: 9px;
     }
     .job-body {
-      padding: 3px 5px; min-height: 36px;
-      border-right: 1px solid #000; border-bottom: 1px solid #000;
-      font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
-    }
-    .size-body {
-      padding: 3px 5px; min-height: 36px;
-      border-bottom: 1px solid #000; font-size: 8.5px;
+      padding: 4px 5px; min-height: 52px;
+      border-bottom: 1px solid #000;
+      font-size: 9px; white-space: pre-wrap; line-height: 1.45;
     }
 
-    /* ── Notes + Line items ── */
-    .bottom-section {
-      display: grid; grid-template-columns: 1fr 180px;
-      border: 1px solid #000; border-top: none;
+    /* Size / Details as a simple inline row under job */
+    .size-row {
+      display: flex; align-items: stretch;
+      border: 1px solid #000; border-top: none; border-bottom: none;
     }
-    .notes-col { border-right: 1px solid #000; }
+    .size-label {
+      font-weight: bold; font-size: 9px; padding: 2px 5px;
+      background: #f0f0f0; border-right: 1px solid #000;
+      white-space: nowrap; display: flex; align-items: center; min-width: 72px;
+    }
+    .size-value {
+      flex: 1; padding: 2px 5px; font-size: 9px; min-height: 20px;
+    }
+
+    /* ── Notes ── */
+    .notes-section {
+      border: 1px solid #000; border-top: none; border-bottom: none;
+    }
     .notes-header {
       font-weight: bold; text-align: center; padding: 2px 5px;
-      border-bottom: 1px solid #000; background: #d0d0d0; font-size: 8.5px;
+      border-bottom: 1px solid #000; background: #d0d0d0; font-size: 9px;
     }
     .notes-body {
-      padding: 3px 5px; min-height: 60px;
-      font-size: 8.5px; white-space: pre-wrap; line-height: 1.4;
+      padding: 4px 5px; min-height: 60px;
+      font-size: 9px; white-space: pre-wrap; line-height: 1.45;
     }
+
+    /* ── Line items + totals ── */
+    .li-section {
+      border: 1px solid #000; border-top: none; border-bottom: none;
+    }
+    .li-header-row {
+      display: flex; background: #d0d0d0; border-bottom: 1px solid #000;
+    }
+    .li-hdr-desc { flex: 1; font-weight: bold; font-size: 9px; padding: 2px 5px; border-right: 1px solid #000; }
+    .li-hdr-amt  { width: 64px; font-weight: bold; font-size: 9px; padding: 2px 5px; text-align: right; }
     .li-row {
-      display: flex; border-bottom: 1px solid #ccc; min-height: 17px;
+      display: flex; border-bottom: 1px solid #ccc; min-height: 16px;
     }
     .li-row:last-child { border-bottom: none; }
-    .li-desc {
-      flex: 1; padding: 2px 5px;
-      border-right: 1px solid #ccc; font-size: 8.5px;
-    }
-    .li-amt {
-      width: 56px; padding: 2px 5px;
-      text-align: right; font-size: 8.5px;
-    }
-    .totals-section { border-top: 1px solid #000; }
-    .t-row {
-      display: flex; border-bottom: 1px solid #ccc; min-height: 17px;
-    }
+    .li-desc { flex: 1; padding: 2px 5px; border-right: 1px solid #ccc; font-size: 9px; }
+    .li-amt  { width: 64px; padding: 2px 5px; text-align: right; font-size: 9px; }
+
+    /* Totals */
+    .totals-section { border: 1px solid #000; border-top: none; border-bottom: none; }
+    .t-row { display: flex; border-bottom: 1px solid #ccc; min-height: 16px; }
     .t-row:last-child { border-bottom: none; }
-    .t-label {
-      flex: 1; padding: 2px 5px; text-align: right;
-      font-size: 8.5px; border-right: 1px solid #ccc;
-    }
-    .t-val {
-      width: 56px; padding: 2px 5px;
-      text-align: right; font-size: 8.5px;
-    }
+    .t-label { flex: 1; padding: 2px 5px; text-align: right; font-size: 9px; border-right: 1px solid #ccc; }
+    .t-val   { width: 64px; padding: 2px 5px; text-align: right; font-size: 9px; }
     .t-row.bold .t-label, .t-row.bold .t-val { font-weight: bold; }
 
-    /* paid row */
+    /* ── Paid row ── */
     .paid-row {
-      display: flex; border-top: 1px solid #000; min-height: 18px;
+      display: flex; border: 1px solid #000; border-top: none; border-bottom: none; min-height: 18px;
     }
     .paid-label {
-      padding: 2px 5px; font-weight: bold; font-size: 8.5px;
-      border-right: 1px solid #ccc; display: flex; align-items: center;
+      padding: 2px 5px; font-weight: bold; font-size: 9px;
+      border-right: 1px solid #ccc; display: flex; align-items: center; min-width: 72px;
     }
     .paid-option {
-      flex: 1; padding: 2px 4px; font-size: 8.5px;
+      flex: 1; padding: 2px 4px; font-size: 9px;
       border-right: 1px solid #ccc;
       display: flex; align-items: center; justify-content: center; gap: 3px;
     }
@@ -164,23 +165,23 @@
 
     /* ── Pickup row ── */
     .pickup-row {
-      display: flex; align-items: center;
+      display: flex; align-items: center; flex-wrap: wrap;
       border: 1px solid #000; border-top: none;
     }
 
-    /* ── Print: OL400WX half-sheet 8.5" × 5.5" ── */
+    /* ── Print: 5.5" × 8.5" portrait — rotates correctly on OL400WX ── */
     @media print {
       body { padding: 0; }
       .no-print { display: none !important; }
       @page {
-        size: 8.5in 5.5in landscape;
-        margin: 0.18in 0.22in;
+        size: 5.5in 8.5in portrait;
+        margin: 0.2in 0.22in;
       }
     }
 
     /* Screen preview */
     @media screen {
-      body { max-width: 8in; padding: 10px 14px; }
+      body { max-width: 5in; padding: 10px 14px; }
     }
 
     /* Print bar */
@@ -203,7 +204,6 @@
         background: transparent !important; box-shadow: none !important;
       }
     }
-
     .chk-box { cursor: pointer; }
   </style>
 </head>
@@ -259,52 +259,63 @@
   <div class="cg-value" id="c-address" contenteditable="true"></div>
 </div>
 
-<!-- Job Description / Size -->
+<!-- Job Description -->
 <div class="job-section">
   <div class="job-header">Job Description</div>
-  <div class="size-header">Size / Details</div>
   <div class="job-body" id="j-desc" contenteditable="true"></div>
-  <div class="size-body" id="j-size" contenteditable="true"></div>
 </div>
 
-<!-- Notes + Line items -->
-<div class="bottom-section">
-  <div class="notes-col">
-    <div class="notes-header">Notes / Materials</div>
-    <div class="notes-body" id="n-notes" contenteditable="true"></div>
-  </div>
+<!-- Size / Details -->
+<div class="size-row">
+  <div class="size-label">Size / Details</div>
+  <div class="size-value" id="j-size" contenteditable="true"></div>
+</div>
 
-  <div class="lineitems-col">
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
-    <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+<!-- Notes / Materials -->
+<div class="notes-section">
+  <div class="notes-header">Notes / Materials</div>
+  <div class="notes-body" id="n-notes" contenteditable="true"></div>
+</div>
 
-    <div class="totals-section">
-      <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
-      <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
-      <div class="t-row"><div class="t-label">Shipping</div><div class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="t-row bold"><div class="t-label">Total</div><div class="t-val" id="t-total"></div></div>
-      <div class="t-row"><div class="t-label">Deposit</div><div class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></div></div>
-      <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
-      <div class="paid-row">
-        <div class="paid-label">Paid</div>
-        <div class="paid-option"><span class="chk-box"></span> Cash</div>
-        <div class="paid-option"><span class="chk-box"></span> Credit</div>
-        <div class="paid-option"><span class="chk-box"></span> Check</div>
-      </div>
-    </div>
+<!-- Line items -->
+<div class="li-section">
+  <div class="li-header-row">
+    <div class="li-hdr-desc">Item / Description</div>
+    <div class="li-hdr-amt">Amount</div>
   </div>
+  <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+  <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+  <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+  <div class="li-row"><div class="li-desc" contenteditable="true"></div><div class="li-amt" contenteditable="true" oninput="recalc()"></div></div>
+</div>
+
+<!-- Totals -->
+<div class="totals-section">
+  <div class="t-row"><div class="t-label">Subtotal</div><div class="t-val" id="t-subtotal"></div></div>
+  <div class="t-row"><div class="t-label">Tax (8%)</div><div class="t-val" id="t-salestax"></div></div>
+  <div class="t-row"><div class="t-label">Shipping</div><div class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></div></div>
+  <div class="t-row bold"><div class="t-label">Total</div><div class="t-val" id="t-total"></div></div>
+  <div class="t-row"><div class="t-label">Deposit</div><div class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></div></div>
+  <div class="t-row bold"><div class="t-label">Balance Due</div><div class="t-val" id="t-newtotal"></div></div>
+</div>
+
+<!-- Paid by -->
+<div class="paid-row">
+  <div class="paid-label">Paid By</div>
+  <div class="paid-option"><span class="chk-box"></span> Cash</div>
+  <div class="paid-option"><span class="chk-box"></span> Credit</div>
+  <div class="paid-option"><span class="chk-box"></span> Check</div>
+  <div class="paid-option"><span class="chk-box"></span> Venmo</div>
 </div>
 
 <!-- Pickup -->
 <div class="pickup-row">
   <div class="inline-chk-label">Pickup</div>
   <div class="inline-chk-items">
-    <div class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell Market</div>
-    <div class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller Market</div>
-    <div class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral Crossing</div>
-    <div class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset Valley</div>
+    <div class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell</div>
+    <div class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller</div>
+    <div class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral</div>
+    <div class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset</div>
     <div class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</div>
     <div class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</div>
   </div>
@@ -344,9 +355,9 @@
   document.getElementById('hdr-date').textContent = fmt(takeIn) || fmt(new Date().toISOString().slice(0,10));
   document.getElementById('hdr-due').textContent  = fmt(deadline);
 
-  document.getElementById('c-name').textContent    = name;
-  document.getElementById('c-email').textContent   = email;
-  document.getElementById('c-phone').textContent   = phone;
+  document.getElementById('c-name').textContent  = name;
+  document.getElementById('c-email').textContent = email;
+  document.getElementById('c-phone').textContent = phone;
   document.getElementById('c-address').style.whiteSpace = 'pre-line';
   document.getElementById('c-address').textContent = address;
 
