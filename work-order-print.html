@@ -27,7 +27,7 @@
       padding: 0.18in 0.18in;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 0;
       overflow: hidden;
     }
 
@@ -105,7 +105,7 @@
     /* Date row */
     .date-row {
       display: flex; align-items: center;
-      border: 1px solid #000; border-top: none; margin-bottom: 3px;
+      border: 1px solid #000; border-top: none; margin-bottom: 4px;
     }
     .date-row-label {
       font-weight: bold; font-size: 8px; padding: 2px 4px;
@@ -156,6 +156,22 @@
     .sec-body.short { min-height: 28px; }
     .sec-body.tall  { min-height: 38px; }
     .sec-body.notes { min-height: 34px; }
+
+    /* Expandable sections fill remaining vertical space */
+    .sec-block.grow {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+    .sec-block.grow2 {
+      display: flex;
+      flex-direction: column;
+      flex: 2;
+      min-height: 0;
+    }
+    .sec-block.grow  .sec-body,
+    .sec-block.grow2 .sec-body { flex: 1; min-height: 0; }
 
     /* Size row */
     .size-row {
@@ -238,7 +254,7 @@
 
 <div class="form-content">
 
-  <div>
+  <div style="margin-bottom:3px">
     <div class="shop-name">Stones Throw Studio</div>
     <div class="shop-sub">Custom Jewelry</div>
   </div>
@@ -269,7 +285,7 @@
     <div class="cg-val" id="c-address" contenteditable="true"></div>
   </div>
 
-  <div class="sec-block first">
+  <div class="sec-block first grow2">
     <div class="sec-head">Job Description</div>
     <div class="sec-body tall" id="j-desc" contenteditable="true"></div>
   </div>
@@ -279,7 +295,7 @@
     <div class="size-val" id="j-size" contenteditable="true"></div>
   </div>
 
-  <div class="sec-block">
+  <div class="sec-block grow">
     <div class="sec-head">Notes / Materials</div>
     <div class="sec-body notes" id="n-notes" contenteditable="true"></div>
   </div>
