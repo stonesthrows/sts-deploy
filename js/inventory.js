@@ -17,6 +17,11 @@ const INV_RING_EXCLUDE = {
   'symbolic': ['horseshoe', 'rainbow'],
 };
 
+// If set, only items whose name contains one of these substrings are shown
+const INV_RING_INCLUDE = {
+  'meditation': ['open bodhi', 'narrow bodhi', 'narrow tricolor', 'narrow orbit'],
+};
+
 // Square category IDs → earring sub-tabs
 // Ear Cuffs root + all sub-categories; others are single category
 const INV_CAT_IDS = {
@@ -146,12 +151,15 @@ function _invRenderSub(sub) {
   }
 
   const excludes = (INV_RING_EXCLUDE[sub] || []).map(s => s.toLowerCase());
+  const includes = (INV_RING_INCLUDE[sub] || []).map(s => s.toLowerCase());
 
   let html = '';
   items.forEach(item => {
     const name = item.item_data?.name || 'Unnamed';
-    if (q && !name.toLowerCase().includes(q)) return;
-    if (excludes.some(ex => name.toLowerCase().includes(ex))) return;
+    const nameLower = name.toLowerCase();
+    if (q && !nameLower.includes(q)) return;
+    if (excludes.some(ex => nameLower.includes(ex))) return;
+    if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
     const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted);
     html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
@@ -378,9 +386,12 @@ function _invUpdateRingCountLabel() {
   if (!label) return;
   if (!data) { label.textContent = ''; return; }
   const excludes = (INV_RING_EXCLUDE[_invRingCurSub] || []).map(s => s.toLowerCase());
+  const includes = (INV_RING_INCLUDE[_invRingCurSub] || []).map(s => s.toLowerCase());
   const visible  = data.items.filter(i => {
     const n = (i.item_data?.name || '').toLowerCase();
-    return !excludes.some(ex => n.includes(ex));
+    if (excludes.some(ex => n.includes(ex))) return false;
+    if (includes.length && !includes.some(inc => n.includes(inc))) return false;
+    return true;
   });
   const total      = visible.length;
   const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
