@@ -19,7 +19,7 @@ const INV_RING_EXCLUDE = {
 
 // If set, only items whose name contains one of these substrings are shown
 const INV_RING_INCLUDE = {
-  'meditation': ['open bodhi', 'narrow bodhi', 'narrow tricolor', 'narrow orbit'],
+  'meditation': ['open bodhi', 'narrow bodhi', 'narrow tricolor', 'narrow orbit', 'slim meditation'],
 };
 
 // Square category IDs → earring sub-tabs
