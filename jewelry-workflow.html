@@ -2604,6 +2604,7 @@
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
     <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
+    <button onclick="openPrintSetup()" style="background:var(--surface2);color:var(--text1);border:1px solid var(--border1);border-radius:7px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">⚙ Print Setup</button>
     <div class="kanban-actions">
       <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
       <button class="notion-chip" id="notionSyncBtn" onclick="notionSyncFromNotion()" title="Pull latest orders from Notion">↻ Sync Notion</button>
@@ -3879,6 +3880,60 @@
   window.pjPickSize  = pjPickSize;
   window.pjBuildRef  = pjBuildRef;
 })();
+
+// ═══════════════════ PRINT SETUP ═══════════════════
+const PS_KEY = 'workOrderPrintSettings';
+const PS_DEFAULTS = {
+  jobDescSize: 'small',
+  notesSize:   'medium',
+  liRows:      4,
+  fontSize:    'medium',
+  showSizeRow: true
+};
+
+function psLoadSettings() {
+  try { return Object.assign({}, PS_DEFAULTS, JSON.parse(localStorage.getItem(PS_KEY) || '{}')); }
+  catch(e) { return Object.assign({}, PS_DEFAULTS); }
+}
+
+function psSelect(groupId, btn) {
+  document.querySelectorAll('#' + groupId + ' .ps-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function openPrintSetup() {
+  const s = psLoadSettings();
+  // Populate button groups
+  ['ps-jobdesc','ps-notes','ps-font'].forEach(gid => {
+    const key = gid === 'ps-jobdesc' ? 'jobDescSize' : gid === 'ps-notes' ? 'notesSize' : 'fontSize';
+    document.querySelectorAll('#' + gid + ' .ps-opt').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === s[key]);
+    });
+  });
+  document.getElementById('ps-lirows').value = s.liRows;
+  document.getElementById('ps-sizerow').checked = s.showSizeRow;
+  document.getElementById('printSetupBg').classList.add('open');
+}
+
+function closePrintSetup() {
+  document.getElementById('printSetupBg').classList.remove('open');
+}
+
+function savePrintSetup() {
+  const active = (gid) => {
+    const el = document.querySelector('#' + gid + ' .ps-opt.active');
+    return el ? el.dataset.val : null;
+  };
+  const s = {
+    jobDescSize: active('ps-jobdesc') || PS_DEFAULTS.jobDescSize,
+    notesSize:   active('ps-notes')   || PS_DEFAULTS.notesSize,
+    liRows:      parseInt(document.getElementById('ps-lirows').value) || PS_DEFAULTS.liRows,
+    fontSize:    active('ps-font')    || PS_DEFAULTS.fontSize,
+    showSizeRow: document.getElementById('ps-sizerow').checked
+  };
+  localStorage.setItem(PS_KEY, JSON.stringify(s));
+  closePrintSetup();
+}
 </script>
 
 <!-- Mileage Reconciliation Modal -->
@@ -4323,6 +4378,62 @@
 </style>
 
 <!-- ═══════════════════ EDIT ORDER MODAL ═══════════════════ -->
+<!-- ═══════════════════ PRINT SETUP MODAL ═══════════════════ -->
+<div id="printSetupBg" class="ps-bg" onclick="if(event.target===this)closePrintSetup()">
+  <div class="ps-modal">
+    <div class="ps-head">
+      <div class="ps-head-title">🖨 Print Setup</div>
+      <button class="eo-close" onclick="closePrintSetup()">×</button>
+    </div>
+    <div class="ps-body">
+
+      <div class="ps-row">
+        <label>Job Description Height</label>
+        <div class="ps-opts" id="ps-jobdesc">
+          <button class="ps-opt" data-val="small" onclick="psSelect('ps-jobdesc',this)">Small (~1 line)</button>
+          <button class="ps-opt" data-val="medium" onclick="psSelect('ps-jobdesc',this)">Medium</button>
+          <button class="ps-opt" data-val="large" onclick="psSelect('ps-jobdesc',this)">Large</button>
+        </div>
+      </div>
+
+      <div class="ps-row">
+        <label>Notes / Materials Height</label>
+        <div class="ps-opts" id="ps-notes">
+          <button class="ps-opt" data-val="small" onclick="psSelect('ps-notes',this)">Small</button>
+          <button class="ps-opt" data-val="medium" onclick="psSelect('ps-notes',this)">Medium</button>
+          <button class="ps-opt" data-val="large" onclick="psSelect('ps-notes',this)">Large</button>
+        </div>
+      </div>
+
+      <div class="ps-row">
+        <label>Line Item Rows</label>
+        <input type="number" class="ps-number" id="ps-lirows" min="2" max="10" value="4">
+      </div>
+
+      <div class="ps-row">
+        <label>Font Size</label>
+        <div class="ps-opts" id="ps-font">
+          <button class="ps-opt" data-val="small" onclick="psSelect('ps-font',this)">Small</button>
+          <button class="ps-opt" data-val="medium" onclick="psSelect('ps-font',this)">Medium</button>
+          <button class="ps-opt" data-val="large" onclick="psSelect('ps-font',this)">Large</button>
+        </div>
+      </div>
+
+      <div class="ps-row">
+        <label class="ps-checkbox-row">
+          <input type="checkbox" id="ps-sizerow" checked>
+          Show "Size / Details" row
+        </label>
+      </div>
+
+    </div>
+    <div class="ps-foot">
+      <button class="ps-cancel-btn" onclick="closePrintSetup()">Cancel</button>
+      <button class="ps-save-btn" onclick="savePrintSetup()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
 <div id="editOrderModalBg" class="eo-bg" onclick="if(event.target===this)closeEditOrderModal()">
   <div class="eo-modal">
 
@@ -4527,6 +4638,66 @@
   background: #3d6880;
   border-radius: 0 0 16px 16px;
 }
+
+/* ── Print Setup modal ── */
+.ps-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 800;
+  align-items: center; justify-content: center;
+}
+.ps-bg.open { display: flex; }
+.ps-modal {
+  background: #4a7a96; border: 1px solid #3d6880;
+  border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  width: min(480px, 96vw);
+  display: flex; flex-direction: column;
+}
+.ps-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; background: #3d6880;
+  border-radius: 16px 16px 0 0;
+  border-bottom: 1px solid rgba(0,0,0,.15);
+}
+.ps-head-title { font-size: 15px; font-weight: 700; color: #fff; }
+.ps-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.ps-row { display: flex; flex-direction: column; gap: 5px; }
+.ps-row label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3px; color: rgba(255,255,255,.85);
+}
+.ps-opts { display: flex; gap: 6px; }
+.ps-opt {
+  flex: 1; padding: 7px 0; border: 1px solid rgba(255,255,255,.3);
+  border-radius: 7px; background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.75); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.ps-opt:hover { background: rgba(255,255,255,.2); color: #fff; }
+.ps-opt.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ps-number {
+  width: 72px; padding: 7px 10px; border: 1px solid rgba(0,0,0,.15);
+  border-radius: 8px; font-size: 13px; background: #f5f4f0;
+  color: #1a1a1a; font-family: inherit; text-align: center;
+}
+.ps-checkbox-row { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.85); font-size: 13px; cursor: pointer; }
+.ps-checkbox-row input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+.ps-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px; background: #3d6880;
+  border-top: 1px solid rgba(0,0,0,.15);
+  border-radius: 0 0 16px 16px;
+}
+.ps-save-btn {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; padding: 8px 22px; font-size: 13px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.ps-save-btn:hover { filter: brightness(1.1); }
+.ps-cancel-btn {
+  background: transparent; color: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.3);
+  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+.ps-cancel-btn:hover { color: #fff; border-color: rgba(255,255,255,.6); }
 </style>
 
 <!-- ═══════════════════ INTEGRATIONS MODAL ═══════════════════ -->

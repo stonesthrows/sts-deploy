@@ -243,6 +243,26 @@
       cursor: pointer; font-family: inherit;
     }
     .print-btn:hover { background: #5e4428; }
+
+    /* ── Layout setting variants (applied via data-* on .form-content) ── */
+
+    /* Job Description height */
+    .form-content[data-jd="small"]  #jd-block { max-height: 1cm;   }
+    .form-content[data-jd="medium"] #jd-block { max-height: 2cm;   }
+    .form-content[data-jd="large"]  #jd-block { max-height: 3.5cm; }
+
+    /* Notes height (flex weight) */
+    .form-content[data-ns="small"]  .sec-block.grow { flex: 0.4; }
+    .form-content[data-ns="medium"] .sec-block.grow { flex: 1;   }
+    .form-content[data-ns="large"]  .sec-block.grow { flex: 2;   }
+
+    /* Font size */
+    .form-content[data-font="small"]  { font-size: 7.5px; }
+    .form-content[data-font="medium"] { font-size: 9px;   }
+    .form-content[data-font="large"]  { font-size: 10.5px; }
+
+    /* Size row visibility */
+    .form-content[data-sizerow="0"] .size-row { display: none; }
   </style>
 </head>
 <body>
@@ -288,9 +308,9 @@
     <div class="cg-val" id="c-address" contenteditable="true"></div>
   </div>
 
-  <div class="sec-block first" style="max-height:1cm; display:flex; flex-direction:column; flex-shrink:0;">
+  <div class="sec-block first" id="jd-block" style="display:flex; flex-direction:column; flex-shrink:0;">
     <div class="sec-head">Job Description</div>
-    <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0;"></div>
+    <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden;"></div>
   </div>
 
   <div class="size-row">
@@ -371,6 +391,29 @@
   const deposit   = p.get('deposit')   || '';
   const pickup    = p.get('pickup')    || '';
   const stage     = p.get('stage')     || '';
+
+  // ── Apply layout settings ──
+  const fc = document.querySelector('.form-content');
+  const jd      = p.get('jd')      || 'small';
+  const ns      = p.get('ns')      || 'medium';
+  const liRows  = Math.min(10, Math.max(2, parseInt(p.get('liRows')) || 4));
+  const font    = p.get('font')    || 'medium';
+  const sizeRow = p.get('sizeRow') !== '0' ? '1' : '0';
+  fc.dataset.jd      = jd;
+  fc.dataset.ns      = ns;
+  fc.dataset.font    = font;
+  fc.dataset.sizerow = sizeRow;
+
+  // Build line item rows dynamically
+  const liBlock = document.querySelector('.li-block');
+  // Remove existing rows (keep header)
+  liBlock.querySelectorAll('.li-row').forEach(r => r.remove());
+  for (let i = 0; i < liRows; i++) {
+    const row = document.createElement('div');
+    row.className = 'li-row';
+    row.innerHTML = '<span class="li-d" contenteditable="true"></span><span class="li-a" contenteditable="true" oninput="recalc()"></span>';
+    liBlock.appendChild(row);
+  }
 
   document.getElementById('hdr-date').textContent = fmt(takeIn) || fmt(new Date().toISOString().slice(0,10));
   document.getElementById('hdr-due').textContent  = fmt(deadline);

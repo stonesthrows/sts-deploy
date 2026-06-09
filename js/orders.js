@@ -754,6 +754,18 @@ function printOrder(id) {
     source:    o.contactSource || '',
     stage:     o.stage       || ''
   });
+  // Append print layout settings from localStorage
+  try {
+    const ps = Object.assign(
+      { jobDescSize:'small', notesSize:'medium', liRows:4, fontSize:'medium', showSizeRow:true },
+      JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}')
+    );
+    p.set('jd',      ps.jobDescSize);
+    p.set('ns',      ps.notesSize);
+    p.set('liRows',  ps.liRows);
+    p.set('font',    ps.fontSize);
+    p.set('sizeRow', ps.showSizeRow ? '1' : '0');
+  } catch(e) {}
   window.open('work-order-print.html?' + p.toString(), '_blank');
 }
 
