@@ -22,7 +22,8 @@ const STAGES = [
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
   { id:'contact-need',   label:'Need to Contact Customer',     cls:'s-contact-need'   },
   { id:'contact-done',   label:'Contacted Customer',           cls:'s-contact-done'   },
-  { id:'ready-pick',     label:'Ready for Pickup',             cls:'s-ready-pick'     },
+  { id:'ready-pick',     label:'Ready to Pickup/Ship',         cls:'s-ready-pick'     },
+  { id:'ship-out',       label:'Ship Out',                     cls:'s-ship-out'       },
   { id:'complete',       label:'Completed',                    cls:'s-complete'       },
   // Legacy IDs kept for data-compat (migrated on load)
   { id:'inquiry',        label:'Inquiry (legacy)',             cls:'s-inquiry'        },
@@ -61,7 +62,7 @@ const COLUMN_GROUPS = [
     { id:'contact-need', cls:'s-contact-need', label:'Need to Contact Customer' },
     { id:'contact-done', cls:'s-contact-done', label:'Contacted Customer'       },
   ]},
-  { label:'Ready for Pickup', cls:'s-ready-pick',  stages:[{id:'ready-pick', cls:'s-ready-pick', label:'Ready for Pickup'}], pickupSections:true },
+  { label:'Ready to Pickup/Ship', cls:'s-ready-pick',  stages:[{id:'ready-pick', cls:'s-ready-pick', label:'Ready to Pickup/Ship'}, {id:'ship-out', cls:'s-ship-out', label:'Ship Out'}], pickupSections:true },
 ];
 
 // ClickUp list 901416911135 — legacy Asana IDs preserved for reference only

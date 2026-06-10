@@ -20,9 +20,10 @@ function renderKanban() {
     const totalCount = allCards.length;
 
     if (group.pickupSections) {
-      // ── Ready for Pickup: sub-sections by pickup location ──
+      // ── Ready to Pickup/Ship: sub-sections by pickup location (stage[0] only) ──
+      const pickupCards = allCards.filter(o => o.stage === group.stages[0].id);
       const subsHTML = PICKUP_LOCATIONS.map(loc => {
-        const locCards = allCards.filter(o => o.pickup === loc);
+        const locCards = pickupCards.filter(o => o.pickup === loc);
         const stageId  = group.stages[0].id;
         return `
           <div class="k-sub-wrap s-pickup-sub">
@@ -36,8 +37,8 @@ function renderKanban() {
           </div>`;
       }).join('');
 
-      // Cards with no / unrecognized pickup location
-      const unassigned = allCards.filter(o => !PICKUP_LOCATIONS.includes(o.pickup));
+      // Cards with no / unrecognized pickup location (stage[0] only)
+      const unassigned = pickupCards.filter(o => !PICKUP_LOCATIONS.includes(o.pickup));
       const unassignedHTML = unassigned.length ? `
           <div class="k-sub-wrap s-pickup-sub">
             <div class="k-sub-head">📍 Unassigned<span class="k-sub-count">${unassigned.length}</span></div>
@@ -49,12 +50,30 @@ function renderKanban() {
             </div>
           </div>` : '';
 
+      // Extra stages (e.g. Ship Out) rendered as sub-sections below pickup locations
+      const extraStagesHTML = group.stages.slice(1).map(stage => {
+        const stageCards = ORDERS.filter(o =>
+          o.stage === stage.id &&
+          (showCompleted || !completedHidden.has(o.id))
+        );
+        return `
+          <div class="k-sub-wrap ${stage.cls}">
+            <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
+            <div class="k-body"
+                 ondragover="dragOver(event)"
+                 ondragleave="dragLeave(event)"
+                 ondrop="drop(event,'${stage.id}')">
+              ${stageCards.length ? stageCards.map(cardHTML).join('') : '<div class="k-empty">Drop here</div>'}
+            </div>
+          </div>`;
+      }).join('');
+
       col.innerHTML = `
         <div class="k-head">
           <span>${group.label}</span>
           <span class="k-count">${totalCount}</span>
         </div>
-        ${subsHTML}${unassignedHTML}`;
+        ${subsHTML}${unassignedHTML}${extraStagesHTML}`;
 
     } else if (group.stages.length > 1) {
       // ── Multi-stage grouped column ──
