@@ -14,12 +14,20 @@ const INV_RING_CAT_IDS = {
 
 // Item name substrings to exclude per ring sub-tab
 const INV_RING_EXCLUDE = {
+  'geometric': ['wide'],
   'symbolic': ['horseshoe', 'rainbow'],
 };
 
 // If set, only items whose name contains one of these substrings are shown
 const INV_RING_INCLUDE = {
   'meditation': ['bodhi meditation', 'tri-color', 'orbit meditation', 'slim meditation'],
+};
+
+// Square category IDs → pendant sub-tabs
+const INV_PENDANT_CAT_IDS = {
+  'spirit':    ['UFN5Q4ZAXVYD5WREFIYDPCWR'],
+  'geometric': ['6TDNOUPQHLK6QONBHM4VGKWJ'],
+  'symbolic':  ['H5AOPJIVMPBEJXPSJ22GHFYZ'],
 };
 
 // Square category IDs → earring sub-tabs
@@ -47,7 +55,10 @@ let _invData       = {};  // { [sub]: { items, counts } }
 let _invDirty      = {};  // { varId: newQty } — unsaved edits
 let _invCurSub     = 'ear-cuffs';
 let _invRingCurSub = 'stackable';
-let _invRingLoaded = false;
+let _invRingLoaded    = false;
+
+let _invPendantCurSub = 'spirit';
+let _invPendantLoaded = false;
 
 // ── Square API helper (routes through /api/square proxy to avoid CORS) ──────
 
@@ -81,7 +92,7 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  const catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub];
+  const catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub];
   if (!catIds) return;
 
   _invSetPanelHtml(sub, '<div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div>');
@@ -142,7 +153,7 @@ function _invRenderSub(sub) {
   if (!data) return;
 
   const { items, counts } = data;
-  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : 'invSearch';
+  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : 'invSearch';
   const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
@@ -198,7 +209,7 @@ function _invRenderSub(sub) {
 }
 
 function _invSetPanelHtml(sub, html) {
-  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : 'inv-sub-';
+  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : 'inv-sub-';
   const panel = document.getElementById(prefix + sub);
   if (panel) panel.innerHTML = html;
 }
@@ -272,6 +283,7 @@ async function _invSaveCount(qtyMap, sub) {
 
   _invRenderSub(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
+  else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
   else _invUpdateCountLabel();
 }
 
@@ -394,6 +406,66 @@ function _invUpdateRingCountLabel() {
     return true;
   });
   const total      = visible.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+// ── Pendants tab ─────────────────────────────
+
+async function invLoadPendants() {
+  if (_invData[_invPendantCurSub]) return;
+  await _invLoadSub(_invPendantCurSub);
+  _invPendantLoaded = true;
+}
+
+function invSwitchPendantSub(sub, el) {
+  _invPendantCurSub = sub;
+  document.querySelectorAll('.inv-pendant-sub-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.inv-pendant-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('inv-psub-' + sub);
+  if (panel) panel.style.display = '';
+  if (!_invData[sub]) _invLoadSub(sub);
+  else _invRenderSub(sub);
+  _invUpdatePendantCountLabel();
+}
+
+function invPendantFilter(val) {
+  _invRenderSub(_invPendantCurSub);
+}
+
+async function invUpdateAllPendants() {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+  const btn = document.getElementById('invPendantUpdateAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await _invSaveCount(Object.fromEntries(entries), _invPendantCurSub);
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshPendants() {
+  const btn = document.getElementById('invPendantRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  Object.keys(INV_PENDANT_CAT_IDS).forEach(sub => { delete _invData[sub]; });
+  _invDirty = {};
+  _invPendantLoaded = false;
+  await invLoadPendants();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+
+function _invUpdatePendantCountLabel() {
+  const data  = _invData[_invPendantCurSub];
+  const label = document.getElementById('invPendantCountLabel');
+  if (!label) return;
+  if (!data) { label.textContent = ''; return; }
+  const total      = data.items.length;
   const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
   label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
     (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');

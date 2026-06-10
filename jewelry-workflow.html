@@ -3209,7 +3209,7 @@
 <div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
   <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
-  <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants')">📿 Pendants</button>
+  <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
 </div>
 
 <!-- Earrings panel -->
@@ -3290,12 +3290,36 @@
 
 <!-- Pendants panel -->
 <div id="inv-main-pendants" class="inv-main-panel" style="display:none">
-  <div class="page-bar">
-    <div>
-      <div class="page-title">📿 Pendants Inventory</div>
-      <div class="page-sub">Coming soon — add pendant products to get started</div>
-    </div>
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">📿 Pendants Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
   </div>
+</div>
+
+<!-- Pendant sub-tabs -->
+<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+  <button id="inv-pendant-subtab-spirit"    class="inv-pendant-sub-btn inv-ear-sub active" onclick="invSwitchPendantSub('spirit',this)">Spirit Animal</button>
+  <button id="inv-pendant-subtab-geometric" class="inv-pendant-sub-btn inv-ear-sub"        onclick="invSwitchPendantSub('geometric',this)">Geometric</button>
+  <button id="inv-pendant-subtab-symbolic"  class="inv-pendant-sub-btn inv-ear-sub"        onclick="invSwitchPendantSub('symbolic',this)">Symbolic</button>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+  <input id="invPendantSearch" type="text" placeholder="Filter items…"
+    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    oninput="invPendantFilter(this.value)">
+  <button class="btn btn-gold btn-sm" id="invPendantUpdateAllBtn" onclick="invUpdateAllPendants()">Update All</button>
+  <button class="btn btn-outline btn-sm" id="invPendantRefreshBtn" onclick="invRefreshPendants()">↻ Refresh</button>
+</div>
+<div id="invPendantCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+
+<!-- Pendant sub-panels -->
+<div style="padding:0 16px 16px">
+  <div id="inv-psub-spirit"    class="inv-pendant-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-psub-geometric" class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-psub-symbolic"  class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+</div>
 </div>
 
 </div>
@@ -3421,16 +3445,20 @@
   <div class="page-bar" style="padding:18px 20px 0;margin-bottom:0;">
     <div>
       <div class="page-title">🚗 Trip Log</div>
-      <div class="page-sub">Mileage from TripLog · IRS rate $0.70/mi (2026) · local edits saved in browser</div>
+      <div class="page-sub">Mileage from TripLog · IRS rate $0.70/mi (2026) · edits saved to cloud</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <input type="date" id="tlStartDate" class="tl-date-input">
       <span style="color:var(--text-dim);font-size:13px;">to</span>
       <input type="date" id="tlEndDate" class="tl-date-input">
       <button id="tlFetchBtn" class="btn btn-gold btn-sm" onclick="tlFetch()">↻ Load Trips</button>
+      <button class="btn btn-outline btn-sm" onclick="tlOpenNewGapTripBlank()">＋ Gap Trip</button>
       <button class="btn btn-outline btn-sm" onclick="tlExportCSV()">📥 CSV</button>
     </div>
   </div>
+
+  <!-- Health Bar -->
+  <div id="tlHealthBar" class="tl-health-bar" style="display:none"></div>
 
   <!-- Stats -->
   <div class="tl-stats-row">
@@ -4008,6 +4036,66 @@ function savePrintSetup() {
   </div>
 </div>
 
+<!-- Gap Trip Modal -->
+<div class="tl-modal-overlay" id="gapTripOverlay" onclick="tlCloseGapTrip()"></div>
+<div class="tl-modal" id="gapTripModal">
+  <div class="tl-modal-head">
+    <span>📍 Add Gap Trip</span>
+    <button class="tl-modal-close" onclick="tlCloseGapTrip()">×</button>
+  </div>
+  <div class="tl-modal-body">
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">Gap trips are local-only records that appear in your trip table and CSV exports but are not sent to TripLog.</div>
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>Date</label>
+        <input type="date" id="gapTripDate">
+      </div>
+      <div class="tl-field">
+        <label>Activity</label>
+        <select id="gapTripActivity">
+          <option value="Personal">Personal</option>
+          <option value="Business">Business</option>
+        </select>
+      </div>
+    </div>
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>Start Odometer</label>
+        <input type="number" id="gapTripStartOdo" placeholder="e.g. 34700" oninput="gapAutoCalcMiles()">
+      </div>
+      <div class="tl-field">
+        <label>End Odometer</label>
+        <input type="number" id="gapTripEndOdo" placeholder="e.g. 34743" oninput="gapAutoCalcMiles()">
+      </div>
+    </div>
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>Miles</label>
+        <input type="number" id="gapTripMiles" step="0.1" min="0" placeholder="auto-calculated">
+      </div>
+    </div>
+    <div class="tl-field-row">
+      <div class="tl-field">
+        <label>From</label>
+        <input type="text" id="gapTripFrom" placeholder="e.g. Home">
+      </div>
+      <div class="tl-field">
+        <label>To</label>
+        <input type="text" id="gapTripTo" placeholder="e.g. Home">
+      </div>
+    </div>
+    <div class="tl-field">
+      <label>Notes</label>
+      <textarea id="gapTripNotes" rows="2" placeholder="e.g. Odometer correction — untracked miles"></textarea>
+    </div>
+  </div>
+  <div class="tl-modal-foot">
+    <div style="flex:1"></div>
+    <button class="btn btn-outline btn-sm" onclick="tlCloseGapTrip()">Cancel</button>
+    <button class="btn btn-gold btn-sm" onclick="tlSaveGapTrip()">Add Gap Trip</button>
+  </div>
+</div>
+
 <!-- TripLog Edit Modal -->
 <div class="tl-modal-overlay" id="tlEditOverlay" onclick="tlCloseEdit()"></div>
 <div class="tl-modal" id="tlEditModal">
@@ -4059,6 +4147,48 @@ function savePrintSetup() {
 
 <style>
 /* ── TripLog tab styles ── */
+
+/* Health Bar */
+.tl-health-bar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 20px; background: var(--bg2);
+  border-bottom: 1px solid var(--bdr); font-size: 13px;
+}
+.tl-health-item { display: flex; flex-direction: column; gap: 1px; }
+.tl-health-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+.tl-health-val { font-weight: 700; font-size: 15px; color: var(--text); }
+.tl-health-sep { color: var(--text-dim); font-size: 16px; }
+.tl-health-diff { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.tl-health-diff.health-ok  { background: #e8f5e9; color: #2e7d32; }
+.tl-health-diff.health-warn { background: #fff3e0; color: #e65100; }
+.tl-health-diff.health-err  { background: #fce4ec; color: #c62828; }
+.tl-health-log-btn { margin-left: auto; font-size: 12px; padding: 4px 12px; border: 1px solid var(--bdr); border-radius: 20px; background: transparent; color: var(--accent); cursor: pointer; }
+.tl-health-log-btn:hover { background: var(--accent); color: #fff; }
+
+/* Chain gap rows */
+.tl-chain-gap-row td { padding: 6px 12px; }
+.tl-chain-gap-over  { background: #fff8e1; border-top: 2px dashed #ff9800; border-bottom: 1px solid #ffe082; }
+.tl-chain-gap-under { background: #fce4ec; border-top: 2px dashed #f44336; border-bottom: 1px solid #ffcdd2; }
+.tl-chain-gap-icon  { margin-right: 6px; }
+.tl-chain-gap-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.tl-gap-add-btn {
+  margin-left: 12px; font-size: 11px; padding: 2px 10px;
+  border: 1px solid #ff9800; border-radius: 12px;
+  background: transparent; color: #e65100; cursor: pointer;
+}
+.tl-gap-add-btn:hover { background: #ff9800; color: #fff; }
+
+/* Gap trip rows */
+.tl-gap-trip-row { background: #f3e5f5 !important; }
+.tl-gap-trip-row:hover { background: #ede7f6 !important; }
+.tl-gap-dot { background: #7b1fa2 !important; }
+.tl-del-btn {
+  margin-left: 4px; font-size: 11px; padding: 2px 6px;
+  border: 1px solid var(--bdr); border-radius: 6px;
+  background: transparent; color: #c62828; cursor: pointer;
+}
+.tl-del-btn:hover { background: #fce4ec; }
+
 .tl-stats-row {
   display: flex; gap: 10px; flex-wrap: wrap;
   padding: 16px 20px;
