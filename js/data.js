@@ -89,17 +89,10 @@ const SQUARE_WEEKENDS = [
   { weekend: "2026-05-23", label: "May 23-24", saturday: 907.12,  sunday: 1956.21, total: 2863.33,  num_transactions: 54 },
 ];
 
-const ORDERS = [
-  { id:'a1', name:'Josh Goff',           desc:'Smoky Quartz Emerald Cut Ring',            stage:'complete',   deadline:'2026-06-10', price:850,  clickup:'1213592168507991', email:'jgoff@email.com',       phone:'' },
-  { id:'a2', name:'Phone: 512-919-6506', desc:'14k WG Twist Flatbacks — Two Chevron',     stage:'complete',   deadline:null,        price:420,  clickup:'1213592168507993', email:'',                      phone:'512-919-6506' },
-  { id:'a3', name:'Susanna Luciano',     desc:'Custom engagement ring — oval halo setting', stage:'ready-pick', deadline:'2026-05-28', price:2200, clickup:'1213592194115580', email:'susanna.l@gmail.com', phone:'', pickup:'Sunset Valley' },
-  { id:'a4', name:'Nick Martello',       desc:"Men's signet ring — sterling silver",       stage:'complete',   deadline:'2026-06-02', price:380,  clickup:'1213592208795967', email:'nmartello@email.com',  phone:'' },
-  { id:'a5', name:'Katy Brown',          desc:'Stacking bands set — 14k rose gold (×3)',   stage:'complete',   deadline:'2026-05-24', price:1100, clickup:'1213592208795963', email:'katy.brown@gmail.com',  phone:'' },
-  { id:'a6', name:'Annaliese Walsten',   desc:'Sapphire drop earrings — 18k gold',         stage:'complete',   deadline:'2026-05-20', price:960,  clickup:'1213591500254065', email:'awalsten@email.com',    phone:'' },
-  { id:'a7', name:'Corey Hunter',        desc:'Custom pendant — lab diamond solitaire',    stage:'complete',   deadline:'2026-05-01', price:1450, clickup:'1213591500254067', email:'corey.h@gmail.com',     phone:'' },
-  { id:'a8', name:'Nicholas Short',      desc:'Wedding band — hammered 14k yellow gold',   stage:'delivered',  deadline:'2026-05-08', price:680,  clickup:'1213591500254069', email:'nshort@email.com',      phone:'' },
-  { id:'a9', name:'Mickey',              desc:'Custom charm bracelet',                     stage:'delivered',  deadline:null,        price:320,  clickup:'1213592194115584', email:'',                      phone:'' },
-];
+// Orders are loaded from Notion on startup via notionStartupSync()
+// and from localStorage as a fast cache. This array is intentionally
+// empty — do not add hardcoded orders here.
+const ORDERS = [];
 
 // Populated at runtime from Notion via loadCustomersFromNotion()
 const CUSTOMERS = [];

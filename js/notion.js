@@ -219,36 +219,43 @@ async function notionStartupSync() {
       if (entry.notionId) completedMap['n:' + entry.notionId] = 'complete';
     });
 
-    const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
-    let changed = false;
+    // Build lookup of local-only fields to preserve across replacement
+    const localFields = {};
+    ORDERS.forEach(o => {
+      localFields[o.id] = {};
+      if (o.photo)       localFields[o.id].photo       = o.photo;
+      if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
+      if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
+    });
 
+    // Keep any locally-created orders (id starts with 'u') not yet in Notion
+    const notionIds    = new Set(notionOrders.map(o => o.id).filter(Boolean));
+    const notionPageIds = new Set(notionOrders.map(o => o.notionId).filter(Boolean));
+    const localOnly = ORDERS.filter(o =>
+      !notionIds.has(o.id) &&
+      !notionPageIds.has(o.notionId) &&
+      String(o.id).startsWith('u')
+    );
+
+    // Full replacement — Notion is the source of truth
+    ORDERS.length = 0;
     for (const no of notionOrders) {
       const alreadyCompleted = completedMap[no.id] || completedMap['n:' + no.notionId];
       if (alreadyCompleted) no.stage = alreadyCompleted;
-
-      if (no.id && byAppId[no.id]) {
-        const existing = byAppId[no.id];
-        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
-        Object.assign(existing, no);
-        changed = true;
-      } else if (no.notionId && byNotionId[no.notionId]) {
-        const existing = byNotionId[no.notionId];
-        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
-        Object.assign(existing, no);
-        changed = true;
-      } else {
-        ORDERS.push(no);
-        if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
-        changed = true;
-      }
+      // Restore local-only fields that Notion doesn't store
+      const lf = localFields[no.id] || {};
+      if (!no.photo       && lf.photo)       no.photo       = lf.photo;
+      if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
+      if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;
+      if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
+      ORDERS.push(no);
     }
+    localOnly.forEach(o => ORDERS.push(o));
 
-    if (changed) {
-      saveToStorage();
-      renderKanban();
-      if (typeof renderCustomers === 'function') renderCustomers();
-      updateCompletedToggle();
-    }
+    saveToStorage();
+    renderKanban();
+    if (typeof renderCustomers === 'function') renderCustomers();
+    updateCompletedToggle();
   } catch(e) {
     // Startup sync is best-effort — fail silently
   }
