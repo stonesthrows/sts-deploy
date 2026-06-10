@@ -1556,6 +1556,14 @@
       padding: 32px; text-align: center; color: #9A8860; font-size: 13px;
     }
     .prod-delivered-on { font-size: 10.5px; color: #9A8860; margin-top: 4px; }
+    .prod-card-drag-handle {
+      float: right; margin: -2px -4px 2px 6px;
+      font-size: 14px; color: #C8B898; cursor: grab; line-height: 1;
+    }
+    .prod-order-card[draggable]:hover .prod-card-drag-handle { color: #9A8860; }
+    .prod-col-body.prod-drag-over {
+      background: #EAF3FF; border-radius: 8px; outline: 2px dashed #5b8dd9;
+    }
 
     /* ── Month archive ───────────────────────── */
     .prod-archive { margin-top: 28px; }

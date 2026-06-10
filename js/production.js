@@ -23,8 +23,72 @@ function prodGetColumn(o) {
   return known.includes(o.pickup) ? o.pickup : '__limbo__';
 }
 
-// Track which month folders are open (persisted in memory only, resets on page reload)
+// Track which month folders are open (persists for the session)
 var prodOpenMonths = {};
+var prodDraggedId  = null;
+
+// ── Drag handlers ─────────────────────────────────────────────
+
+function prodDragStart(ev, id) {
+  prodDraggedId = id;
+  ev.dataTransfer.effectAllowed = 'move';
+  setTimeout(function() {
+    var el = document.getElementById('prod-card-' + id);
+    if (el) el.style.opacity = '0.4';
+  }, 0);
+}
+
+function prodDragEnd(ev) {
+  if (prodDraggedId) {
+    var el = document.getElementById('prod-card-' + prodDraggedId);
+    if (el) el.style.opacity = '';
+  }
+  prodDraggedId = null;
+  document.querySelectorAll('.prod-col-body').forEach(function(b) {
+    b.classList.remove('prod-drag-over');
+  });
+}
+
+function prodDragOver(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('prod-drag-over');
+}
+
+function prodDragLeave(ev) {
+  ev.currentTarget.classList.remove('prod-drag-over');
+}
+
+function prodDrop(ev, colKey) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('prod-drag-over');
+  if (!prodDraggedId) return;
+  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  if (!o) { prodDraggedId = null; return; }
+
+  // Determine new stage and pickup from the target column
+  if (colKey === '__ship__') {
+    o.stage  = 'ready-pick';
+    o.pickup = 'To be Shipped';
+  } else if (colKey === '__limbo__') {
+    o.stage  = 'ready-pick';
+    o.pickup = null;
+  } else {
+    o.stage  = 'ready-pick';
+    o.pickup = colKey;
+  }
+
+  // Clear delivery stamps when pulled back to active board
+  delete o.deliveredAt;
+
+  saveToStorage();
+  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, o.stage);
+  prodDraggedId = null;
+  renderProduction();
+  toast(o.name + ' moved to ' + (colKey === '__ship__' ? 'To be Shipped' : colKey === '__limbo__' ? 'In Limbo' : colKey), '📍');
+}
+
+// ── Render ────────────────────────────────────────────────────
 
 function renderProduction() {
   var grid = document.getElementById('prodGrid');
@@ -37,32 +101,35 @@ function renderProduction() {
   var html = '';
 
   // ── Active board ─────────────────────────────────────────────
-  if (readyOrders.length) {
-    html += '<div class="prod-board">';
-    PROD_COLUMNS.forEach(function(col) {
-      var colOrders = readyOrders.filter(function(o){ return prodGetColumn(o) === col.key; });
+  html += '<div class="prod-board">';
+  PROD_COLUMNS.forEach(function(col) {
+    var colOrders = readyOrders.filter(function(o){ return prodGetColumn(o) === col.key; });
 
-      html += '<div class="prod-col">';
-      html += '<div class="prod-col-head" style="border-top:3px solid ' + col.color + '">'
-            + '<span class="prod-col-icon">' + col.icon + '</span>'
-            + '<span class="prod-col-label">' + col.label + '</span>'
-            + '<span class="prod-col-count" style="background:' + col.color + '">' + colOrders.length + '</span>'
-            + '</div>';
-      html += '<div class="prod-col-body">';
+    html += '<div class="prod-col">';
+    html += '<div class="prod-col-head" style="border-top:3px solid ' + col.color + '">'
+          + '<span class="prod-col-icon">' + col.icon + '</span>'
+          + '<span class="prod-col-label">' + col.label + '</span>'
+          + '<span class="prod-col-count" style="background:' + col.color + '">' + colOrders.length + '</span>'
+          + '</div>';
+    html += '<div class="prod-col-body"'
+          + ' ondragover="prodDragOver(event)"'
+          + ' ondragleave="prodDragLeave(event)"'
+          + ' ondrop="prodDrop(event,\'' + col.key + '\')">';
 
-      if (!colOrders.length) {
-        html += '<div class="prod-col-empty">None here</div>';
-      } else {
-        colOrders.forEach(function(o) {
-          html += prodOrderCardHTML(o, true);
-        });
-      }
+    if (!colOrders.length) {
+      html += '<div class="prod-col-empty">Drop here</div>';
+    } else {
+      colOrders.forEach(function(o) {
+        html += prodOrderCardHTML(o, true);
+      });
+    }
 
-      html += '</div></div>';
-    });
-    html += '</div>';
-  } else {
-    html += '<div class="prod-empty">No orders are ready for pickup or shipping right now.</div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  if (!readyOrders.length) {
+    html += '<div class="prod-empty" style="margin-top:-8px">No orders ready — drag one up from the archive to reactivate.</div>';
   }
 
   // ── Month archive ─────────────────────────────────────────────
@@ -71,7 +138,6 @@ function renderProduction() {
   });
 
   if (doneOrders.length) {
-    // Group by YYYY-MM using deliveredAt, completedAt, or deadline as fallback
     var byMonth = {};
     doneOrders.forEach(function(o) {
       var dateStr = o.deliveredAt || o.completedAt || o.deadline || '';
@@ -80,7 +146,6 @@ function renderProduction() {
       byMonth[monthKey].push(o);
     });
 
-    // Sort months newest first
     var monthKeys = Object.keys(byMonth).sort().reverse();
 
     html += '<div class="prod-archive">';
@@ -92,7 +157,7 @@ function renderProduction() {
         var db = b.deliveredAt || b.completedAt || b.deadline || '';
         return db.localeCompare(da);
       });
-      var label = key === 'unknown' ? 'Unknown Date' : prodMonthLabel(key);
+      var label  = key === 'unknown' ? 'Unknown Date' : prodMonthLabel(key);
       var isOpen = !!prodOpenMonths[key];
       var total  = orders.length;
       var value  = orders.reduce(function(s, o){ return s + (o.finalPrice || o.price || 0); }, 0);
@@ -132,7 +197,13 @@ function prodOrderCardHTML(o, showDeliverBtn) {
   var deliveredLine = (o.deliveredAt || o.completedAt)
     ? '<div class="prod-delivered-on">Delivered ' + fmtDate(o.deliveredAt || o.completedAt) + '</div>'
     : '';
-  var html = '<div class="prod-order-card" onclick="openOrderCard(\'' + o.id + '\')">';
+  var html = '<div class="prod-order-card"'
+           + ' id="prod-card-' + o.id + '"'
+           + ' draggable="true"'
+           + ' ondragstart="prodDragStart(event,\'' + o.id + '\')"'
+           + ' ondragend="prodDragEnd(event)"'
+           + ' onclick="openOrderCard(\'' + o.id + '\')">';
+  html += '<div class="prod-card-drag-handle" title="Drag to move">⠿</div>';
   html += '<div class="prod-order-name">' + o.name + '</div>';
   html += '<div class="prod-order-desc">' + o.desc + '</div>';
   html += '<div class="prod-order-foot">';
@@ -153,7 +224,6 @@ function prodOrderCardHTML(o, showDeliverBtn) {
 }
 
 function prodMonthLabel(key) {
-  // key = 'YYYY-MM'
   var parts = key.split('-');
   var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -170,7 +240,6 @@ function prodMarkDelivered(id) {
   var dateStr = new Date().toISOString().slice(0, 10);
   o.stage = 'delivered';
   o.deliveredAt = dateStr;
-  // Auto-open the folder for this month so the order is immediately visible
   prodOpenMonths[dateStr.slice(0, 7)] = true;
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
