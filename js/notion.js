@@ -25,6 +25,8 @@ const STAGE_TO_NOTION = {
   'contact-need':   'Need to Contact Customer',
   'contact-done':   'Contacted Customer',
   'ready-pick':     'Ready for Pickup',
+  'ship-out':       'Ship Out',
+  'cancelled':      'Cancelled',
   'complete':       'Completed',
   'delivered':      'Delivered',
 };
@@ -140,26 +142,28 @@ async function notionSyncFromNotion() {
 
     let added = 0, updated = 0;
 
+    // Fields that are local-only or should never be overwritten with empty Notion values
+    const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
+
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
       const alreadyCompleted = completedMap[no.id] || completedMap['n:' + no.notionId];
       if (alreadyCompleted) no.stage = alreadyCompleted;
 
       if (no.id && byAppId[no.id]) {
-        // Match by App ID — update in place
+        // Match by App ID — update in place, preserving local-only fields
         const existing = byAppId[no.id];
+        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
         Object.assign(existing, no);
-        if (photoMap[existing.id]) existing.photo = photoMap[existing.id];
         updated++;
       } else if (no.notionId && byNotionId[no.notionId]) {
         // Match by Notion page ID — update in place
         const existing = byNotionId[no.notionId];
+        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
         Object.assign(existing, no);
-        if (photoMap[existing.id]) existing.photo = photoMap[existing.id];
         updated++;
       } else {
         // New order from Notion — add to local array
-        if (photoMap[no.id]) no.photo = photoMap[no.id];
         ORDERS.push(no);
         if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
         added++;
@@ -177,5 +181,75 @@ async function notionSyncFromNotion() {
     toast('Notion sync error — see console', '✗');
   } finally {
     if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = '↻ Sync Notion'; }
+  }
+}
+
+// ════════════════════════════════════════════
+//  STARTUP SYNC  —  silent background pull on page load
+//  No toasts, no button UI. Keeps all browsers in sync
+//  without requiring a Claude session.
+// ════════════════════════════════════════════
+async function notionStartupSync() {
+  try {
+    const r = await fetch(PIPELINE_PROXY);
+    if (!r.ok) return;
+    const notionOrders = await r.json();
+    if (!Array.isArray(notionOrders) || !notionOrders.length) return;
+
+    const byAppId    = {};
+    const byNotionId = {};
+    ORDERS.forEach(o => {
+      byAppId[o.id] = o;
+      if (o.notionId) byNotionId[o.notionId] = o;
+    });
+
+    const photoMap     = {};
+    const completedMap = {};
+    ORDERS.forEach(o => {
+      if (o.photo) photoMap[o.id] = o.photo;
+      if (o.stage === 'complete' || o.stage === 'delivered') {
+        completedMap[o.id] = o.stage;
+        if (o.notionId) completedMap['n:' + o.notionId] = o.stage;
+      }
+    });
+    let completedRegistry = [];
+    try { completedRegistry = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]'); } catch(e) {}
+    completedRegistry.forEach(entry => {
+      completedMap[entry.id] = 'complete';
+      if (entry.notionId) completedMap['n:' + entry.notionId] = 'complete';
+    });
+
+    const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
+    let changed = false;
+
+    for (const no of notionOrders) {
+      const alreadyCompleted = completedMap[no.id] || completedMap['n:' + no.notionId];
+      if (alreadyCompleted) no.stage = alreadyCompleted;
+
+      if (no.id && byAppId[no.id]) {
+        const existing = byAppId[no.id];
+        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
+        Object.assign(existing, no);
+        changed = true;
+      } else if (no.notionId && byNotionId[no.notionId]) {
+        const existing = byNotionId[no.notionId];
+        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
+        Object.assign(existing, no);
+        changed = true;
+      } else {
+        ORDERS.push(no);
+        if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      saveToStorage();
+      renderKanban();
+      if (typeof renderCustomers === 'function') renderCustomers();
+      updateCompletedToggle();
+    }
+  } catch(e) {
+    // Startup sync is best-effort — fail silently
   }
 }

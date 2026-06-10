@@ -361,70 +361,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-async function syncWithNotion() {
-  try {
-    const notionOrders = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => { window.removeEventListener('message', handler); resolve([]); }, 5000);
-      function handler(event) {
-        if (event.data && event.data.type === 'notion-orders') {
-          clearTimeout(timeout);
-          window.removeEventListener('message', handler);
-          resolve(event.data.orders || []);
-        }
-      }
-      window.addEventListener('message', handler);
-      if (typeof sendPrompt === 'function') {
-        sendPrompt('sync notion orders: ' + JSON.stringify({
-          notion_db: '62de37d7-be83-48eb-a611-f494006d8085',
-          orders: ORDERS.map(o => ({ id: o.id, name: o.name, stage: o.stage, price: o.price, deadline: o.deadline, notionId: o.notionId }))
-        }));
-      } else {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        resolve([]);
-      }
-    });
-
-    if (notionOrders.length > 0) {
-      const photoMap = {};
-      const completedMap = {};
-      // Preserve locally-set complete/delivered stages so sync never un-completes an order
-      ORDERS.forEach(o => {
-        if (o.photo) photoMap[o.id] = o.photo;
-        if (o.stage === 'complete' || o.stage === 'delivered') {
-          completedMap[o.id] = o.stage;
-          if (o.notionId) completedMap['n:' + o.notionId] = o.stage;
-        }
-      });
-      // Also load persistent completed registry (survives full ORDERS replacement)
-      let completedRegistry = [];
-      try { completedRegistry = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]'); } catch(e) {}
-      completedRegistry.forEach(r => {
-        completedMap[r.id] = 'complete';
-        if (r.notionId) completedMap['n:' + r.notionId] = 'complete';
-      });
-
-      ORDERS.length = 0;
-      notionOrders.forEach(o => {
-        const alreadyCompleted = completedMap[o.id] || completedMap['n:' + o.notionId];
-        if (alreadyCompleted) { o.stage = 'complete'; }
-        if (photoMap[o.id]) o.photo = photoMap[o.id];
-        ORDERS.push(o);
-      });
-      ORDERS.filter(o => o.stage === 'complete' && !completedHidden.has(o.id))
-            .forEach(o => completedHidden.add(o.id));
-      refreshCustomersFromOrders();
-      try {
-        localStorage.setItem('sts-orders', JSON.stringify(ORDERS));
-        localStorage.setItem('sts-hidden', JSON.stringify([...completedHidden]));
-      } catch(e) {}
-      renderKanban();
-      renderCustomers();
-    }
-  } catch(e) {
-    console.log('Notion sync skipped (no connection):', e.message);
-  }
-}
 
 
 
@@ -449,9 +385,8 @@ async function syncWithNotion() {
   if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
   if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
-  // Try Notion sync (no-op if not connected)
-  syncWithNotion().then(() => {
-    if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
-  });
+  // Pull latest orders from Notion on every page load — works in any browser
+  if (typeof notionStartupSync === 'function') notionStartupSync();
+  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 })();
 
