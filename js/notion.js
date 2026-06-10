@@ -282,6 +282,7 @@ async function notionStartupSync() {
 
     saveToStorage();
     renderKanban();
+    if (typeof renderProduction === 'function') renderProduction();
     if (typeof renderCustomers === 'function') renderCustomers();
     updateCompletedToggle();
   } catch(e) {
