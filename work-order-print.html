@@ -150,7 +150,7 @@
       border-bottom: 1px solid #000;
     }
     .sec-body {
-      padding: 2px 4px; font-size: 8.5px;
+      padding: 2px 4px; font-size: 14px;
       white-space: pre-wrap; line-height: 1.35;
     }
     .sec-body.short { min-height: 28px; }
@@ -201,8 +201,16 @@
     .li-ha { width: 52px; font-weight: bold; font-size: 8px; padding: 1px 3px; text-align: right; }
     .li-row { display: flex; border-bottom: 1px solid #ddd; flex: 1; min-height: 13px; }
     .li-row:last-child { border-bottom: none; }
-    .li-d { flex: 1; padding: 1px 3px; border-right: 1px solid #ddd; font-size: 8px; }
-    .li-a { width: 52px; padding: 1px 3px; text-align: right; font-size: 8px; }
+    .li-d { flex: 1; padding: 1px 3px; border-right: 1px solid #ddd; font-size: 14px; }
+    .li-a { width: 52px; padding: 1px 3px; text-align: right; font-size: 14px; }
+
+    /* Totals rows inside li-block */
+    .li-row.tot-sep { border-top: 2px solid #000; flex: none; }
+    .li-row.tot { background: #f0f0f0; flex: none; min-height: 24px; border-bottom: 1px solid #bbb; }
+    .li-row.tot:last-child { border-bottom: none; }
+    .li-row.tot .li-d { font-size: inherit; text-align: right; font-style: normal; border-right: 1px solid #bbb; }
+    .li-row.tot .li-a { font-size: inherit; width: 80px; }
+    .li-row.tot.strong { background: #d8d8d8; font-weight: bold; min-height: 26px; }
 
     /* Totals */
     .tot-block { border: 1px solid #000; border-top: none; border-bottom: none; }
@@ -324,6 +332,12 @@
     <div class="cg-val" id="c-phone" contenteditable="true"></div>
     <div class="cg-lbl">Address</div>
     <div class="cg-val" id="c-address" contenteditable="true"></div>
+    <div class="cg-lbl">City/St/Zip</div>
+    <div class="cg-val" style="display:flex; gap:4px; align-items:center; padding: 3px;">
+      <span id="c-city"  contenteditable="true" style="flex:2; border:1px solid #aaa; padding:1px 4px; font-size:inherit;"></span>
+      <span id="c-state" contenteditable="true" style="width:32px; border:1px solid #aaa; padding:1px 4px; text-align:center; font-size:inherit;"></span>
+      <span id="c-zip"   contenteditable="true" style="width:66px; border:1px solid #aaa; padding:1px 4px; font-size:inherit;"></span>
+    </div>
   </div>
 
   <div class="jd-size-row" id="jd-size-row">
@@ -354,22 +368,12 @@
     <div class="li-row"><span class="li-d" contenteditable="true"></span><span class="li-a" contenteditable="true" oninput="recalc()"></span></div>
   </div>
 
-  <div class="tot-block">
-    <div class="t-row"><span class="t-lbl">Quoted</span><span class="t-val" id="t-quoted"></span></div>
-    <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-subtotal"></span></div>
-    <div class="t-row"><span class="t-lbl">Tax (8%)</span><span class="t-val" id="t-salestax"></span></div>
-    <div class="t-row"><span class="t-lbl">Shipping</span><span class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></span></div>
-    <div class="t-row bold"><span class="t-lbl">Total</span><span class="t-val" id="t-total"></span></div>
-    <div class="t-row"><span class="t-lbl">Deposit</span><span class="t-val" id="t-deposit" contenteditable="true" oninput="recalc()"></span></div>
-    <div class="t-row bold"><span class="t-lbl">Balance Due</span><span class="t-val" id="t-newtotal"></span></div>
-  </div>
 
   <div class="paid-row">
     <span class="paid-lbl">Paid By</span>
-    <span class="paid-opt"><span class="chk-box"></span> Cash</span>
-    <span class="paid-opt"><span class="chk-box"></span> Credit</span>
-    <span class="paid-opt"><span class="chk-box"></span> Check</span>
-    <span class="paid-opt"><span class="chk-box"></span> Venmo</span>
+    <span class="paid-opt"><span class="chk-box" id="pb-cash"></span> Cash</span>
+    <span class="paid-opt"><span class="chk-box" id="pb-credit"></span> Credit</span>
+    <span class="paid-opt"><span class="chk-box" id="pb-check"></span> Check</span>
   </div>
 
 
@@ -401,6 +405,9 @@
   const price     = p.get('price')     || '';
   const deposit   = p.get('deposit')   || '';
   const ringSize  = p.get('ringSize')  || '';
+  const state     = p.get('state')     || '';
+  const zip       = p.get('zip')       || '';
+  const city      = p.get('city')      || '';
   const pickup    = p.get('pickup')    || '';
   const stage     = p.get('stage')     || '';
 
@@ -427,6 +434,26 @@
     liBlock.appendChild(row);
   }
 
+  // Totals rows
+  const totalsRows = [
+    { label: 'Subtotal',    id: 't-subtotal', editable: false, cls: 'tot' },
+    { label: 'Tax (8%)',    id: 't-salestax', editable: false, cls: 'tot' },
+    { label: 'Shipping',    id: 't-shipping', editable: true,  cls: 'tot' },
+    { label: 'Total',       id: 't-total',    editable: false, cls: 'tot strong' },
+    { label: 'Deposit',     id: 't-deposit',  editable: true,  cls: 'tot' },
+    { label: 'Balance Due', id: 't-newtotal', editable: false, cls: 'tot strong' },
+  ];
+  const sep = document.createElement('div');
+  sep.className = 'li-row tot-sep';
+  liBlock.appendChild(sep);
+  totalsRows.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'li-row ' + t.cls;
+    const aAttr = t.editable ? ' contenteditable="true" oninput="recalc()"' : '';
+    row.innerHTML = `<span class="li-d">${t.label}</span><span class="li-a" id="${t.id}"${aAttr}></span>`;
+    liBlock.appendChild(row);
+  });
+
   document.getElementById('hdr-date').textContent = fmt(takeIn) || fmt(new Date().toISOString().slice(0,10));
   document.getElementById('hdr-due').textContent  = fmt(deadline);
   document.getElementById('c-name').textContent   = name;
@@ -435,6 +462,9 @@
   const addrEl = document.getElementById('c-address');
   addrEl.style.whiteSpace = 'pre-wrap';
   addrEl.textContent = address;
+  document.getElementById('c-city').textContent  = city;
+  document.getElementById('c-state').textContent = state;
+  document.getElementById('c-zip').textContent   = zip;
   document.getElementById('j-desc').textContent = desc;
   document.getElementById('j-size').textContent = ringSize;
   if (price) document.getElementById('t-quoted').textContent = '$' + parseFloat(price).toFixed(2);
@@ -445,7 +475,7 @@
 
   function parseAmt(el) { return parseFloat((el.textContent || '').replace(/[$,\s]/g,'')) || 0; }
   function recalc() {
-    const sub  = Array.from(document.querySelectorAll('.li-a')).reduce((s,e) => s + parseAmt(e), 0);
+    const sub  = Array.from(document.querySelectorAll('.li-row:not(.tot) .li-a')).reduce((s,e) => s + parseAmt(e), 0);
     const tax  = sub * 0.08;
     const ship = parseAmt(document.getElementById('t-shipping'));
     const dep  = parseAmt(document.getElementById('t-deposit'));
@@ -457,7 +487,39 @@
   }
   recalc();
 
-  document.querySelectorAll('.chk-box').forEach(b => b.addEventListener('click', () => b.classList.toggle('checked')));
+  // Phone auto-format
+  document.getElementById('c-phone').addEventListener('input', function() {
+    const digits = this.textContent.replace(/\D/g, '').slice(0, 10);
+    let fmt = digits;
+    if (digits.length >= 7)      fmt = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+    else if (digits.length >= 4) fmt = '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+    else if (digits.length > 0)  fmt = '(' + digits;
+    this.textContent = fmt;
+    const range = document.createRange();
+    range.selectNodeContents(this);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  });
+
+  // Radio groups — only one selectable at a time
+  const radioGroups = [
+    ['ot-custom', 'ot-estimate', 'ot-repair'],
+    ['pb-cash', 'pb-credit', 'pb-check'],
+    ['pk-bell', 'pk-mueller', 'pk-chaparral', 'pk-sunset', 'pk-studio', 'pk-ship'],
+  ];
+  document.querySelectorAll('.chk-box').forEach(b => {
+    b.addEventListener('click', () => {
+      const group = radioGroups.find(g => g.includes(b.id));
+      if (group) {
+        group.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('checked'); });
+        b.classList.add('checked');
+      } else {
+        b.classList.toggle('checked');
+      }
+    });
+  });
   function check(id) { const el = document.getElementById(id); if (el) el.classList.add('checked'); }
 
   if      (stage === 'intake-repair')                     check('ot-repair');

@@ -1601,6 +1601,33 @@
     .notes-item-text { flex: 1; line-height: 1.5; }
     .notes-item-del { color: #C8C0B8; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
     .notes-item-del:hover { color: #C43030; }
+    /* ── Restock Queue ── */
+    .rq-item {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 10px;
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    }
+    .rq-arrows { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+    .rq-arrow {
+      background: none; border: none; padding: 0 3px; font-size: 11px; line-height: 1.2;
+      color: #C8C0B8; cursor: pointer;
+    }
+    .rq-arrow:hover:not(:disabled) { color: var(--accent); }
+    .rq-arrow:disabled { opacity: .25; cursor: default; }
+    .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
+    .rq-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
+    .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
+    .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
+    .rq-assignee {
+      padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 12px; font-family: inherit; color: var(--text); background: #FDFAF6;
+      cursor: pointer; outline: none; flex-shrink: 0;
+    }
+    .rq-assignee:focus { border-color: var(--accent); }
+    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+    .rq-del:hover { color: #C43030; }
+    .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
+    .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
+    .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .notes-save-dot {
       width: 7px; height: 7px; background: #6AB87A; border-radius: 50;
       display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
@@ -2541,6 +2568,9 @@
   <div class="sub-nav-tab active" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
     💎 Adjust Inventory
   </div>
+  <div class="sub-nav-tab" data-tab="inv-restock-queue" onclick="switchSubTab('inv-restock-queue',this);restockQueueRender()">
+    📦 Restock Queue
+  </div>
   <div class="sub-nav-tab" data-tab="timer" onclick="switchSubTab('timer',this);timerTabInit()">
     ⏱ Timer
   </div>
@@ -2721,8 +2751,16 @@
             <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
           </div>
           <div class="fg">
+            <label>Ring Size</label>
+            <input type="text" id="f-ring-size" placeholder="e.g. 6.5">
+          </div>
+          <div class="fg">
             <label>Quoted Price ($)</label>
             <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0">
+          </div>
+          <div class="fg">
+            <label>Deposit ($)</label>
+            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0">
           </div>
           <div class="fg full">
             <label>Internal Notes</label>
@@ -5084,6 +5122,21 @@ function savePrintSetup() {
 
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
+
+<!-- ═══════════════════ RESTOCK QUEUE TAB ═══════════════════ -->
+<div id="tab-inv-restock-queue" class="tab-panel">
+  <div style="max-width:680px;margin:0 auto;padding:18px 16px 32px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
+      <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
+    </div>
+    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
+      No items in the Inventory Restock list yet.<br>
+      <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+    </div>
+    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>
 
 <!-- ═══════════════════ TIMER TAB ═══════════════════ -->
 <div id="tab-timer" class="tab-panel">

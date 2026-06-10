@@ -370,7 +370,9 @@ function submitOrder() {
     return;
   }
 
-  const price      = parseFloat(document.getElementById('f-price').value) || 0;
+  const price      = parseFloat(document.getElementById('f-price').value)   || 0;
+  const deposit    = parseFloat(document.getElementById('f-deposit').value) || 0;
+  const ringSize   = document.getElementById('f-ring-size').value.trim()    || '';
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
@@ -395,6 +397,8 @@ function submitOrder() {
     stage:     stage,
     deadline:  deadline,
     price:     price,
+    deposit:   deposit,
+    ringSize:  ringSize,
     notionId:  null,
     email:     email,
     phone:     document.getElementById('f-phone').value.trim(),
@@ -466,7 +470,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-price','f-notes',
+  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -736,13 +740,16 @@ function printOrder(id) {
   if (!o) return;
   const sa = o.shippingAddress;
   const addrLine = sa
-    ? [sa.street, sa.street2, sa.city && sa.state ? `${sa.city}, ${sa.state} ${sa.zip}`.trim() : (sa.city || sa.zip), sa.country !== 'United States' ? sa.country : ''].filter(Boolean).join('\n')
+    ? [sa.street, sa.street2].filter(Boolean).join('\n')
     : (o.address || '');
   const p = new URLSearchParams({
     name:      o.name        || '',
     email:     o.email       || '',
     phone:     o.phone       || '',
     address:   addrLine,
+    city:      sa ? (sa.city    || '') : '',
+    state:     sa ? (sa.state   || '') : '',
+    zip:       sa ? (sa.zip     || '') : '',
     desc:      o.desc        || '',
     notes:     o.notes       || '',
     materials: o.materials   || '',
