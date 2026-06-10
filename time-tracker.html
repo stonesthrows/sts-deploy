@@ -221,6 +221,7 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   selectedItems: [], selectedEmployee: null,
   running: false, startTime: null, tickInterval: null, debounce: null,
   clockStatus: 'unknown', // 'unknown' | 'checking' | 'clocked-in' | 'not-clocked-in' | 'error'
+  paused: false, pausedAt: null, totalPausedMs: 0, pollInterval: null,
 }));
 
 // ── Shared ───────────────────────────────────────────────────────────────────
@@ -596,16 +597,18 @@ function _runningUI(tid) {
   $t(tid, 'start-time-row').style.display = 'none';
   $t(tid, 'adjust-wrap').style.display = 'block';
   clearInterval(T[tid].tickInterval);
-  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime); }, 1000);
+  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime - T[tid].totalPausedMs); }, 1000);
 }
 
 function startTimer(tid) {
   T[tid].running = true;
+  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   const timeInput = $t(tid, 'start-time-input');
   T[tid].startTime = parseTimeInput(timeInput?.value) || Date.now();
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
   saveTimerState(tid);
   _runningUI(tid);
+  startClockPoll(tid);
 }
 
 function resumeTimer(tid, saved) {
@@ -613,13 +616,21 @@ function resumeTimer(tid, saved) {
   T[tid].selectedItems = saved.items || (saved.item ? [{ ...saved.item, pieces: null }] : []);
   T[tid].selectedEmployee = saved.employee;
   T[tid].startTime = saved.startTime; T[tid].running = true;
+  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   renderSelectedItems(tid);
   _runningUI(tid);
+  startClockPoll(tid);
   showToast(`Timer ${tid + 1} resumed — running since ` + new Date(saved.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
 }
 
 async function stopTimer(tid) {
   clearInterval(T[tid].tickInterval);
+  clearInterval(T[tid].pollInterval); T[tid].pollInterval = null;
+  // Finalize any active pause before saving
+  if (T[tid].paused && T[tid].pausedAt) {
+    T[tid].totalPausedMs += Date.now() - T[tid].pausedAt;
+    T[tid].paused = false; T[tid].pausedAt = null;
+  }
   deleteTimerState(tid);
   const totalWall = Date.now() - T[tid].startTime;
   $t(tid, 'stop-btn').disabled = true; $t(tid, 'timer-status').textContent = 'Reconciling…';
@@ -635,6 +646,9 @@ async function stopTimer(tid) {
         clockedOutMs = Math.max(0, totalWall - workedMs);
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
+  } else if (T[tid].totalPausedMs > 0) {
+    // No Square token — use our own pause tracking as the deduction
+    clockedOutMs = T[tid].totalPausedMs;
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const notes = $t(tid, 'notes-input').value.trim();
@@ -770,12 +784,55 @@ function inventoryDone() {
   _invTid = null; _invSession = null;
 }
 
+// ── Clock-out auto-pause ──────────────────────────────────────────────────────
+function pauseTimer(tid) {
+  if (!T[tid].running || T[tid].paused) return;
+  T[tid].paused = true; T[tid].pausedAt = Date.now();
+  clearInterval(T[tid].tickInterval);
+  $t(tid, 'timer-status').textContent = 'Paused — clocked out';
+  $t(tid, 'timer-status').style.color = 'var(--accent)';
+  showToast(`Timer ${tid + 1} paused — ${T[tid].selectedEmployee?.name || 'employee'} clocked out`, true);
+}
+
+function resumeTimerFromPause(tid) {
+  if (!T[tid].running || !T[tid].paused) return;
+  T[tid].totalPausedMs += Date.now() - T[tid].pausedAt;
+  T[tid].paused = false; T[tid].pausedAt = null;
+  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime - T[tid].totalPausedMs); }, 1000);
+  $t(tid, 'timer-status').textContent = 'Running';
+  $t(tid, 'timer-status').style.color = '';
+  showToast(`Timer ${tid + 1} resumed — ${T[tid].selectedEmployee?.name || 'employee'} clocked in`);
+}
+
+function startClockPoll(tid) {
+  clearInterval(T[tid].pollInterval);
+  if (!CFG.sqToken) return;
+  T[tid].pollInterval = setInterval(() => pollClockStatus(tid), 60000);
+}
+
+async function pollClockStatus(tid) {
+  if (!T[tid].running) return;
+  const emp = T[tid].selectedEmployee;
+  if (!emp || !CFG.sqToken) return;
+  try {
+    const data = await sq('/labor/shifts/search', {
+      method: 'POST',
+      body: JSON.stringify({ query: { filter: { team_member_ids: [emp.id], status: 'OPEN', location_ids: [CFG.sqLocation] } }, limit: 5 })
+    });
+    const isClockedIn = (data.shifts || []).some(s => !s.end_at);
+    if (!isClockedIn && !T[tid].paused) pauseTimer(tid);
+    else if (isClockedIn && T[tid].paused) resumeTimerFromPause(tid);
+  } catch(e) { /* silent — don't disrupt timer on poll errors */ }
+}
+
 function resetTimer(tid) {
   T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`); deleteTimerState(tid);
+  clearInterval(T[tid].pollInterval); T[tid].pollInterval = null;
+  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   $t(tid, 'start-time-row').style.display = ''; initStartTimeInput(tid);
   $t(tid, 'adjust-wrap').style.display = 'none'; $t(tid, 'adjust-panel').style.display = 'none';
   clearInterval(T[tid].tickInterval);
-  $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = '';
+  $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = ''; $t(tid, 'timer-status').style.color = '';
   $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
   $t(tid, 'step-product').classList.remove('dimmed'); $t(tid, 'step-employee').classList.remove('dimmed');
   $t(tid, 'notes-input').value = '';
