@@ -385,8 +385,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
   if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
-  // Pull latest orders from Notion on every page load — works in any browser
-  if (typeof notionStartupSync === 'function') notionStartupSync();
+  // Push any local orders missing a notionId, then pull everything from Notion
+  if (typeof notionPushUnsynced === 'function') notionPushUnsynced().then(() => {
+    if (typeof notionStartupSync === 'function') notionStartupSync();
+  });
   if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 })();
 

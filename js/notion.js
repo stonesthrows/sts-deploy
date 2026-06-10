@@ -185,6 +185,27 @@ async function notionSyncFromNotion() {
 }
 
 // ════════════════════════════════════════════
+//  PUSH UNSYNCED  —  push any local orders without a notionId to Notion
+//  Runs on startup so orders created offline or before Notion was wired
+//  up get pushed the next time the app loads on the main browser.
+// ════════════════════════════════════════════
+async function notionPushUnsynced() {
+  const unsynced = ORDERS.filter(o => !o.notionId);
+  if (!unsynced.length) return;
+  let pushed = 0;
+  for (const o of unsynced) {
+    try {
+      const notionId = await notionCreateOrder(o);
+      if (notionId) { o.notionId = notionId; pushed++; }
+    } catch(e) {}
+  }
+  if (pushed) {
+    saveToStorage();
+    console.log('notionPushUnsynced: pushed ' + pushed + ' orders to Notion');
+  }
+}
+
+// ════════════════════════════════════════════
 //  STARTUP SYNC  —  silent background pull on page load
 //  No toasts, no button UI. Keeps all browsers in sync
 //  without requiring a Claude session.
@@ -192,9 +213,16 @@ async function notionSyncFromNotion() {
 async function notionStartupSync() {
   try {
     const r = await fetch(PIPELINE_PROXY);
-    if (!r.ok) return;
+    if (!r.ok) {
+      console.warn('notionStartupSync: API returned', r.status);
+      return;
+    }
     const notionOrders = await r.json();
-    if (!Array.isArray(notionOrders) || !notionOrders.length) return;
+    if (!Array.isArray(notionOrders) || !notionOrders.length) {
+      console.warn('notionStartupSync: Notion returned 0 orders — skipping replacement to avoid data loss');
+      return;
+    }
+    console.log('notionStartupSync: loaded', notionOrders.length, 'orders from Notion');
 
     const byAppId    = {};
     const byNotionId = {};
