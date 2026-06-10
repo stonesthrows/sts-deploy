@@ -1,6 +1,0 @@
-name = "sts-deploy"
-compatibility_date = "2024-09-23"
-
-[[kv_namespaces]]
-binding = "STS_TIMER"
-id = "cf54e7733cc94e909053b027f1cb4ff5"
