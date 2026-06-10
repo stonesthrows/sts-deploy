@@ -179,6 +179,20 @@ export async function onRequestPost(context) {
 
   const order = await context.request.json();
 
+  // Archive (delete) a Notion page
+  if (order._archive) {
+    if (!order.notionId) return json({ error: 'notionId required for archive' }, 400);
+    const r = await fetch(`${NOTION_API}/pages/${order.notionId}`, {
+      method: 'PATCH', headers: hdrs,
+      body: JSON.stringify({ archived: true }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return json({ error: err.message || 'archive failed' }, r.status);
+    }
+    return json({ ok: true });
+  }
+
   // Stage-only patch (fire-and-forget from drag-and-drop)
   if (order._stageOnly) {
     if (!order.notionId) return json({ error: 'notionId required for stage patch' }, 400);

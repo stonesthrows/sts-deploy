@@ -267,6 +267,42 @@ function markOrderComplete() {
   toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
 }
 
+function markOrderCancelled() {
+  const id = document.getElementById('eo-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm('Mark "' + o.name + '" as Cancelled?')) return;
+  o.stage = 'cancelled';
+  delete o.deliveredAt;
+  saveToStorage();
+  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'cancelled');
+  renderKanban();
+  if (typeof renderProduction === 'function') renderProduction();
+  closeEditOrderModal();
+  toast(o.name + ' marked as cancelled', '🚫');
+}
+
+function deleteOrder() {
+  const id = document.getElementById('eo-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm('Permanently delete "' + o.name + '"? This cannot be undone.')) return;
+  ORDERS.splice(ORDERS.indexOf(o), 1);
+  saveToStorage();
+  // Archive the Notion page if it exists
+  if (o.notionId && typeof notionUpdateStage === 'function') {
+    fetch('/api/notion-pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notionId: o.notionId, _archive: true }),
+    }).catch(() => {});
+  }
+  renderKanban();
+  if (typeof renderProduction === 'function') renderProduction();
+  closeEditOrderModal();
+  toast(o.name + ' deleted', '🗑');
+}
+
 function saveOrderEdit() {
   const id = document.getElementById('eo-id').value;
   const o  = ORDERS.find(x => x.id === id);
