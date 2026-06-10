@@ -307,7 +307,7 @@ function loadFromStorage() {
     if (o.stage === 'repair')    { o.stage = 'intake-repair'; migrated = true; }
   });
   if (migrated) saveToStorage();
-  updateCompletedToggle();
+  if (typeof updateCompletedToggle === 'function') updateCompletedToggle();
 }
 
 // ════════════════════════════════════════════
