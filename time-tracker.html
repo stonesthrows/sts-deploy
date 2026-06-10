@@ -99,6 +99,11 @@
   .btn-save-note { background: none; border: 1px solid var(--bdr); border-radius: 6px; color: var(--text2); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.8rem; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
   .btn-save-note:hover { border-color: var(--accent); color: var(--accent); }
   .btn-save-note:disabled { opacity: 0.4; cursor: default; }
+  .start-time-row { display: flex; align-items: center; gap: 0.5rem; justify-content: center; margin-top: 0.75rem; font-size: 11px; color: var(--text2); }
+  .start-time-input { background: #fff; border: 1px solid var(--bdr); border-radius: 6px; color: var(--text); font-size: 12px; padding: 0.25rem 0.5rem; outline: none; transition: border-color 0.2s; }
+  .start-time-input:focus { border-color: var(--accent); }
+  .adjust-start-link { font-size: 10px; color: var(--text3); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; letter-spacing: 0.05em; transition: color 0.15s; }
+  .adjust-start-link:hover { color: var(--accent); }
 
   /* ── Clock-in status badge ── */
   .clock-status { display: none; margin-top: 0.6rem; font-size: 11px; font-weight: 600; padding: 0.4rem 0.75rem; border-radius: 6px; }
@@ -281,6 +286,44 @@ async function saveNoteToCloud(tid) {
   if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save note'; }, 1800); }
 }
 
+function parseTimeInput(val) {
+  if (!val) return null;
+  const [h, m] = val.split(':').map(Number);
+  const d = new Date(); d.setHours(h, m, 0, 0);
+  return d > Date.now() ? null : d.getTime(); // reject future times
+}
+
+function initStartTimeInput(tid) {
+  const input = $t(tid, 'start-time-input');
+  if (!input) return;
+  const now = new Date();
+  input.value = [now.getHours(), now.getMinutes()].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function toggleAdjustStart(tid) {
+  const panel = $t(tid, 'adjust-panel');
+  const opening = panel.style.display === 'none' || panel.style.display === '';
+  if (opening) {
+    const input = $t(tid, 'adjust-input');
+    const d = new Date(T[tid].startTime);
+    input.value = [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2, '0')).join(':');
+    panel.style.display = 'flex';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function applyAdjustStart(tid) {
+  const newStart = parseTimeInput($t(tid, 'adjust-input')?.value);
+  if (!newStart) { showToast('Invalid time — cannot be in the future', true); return; }
+  T[tid].startTime = newStart;
+  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
+  saveTimerState(tid);
+  $t(tid, 'adjust-panel').style.display = 'none';
+  const d = new Date(newStart);
+  showToast(`Timer ${tid + 1} start time set to ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+}
+
 // ── Build card HTML ───────────────────────────────────────────────────────────
 function buildCard(tid) {
   const label = `Timer ${tid + 1}`;
@@ -314,6 +357,17 @@ function buildCard(tid) {
           <button class="btn btn-start" id="t${tid}-start-btn" onclick="startTimer(${tid})" disabled>Start</button>
           <button class="btn btn-stop"  id="t${tid}-stop-btn"  onclick="stopTimer(${tid})"  style="display:none">Stop &amp; Save</button>
         </div>
+        <div class="start-time-row" id="t${tid}-start-time-row">
+          <span>Started at</span>
+          <input type="time" class="start-time-input" id="t${tid}-start-time-input">
+        </div>
+        <div style="display:none;text-align:center;margin-top:0.6rem;" id="t${tid}-adjust-wrap">
+          <span class="adjust-start-link" onclick="toggleAdjustStart(${tid})">✎ Adjust start time</span>
+          <div id="t${tid}-adjust-panel" style="display:none;align-items:center;gap:0.5rem;justify-content:center;margin-top:6px;">
+            <input type="time" class="start-time-input" id="t${tid}-adjust-input">
+            <button class="btn-save-note" onclick="applyAdjustStart(${tid})">Update</button>
+          </div>
+        </div>
         <div class="notes-row" style="margin-top:10px;">
           <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…" style="width:100%;"></textarea>
           <div style="display:flex;justify-content:flex-end;margin-top:6px;">
@@ -329,6 +383,8 @@ function buildCard(tid) {
 // ── Render cards ─────────────────────────────────────────────────────────────
 function buildCards() {
   $g('timers-grid').innerHTML = Array.from({ length: NUM_TIMERS }, (_, i) => buildCard(i)).join('');
+  // Initialize start time inputs to current time
+  for (let i = 0; i < NUM_TIMERS; i++) initStartTimeInput(i);
   // Attach search listeners after DOM is ready
   for (let i = 0; i < NUM_TIMERS; i++) {
     (tid => {
@@ -537,12 +593,16 @@ function _runningUI(tid) {
   $t(tid, 'timer-status').textContent = 'Running';
   $t(tid, 'step-product').classList.add('dimmed'); $t(tid, 'step-employee').classList.add('dimmed');
   $t(tid, 'step-timer').classList.remove('dimmed');
+  $t(tid, 'start-time-row').style.display = 'none';
+  $t(tid, 'adjust-wrap').style.display = 'block';
   clearInterval(T[tid].tickInterval);
   T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime); }, 1000);
 }
 
 function startTimer(tid) {
-  T[tid].running = true; T[tid].startTime = Date.now();
+  T[tid].running = true;
+  const timeInput = $t(tid, 'start-time-input');
+  T[tid].startTime = parseTimeInput(timeInput?.value) || Date.now();
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
   saveTimerState(tid);
   _runningUI(tid);
@@ -712,6 +772,8 @@ function inventoryDone() {
 
 function resetTimer(tid) {
   T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`); deleteTimerState(tid);
+  $t(tid, 'start-time-row').style.display = ''; initStartTimeInput(tid);
+  $t(tid, 'adjust-wrap').style.display = 'none'; $t(tid, 'adjust-panel').style.display = 'none';
   clearInterval(T[tid].tickInterval);
   $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = '';
   $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
