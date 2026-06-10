@@ -75,7 +75,7 @@
     /* Checkbox row */
     .chk-row {
       display: flex; align-items: center;
-      border: 1px solid #000;
+      border: 1px solid #000; height: 32px;
     }
     .chk-row + .chk-row { border-top: none; }
     .chk-row-label {
@@ -92,42 +92,42 @@
     }
     .chk-item:last-child { border-right: none; }
     .chk-box {
-      display: inline-block; width: 9px; height: 9px;
-      border: 1px solid #555; flex-shrink: 0;
+      display: inline-block; width: 13px; height: 13px;
+      border: 1.5px solid #555; flex-shrink: 0;
       position: relative; cursor: pointer;
+      vertical-align: middle;
     }
     .chk-box.checked { background: #222; }
     .chk-box.checked::after {
-      content: '✓'; color: #fff; font-size: 7px;
-      position: absolute; top: -1px; left: 0; line-height: 1;
+      content: '✓'; color: #fff; font-size: 10px;
+      position: absolute; top: 0px; left: 1px; line-height: 1;
     }
 
     /* Date row */
     .date-row {
       display: flex; align-items: center;
-      border: 1px solid #000; border-top: none; margin-bottom: 4px;
+      border: 1px solid #000; border-top: none; height: 32px;
     }
+    .date-row + .date-row { border-top: none; }
+    .date-row:last-of-type { margin-bottom: 4px; }
     .date-row-label {
       font-weight: bold; font-size: 8px; padding: 2px 4px;
       background: #eee; border-right: 1px solid #000;
       min-width: 62px; display: flex; align-items: center;
     }
-    .date-field {
-      display: flex; align-items: center; gap: 3px;
-      padding: 2px 6px; font-size: 8px;
-      border-right: 1px solid #e0e0e0;
+    .date-val-wrap {
+      display: flex; align-items: center;
+      padding: 2px 6px; font-size: 8px; flex: 1;
     }
-    .date-field:last-child { border-right: none; }
-    .date-field b { white-space: nowrap; }
     .date-val {
       border: 1px solid #aaa; padding: 1px 4px;
-      min-width: 58px; font-size: 8px; background: #fff;
+      min-width: 72px; font-size: 8px; background: #fff;
       display: inline-block;
     }
 
     /* Customer grid */
     .cust-grid {
-      display: grid; grid-template-columns: 52px 1fr;
+      display: grid; grid-template-columns: 44px 1fr;
       border: 1px solid #000; border-bottom: none;
     }
     .cg-lbl {
@@ -136,9 +136,9 @@
       background: #eee;
     }
     .cg-val {
-      font-size: 9.5px; padding: 2px 3px;
-      border-bottom: 1px solid #000; min-height: 16px;
-      white-space: pre-wrap;
+      font-size: 17.5px; padding: 2px 3px;
+      border-bottom: 1px solid #000; height: 32px;
+      white-space: pre-wrap; overflow: hidden;
     }
 
     /* Section blocks */
@@ -177,7 +177,9 @@
     .jd-size-row {
       display: flex; align-items: stretch; flex-shrink: 0;
       border: 1px solid #000; border-top: 1px solid #000; border-bottom: none;
+      position: relative;
     }
+
     .jd-panel {
       flex: 1; display: flex; flex-direction: column;
       border-right: 1px solid #000; overflow: hidden;
@@ -204,10 +206,10 @@
 
     /* Totals */
     .tot-block { border: 1px solid #000; border-top: none; border-bottom: none; }
-    .t-row { display: flex; border-bottom: 1px solid #ddd; min-height: 13px; }
+    .t-row { display: flex; border-bottom: 1px solid #000; height: 32px; align-items: center; }
     .t-row:last-child { border-bottom: none; }
-    .t-lbl { flex: 1; padding: 1px 3px; text-align: right; font-size: 8px; border-right: 1px solid #ddd; }
-    .t-val { width: 52px; padding: 1px 3px; text-align: right; font-size: 8px; }
+    .t-lbl { flex: 1; padding: 1px 6px; text-align: right; font-size: inherit; border-right: 1px solid #000; }
+    .t-val { width: 80px; padding: 1px 6px; text-align: right; font-size: inherit; }
     .t-row.bold .t-lbl, .t-row.bold .t-val { font-weight: bold; }
 
     /* Paid by */
@@ -250,9 +252,9 @@
     /* ── Layout setting variants (applied via data-* on .form-content) ── */
 
     /* Job Description + Size row height */
-    .form-content[data-jd="small"]  .jd-size-row { max-height: 1cm;   }
-    .form-content[data-jd="medium"] .jd-size-row { max-height: 2cm;   }
-    .form-content[data-jd="large"]  .jd-size-row { max-height: 3.5cm; }
+    .form-content[data-jd="small"]  .jd-size-row { height: 80px; }
+    .form-content[data-jd="medium"] .jd-size-row { height: 80px; }
+    .form-content[data-jd="large"]  .jd-size-row { height: 80px; }
 
     /* Notes height (flex weight) */
     .form-content[data-ns="small"]  .sec-block.grow { flex: 0.4; }
@@ -260,9 +262,9 @@
     .form-content[data-ns="large"]  .sec-block.grow { flex: 2;   }
 
     /* Font size */
-    .form-content[data-font="small"]  { font-size: 7.5px; }
-    .form-content[data-font="medium"] { font-size: 9px;   }
-    .form-content[data-font="large"]  { font-size: 10.5px; }
+    .form-content[data-font="small"]  { font-size: 9px;   }
+    .form-content[data-font="medium"] { font-size: 11px;  }
+    .form-content[data-font="large"]  { font-size: 12.5px; }
 
     /* Size panel visibility */
     .form-content[data-sizerow="0"] .size-panel { display: none; }
@@ -295,9 +297,22 @@
   </div>
 
   <div class="date-row">
-    <div class="date-row-label">Date</div>
-    <div class="date-field"><b>Taken In:</b><span class="date-val" id="hdr-date" contenteditable="true"></span></div>
-    <div class="date-field"><b>Due:</b><span class="date-val" id="hdr-due" contenteditable="true"></span></div>
+    <div class="date-row-label">Taken In</div>
+    <div class="date-val-wrap"><span class="date-val" id="hdr-date" contenteditable="true"></span></div>
+  </div>
+  <div class="date-row">
+    <div class="date-row-label">Due</div>
+    <div class="date-val-wrap"><span class="date-val" id="hdr-due" contenteditable="true"></span></div>
+    <div style="border-left: 1px solid #000; display:flex; align-items:center; flex:1;">
+      <div class="chk-items">
+        <span class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell</span>
+        <span class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller</span>
+        <span class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral</span>
+        <span class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset</span>
+        <span class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</span>
+        <span class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</span>
+      </div>
+    </div>
   </div>
 
   <div class="cust-grid">
@@ -309,18 +324,17 @@
     <div class="cg-val" id="c-phone" contenteditable="true"></div>
     <div class="cg-lbl">Address</div>
     <div class="cg-val" id="c-address" contenteditable="true"></div>
-    <div class="cg-lbl">Quoted $</div>
-    <div class="cg-val" id="c-price" contenteditable="true"></div>
   </div>
 
-  <div class="jd-size-row">
+  <div class="jd-size-row" id="jd-size-row">
     <div class="jd-panel">
       <div class="sec-head">Job Description</div>
       <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden;"></div>
     </div>
     <div class="size-panel">
-      <div class="sec-head">Size / Details</div>
-      <div class="sec-body" id="j-size" contenteditable="true" style="flex:1; min-height:0;"></div>
+      <div class="sec-head">Ring Size(s)</div>
+      <div class="sec-body" id="j-size" contenteditable="true" style="flex:1; min-height:0; border-bottom: 1px solid #000;"></div>
+      <div class="sec-body" id="j-size2" contenteditable="true" style="flex:1; min-height:0;"></div>
     </div>
   </div>
 
@@ -341,6 +355,7 @@
   </div>
 
   <div class="tot-block">
+    <div class="t-row"><span class="t-lbl">Quoted</span><span class="t-val" id="t-quoted"></span></div>
     <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-subtotal"></span></div>
     <div class="t-row"><span class="t-lbl">Tax (8%)</span><span class="t-val" id="t-salestax"></span></div>
     <div class="t-row"><span class="t-lbl">Shipping</span><span class="t-val" id="t-shipping" contenteditable="true" oninput="recalc()"></span></div>
@@ -357,17 +372,6 @@
     <span class="paid-opt"><span class="chk-box"></span> Venmo</span>
   </div>
 
-  <div class="pickup-row">
-    <div class="chk-row-label">Pickup</div>
-    <div class="chk-items">
-      <span class="chk-item"><span class="chk-box" id="pk-bell"></span> Bell</span>
-      <span class="chk-item"><span class="chk-box" id="pk-mueller"></span> Mueller</span>
-      <span class="chk-item"><span class="chk-box" id="pk-chaparral"></span> Chaparral</span>
-      <span class="chk-item"><span class="chk-box" id="pk-sunset"></span> Sunset</span>
-      <span class="chk-item"><span class="chk-box" id="pk-studio"></span> Studio</span>
-      <span class="chk-item"><span class="chk-box" id="pk-ship"></span> 📦 Ship</span>
-    </div>
-  </div>
 
 </div>
 
@@ -402,9 +406,9 @@
 
   // ── Apply layout settings ──
   const fc = document.querySelector('.form-content');
-  const jd      = p.get('jd')      || 'small';
+  const jd      = p.get('jd')      || 'large';
   const ns      = p.get('ns')      || 'medium';
-  const liRows  = Math.min(10, Math.max(2, parseInt(p.get('liRows')) || 4));
+  const liRows  = Math.min(10, Math.max(2, parseInt(p.get('liRows')) || 6));
   const font    = p.get('font')    || 'medium';
   const sizeRow = p.get('sizeRow') !== '0' ? '1' : '0';
   fc.dataset.jd      = jd;
@@ -433,7 +437,7 @@
   addrEl.textContent = address;
   document.getElementById('j-desc').textContent = desc;
   document.getElementById('j-size').textContent = ringSize;
-  if (price) document.getElementById('c-price').textContent = '$' + parseFloat(price).toFixed(2);
+  if (price) document.getElementById('t-quoted').textContent = '$' + parseFloat(price).toFixed(2);
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
   const dep0 = parseFloat(deposit) || 0;
@@ -461,6 +465,7 @@
   else if (stage)                                         check('ot-custom');
 
   const pk = (pickup || '').toLowerCase();
+
   if (pk.includes('bell'))      check('pk-bell');
   if (pk.includes('mueller'))   check('pk-mueller');
   if (pk.includes('chaparral')) check('pk-chaparral');
