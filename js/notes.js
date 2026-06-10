@@ -54,6 +54,8 @@ function refreshNotes() {
       ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
+      var queuePanel = document.getElementById('tab-inv-restock-queue');
+      if (queuePanel && queuePanel.classList.contains('active')) restockQueueRender();
     })
     .catch(function() {});
 }
@@ -160,6 +162,8 @@ function renderNotesList(key, items) {
     var pending = items.length - done;
     if (count) count.textContent = pending > 0 ? pending + ' left' : (items.length ? 'all done ✓' : '');
   }
+
+  if (key === 'restock') restockQueueRender();
 
   list.innerHTML = items.map(function(item, idx) {
     var saving = item._saving ? ' style="opacity:0.5"' : '';
@@ -474,4 +478,151 @@ function notesDrop(event, targetKey) {
     });
     toast('Failed to move note', '⚠');
   });
+}
+
+// ════════════════════════════════════════════
+//  RESTOCK QUEUE  —  priority + assignee view
+//  Order + assignees stored in /api/restock-meta
+// ════════════════════════════════════════════
+
+var _rqMeta = { order: [], assignees: {} };  // { order: [pageId,...], assignees: { pageId: person } }
+var _rqMetaLoaded = false;
+
+function _rqLoadMeta(cb) {
+  fetch('/api/restock-meta')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _rqMeta = { order: d.order || [], assignees: d.assignees || {} };
+      _rqMetaLoaded = true;
+      if (cb) cb();
+    })
+    .catch(function() { _rqMetaLoaded = true; if (cb) cb(); });
+}
+
+function _rqSaveMeta() {
+  fetch('/api/restock-meta', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_rqMeta),
+  }).catch(function() { toast('Failed to save queue state', '⚠'); });
+}
+
+function _rqSortedItems() {
+  var items = itemsFor('restock').slice();
+  items.sort(function(a, b) {
+    var aAssigned = !!(_rqMeta.assignees[a.notionPageId]);
+    var bAssigned = !!(_rqMeta.assignees[b.notionPageId]);
+    if (aAssigned !== bAssigned) return aAssigned ? -1 : 1;
+    var ai = _rqMeta.order.indexOf(a.notionPageId);
+    var bi = _rqMeta.order.indexOf(b.notionPageId);
+    if (ai === -1) ai = 9999;
+    if (bi === -1) bi = 9999;
+    if (ai !== bi) return ai - bi;
+    return (a.created || '').localeCompare(b.created || '');
+  });
+  return items;
+}
+
+function _rqPatch(pageId, fields) {
+  return fetch('/api/notion-notes?pageId=' + encodeURIComponent(pageId), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  }).catch(function() { toast('Failed to save', '⚠'); });
+}
+
+function restockQueueRender() {
+  var list  = document.getElementById('restock-queue-list');
+  var empty = document.getElementById('restock-queue-empty');
+  if (!list) return;
+
+  if (!_rqMetaLoaded) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+    list.style.display = 'flex';
+    if (empty) empty.style.display = 'none';
+    _rqLoadMeta(restockQueueRender);
+    return;
+  }
+
+  var items = _rqSortedItems();
+  if (items.length === 0) {
+    list.style.display = 'none';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.style.display = 'flex';
+
+  var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
+
+  list.innerHTML = items.map(function(item, idx) {
+    var assignee = (item.notionPageId && _rqMeta.assignees[item.notionPageId]) || '';
+    var cls = assignee ? ' rq-' + assignee.toLowerCase() : '';
+    var textCls = item.done ? ' rq-done' : '';
+    var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+    var isFirst = idx === 0;
+    var isLast  = idx === items.length - 1;
+    return '<div class="rq-item" id="rq-item-' + idx + '">'
+      + '<span class="rq-arrows">'
+      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
+      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
+      + '</span>'
+      + '<span class="rq-rank">' + (idx + 1) + '</span>'
+      + '<span class="rq-text' + textCls + '" contenteditable="true" spellcheck="false"'
+      + ' onblur="rqSaveText(this,' + idx + ')"'
+      + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+      + '>' + safeText + '</span>'
+      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
+      + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
+      + PEOPLE.map(function(p) {
+          return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
+        }).join('')
+      + '</select>'
+      + '</div>';
+  }).join('');
+}
+
+function rqMove(idx, dir) {
+  var items = _rqSortedItems();
+  var toIdx = idx + dir;
+  if (toIdx < 0 || toIdx >= items.length) return;
+  var tmp = items[idx];
+  items[idx] = items[toIdx];
+  items[toIdx] = tmp;
+  _rqMeta.order = items.map(function(i) { return i.notionPageId; });
+  _rqSaveMeta();
+  restockQueueRender();
+}
+
+function rqSetAssignee(selectEl, idx) {
+  var item = _rqSortedItems()[idx];
+  if (!item || !item.notionPageId) return;
+  var person = selectEl.value;
+  if (person) {
+    _rqMeta.assignees[item.notionPageId] = person;
+  } else {
+    delete _rqMeta.assignees[item.notionPageId];
+  }
+  _rqSaveMeta();
+  selectEl.className = 'rq-assignee' + (person ? ' rq-' + person.toLowerCase() : '');
+}
+
+function rqDeleteItem(idx) {
+  if (!confirm('Remove this item from the Restock Queue?')) return;
+  var items = _rqSortedItems();
+  var item = items[idx];
+  if (!item) return;
+  var restockItems = itemsFor('restock');
+  var restockIdx = restockItems.indexOf(item);
+  deleteNoteItem('restock', restockIdx);
+}
+
+function rqSaveText(el, idx) {
+  var newText = el.textContent.trim();
+  if (!newText) { el.textContent = ''; return; }
+  var item = _rqSortedItems()[idx];
+  if (!item || !item.notionPageId || newText === item.text) return;
+  item.text = newText;
+  renderNotesList('restock', itemsFor('restock'));
+  _rqPatch(item.notionPageId, { text: newText });
 }

@@ -96,6 +96,9 @@
   .notes-input::placeholder { color: var(--text-dim); }
   .saving-badge { display: none; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; margin-top: 0.6rem; text-align: center; }
   .saving-badge.visible { display: block; }
+  .btn-save-note { background: none; border: 1px solid var(--bdr); border-radius: 6px; color: var(--text2); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.8rem; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .btn-save-note:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-save-note:disabled { opacity: 0.4; cursor: default; }
 
   /* ── Clock-in status badge ── */
   .clock-status { display: none; margin-top: 0.6rem; font-size: 11px; font-weight: 600; padding: 0.4rem 0.75rem; border-radius: 6px; }
@@ -249,6 +252,35 @@ function showToast(msg, error = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// ── Cloud timer state (KV) ────────────────────────────────────────────────────
+async function saveTimerState(tid) {
+  try {
+    await fetch('/api/timer-state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tid,
+        startTime: T[tid].startTime,
+        items: T[tid].selectedItems,
+        employee: T[tid].selectedEmployee,
+        notes: $t(tid, 'notes-input')?.value.trim() || '',
+      }),
+    });
+  } catch(e) { console.warn('KV save failed:', e); }
+}
+
+async function deleteTimerState(tid) {
+  try { await fetch(`/api/timer-state?tid=${tid}`, { method: 'DELETE' }); }
+  catch(e) { console.warn('KV delete failed:', e); }
+}
+
+async function saveNoteToCloud(tid) {
+  const btn = $t(tid, 'save-note-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  await saveTimerState(tid);
+  if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save note'; }, 1800); }
+}
+
 // ── Build card HTML ───────────────────────────────────────────────────────────
 function buildCard(tid) {
   const label = `Timer ${tid + 1}`;
@@ -284,6 +316,9 @@ function buildCard(tid) {
         </div>
         <div class="notes-row" style="margin-top:10px;">
           <textarea class="notes-input" id="t${tid}-notes-input" placeholder="Optional notes…" style="width:100%;"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+            <button class="btn-save-note" id="t${tid}-save-note-btn" onclick="saveNoteToCloud(${tid})">Save note</button>
+          </div>
         </div>
         <div class="saving-badge" id="t${tid}-saving-badge">Saving to Notion…</div>
       </div>
@@ -509,6 +544,7 @@ function _runningUI(tid) {
 function startTimer(tid) {
   T[tid].running = true; T[tid].startTime = Date.now();
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
+  saveTimerState(tid);
   _runningUI(tid);
 }
 
@@ -524,6 +560,7 @@ function resumeTimer(tid, saved) {
 
 async function stopTimer(tid) {
   clearInterval(T[tid].tickInterval);
+  deleteTimerState(tid);
   const totalWall = Date.now() - T[tid].startTime;
   $t(tid, 'stop-btn').disabled = true; $t(tid, 'timer-status').textContent = 'Reconciling…';
   let clockedOutMs = 0;
@@ -674,7 +711,7 @@ function inventoryDone() {
 }
 
 function resetTimer(tid) {
-  T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`);
+  T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`); deleteTimerState(tid);
   clearInterval(T[tid].tickInterval);
   $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = '';
   $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
@@ -762,19 +799,79 @@ function loadConfig() {
   $g('notion-token').value = CFG.notionToken;
 }
 
+// ── Session log ───────────────────────────────────────────────────────────────
+async function loadSessionsFromNotion() {
+  try {
+    const res = await fetch('/api/notion-timesession');
+    if (!res.ok) { loadSessionsFromLocal(); return; }
+    const ns = await res.json();
+    if (!Array.isArray(ns) || !ns.length) { loadSessionsFromLocal(); return; }
+    sessions = ns.map(s => ({
+      notionPageIds:  [s.notionPageId],
+      items:          [{ name: s.itemName || '', sku: s.sku || '', category: s.category || '', id: s.squareItemId || '', pieces: s.pieces ?? null }],
+      employee:       { name: s.employeeName || '', id: '' },
+      totalMs:        (s.totalMin  || 0) * 60000,
+      clockedOutMs:   (s.dedMin    || 0) * 60000,
+      netMs:          (s.netMin    || 0) * 60000,
+      notes:          s.notes || '',
+      timestamp:      s.date ? s.date + 'T12:00:00Z' : new Date().toISOString(),
+      saved: true, error: null,
+    }));
+    renderLog();
+  } catch(e) { loadSessionsFromLocal(); }
+}
+
+function loadSessionsFromLocal() {
+  try { sessions = JSON.parse(localStorage.getItem('sts_sessions') || '[]'); } catch(e) { sessions = []; }
+  renderLog();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   buildCards();
   loadConfig();
-  // Restore any running timers immediately before API calls
-  for (let tid = 0; tid < NUM_TIMERS; tid++) {
-    const saved = localStorage.getItem(`sts_activeTimer_${tid}`);
-    if (saved) {
-      try { resumeTimer(tid, JSON.parse(saved)); }
-      catch(e) { console.error(`Resume timer ${tid} error:`, e); localStorage.removeItem(`sts_activeTimer_${tid}`); }
+
+  // Restore running timers: cloud KV first, localStorage fallback
+  try {
+    const res = await fetch('/api/timer-state');
+    if (res.ok) {
+      const cloud = await res.json();
+      for (let tid = 0; tid < NUM_TIMERS; tid++) {
+        const saved = cloud[tid];
+        if (saved && saved.startTime) {
+          try {
+            resumeTimer(tid, saved);
+            if (saved.notes) $t(tid, 'notes-input').value = saved.notes;
+          } catch(e) { console.error(`Resume timer ${tid} from cloud:`, e); }
+        } else {
+          const local = localStorage.getItem(`sts_activeTimer_${tid}`);
+          if (local) {
+            try { resumeTimer(tid, JSON.parse(local)); }
+            catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
+          }
+        }
+      }
+    } else {
+      // KV unavailable — fall back to localStorage
+      for (let tid = 0; tid < NUM_TIMERS; tid++) {
+        const local = localStorage.getItem(`sts_activeTimer_${tid}`);
+        if (local) {
+          try { resumeTimer(tid, JSON.parse(local)); }
+          catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
+        }
+      }
+    }
+  } catch(e) {
+    for (let tid = 0; tid < NUM_TIMERS; tid++) {
+      const local = localStorage.getItem(`sts_activeTimer_${tid}`);
+      if (local) {
+        try { resumeTimer(tid, JSON.parse(local)); }
+        catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
+      }
     }
   }
-  // Load employees and re-highlight any active selections
+
+  loadSessionsFromNotion();
   await loadEmployees();
 }
 boot();

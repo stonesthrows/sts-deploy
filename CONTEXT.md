@@ -52,3 +52,31 @@ A Sat–Sun market event identified by its Saturday date key (e.g. `2026-05-30`)
 ## Inventory
 
 *(terms to be defined as the session progresses)*
+
+---
+
+## Trips
+
+**TripLog**
+The external mileage-tracking app and source of truth for all recorded drives. Accessed via `https://app.triplog.net/web/api`. Read and write both supported via their REST API (requires API key from admin dashboard).
+
+**Trip**
+A single recorded drive from TripLog. Has fields: `id`, `startTime`, `mileage`, `startOdometer`, `endOdometer`, `activity` (Business or Personal), `notes`, `fromLocation`, `toLocation`.
+
+**Local Edit**
+A browser-side override for a Trip's fields, stored in `localStorage` under `sts-triplog-edits`. Exists only while a Trip has an unsynced or failed write back to TripLog. Cleared on successful sync. Displayed with a `✎` dot (or `⚠` if the sync failed).
+
+**TripLog Proxy** (`triplog-proxy`)
+A Cloudflare Worker at `triplog-proxy.kyle-3c9.workers.dev` that sits between the Workflow App and TripLog's API to resolve CORS. Holds the API key as a Worker env var. Allowed origin: `https://sts-deploy.pages.dev`. Supports GET (list/fetch trips) and PUT (update trip fields).
+
+**TripLog MCP Server** (`triplog-mcp`)
+A local MCP server (stdio transport) that gives Claude direct access to TripLog. Tools: `get_recent_trips`, `get_trip_details`, `update_trip`. Used for Claude-initiated queries and edits.
+
+**Odometer Log**
+A manually maintained log of physical odometer readings, stored locally in `localStorage` under `sts-odometer-log`. Used as the authoritative source for actual miles driven, to reconcile against GPS-recorded TripLog mileage.
+
+**Mileage Reconciliation**
+The process of correcting GPS drift between TripLog's recorded trip mileage and actual odometer movement. Triggered automatically when a new odometer reading is saved. Computes: actual miles = current reading − previous reading; recorded miles = sum of TripLog trip mileage for the same period; gap = actual − recorded. The gap is distributed proportionally across all trips in the period. A confirmation panel shows original vs proposed mileage per trip before syncing. Edge cases: no previous reading → block with prompt to log it; no trips in period → prompt to check TripLog; gap = 0 → toast "✓ In sync"; gap < 0 → proportional reduction (same math as positive gap).
+
+**Trip Verification**
+A daily weekday prompt (pill in the app header) to confirm yesterday's trips were recorded correctly. Dismissal state stored in `localStorage` under `sts-trips-verified`. Resets each day.

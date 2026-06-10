@@ -29,13 +29,15 @@ function hdrs(token) {
   };
 }
 
+const META_BLOCK = '__rq_meta__';
+
 function pageToNote(page) {
   const p = page.properties;
   return {
     notionPageId: page.id,
-    text:  p['Note']?.title?.[0]?.plain_text  || '',
-    block: p['Block']?.select?.name           || '',
-    done:  p['Done']?.checkbox                || false,
+    text:    p['Note']?.title?.[0]?.plain_text || '',
+    block:   p['Block']?.select?.name          || '',
+    done:    p['Done']?.checkbox               || false,
     created: page.created_time,
   };
 }
@@ -62,7 +64,10 @@ export async function onRequest({ request, env }) {
       });
       const d = await r.json();
       if (!r.ok) return json({ error: d.message || 'Notion query failed', code: d.code, status: r.status }, r.status);
-      (d.results || []).forEach(p => { if (!p.archived) notes.push(pageToNote(p)); });
+      (d.results || []).forEach(p => {
+        if (!p.archived && p.properties['Block']?.select?.name !== META_BLOCK)
+          notes.push(pageToNote(p));
+      });
       cursor = d.has_more ? d.next_cursor : null;
     } while (cursor);
     return json(notes);
@@ -91,12 +96,13 @@ export async function onRequest({ request, env }) {
   const pageId = new URL(request.url).searchParams.get('pageId');
   if (!pageId) return json({ error: 'pageId required' }, 400);
 
-  // ── PATCH — toggle done or move block ───────
+  // ── PATCH — update note fields ───────────────
   if (request.method === 'PATCH') {
     const body = await request.json();
     const props = {};
     if ('done'  in body) props['Done']  = { checkbox: !!body.done };
     if ('block' in body) props['Block'] = { select: { name: body.block } };
+    if ('text'  in body) props['Note']  = { title: [{ text: { content: String(body.text).slice(0, 2000) } }] };
     const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ properties: props }),

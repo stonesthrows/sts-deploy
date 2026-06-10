@@ -9,7 +9,7 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 - JS modules: `js/` folder (app.js, orders.js, customers.js, sales.js, production.js, gmail.js, notes.js, drive.js, notion.js, data.js, supplier-history.js, triplog.js, inventory.js)
 - `clickup.js` is **retired** — replaced by `notion.js`. Do not edit or restore it.
 - **Dropped experiment:** `crm.html` + `crm/` folder — started but not in active use
-- Related MCP servers (separate folders, not part of deploy): `triplog-mcp`, `triplog-proxy`
+- Related MCP servers (separate folders, not part of deploy): `triplog-mcp-http` (active), `triplog-mcp` (superseded), `triplog-proxy`
 
 ## Tech Stack
 - Vanilla HTML, CSS, JavaScript (no framework, no build step)

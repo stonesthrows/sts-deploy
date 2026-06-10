@@ -10,7 +10,7 @@ const DB_ID      = 'e59ae574e5ee4d569395e15bd56450e9';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -91,4 +91,50 @@ export async function onRequestPost(context) {
 
   if (!res.ok) return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
   return jsonResp({ notionPageId: data.id });
+}
+
+export async function onRequestGet(context) {
+  var token = context.env.NOTION_TOKEN;
+  if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
+
+  var res = await fetch(NOTION_API + '/databases/' + DB_ID + '/query', {
+    method: 'POST',
+    headers: {
+      'Authorization':  'Bearer ' + token,
+      'Notion-Version': NOTION_VER,
+      'Content-Type':   'application/json',
+    },
+    body: JSON.stringify({
+      sorts: [{ property: 'Date', direction: 'descending' }],
+      page_size: 50,
+    }),
+  });
+
+  var data = await res.json();
+  if (!res.ok) return jsonResp({ error: data.message || 'Notion error' }, res.status);
+
+  function txt(prop) { return prop?.rich_text?.[0]?.plain_text || ''; }
+  function num(prop) { return prop?.number ?? null; }
+
+  var sessions = (data.results || [])
+    .filter(function(p) { return !p.archived; })
+    .map(function(p) {
+      var props = p.properties;
+      return {
+        notionPageId:  p.id,
+        itemName:      props['Item Name']  ? txt(props['Item Name'])  : (props['Session']?.title?.[0]?.plain_text || ''),
+        sku:           txt(props['SKU']),
+        category:      txt(props['Category']),
+        employeeName:  txt(props['Employee']),
+        squareItemId:  txt(props['Square Item ID']),
+        totalMin:      num(props['Duration (min)']),
+        dedMin:        num(props['Clocked-Out Deducted (min)']),
+        netMin:        num(props['Net Work Time (min)']),
+        date:          props['Date']?.date?.start || null,
+        notes:         txt(props['Notes']),
+        pieces:        num(props['Pieces Made']),
+      };
+    });
+
+  return jsonResp(sessions);
 }
