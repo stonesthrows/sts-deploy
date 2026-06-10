@@ -745,8 +745,9 @@
       font-size: 10.5px; font-weight: 600; padding: 2px 7px;
       border-radius: 10px; white-space: nowrap;
     }
-    .o-badge.pickup  { background:#EAF0FB; color:#2E5A8A; }
-    .o-badge.source  { background:#F0EAF8; color:#6A3A9A; }
+    .o-badge.pickup    { background:#EAF0FB; color:#2E5A8A; }
+    .o-badge.source    { background:#F0EAF8; color:#6A3A9A; }
+    .o-badge.contacted { background:#E6F4ED; color:#2A7A4A; }
     .c-td { font-size: 13px; color: var(--text); }
     .c-muted { color: var(--text2); }
     .active-chip {
@@ -1518,16 +1519,64 @@
     .mat-order-foot  { padding: 12px 16px; border-top: 1px solid #EEE6DC; background: #FDFAF6; }
 
     /* ── Production ──────────────────────────── */
-    .prod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .prod-card { background: #fff; border: 1px solid #E4DDD4; border-radius: 12px; overflow: hidden; }
-    .prod-card-head {
-      padding: 12px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
-      font-size: 13px; font-weight: 700; color: var(--text);
+    .prod-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding-bottom: 16px; }
+    .prod-col { flex: 0 0 220px; background: #F8F3EC; border-radius: 12px; overflow: hidden; }
+    .prod-col-head {
+      display: flex; align-items: center; gap: 6px;
+      padding: 11px 13px; background: #fff; border-bottom: 1px solid #E4DDD4;
     }
-    .prod-card-body { padding: 16px; min-height: 100px; }
-    .prod-placeholder {
-      background: #F8F3EC; border: 1px dashed #D8C8A8; border-radius: 8px;
-      padding: 18px; text-align: center; color: #9A8860; font-size: 12.5px; line-height: 1.5;
+    .prod-col-icon { font-size: 14px; }
+    .prod-col-label { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
+    .prod-col-count {
+      font-size: 11px; font-weight: 700; color: #fff;
+      padding: 1px 7px; border-radius: 10px; min-width: 18px; text-align: center;
+    }
+    .prod-col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+    .prod-col-empty { color: #B8A880; font-size: 12px; text-align: center; padding: 16px 8px; }
+    .prod-order-card {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 9px;
+      padding: 11px 12px; cursor: pointer; transition: box-shadow 0.15s;
+    }
+    .prod-order-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+    .prod-order-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .prod-order-desc { font-size: 11.5px; color: #6A6460; margin-bottom: 7px; line-height: 1.4; }
+    .prod-order-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+    .prod-order-price { font-size: 11px; color: #9A8860; font-weight: 600; }
+    .prod-contacted-badge {
+      font-size: 10.5px; color: #2a7a4a; background: #e6f4ed;
+      border-radius: 4px; padding: 2px 7px; margin-bottom: 6px; display: inline-block;
+    }
+    .prod-delivered-btn {
+      width: 100%; margin-top: 4px; padding: 6px 0; font-size: 11.5px; font-weight: 600;
+      background: #f0f8f0; color: #2a7a4a; border: 1px solid #b0d8b8;
+      border-radius: 6px; cursor: pointer; transition: background 0.15s;
+    }
+    .prod-delivered-btn:hover { background: #d8f0d8; }
+    .prod-empty {
+      padding: 32px; text-align: center; color: #9A8860; font-size: 13px;
+    }
+    .prod-delivered-on { font-size: 10.5px; color: #9A8860; margin-top: 4px; }
+
+    /* ── Month archive ───────────────────────── */
+    .prod-archive { margin-top: 28px; }
+    .prod-archive-title {
+      font-size: 13px; font-weight: 700; color: var(--text2);
+      letter-spacing: .04em; margin-bottom: 10px; padding-left: 2px;
+    }
+    .prod-folder { border: 1px solid #E4DDD4; border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
+    .prod-folder-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 14px; background: #F8F3EC; cursor: pointer;
+      user-select: none; transition: background 0.12s;
+    }
+    .prod-folder-head:hover { background: #F0E8DC; }
+    .prod-folder-icon { font-size: 15px; flex-shrink: 0; }
+    .prod-folder-label { font-size: 13px; font-weight: 700; color: var(--text); flex: 1; }
+    .prod-folder-meta { font-size: 11.5px; color: #9A8860; }
+    .prod-folder-chevron { font-size: 11px; color: #9A8860; flex-shrink: 0; }
+    .prod-folder-body {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px; padding: 12px; background: #fff; border-top: 1px solid #E4DDD4;
     }
 
     /* ── Sales ───────────────────────────────── */
@@ -2231,6 +2280,7 @@
     body.theme-midnight .d-section,
     body.theme-midnight .mat-supplier,
     body.theme-midnight .mat-order-panel,
+    body.theme-midnight .prod-order-card,
     body.theme-midnight .prod-card,
     body.theme-midnight .sot-card,
     body.theme-midnight .order-form-card,
@@ -2952,11 +3002,11 @@
 <div id="tab-production" class="tab-panel">
   <div class="page-bar">
     <div>
-      <div class="page-title">🔨 Production</div>
-      <div class="page-sub">All active orders — Custom, Etsy &amp; Shopify</div>
+      <div class="page-title">📬 Ready for Pickup / Ship</div>
+      <div class="page-sub">Orders waiting to be picked up or delivered — by location</div>
     </div>
   </div>
-  <div class="prod-grid" id="prodGrid">
+  <div id="prodGrid">
     <!-- rendered by renderProduction() -->
   </div>
 </div>

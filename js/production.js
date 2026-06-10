@@ -1,167 +1,181 @@
 // ════════════════════════════════════════════
 //  PRODUCTION  —  pages/production.js
-//  Production overview tab + Supplier Order Tracker (SOT)
+//  Ready-to-pickup / awaiting delivery board
 // ════════════════════════════════════════════
+
+// Columns in display order
+var PROD_COLUMNS = [
+  { key: 'Studio',                    label: 'Studio',                    icon: '🏠', color: '#5b8dd9' },
+  { key: 'Bell Market',               label: 'Bell Market',               icon: '🔔', color: '#c0a060' },
+  { key: 'Mueller Market',            label: 'Mueller Market',            icon: '🌿', color: '#6abf8a' },
+  { key: 'Chaparral Crossing Market', label: 'Chaparral Crossing Market', icon: '🌵', color: '#e07a50' },
+  { key: 'Sunset Valley',             label: 'Sunset Valley',             icon: '🌅', color: '#b06abf' },
+  { key: '__ship__',                  label: 'To be Shipped',             icon: '📦', color: '#457b9d' },
+  { key: '__limbo__',                 label: 'In Limbo',                  icon: '❓', color: '#9A8860' },
+];
+
+function prodGetColumn(o) {
+  if (o.stage === 'ship-out') return '__ship__';
+  if (!o.pickup || o.pickup === 'To be Shipped') {
+    return (!o.pickup) ? '__limbo__' : '__ship__';
+  }
+  var known = PROD_COLUMNS.map(function(c){ return c.key; });
+  return known.includes(o.pickup) ? o.pickup : '__limbo__';
+}
+
+// Track which month folders are open (persisted in memory only, resets on page reload)
+var prodOpenMonths = {};
 
 function renderProduction() {
   var grid = document.getElementById('prodGrid');
   if (!grid) return;
 
-  var doneStages = ['complete', 'delivered'];
-  var activeOrders = ORDERS.filter(function(o) {
-    return !doneStages.includes(o.stage);
+  var readyOrders = ORDERS.filter(function(o) {
+    return o.stage === 'ready-pick' || o.stage === 'ship-out';
   });
-
-  // Stage display config — ordered by workflow position
-  var stageSeq = [
-    'intake-custom','intake-repair','needs-est',
-    'repair',
-    'sketch-needs','sketch-wait','sketch',
-    'quote','est-appr',
-    'deposit-wait','deposit-paid',
-    'order-mat','materials','build',
-    'contact-need','contact-done',
-    'ready-pick'
-  ];
-  var stageLabels = {
-    'intake-custom':  'Custom Intake',
-    'intake-repair':  'Repair Intake',
-    'needs-est':      'Estimate Intake',
-    'repair':         'Repairs',
-    'sketch-needs':   'Needs Sketch',
-    'sketch-wait':    'Waiting on Sketch Approval',
-    'sketch':         'Sketch Approved',
-    'quote':          'Estimate Sent',
-    'est-appr':       'Estimate Approved',
-    'deposit-wait':   'Waiting on Deposit',
-    'deposit-paid':   'Deposit Paid',
-    'order-mat':      'Order Materials',
-    'materials':      'Waiting on Materials',
-    'build':          'At the Bench',
-    'contact-need':   'Need to Contact Customer',
-    'contact-done':   'Contacted Customer',
-    'ready-pick':     'Ready for Pickup'
-  };
-  var stageColors = {
-    'intake-custom':  '#7A8CA0',
-    'intake-repair':  '#7A8CA0',
-    'needs-est':      '#7A8CA0',
-    'repair':         '#C06030',
-    'sketch-needs':   '#B07830',
-    'sketch-wait':    '#B07830',
-    'sketch':         '#B07830',
-    'quote':          '#8860A8',
-    'est-appr':       '#8860A8',
-    'deposit-wait':   '#4880B8',
-    'deposit-paid':   '#4880B8',
-    'order-mat':      '#A86028',
-    'materials':      '#9050CC',
-    'build':          '#2A68B8',
-    'contact-need':   '#C04848',
-    'contact-done':   '#C04848',
-    'ready-pick':     '#1E84A8'
-  };
 
   var html = '';
 
-  // ── Section header ───────────────────────────────────────────
-  function sectionHeader(label, count, color) {
-    return '<div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:12px 0 4px">'
-         + '<div style="height:2px;flex:1;background:' + color + ';opacity:0.25"></div>'
-         + '<span style="font-size:11px;font-weight:700;letter-spacing:.08em;color:' + color + ';text-transform:uppercase">' + label + '</span>'
-         + '<span style="font-size:11px;color:#9A8860;font-weight:400">(' + count + ')</span>'
-         + '<div style="height:2px;flex:1;background:' + color + ';opacity:0.25"></div>'
-         + '</div>';
-  }
+  // ── Active board ─────────────────────────────────────────────
+  if (readyOrders.length) {
+    html += '<div class="prod-board">';
+    PROD_COLUMNS.forEach(function(col) {
+      var colOrders = readyOrders.filter(function(o){ return prodGetColumn(o) === col.key; });
 
-  // ── Custom Orders ────────────────────────────────────────────
-  if (activeOrders.length) {
-    html += sectionHeader('Custom Orders', activeOrders.length, '#B8860B');
-    stageSeq.forEach(function(stage) {
-      var stageOrders = activeOrders.filter(function(o){ return o.stage === stage; });
-      if (!stageOrders.length) return;
-      html += '<div class="prod-card">';
-      html += '<div class="prod-card-head" style="border-left:3px solid ' + (stageColors[stage]||'#999') + '">'
-            + (stageLabels[stage]||stage) + ' <span style="font-weight:400;color:#9A8860;margin-left:6px">(' + stageOrders.length + ')</span></div>';
-      html += '<div class="prod-card-body">';
-      stageOrders.forEach(function(o) {
-        var dl = deadlineInfo(o.deadline);
-        html += '<div style="padding:9px 0;border-bottom:1px solid #F4EFE8;display:flex;justify-content:space-between;align-items:flex-start">';
-        html += '<div>'
-              + '<div style="font-size:13px;font-weight:700;color:var(--text)">' + o.name + '</div>'
-              + '<div style="font-size:11.5px;color:#6A6460;margin-top:2px">' + o.desc + '</div>'
-              + '</div>';
-        html += '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-              + '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>'
-              + (o.price ? '<div style="font-size:11px;color:#9A8860;margin-top:3px">$' + o.price.toLocaleString() + '</div>' : '')
-              + '</div>';
-        html += '</div>';
-      });
+      html += '<div class="prod-col">';
+      html += '<div class="prod-col-head" style="border-top:3px solid ' + col.color + '">'
+            + '<span class="prod-col-icon">' + col.icon + '</span>'
+            + '<span class="prod-col-label">' + col.label + '</span>'
+            + '<span class="prod-col-count" style="background:' + col.color + '">' + colOrders.length + '</span>'
+            + '</div>';
+      html += '<div class="prod-col-body">';
+
+      if (!colOrders.length) {
+        html += '<div class="prod-col-empty">None here</div>';
+      } else {
+        colOrders.forEach(function(o) {
+          html += prodOrderCardHTML(o, true);
+        });
+      }
+
       html += '</div></div>';
     });
+    html += '</div>';
+  } else {
+    html += '<div class="prod-empty">No orders are ready for pickup or shipping right now.</div>';
   }
 
-  // ── Etsy & Shopify Orders ─────────────────────────────────────
-  var orderThreads = (typeof _cachedOrderThreads !== 'undefined') ? _cachedOrderThreads : [];
-
-  // Also try reading from localStorage if global hasn't been populated yet
-  if (!orderThreads.length) {
-    try {
-      var saved = localStorage.getItem('sts-gmail-threads');
-      if (saved) {
-        var d = JSON.parse(saved);
-        orderThreads = (d.threads || []).filter(function(t){ return t.category === 'orders'; });
-      }
-    } catch(e) {}
-  }
-
-  var etsyThreads    = orderThreads.filter(function(t){ return t.email && t.email.toLowerCase().indexOf('etsy') >= 0; });
-  var shopifyThreads = orderThreads.filter(function(t){ return t.email && t.email.toLowerCase().indexOf('shopify') >= 0; });
-  var otherThreads   = orderThreads.filter(function(t){
-    var em = (t.email || '').toLowerCase();
-    return em.indexOf('etsy') < 0 && em.indexOf('shopify') < 0;
+  // ── Month archive ─────────────────────────────────────────────
+  var doneOrders = ORDERS.filter(function(o) {
+    return o.stage === 'delivered' || o.stage === 'complete';
   });
 
-  function renderThreadCard(threads, label, color) {
-    if (!threads.length) return '';
-    var out = '';
-    out += '<div class="prod-card">';
-    out += '<div class="prod-card-head" style="border-left:3px solid ' + color + '">'
-         + label + ' <span style="font-weight:400;color:#9A8860;margin-left:6px">(' + threads.length + ')</span></div>';
-    out += '<div class="prod-card-body">';
-    threads.forEach(function(t) {
-      var unreadDot = t.unread ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#e05;margin-right:5px;vertical-align:middle"></span>' : '';
-      var gmailLink = t.gmailUrl
-        ? ' <a href="' + t.gmailUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#9A8860;text-decoration:none;margin-left:4px" title="Open in Gmail">↗</a>'
-        : '';
-      out += '<div style="padding:9px 0;border-bottom:1px solid #F4EFE8">';
-      out += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
-      out += '<div style="flex:1;min-width:0">'
-           + '<div style="font-size:13px;font-weight:700;color:var(--text)">' + unreadDot + t.subject + gmailLink + '</div>'
-           + (t.snippet ? '<div style="font-size:11.5px;color:#6A6460;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + t.snippet + '</div>' : '')
-           + '</div>';
-      out += '<div style="text-align:right;flex-shrink:0;margin-left:12px;font-size:11px;color:#9A8860">' + (t.age || '') + '</div>';
-      out += '</div>';
-      out += '</div>';
+  if (doneOrders.length) {
+    // Group by YYYY-MM using deliveredAt, completedAt, or deadline as fallback
+    var byMonth = {};
+    doneOrders.forEach(function(o) {
+      var dateStr = o.deliveredAt || o.completedAt || o.deadline || '';
+      var monthKey = dateStr ? dateStr.slice(0, 7) : 'unknown';
+      if (!byMonth[monthKey]) byMonth[monthKey] = [];
+      byMonth[monthKey].push(o);
     });
-    out += '</div></div>';
-    return out;
+
+    // Sort months newest first
+    var monthKeys = Object.keys(byMonth).sort().reverse();
+
+    html += '<div class="prod-archive">';
+    html += '<div class="prod-archive-title">📁 Delivered Orders</div>';
+
+    monthKeys.forEach(function(key) {
+      var orders = byMonth[key].slice().sort(function(a, b) {
+        var da = a.deliveredAt || a.completedAt || a.deadline || '';
+        var db = b.deliveredAt || b.completedAt || b.deadline || '';
+        return db.localeCompare(da);
+      });
+      var label = key === 'unknown' ? 'Unknown Date' : prodMonthLabel(key);
+      var isOpen = !!prodOpenMonths[key];
+      var total  = orders.length;
+      var value  = orders.reduce(function(s, o){ return s + (o.finalPrice || o.price || 0); }, 0);
+
+      html += '<div class="prod-folder" id="prod-folder-' + key + '">';
+      html += '<div class="prod-folder-head" onclick="prodToggleMonth(\'' + key + '\')">'
+            + '<span class="prod-folder-icon">' + (isOpen ? '📂' : '📁') + '</span>'
+            + '<span class="prod-folder-label">' + label + '</span>'
+            + '<span class="prod-folder-meta">' + total + ' order' + (total !== 1 ? 's' : '')
+            +   (value ? ' · $' + value.toLocaleString() : '') + '</span>'
+            + '<span class="prod-folder-chevron">' + (isOpen ? '▴' : '▾') + '</span>'
+            + '</div>';
+
+      if (isOpen) {
+        html += '<div class="prod-folder-body">';
+        orders.forEach(function(o) {
+          html += prodOrderCardHTML(o, false);
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '</div>';
   }
 
-  var platformTotal = etsyThreads.length + shopifyThreads.length + otherThreads.length;
-  if (platformTotal > 0) {
-    html += sectionHeader('Platform Orders', platformTotal, '#1a7a4a');
-    html += renderThreadCard(etsyThreads,    'Etsy Orders',    '#F1641E');
-    html += renderThreadCard(shopifyThreads, 'Shopify Orders', '#96bf48');
-    if (otherThreads.length) html += renderThreadCard(otherThreads, 'Other Order Emails', '#888');
-  }
-
-  if (!activeOrders.length && !platformTotal) {
-    grid.innerHTML = '<div class="prod-placeholder" style="grid-column:1/-1">No active orders right now.</div>';
-    return;
+  if (!readyOrders.length && !doneOrders.length) {
+    html = '<div class="prod-empty">No orders yet.</div>';
   }
 
   grid.innerHTML = html;
+}
+
+function prodOrderCardHTML(o, showDeliverBtn) {
+  var dl = deadlineInfo(o.deadline);
+  var deliveredLine = (o.deliveredAt || o.completedAt)
+    ? '<div class="prod-delivered-on">Delivered ' + fmtDate(o.deliveredAt || o.completedAt) + '</div>'
+    : '';
+  var html = '<div class="prod-order-card" onclick="openOrderCard(\'' + o.id + '\')">';
+  html += '<div class="prod-order-name">' + o.name + '</div>';
+  html += '<div class="prod-order-desc">' + o.desc + '</div>';
+  html += '<div class="prod-order-foot">';
+  html += '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>';
+  if (o.price || o.finalPrice) {
+    html += '<span class="prod-order-price">$' + (o.finalPrice || o.price).toLocaleString() + '</span>';
+  }
+  html += '</div>';
+  if (o.contactedAt) {
+    html += '<div class="prod-contacted-badge">✓ Contacted ' + fmtDate(o.contactedAt) + '</div>';
+  }
+  if (deliveredLine) html += deliveredLine;
+  if (showDeliverBtn) {
+    html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function prodMonthLabel(key) {
+  // key = 'YYYY-MM'
+  var parts = key.split('-');
+  var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function prodToggleMonth(key) {
+  prodOpenMonths[key] = !prodOpenMonths[key];
+  renderProduction();
+}
+
+function prodMarkDelivered(id) {
+  var o = ORDERS.find(function(x){ return x.id === id; });
+  if (!o) return;
+  var dateStr = new Date().toISOString().slice(0, 10);
+  o.stage = 'delivered';
+  o.deliveredAt = dateStr;
+  // Auto-open the folder for this month so the order is immediately visible
+  prodOpenMonths[dateStr.slice(0, 7)] = true;
+  saveToStorage();
+  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
+  renderProduction();
+  toast(o.name + ' marked as delivered ✓', '✓');
 }
 
 // ============================================================

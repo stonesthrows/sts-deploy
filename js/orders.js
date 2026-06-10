@@ -170,10 +170,11 @@ function cardHTML(o) {
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
         <div class="o-desc">${o.desc}</div>
-        ${(o.pickup || o.contactSource) ? `
+        ${(o.pickup || o.contactSource || o.contactedAt) ? `
         <div class="o-badges">
           ${o.pickup        ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
           ${o.contactSource ? `<span class="o-badge source">💬 ${o.contactSource}</span>` : ''}
+          ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
@@ -607,11 +608,13 @@ function drop(ev, stageId) {
   if (order) {
     order.stage = stageId;
     if (stageId === 'complete') completedHidden.add(order.id);
+    if (stageId === 'contact-done' && !order.contactedAt) {
+      order.contactedAt = new Date().toISOString().slice(0, 10);
+    }
     updateCompletedToggle();
     renderKanban();
     // Sync stage to Notion immediately (fire-and-forget)
     if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
-    const stageLabel = (STAGES.find(s => s.id === stageId) || {}).label || stageId;
     saveToStorage();
   }
   draggedId = null;
@@ -625,6 +628,9 @@ function dropWithPickup(ev, stageId, location) {
   if (order) {
     order.stage  = stageId;
     order.pickup = location;
+    if (stageId === 'contact-done' && !order.contactedAt) {
+      order.contactedAt = new Date().toISOString().slice(0, 10);
+    }
     renderKanban();
     // Sync stage to Notion immediately (fire-and-forget)
     if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
