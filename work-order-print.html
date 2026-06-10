@@ -467,7 +467,6 @@
   document.getElementById('c-zip').textContent   = zip;
   document.getElementById('j-desc').textContent = desc;
   document.getElementById('j-size').textContent = ringSize;
-  if (price) document.getElementById('t-quoted').textContent = '$' + parseFloat(price).toFixed(2);
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
   const dep0 = parseFloat(deposit) || 0;
