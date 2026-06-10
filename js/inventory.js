@@ -316,6 +316,7 @@ function invSwitchMain(type) {
   document.querySelectorAll('[id^="inv-main-tab-"]').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById('inv-main-tab-' + type);
   if (btn) btn.classList.add('active');
+  _navSave('inv-main', type);
 }
 
 // ── Refresh ──────────────────────────────────
@@ -361,6 +362,7 @@ function invSwitchRingSub(sub, el) {
   if (!_invData[sub]) _invLoadSub(sub);
   else _invRenderSub(sub);
   _invUpdateRingCountLabel();
+  _navSave('inv-ring-sub', sub);
 }
 
 function invRingFilter(val) {
@@ -429,6 +431,7 @@ function invSwitchPendantSub(sub, el) {
   if (!_invData[sub]) _invLoadSub(sub);
   else _invRenderSub(sub);
   _invUpdatePendantCountLabel();
+  _navSave('inv-pendant-sub', sub);
 }
 
 function invPendantFilter(val) {

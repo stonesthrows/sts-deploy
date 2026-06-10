@@ -71,10 +71,11 @@ function switchTab(id, el) {
   if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
   if (id === 'production') setTimeout(renderProduction, 0);
   if (id === 'gmail') loadScheduledBrief();
+  _navSave('parent', id);
 }
 
 // Switch between Sales / Supplies / Trips within Operations sub-nav
-function switchOpsTab(id, el) {
+function switchOpsTab(id, el, _skipSave) {
   document.querySelectorAll('#sub-nav-operations .sub-nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
@@ -94,23 +95,26 @@ function switchOpsTab(id, el) {
     if (panel) panel.classList.add('active');
     if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
   }
+  if (!_skipSave) { _navSave('parent', 'operations'); _navSave('ops-sub', id); }
 }
 
 // Switch between sub-tabs within the Supplies sub-sub-nav
-function switchSuppliesTab(id, el) {
+function switchSuppliesTab(id, el, _skipSave) {
   document.querySelectorAll('#sub-sub-nav-supplies .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + id);
   if (panel) panel.classList.add('active');
+  if (!_skipSave) _navSave('supplies-sub', id);
 }
 
 // Switch between Notes / Perm. Jewelry within Tools sub-nav
-function switchToolsTab(id, el) {
+function switchToolsTab(id, el, _skipSave) {
   document.querySelectorAll('#sub-nav-tools .sub-nav-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  if (!_skipSave) { _navSave('parent', 'tools'); _navSave('tools-sub', id); }
   if (id === 'perm-jewelry') {
     const ssn = document.getElementById('sub-sub-nav-perm-jewelry');
     if (ssn) ssn.classList.add('active');
@@ -133,6 +137,7 @@ function switchPermJewelryTab(id, el) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + id);
   if (panel) panel.classList.add('active');
+  _navSave('perm-jewelry-sub', id);
 }
 
 // One-time inits for Supplies sub-tabs
@@ -143,7 +148,86 @@ function ohInitHistory() {
   if (!window._ohDone) { window._ohDone = true; ohInit(); }
 }
 
-function switchParent(parentId, el) {
+// ── Nav state persistence ────────────────────
+// Saves/restores the active parent+sub tab across hard refreshes
+
+function _navSave(key, val) {
+  try { localStorage.setItem('sts-nav-' + key, val); } catch(e) {}
+}
+function _navGet(key) {
+  try { return localStorage.getItem('sts-nav-' + key); } catch(e) { return null; }
+}
+
+function _navRestore() {
+  const parent = _navGet('parent') || 'custom-orders';
+  const parentEl = document.querySelector('[data-parent="' + parent + '"]');
+
+  if (parent === 'gmail') {
+    switchTab('gmail', document.querySelector('[data-tab="gmail"]'));
+    return;
+  }
+  if (parent === 'calendar') {
+    switchTab('calendar', document.querySelector('[data-tab="calendar"]'));
+    if (typeof calInit === 'function') calInit();
+    return;
+  }
+
+  switchParent(parent, parentEl, true); // true = skip save (avoid loop)
+
+  if (parent === 'custom-orders') {
+    const sub = _navGet('custom-orders-sub');
+    if (sub) {
+      const subEl = document.querySelector('#sub-nav-custom-orders .sub-nav-tab[data-tab="' + sub + '"]');
+      switchSubTab(sub, subEl, true);
+      if (sub === 'production') setTimeout(renderProduction, 0);
+      if (sub === 'dashboard') { if (typeof renderKanban === 'function') setTimeout(renderKanban, 0); }
+    }
+  } else if (parent === 'operations') {
+    const opsSub = _navGet('ops-sub') || 'sales';
+    const opsEl  = document.querySelector('#sub-nav-operations .sub-nav-tab[data-tab="' + opsSub + '"]');
+    switchOpsTab(opsSub, opsEl, true);
+    if (opsSub === 'supplies') {
+      const supSub = _navGet('supplies-sub') || 'supplier';
+      const supEl  = document.querySelector('#sub-sub-nav-supplies .sub-sub-nav-tab[data-tab="' + supSub + '"]');
+      switchSuppliesTab(supSub, supEl, true);
+      if (supSub === 'supplier')      ohInitSupplier();
+      if (supSub === 'order-history') ohInitHistory();
+    }
+  } else if (parent === 'inventory') {
+    if (!window._invLoaded) window.invLoad();
+    const invMain = _navGet('inv-main') || 'earrings';
+    invSwitchMain(invMain);
+    if (invMain === 'rings') {
+      if (!window._invRingLoaded) invLoadRings();
+      const ringSub = _navGet('inv-ring-sub');
+      if (ringSub) {
+        const ringEl = document.querySelector('.inv-ring-sub-btn[id="inv-ring-subtab-' + ringSub + '"]');
+        invSwitchRingSub(ringSub, ringEl);
+      }
+    } else if (invMain === 'pendants') {
+      if (!window._invPendantLoaded) invLoadPendants();
+      const pendSub = _navGet('inv-pendant-sub');
+      if (pendSub) {
+        const pendEl = document.querySelector('.inv-pendant-sub-btn[id="inv-pendant-subtab-' + pendSub + '"]');
+        invSwitchPendantSub(pendSub, pendEl);
+      }
+    }
+  } else if (parent === 'tools') {
+    const toolsSub = _navGet('tools-sub') || 'notes';
+    const toolsEl  = document.querySelector('#sub-nav-tools .sub-nav-tab[data-tab="' + toolsSub + '"]');
+    switchToolsTab(toolsSub, toolsEl, true);
+    if (toolsSub === 'perm-jewelry') {
+      const pjSub = _navGet('perm-jewelry-sub') || 'pj-calc';
+      const pjEl  = document.querySelector('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab[data-tab="' + pjSub + '"]');
+      switchPermJewelryTab(pjSub, pjEl);
+      if (pjSub === 'pj-ref' && typeof pjBuildRef === 'function') pjBuildRef();
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => setTimeout(_navRestore, 0));
+
+function switchParent(parentId, el, _skipSave) {
   // Activate this parent nav tab, hide all sub-navs and sub-sub-navs, show the right one
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.sub-nav').forEach(s => s.classList.remove('active'));
@@ -160,9 +244,10 @@ function switchParent(parentId, el) {
   const panel = document.getElementById('tab-' + defaultId);
   if (panel) panel.classList.add('active');
   if (parentId === 'operations') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
+  if (!_skipSave) _navSave('parent', parentId);
 }
 
-function switchSubTab(id, el) {
+function switchSubTab(id, el, _skipSave) {
   // Deactivate all tab panels and sub-nav tabs, activate the chosen one
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
@@ -176,6 +261,7 @@ function switchSubTab(id, el) {
     if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
   }
   if (id === 'production') setTimeout(renderProduction, 0);
+  if (!_skipSave) _navSave('custom-orders-sub', id);
 }
 
 // ════════════════════════════════════════════
