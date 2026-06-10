@@ -12,9 +12,11 @@ var PROD_COLUMNS = [
   { key: 'Sunset Valley',             label: 'Sunset Valley',             icon: '🌅', color: '#b06abf' },
   { key: '__ship__',                  label: 'To be Shipped',             icon: '📦', color: '#457b9d' },
   { key: '__limbo__',                 label: 'In Limbo',                  icon: '❓', color: '#9A8860' },
+  { key: '__cancelled__',             label: 'Cancelled',                 icon: '🚫', color: '#C04848' },
 ];
 
 function prodGetColumn(o) {
+  if (o.stage === 'cancelled') return '__cancelled__';
   if (o.stage === 'ship-out') return '__ship__';
   if (!o.pickup || o.pickup === 'To be Shipped') {
     return (!o.pickup) ? '__limbo__' : '__ship__';
@@ -73,6 +75,10 @@ function prodDrop(ev, colKey) {
   } else if (colKey === '__limbo__') {
     o.stage  = 'ready-pick';
     o.pickup = null;
+  } else if (colKey === '__cancelled__') {
+    o.stage  = 'cancelled';
+    o.pickup = null;
+    delete o.deliveredAt;
   } else {
     o.stage  = 'ready-pick';
     o.pickup = colKey;
@@ -95,7 +101,7 @@ function renderProduction() {
   if (!grid) return;
 
   var readyOrders = ORDERS.filter(function(o) {
-    return o.stage === 'ready-pick' || o.stage === 'ship-out';
+    return o.stage === 'ready-pick' || o.stage === 'ship-out' || o.stage === 'cancelled';
   });
 
   var html = '';
@@ -216,7 +222,7 @@ function prodOrderCardHTML(o, showDeliverBtn) {
     html += '<div class="prod-contacted-badge">✓ Contacted ' + fmtDate(o.contactedAt) + '</div>';
   }
   if (deliveredLine) html += deliveredLine;
-  if (showDeliverBtn) {
+  if (showDeliverBtn && o.stage !== 'cancelled') {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
   }
   html += '</div>';
