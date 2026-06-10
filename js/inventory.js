@@ -25,9 +25,9 @@ const INV_RING_INCLUDE = {
 
 // Square category IDs → pendant sub-tabs
 const INV_PENDANT_CAT_IDS = {
-  'spirit':    ['UFN5Q4ZAXVYD5WREFIYDPCWR'],
-  'geometric': ['6TDNOUPQHLK6QONBHM4VGKWJ'],
-  'symbolic':  ['H5AOPJIVMPBEJXPSJ22GHFYZ'],
+  'p-spirit':    ['UFN5Q4ZAXVYD5WREFIYDPCWR'],
+  'p-geometric': ['6TDNOUPQHLK6QONBHM4VGKWJ'],
+  'p-symbolic':  ['H5AOPJIVMPBEJXPSJ22GHFYZ'],
 };
 
 // Square category IDs → earring sub-tabs
@@ -57,7 +57,7 @@ let _invCurSub     = 'ear-cuffs';
 let _invRingCurSub = 'stackable';
 let _invRingLoaded    = false;
 
-let _invPendantCurSub = 'spirit';
+let _invPendantCurSub = 'p-spirit';
 let _invPendantLoaded = false;
 
 // ── Square API helper (routes through /api/square proxy to avoid CORS) ──────

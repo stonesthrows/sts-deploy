@@ -206,11 +206,9 @@ function _navRestore() {
       }
     } else if (invMain === 'pendants') {
       if (!window._invPendantLoaded) invLoadPendants();
-      const pendSub = _navGet('inv-pendant-sub');
-      if (pendSub) {
-        const pendEl = document.querySelector('.inv-pendant-sub-btn[id="inv-pendant-subtab-' + pendSub + '"]');
-        invSwitchPendantSub(pendSub, pendEl);
-      }
+      const pendSub = _navGet('inv-pendant-sub') || 'p-spirit';
+      const pendEl = document.querySelector('.inv-pendant-sub-btn[id="inv-pendant-subtab-' + pendSub + '"]');
+      invSwitchPendantSub(pendSub, pendEl);
     }
   } else if (parent === 'tools') {
     const toolsSub = _navGet('tools-sub') || 'notes';
