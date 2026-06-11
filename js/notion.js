@@ -252,6 +252,7 @@ async function notionStartupSync() {
     ORDERS.forEach(o => {
       localFields[o.id] = {};
       if (o.photo)       localFields[o.id].photo       = o.photo;
+      if (o.pickup)      localFields[o.id].pickup      = o.pickup;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
       if (o.cancelledAt) localFields[o.id].cancelledAt = o.cancelledAt;
@@ -275,6 +276,7 @@ async function notionStartupSync() {
       // Restore local-only fields that Notion doesn't store
       const lf = localFields[no.id] || {};
       if (!no.photo       && lf.photo)       no.photo       = lf.photo;
+      if (!no.pickup      && lf.pickup)      no.pickup      = lf.pickup;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;
       if (!no.cancelledAt && lf.cancelledAt) no.cancelledAt = lf.cancelledAt;

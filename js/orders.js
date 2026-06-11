@@ -678,8 +678,9 @@ function dropWithPickup(ev, stageId, location) {
       order.contactedAt = new Date().toISOString().slice(0, 10);
     }
     renderKanban();
-    // Sync stage to Notion immediately (fire-and-forget)
-    if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
+    // Sync full order so pickup location is persisted in Notion
+    if (typeof notionUpdateOrder === 'function') notionUpdateOrder(order);
+    else if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
     saveToStorage();
   }
   draggedId = null;

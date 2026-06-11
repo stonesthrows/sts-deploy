@@ -72,10 +72,9 @@ function notionHdrs(token) {
 
 // ── App order → Notion property payload ──────────────────────
 function orderToProps(o) {
-  const props = {
-    'Customer Name': { title: [{ text: { content: (o.name || '').slice(0, 2000) } }] },
-    'App ID':        { rich_text: [{ text: { content: o.id || '' } }] },
-  };
+  const props = {};
+  if (o.name != null) props['Customer Name'] = { title: [{ text: { content: (o.name || '').slice(0, 2000) } }] };
+  if (o.id   != null) props['App ID']        = { rich_text: [{ text: { content: o.id || '' } }] };
 
   if (o.stage != null) {
     const stageName = STAGE_TO_NOTION[o.stage] || o.stage;

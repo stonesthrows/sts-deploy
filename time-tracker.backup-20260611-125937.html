@@ -719,27 +719,17 @@ async function stopTimer(tid) {
   const totalWall = Date.now() - T[tid].startTime;
   $t(tid,'stop-btn').disabled = true; $t(tid,'timer-status').textContent = 'Reconciling…';
   let clockedOutMs = 0;
-  let shifts = [];
   if (CFG.sqToken && T[tid].selectedEmployee) {
     try {
-      const pStart = T[tid].startTime;
-      const pStop  = new Date(stopTime).getTime();
-      const data = await sq('/labor/shifts/search', { method: 'POST', body: JSON.stringify({
-        query: { filter: { team_member_ids: [T[tid].selectedEmployee.id], location_ids: [CFG.sqLocation] } }, limit: 100
-      })});
-      shifts = (data.shifts || []).filter(sh => {
-        const cin  = new Date(sh.start_at).getTime();
-        const cout = sh.end_at ? new Date(sh.end_at).getTime() : pStop;
-        return cin < pStop && cout > pStart;
-      });
+      const data = await sq(`/labor/shifts?team_member_id=${T[tid].selectedEmployee.id}&start_at_min=${startTime}&start_at_max=${stopTime}`);
+      const shifts = data.shifts || [];
       if (shifts.length) {
-        let workedMs = 0;
-        shifts.forEach(sh => { const cin = Math.max(new Date(sh.start_at).getTime(), pStart); const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), pStop) : pStop; if (cout > cin) workedMs += (cout-cin); });
+        let workedMs = 0; const stopMs = new Date(stopTime).getTime();
+        shifts.forEach(sh => { const cin = Math.max(new Date(sh.start_at).getTime(), T[tid].startTime); const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), stopMs) : stopMs; if (cout > cin) workedMs += (cout-cin); });
         clockedOutMs = Math.max(0, totalWall - workedMs);
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
   }
-  clockedOutMs += 15 * 60000; // 15-min buffer for breaks
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const shiftLog = _formatShiftLog(shifts, T[tid].startTime, new Date(stopTime).getTime());
   const notes = $t(tid,'notes-input').value.trim();
@@ -749,17 +739,7 @@ async function stopTimer(tid) {
     return { ...item, pieces: inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null };
   });
   $t(tid,'timer-status').textContent = 'Done';
-  const pStartMs = T[tid].startTime;
-  const pStopMs  = new Date(stopTime).getTime();
-  const shiftEvents = [{ time: pStartMs, type: 'start' }];
-  shifts.sort((a,b) => new Date(a.start_at)-new Date(b.start_at)).forEach(sh => {
-    const cin  = new Date(sh.start_at).getTime();
-    const cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
-    if (cin  > pStartMs && cin  < pStopMs) shiftEvents.push({ time: cin,  type: 'in'  });
-    if (cout > pStartMs && cout < pStopMs) shiftEvents.push({ time: cout, type: 'out' });
-  });
-  shiftEvents.push({ time: pStopMs, type: 'stop' });
-  const session = { timerLabel:`Timer ${tid+1}`, tid, notionPageId: T[tid].notionPageId, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, shiftLog, shiftEvents, timestamp: stopTime, saved: false, error: null };
+  const session = { timerLabel:`Timer ${tid+1}`, tid, notionPageId: T[tid].notionPageId, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, shiftLog, timestamp: stopTime, saved: false, error: null };
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid+1} — ${fmt(netMs)} recorded`);
   finalizeNotionSession(session);
@@ -983,25 +963,23 @@ function renderLog() {
         </div>
         ${(()=>{
           const evts = s.shiftEvents||[]; if (!evts.length) return '';
-          const fTime = ms => new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
           const byDay = {};
           evts.forEach(e => {
             const day = new Date(e.time).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
             (byDay[day] = byDay[day]||[]).push(e);
           });
           const rows = Object.entries(byDay).map(([day,es]) =>
-            `<div style="margin-bottom:8px;">
-              <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${day}</div>
+            `<div style="margin-bottom:6px;">
+              <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:2px;">${day}</div>
               ${es.map(e => {
-                const t = fTime(e.time);
-                if (e.type==='start') return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-bottom:1px solid var(--bdr-light);margin-bottom:2px;"><span style="color:var(--accent);">▶</span><span style="color:var(--accent);font-weight:600;font-size:11px;">Timer Start</span><span style="color:var(--text3);font-size:11px;margin-left:auto;">${t}</span></div>`;
-                if (e.type==='stop')  return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-top:1px solid var(--bdr-light);margin-top:2px;"><span style="color:var(--text2);">⏹</span><span style="color:var(--text2);font-weight:600;font-size:11px;">Timer Stop</span><span style="color:var(--text3);font-size:11px;margin-left:auto;">${t}</span></div>`;
-                if (e.type==='in')    return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 14px;"><span style="color:var(--green);">▶</span><span style="color:var(--green);font-size:11px;">Clock In</span><span style="color:var(--text3);font-size:11px;margin-left:auto;">${t}</span></div>`;
-                                      return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 14px;"><span style="color:var(--text-dim);">⏸</span><span style="color:var(--text-dim);font-size:11px;">Clock Out</span><span style="color:var(--text3);font-size:11px;margin-left:auto;">${t}</span></div>`;
+                const t = new Date(e.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+                return e.type==='in'
+                  ? `<div style="color:var(--green);padding-left:10px;">▶ In &nbsp;&nbsp;${t}</div>`
+                  : `<div style="color:var(--text-dim);padding-left:10px;">⏸ Out ${t}</div>`;
               }).join('')}
             </div>`
           ).join('');
-          return `<div style="margin-top:10px;border-top:1px solid var(--bdr-light);padding-top:8px;">
+          return `<div style="margin-top:10px;border-top:1px solid var(--bdr-light);padding-top:8px;font-size:11px;line-height:1.8;">
             <div style="font-size:9px;font-weight:700;letter-spacing:0.15em;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">Clock Activity</div>
             ${rows}
           </div>`;
@@ -1038,61 +1016,27 @@ async function syncShiftsForSession(i) {
       const cout = sh.end_at ? new Date(sh.end_at).getTime() : pStop;
       return cin < pStop && cout > pStart; // overlaps with session window
     });
+    if (!shifts.length) { showToast('No Square shifts found for this session'); if (btn) { btn.disabled = false; btn.textContent = '⟳ shifts'; } return; }
     const pStartMs = new Date(s.startTime).getTime();
     const pStopMs  = new Date(s.stopTime).getTime();
-    const fTime = ms => new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const fDay  = ms => new Date(ms).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-
-    // Build full timeline: timer start → Square clock events → timer stop
-    const timeline = [{ time: pStartMs, type: 'start' }];
+    const shiftLog = _formatShiftLog(shifts, pStartMs, pStopMs);
+    s.shiftLog = shiftLog;
+    // Build shiftEvents for inline display
+    s.shiftEvents = [];
     shifts.sort((a,b) => new Date(a.start_at) - new Date(b.start_at)).forEach(sh => {
       const cin  = new Date(sh.start_at).getTime();
       const cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
-      if (cin > pStartMs && cin < pStopMs) timeline.push({ time: cin,  type: 'in'  });
-      if (cout > pStartMs && cout < pStopMs) timeline.push({ time: cout, type: 'out' });
+      s.shiftEvents.push({ time: cin,  type: 'in'  });
+      s.shiftEvents.push({ time: cout, type: 'out' });
     });
-    timeline.push({ time: pStopMs, type: 'stop' });
-    s.shiftEvents = timeline;
-
-    // Build Notion notes text grouped by day
-    const byDay = {};
-    timeline.forEach(e => { const d = fDay(e.time); (byDay[d]=byDay[d]||[]).push(e); });
-    const notionBlock = '— Session Timeline —\n' + Object.entries(byDay).map(([day, es]) =>
-      day + '\n' + es.map(e => {
-        const label = e.type==='start' ? '▶ Timer Start' : e.type==='stop' ? '⏹ Timer Stop' : e.type==='in' ? '  ▶ Clock In' : '  ⏸ Clock Out';
-        return `  ${label}: ${fTime(e.time)}`;
-      }).join('\n')
-    ).join('\n');
-    s.shiftLog = notionBlock;
-
-    // Recalculate timing from actual shifts
-    const totalMs = pStopMs - pStartMs;
-    let workedMs = 0;
-    shifts.forEach(sh => {
-      const cin  = Math.max(new Date(sh.start_at).getTime(), pStartMs);
-      const cout = Math.min(sh.end_at ? new Date(sh.end_at).getTime() : pStopMs, pStopMs);
-      if (cout > cin) workedMs += (cout - cin);
-    });
-    const clockedOutMs = Math.max(0, totalMs - workedMs) + 15 * 60000; // add 15-min break buffer
-    const netMs = Math.max(0, totalMs - clockedOutMs);
-    s.totalMs = totalMs; s.clockedOutMs = clockedOutMs; s.netMs = netMs;
-
     renderLog();
-    if (!shifts.length) showToast('No Square shifts found — showing timer start/stop only');
     const pageId = s.notionPageId || (s.notionPageIds||[])[0];
     if (pageId) {
-      const notes = [s.notes, notionBlock].filter(Boolean).join('\n\n');
-      const totalPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
-      await patchNotion(pageId, {
-        notes,
-        totalMin: parseFloat((totalMs/60000).toFixed(2)),
-        dedMin:   parseFloat((clockedOutMs/60000).toFixed(2)),
-        netMin:   parseFloat((netMs/60000).toFixed(2)),
-        ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
-      });
-      showToast('Timeline & times synced to Notion ✓');
+      const notes = [s.notes, shiftLog].filter(Boolean).join('\n\n');
+      await patchNotion(pageId, { notes });
+      showToast('Shift log synced to Notion ✓');
     } else {
-      showToast('Timeline saved locally (no Notion page linked)');
+      showToast('Shift log saved locally (no Notion page linked)');
     }
   } catch(e) { showToast('Shift sync failed: ' + e.message, true); }
   if (btn) { btn.disabled = false; btn.textContent = '⟳ shifts'; }
