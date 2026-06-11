@@ -1004,10 +1004,14 @@ function eoSubmitInvoice() {
   })
   .then(d4 => {
     if (d4.invoice) {
-      const url      = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      const inv      = d4.invoice;
+      const url      = 'https://squareup.com/dashboard/invoices/' + inv.id;
       const typeWord = invType === 'ESTIMATE' ? 'estimate' : 'invoice';
       compose.innerHTML = '<div class="gt-inv-success" style="padding:10px 0;">✓ Draft ' + typeWord + ' created — ' +
-        '<a href="' + url + '" target="_blank" class="gt-inv-link">Review &amp; Send in Square →</a></div>';
+        '<a href="' + url + '" target="_blank" class="gt-inv-link">Review in Square →</a>' +
+        ' <button class="btn btn-gold btn-sm" id="eo-inv-send-btn" style="margin-left:8px;" onclick="this.disabled=true;_gtSqPublishInvoice(\'' + inv.id + '\',' + inv.version + ',document.getElementById(\'eo-inv-send-status\'))">▶ Send Now</button>' +
+        ' <span id="eo-inv-send-status" style="font-size:12px;margin-left:6px;"></span>' +
+        '</div>';
     } else {
       throw new Error(((d4.errors || [])[0] || {}).detail || 'Invoice creation failed');
     }

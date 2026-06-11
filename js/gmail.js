@@ -816,6 +816,22 @@ function loadCachedThreads() {
 
 // ── Square Invoice ────────────────────────────
 
+function _gtSqPublishInvoice(invoiceId, version, statusEl) {
+  if (statusEl) statusEl.textContent = 'Sending…';
+  _gtSqCall('/v2/invoices/' + invoiceId + '/publish', 'POST', { version: version })
+    .then(function(d) {
+      if (d.invoice) {
+        if (statusEl) statusEl.innerHTML = '✓ Sent to customer!';
+      } else {
+        var msg = ((d.errors || [])[0] || {}).detail || 'Publish failed';
+        if (statusEl) statusEl.textContent = '⚠ ' + msg;
+      }
+    })
+    .catch(function(e) {
+      if (statusEl) statusEl.textContent = '⚠ ' + (e.message || 'Publish failed');
+    });
+}
+
 function _gtSqCall(path, method, body) {
   var token = localStorage.getItem('sts-square-token');
   if (!token) return Promise.reject(new Error('No Square token — add it in ⚙ Integrations'));
@@ -964,11 +980,14 @@ function gtSubmitInvoice(btn) {
     btn.textContent = 'Create Draft';
     btn.disabled    = false;
     if (d4.invoice) {
-      var url      = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      var inv      = d4.invoice;
+      var url      = 'https://squareup.com/dashboard/invoices/' + inv.id;
       var typeWord = invType === 'ESTIMATE' ? 'estimate' : 'invoice';
       compose.innerHTML =
         '<div class="gt-inv-success">✓ Draft ' + typeWord + ' created — ' +
-        '<a href="' + url + '" target="_blank" class="gt-inv-link" onclick="event.stopPropagation()">Review &amp; Send in Square →</a>' +
+        '<a href="' + url + '" target="_blank" class="gt-inv-link" onclick="event.stopPropagation()">Review in Square →</a>' +
+        ' <button class="btn btn-gold btn-sm" id="gt-inv-send-btn" style="margin-left:8px;" onclick="event.stopPropagation();this.disabled=true;_gtSqPublishInvoice(\'' + inv.id + '\',' + inv.version + ',document.getElementById(\'gt-inv-send-status\'))">▶ Send Now</button>' +
+        ' <span id="gt-inv-send-status" style="font-size:12px;margin-left:6px;"></span>' +
         '</div>';
     } else {
       throw new Error(((d4.errors || [])[0] || {}).detail || 'Invoice creation failed');
