@@ -247,22 +247,27 @@ function renderCustomers() {
   }
 
   body.innerHTML = filteredCust.map((c, i) => {
+    const idx    = CUSTOMERS.indexOf(c);
     const active = ORDERS.filter(o => o.name === c.name && !['complete','delivered'].includes(o.stage)).length;
     return `
-      <div class="ct-row" onclick="openCustomerDrawer(${CUSTOMERS.indexOf(c)})">
-        <div class="c-avatar-wrap">
-          <div class="c-avatar">${initials(c.name)}</div>
-          <div>
-            <div class="c-name">${c.name}</div>
-            <div class="c-email">${c.email}</div>
+      <div class="ct-row-wrap" id="ct-wrap-${idx}">
+        <div class="ct-row" onclick="toggleCustomerRow(${idx})">
+          <div class="c-avatar-wrap">
+            <div class="c-avatar">${initials(c.name)}</div>
+            <div>
+              <div class="c-name">${c.name}</div>
+              <div class="c-email">${c.email}</div>
+            </div>
           </div>
+          <div class="c-td">
+            ${active > 0 ? `<span class="active-chip">${active} active</span>` : '<span class="c-muted">—</span>'}
+          </div>
+          <div class="c-td c-muted">${fmtDate(c.lastContact)}</div>
+          <div class="c-td">${c.totalOrders}</div>
+          <div class="c-td c-muted">$${c.totalValue.toLocaleString()}</div>
+          <div class="c-td ct-chevron">›</div>
         </div>
-        <div class="c-td">
-          ${active > 0 ? `<span class="active-chip">${active} active</span>` : '<span class="c-muted">—</span>'}
-        </div>
-        <div class="c-td c-muted">${fmtDate(c.lastContact)}</div>
-        <div class="c-td">${c.totalOrders}</div>
-        <div class="c-td c-muted">$${c.totalValue.toLocaleString()}</div>
+        <div class="ct-expand" id="ct-expand-${idx}"></div>
       </div>`;
   }).join('');
 }
@@ -390,6 +395,111 @@ function drawerSearchCustomer(q) {
 function closeDrawerDropdown() {
   const d = document.getElementById('drawerDropdown');
   if (d) { d.innerHTML = ''; d.classList.remove('open'); }
+}
+
+function toggleCustomerRow(idx) {
+  const wrap   = document.getElementById('ct-wrap-' + idx);
+  const expand = document.getElementById('ct-expand-' + idx);
+  if (!wrap || !expand) return;
+
+  const isOpen = wrap.classList.toggle('ct-open');
+  if (!isOpen) return;
+
+  if (expand.dataset.loaded) return;
+  expand.dataset.loaded = '1';
+
+  const c = CUSTOMERS[idx];
+  if (!c) return;
+
+  const safeName  = c.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const safeEmail = (c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+  const phoneHtml = c.phone
+    ? `<a class="ct-exp-contact-item" href="tel:${c.phone}">📞 ${c.phone}</a>`
+    : '';
+  const emailHtml = c.email
+    ? `<a class="ct-exp-contact-item" href="mailto:${c.email}">✉ ${c.email}</a>`
+    : '';
+
+  expand.innerHTML = `
+    <div class="ct-exp-contact">${phoneHtml}${emailHtml}</div>
+    <div class="ct-exp-actions">
+      <button class="btn btn-gold btn-sm"    onclick="prefillFromCustomer('${safeName}','${safeEmail}','order');event.stopPropagation()">＋ New Order</button>
+      <button class="btn btn-outline btn-sm" onclick="prefillFromCustomer('${safeName}','${safeEmail}','repair');event.stopPropagation()">🔧 New Repair</button>
+      <button class="btn btn-outline btn-sm" onclick="openCustomerDrawer(${idx});event.stopPropagation()">📋 Full Profile</button>
+    </div>
+    <div class="ct-exp-gmail">
+      <div class="ct-exp-gmail-title">Gmail Correspondence</div>
+      <div id="ct-gmail-${idx}"><div class="ct-exp-gmail-msg">⏳ Loading…</div></div>
+    </div>`;
+
+  loadCustomerGmail(c.email, idx);
+}
+
+function loadCustomerGmail(email, idx) {
+  const container = document.getElementById('ct-gmail-' + idx);
+  if (!container) return;
+
+  if (!email) {
+    container.innerHTML = '<div class="ct-exp-gmail-msg">No email address on file.</div>';
+    return;
+  }
+
+  if (typeof _gmailTokenValid !== 'function' || !_gmailTokenValid()) {
+    container.innerHTML = '<div class="ct-exp-gmail-msg"><button class="btn btn-outline btn-sm" onclick="gmailSignIn(true)">🔑 Connect Gmail to see correspondence</button></div>';
+    return;
+  }
+
+  const hdrs  = { 'Authorization': 'Bearer ' + _gmailAccessToken };
+  const query = encodeURIComponent('from:' + email + ' OR to:' + email);
+
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=8', { headers: hdrs })
+    .then(r => r.json())
+    .then(listData => {
+      const ids = (listData.threads || []).map(t => t.id);
+      if (!ids.length) {
+        container.innerHTML = '<div class="ct-exp-gmail-msg">No Gmail correspondence found.</div>';
+        return null;
+      }
+      return Promise.all(ids.map(id =>
+        fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
+          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date',
+          { headers: hdrs }
+        ).then(r => r.ok ? r.json() : null)
+      ));
+    })
+    .then(details => {
+      if (!details) return;
+      const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const html = details.filter(Boolean).map(thread => {
+        const msgs = thread.messages || [];
+        const last = msgs[msgs.length - 1];
+        if (!last) return '';
+        const h = {};
+        ((last.payload && last.payload.headers) || []).forEach(hdr => h[hdr.name.toLowerCase()] = hdr.value);
+        const subject  = h['subject'] || '(no subject)';
+        const rawFrom  = h['from'] || '';
+        const fromName = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g,'').trim();
+        const dateObj  = h['date'] ? new Date(h['date']) : new Date();
+        const age      = typeof _formatAge === 'function' ? _formatAge(dateObj) : dateObj.toLocaleDateString();
+        const snippet  = (last.snippet||'').replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+        const isUnread = (last.labelIds||[]).includes('UNREAD');
+        const gmailUrl = 'https://mail.google.com/mail/u/0/#inbox/' + thread.id;
+        return `<a class="ct-gmail-thread" href="${esc(gmailUrl)}" target="_blank" onclick="event.stopPropagation()">
+          <div class="ct-gmail-row1">
+            ${isUnread ? '<span class="ct-gmail-unread-dot"></span>' : ''}
+            <span class="ct-gmail-from">${esc(fromName || email)}</span>
+            <span class="ct-gmail-date">${esc(age)}</span>
+          </div>
+          <div class="ct-gmail-subject">${esc(subject)}</div>
+          <div class="ct-gmail-snippet">${esc(snippet)}</div>
+        </a>`;
+      }).join('');
+      container.innerHTML = html || '<div class="ct-exp-gmail-msg">No correspondence found.</div>';
+    })
+    .catch(() => {
+      container.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
+    });
 }
 
 // Pre-fill New Order form with a past customer's info

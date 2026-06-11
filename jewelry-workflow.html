@@ -723,15 +723,83 @@
     .ct-th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
     .ct-row {
       display: grid;
-      grid-template-columns: 1.6fr 120px 130px 100px 90px;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px 28px;
       padding: 13px 20px;
-      border-bottom: 1px solid #F2EDE6;
       align-items: center;
       cursor: pointer;
       transition: background 0.1s;
     }
     .ct-row:hover { background: #FBF8F3; }
-    .ct-row:last-child { border-bottom: none; }
+    .ct-row-wrap { border-bottom: 1px solid #F2EDE6; }
+    .ct-row-wrap:last-child { border-bottom: none; }
+
+    /* ── Expand chevron ──────────────────────── */
+    .ct-chevron {
+      font-size: 16px; color: var(--text3);
+      transition: transform 0.2s; text-align: right;
+      line-height: 1; user-select: none;
+    }
+    .ct-open .ct-chevron { transform: rotate(90deg); }
+
+    /* ── Inline expand panel ─────────────────── */
+    .ct-expand {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+      background: #FDFAF6;
+    }
+    .ct-open .ct-expand {
+      max-height: 1200px;
+      border-top: 1px solid #F0EDE8;
+    }
+    .ct-exp-contact {
+      display: flex; gap: 18px; flex-wrap: wrap;
+      padding: 12px 20px 0;
+    }
+    .ct-exp-contact-item {
+      font-size: 13px; color: var(--accent);
+      text-decoration: none; font-weight: 600;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .ct-exp-contact-item:hover { text-decoration: underline; }
+    .ct-exp-actions {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      padding: 10px 20px;
+    }
+    .ct-exp-gmail {
+      padding: 0 20px 16px;
+      border-top: 1px solid #F0EDE8;
+      margin-top: 4px;
+    }
+    .ct-exp-gmail-title {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text2);
+      padding: 10px 0 8px;
+    }
+    .ct-gmail-thread {
+      display: block;
+      padding: 9px 12px;
+      border-radius: 7px;
+      border: 1px solid #EDE8E2;
+      margin-bottom: 6px;
+      text-decoration: none;
+      background: #fff;
+      transition: background 0.1s;
+    }
+    .ct-gmail-thread:hover { background: #FBF8F3; border-color: #D9CFC4; }
+    .ct-gmail-row1 { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .ct-gmail-unread-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent); flex-shrink: 0;
+    }
+    .ct-gmail-from { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; }
+    .ct-gmail-date { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+    .ct-gmail-subject { font-size: 12.5px; color: var(--text); margin-bottom: 2px; font-weight: 600; }
+    .ct-gmail-snippet {
+      font-size: 11.5px; color: var(--text2);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ct-exp-gmail-msg { font-size: 13px; color: var(--text2); padding: 6px 0; }
     .c-avatar-wrap { display: flex; align-items: center; gap: 11px; }
     .c-avatar {
       width: 34px; height: 34px; border-radius: 50%;
@@ -2513,7 +2581,7 @@
     /* Customer table: scrollable */
     .cust-table { overflow-x: auto; }
     .ct-head,
-    .ct-row { min-width: 520px; }
+    .ct-row { min-width: 540px; }
 
     /* Customer bar: stack search + button */
     .cust-bar { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -3002,6 +3070,7 @@
       <div class="ct-th">Last Contact</div>
       <div class="ct-th">Total Orders</div>
       <div class="ct-th">Value</div>
+      <div class="ct-th"></div>
     </div>
     <div id="custTableBody"></div>
   </div>
