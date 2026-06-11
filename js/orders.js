@@ -143,7 +143,7 @@ function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
   const hasPhoto = !!o.photo;
   return `
-    <div class="o-card"
+    <div class="o-card${o.stage === 'contact-need' ? ' contact-pulse' : ''}"
          id="card-${o.id}"
          draggable="true"
          ondragstart="dragStart(event,'${o.id}')"

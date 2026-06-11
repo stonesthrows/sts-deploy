@@ -1281,6 +1281,19 @@
       pointer-events: none;
       overflow: hidden;
     }
+    /* ── Contact Customer pulse ──────────────── */
+    .o-card.contact-pulse {
+      animation: contactPulse 2s ease-in-out infinite;
+    }
+    .o-card.contact-pulse:hover {
+      animation: none;
+    }
+    @keyframes contactPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(212, 160, 32, 0); border-left-color: #D4A020; }
+      40%  { box-shadow: 0 0 0 5px rgba(212, 160, 32, 0.35); border-left-color: #E8B830; }
+      70%  { box-shadow: 0 0 0 8px rgba(212, 160, 32, 0.12); }
+      100% { box-shadow: 0 0 0 0 rgba(212, 160, 32, 0); border-left-color: #D4A020; }
+    }
     .completed-toggle {
       display: none;
       align-items: center;
