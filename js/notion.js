@@ -254,6 +254,8 @@ async function notionStartupSync() {
       if (o.photo)       localFields[o.id].photo       = o.photo;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
+      if (o.cancelledAt) localFields[o.id].cancelledAt = o.cancelledAt;
+      if (o.pdfUrl)      localFields[o.id].pdfUrl      = o.pdfUrl;
     });
 
     // Keep any locally-created orders (id starts with 'u') not yet in Notion
@@ -275,6 +277,8 @@ async function notionStartupSync() {
       if (!no.photo       && lf.photo)       no.photo       = lf.photo;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;
+      if (!no.cancelledAt && lf.cancelledAt) no.cancelledAt = lf.cancelledAt;
+      if (!no.pdfUrl      && lf.pdfUrl)      no.pdfUrl      = lf.pdfUrl;
       if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
       ORDERS.push(no);
     }

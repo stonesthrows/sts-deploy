@@ -76,8 +76,9 @@ function prodDrop(ev, colKey) {
     o.stage  = 'ready-pick';
     o.pickup = null;
   } else if (colKey === '__cancelled__') {
-    o.stage  = 'cancelled';
-    o.pickup = null;
+    o.stage       = 'cancelled';
+    o.pickup      = null;
+    o.cancelledAt = o.cancelledAt || new Date().toISOString().slice(0, 10);
     delete o.deliveredAt;
   } else {
     o.stage  = 'ready-pick';
@@ -138,60 +139,123 @@ function renderProduction() {
     html += '<div class="prod-empty" style="margin-top:-8px">No orders ready — drag one up from the archive to reactivate.</div>';
   }
 
-  // ── Month archive ─────────────────────────────────────────────
-  var doneOrders = ORDERS.filter(function(o) {
-    return o.stage === 'delivered' || o.stage === 'complete';
+  // ── Year / Month / Type archive ───────────────────────────────
+  var archiveOrders = ORDERS.filter(function(o) {
+    return o.stage === 'delivered' || o.stage === 'complete' || o.stage === 'cancelled';
   });
 
-  if (doneOrders.length) {
-    var byMonth = {};
-    doneOrders.forEach(function(o) {
-      var dateStr = o.deliveredAt || o.completedAt || o.deadline || '';
-      var monthKey = dateStr ? dateStr.slice(0, 7) : 'unknown';
-      if (!byMonth[monthKey]) byMonth[monthKey] = [];
-      byMonth[monthKey].push(o);
+  html += '<div class="prod-archive">';
+  html += '<div class="prod-archive-title">📁 Order Archive</div>';
+
+  var ARCHIVE_YEARS = [2026, 2025, 2024];
+
+  ARCHIVE_YEARS.forEach(function(year) {
+    var yearStr = String(year);
+    var yearKey = 'year-' + yearStr;
+    var yearOpen = !!prodOpenMonths[yearKey];
+
+    // Bucket orders into months for this year
+    var monthBuckets = {};
+    archiveOrders.forEach(function(o) {
+      var dateStr = o.stage === 'cancelled'
+        ? (o.cancelledAt || o.deliveredAt || o.completedAt || '')
+        : (o.deliveredAt || o.completedAt || '');
+      if (!dateStr || !dateStr.startsWith(yearStr)) return;
+      var mk = dateStr.slice(0, 7);
+      if (!monthBuckets[mk]) monthBuckets[mk] = { completed: [], cancelled: [] };
+      if (o.stage === 'cancelled') monthBuckets[mk].cancelled.push(o);
+      else monthBuckets[mk].completed.push(o);
     });
 
-    var monthKeys = Object.keys(byMonth).sort().reverse();
+    var yearTotal = archiveOrders.filter(function(o) {
+      var d = o.stage === 'cancelled'
+        ? (o.cancelledAt || o.deliveredAt || o.completedAt || '')
+        : (o.deliveredAt || o.completedAt || '');
+      return d.startsWith(yearStr);
+    }).length;
 
-    html += '<div class="prod-archive">';
-    html += '<div class="prod-archive-title">📁 Delivered Orders</div>';
+    html += '<div class="prod-year-folder" id="prod-year-' + yearStr + '">';
+    html += '<div class="prod-year-head" onclick="prodToggleMonth(\'' + yearKey + '\')">'
+          + '<span class="prod-folder-icon">' + (yearOpen ? '📂' : '📁') + '</span>'
+          + '<span class="prod-year-label">' + yearStr + '</span>'
+          + '<span class="prod-folder-meta">' + yearTotal + ' order' + (yearTotal !== 1 ? 's' : '') + '</span>'
+          + '<span class="prod-folder-chevron">' + (yearOpen ? '▴' : '▾') + '</span>'
+          + '</div>';
 
-    monthKeys.forEach(function(key) {
-      var orders = byMonth[key].slice().sort(function(a, b) {
-        var da = a.deliveredAt || a.completedAt || a.deadline || '';
-        var db = b.deliveredAt || b.completedAt || b.deadline || '';
-        return db.localeCompare(da);
+    if (yearOpen) {
+      html += '<div class="prod-year-body">';
+
+      var monthKeys = Object.keys(monthBuckets).sort().reverse();
+      monthKeys.forEach(function(mk) {
+        var bucket   = monthBuckets[mk];
+        var mTotal   = bucket.completed.length + bucket.cancelled.length;
+        var mOpen    = !!prodOpenMonths[mk];
+        var mLabel   = prodMonthLabel(mk);
+
+        html += '<div class="prod-month-folder" id="prod-folder-' + mk + '">';
+        html += '<div class="prod-month-head" onclick="prodToggleMonth(\'' + mk + '\')">'
+              + '<span class="prod-folder-icon">' + (mOpen ? '📂' : '📁') + '</span>'
+              + '<span class="prod-folder-label">' + mLabel + '</span>'
+              + '<span class="prod-folder-meta">' + mTotal + ' order' + (mTotal !== 1 ? 's' : '') + '</span>'
+              + '<span class="prod-folder-chevron">' + (mOpen ? '▴' : '▾') + '</span>'
+              + '</div>';
+
+        if (mOpen) {
+          html += '<div class="prod-month-body">';
+
+          // ── Completed sub-folder ──
+          if (bucket.completed.length) {
+            var ck   = mk + '-completed';
+            var cOpen = !!prodOpenMonths[ck];
+            var cVal  = bucket.completed.reduce(function(s, o){ return s + (o.finalPrice || o.price || 0); }, 0);
+            html += '<div class="prod-subfolder">';
+            html += '<div class="prod-subfolder-head sf-completed" onclick="prodToggleMonth(\'' + ck + '\')">'
+                  + '<span>' + (cOpen ? '📂' : '📁') + '</span>'
+                  + '<span class="prod-subfolder-label">✓ Completed Orders</span>'
+                  + '<span class="prod-folder-meta">' + bucket.completed.length
+                  + (cVal ? ' · $' + cVal.toLocaleString() : '') + '</span>'
+                  + '<span class="prod-folder-chevron">' + (cOpen ? '▴' : '▾') + '</span>'
+                  + '</div>';
+            if (cOpen) {
+              html += '<div class="prod-subfolder-body">';
+              bucket.completed.forEach(function(o) { html += prodOrderCardHTML(o, false); });
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+
+          // ── Cancelled sub-folder ──
+          if (bucket.cancelled.length) {
+            var xk   = mk + '-cancelled';
+            var xOpen = !!prodOpenMonths[xk];
+            html += '<div class="prod-subfolder">';
+            html += '<div class="prod-subfolder-head sf-cancelled" onclick="prodToggleMonth(\'' + xk + '\')">'
+                  + '<span>' + (xOpen ? '📂' : '📁') + '</span>'
+                  + '<span class="prod-subfolder-label">🚫 Cancelled Orders</span>'
+                  + '<span class="prod-folder-meta">' + bucket.cancelled.length + '</span>'
+                  + '<span class="prod-folder-chevron">' + (xOpen ? '▴' : '▾') + '</span>'
+                  + '</div>';
+            if (xOpen) {
+              html += '<div class="prod-subfolder-body">';
+              bucket.cancelled.forEach(function(o) { html += prodOrderCardHTML(o, false); });
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+
+          html += '</div>'; // prod-month-body
+        }
+        html += '</div>'; // prod-month-folder
       });
-      var label  = key === 'unknown' ? 'Unknown Date' : prodMonthLabel(key);
-      var isOpen = !!prodOpenMonths[key];
-      var total  = orders.length;
-      var value  = orders.reduce(function(s, o){ return s + (o.finalPrice || o.price || 0); }, 0);
 
-      html += '<div class="prod-folder" id="prod-folder-' + key + '">';
-      html += '<div class="prod-folder-head" onclick="prodToggleMonth(\'' + key + '\')">'
-            + '<span class="prod-folder-icon">' + (isOpen ? '📂' : '📁') + '</span>'
-            + '<span class="prod-folder-label">' + label + '</span>'
-            + '<span class="prod-folder-meta">' + total + ' order' + (total !== 1 ? 's' : '')
-            +   (value ? ' · $' + value.toLocaleString() : '') + '</span>'
-            + '<span class="prod-folder-chevron">' + (isOpen ? '▴' : '▾') + '</span>'
-            + '</div>';
+      html += '</div>'; // prod-year-body
+    }
+    html += '</div>'; // prod-year-folder
+  });
 
-      if (isOpen) {
-        html += '<div class="prod-folder-body">';
-        orders.forEach(function(o) {
-          html += prodOrderCardHTML(o, false);
-        });
-        html += '</div>';
-      }
+  html += '</div>'; // prod-archive
 
-      html += '</div>';
-    });
-
-    html += '</div>';
-  }
-
-  if (!readyOrders.length && !doneOrders.length) {
+  if (!readyOrders.length && !archiveOrders.length) {
     html = '<div class="prod-empty">No orders yet.</div>';
   }
 
@@ -222,6 +286,12 @@ function prodOrderCardHTML(o, showDeliverBtn) {
     html += '<div class="prod-contacted-badge">✓ Contacted ' + fmtDate(o.contactedAt) + '</div>';
   }
   if (deliveredLine) html += deliveredLine;
+  if (o.cancelledAt && o.stage === 'cancelled') {
+    html += '<div class="prod-delivered-on">Cancelled ' + fmtDate(o.cancelledAt) + '</div>';
+  }
+  if (o.pdfUrl) {
+    html += '<a class="prod-pdf-btn" href="' + o.pdfUrl + '" target="_blank" onclick="event.stopPropagation()">📄 View PDF</a>';
+  }
   if (showDeliverBtn && o.stage !== 'cancelled') {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
   }

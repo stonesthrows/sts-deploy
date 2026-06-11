@@ -1591,6 +1591,51 @@
       gap: 10px; padding: 12px; background: #fff; border-top: 1px solid #E4DDD4;
     }
 
+    /* ── Year folders ────────────────────────── */
+    .prod-year-folder { border: 1.5px solid #C8B89A; border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+    .prod-year-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 13px 16px; background: #EDE4D6; cursor: pointer;
+      user-select: none; transition: background 0.12s;
+    }
+    .prod-year-head:hover { background: #E0D4C0; }
+    .prod-year-label { font-size: 15px; font-weight: 800; color: var(--text); flex: 1; letter-spacing: .02em; }
+    .prod-year-body { padding: 10px 10px 4px; background: #FAF6F0; border-top: 1.5px solid #C8B89A; }
+
+    /* Month folders inside years */
+    .prod-month-folder { margin-bottom: 8px; border-radius: 8px; overflow: hidden; border: 1px solid #DDD4C4; }
+    .prod-month-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px; background: #F4EDE0; cursor: pointer;
+      user-select: none; transition: background 0.12s;
+    }
+    .prod-month-head:hover { background: #EBE0CE; }
+    .prod-month-body { padding: 8px 8px 4px; background: #fff; border-top: 1px solid #DDD4C4; }
+
+    /* Completed / Cancelled sub-folders */
+    .prod-subfolder { border: 1px solid #E4DDD4; border-radius: 7px; overflow: hidden; margin-bottom: 7px; }
+    .prod-subfolder-head {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 12px; cursor: pointer; user-select: none; transition: background 0.12s;
+    }
+    .prod-subfolder-head.sf-completed { background: #F0F7EE; }
+    .prod-subfolder-head.sf-completed:hover { background: #E2F0DE; }
+    .prod-subfolder-head.sf-cancelled  { background: #FBF0F0; }
+    .prod-subfolder-head.sf-cancelled:hover  { background: #F5E0E0; }
+    .prod-subfolder-label { font-size: 12px; font-weight: 700; flex: 1; }
+    .prod-subfolder-body {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 9px; padding: 10px; background: #fff; border-top: 1px solid #E4DDD4;
+    }
+
+    /* PDF button on archived cards */
+    .prod-pdf-btn {
+      display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600;
+      color: #457b9d; text-decoration: none; padding: 3px 8px;
+      border: 1px solid #457b9d; border-radius: 5px;
+    }
+    .prod-pdf-btn:hover { background: #457b9d; color: #fff; }
+
     /* ── Sales ───────────────────────────────── */
     .sales-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
     .sales-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }

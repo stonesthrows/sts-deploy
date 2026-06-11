@@ -272,7 +272,8 @@ function markOrderCancelled() {
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
   if (!confirm('Mark "' + o.name + '" as Cancelled?')) return;
-  o.stage = 'cancelled';
+  o.stage       = 'cancelled';
+  o.cancelledAt = new Date().toISOString().slice(0, 10);
   delete o.deliveredAt;
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'cancelled');

@@ -96,6 +96,8 @@ function orderToProps(o) {
   if (o.paidBy)       props['Paid By']         = { select: { name: o.paidBy } };
   if (o.contactedAt)  props['Contacted At']    = { date: { start: o.contactedAt.slice(0, 10) } };
   if (o.deliveredAt)  props['Delivered At']    = { date: { start: o.deliveredAt.slice(0, 10) } };
+  if (o.cancelledAt)  props['Cancelled At']    = { date: { start: o.cancelledAt.slice(0, 10) } };
+  if (o.pdfUrl)       props['PDF URL']         = { url: o.pdfUrl };
 
   return props;
 }
@@ -134,6 +136,8 @@ function pageToOrder(page) {
     paidBy:        sel(p['Paid By']) || '',
     contactedAt:   dt(p['Contacted At'])  || null,
     deliveredAt:   dt(p['Delivered At'])  || null,
+    cancelledAt:   dt(p['Cancelled At'])  || null,
+    pdfUrl:        p['PDF URL']?.url      || null,
   };
 }
 
