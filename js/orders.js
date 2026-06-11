@@ -91,9 +91,13 @@ function renderKanban() {
           </div>`;
       }).join('');
 
+      const needCount = ORDERS.filter(o => o.stage === 'contact-need').length;
+      const alertDot  = (group.cls === 's-contact-group' && needCount > 0)
+        ? `<span class="k-alert-dot">${needCount}</span>` : '';
+
       col.innerHTML = `
         <div class="k-head">
-          <span>${group.label}</span>
+          <span>${group.label}${alertDot}</span>
           <span class="k-count">${totalCount}</span>
         </div>
         ${subsHTML}`;
@@ -149,6 +153,7 @@ function cardHTML(o) {
          ondragstart="dragStart(event,'${o.id}')"
          ondragend="dragEnd(event)"
          onclick="openOrderCard('${o.id}')">
+      ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
         <div class="o-name">${o.name}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
