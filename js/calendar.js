@@ -235,7 +235,9 @@ async function calLoadEvents() {
     if (r.status === 401) { calClearTokens(); return; }
     const data = await r.json();
     if (!data || !data.items) return;
-    _calEvents = data.items;
+    _calEvents = data.items.filter(function (ev) {
+      return (ev.summary || '').trim().toLowerCase() !== 'home';
+    });
     calRender();
   } catch (err) {
     if (err.message !== 'no-token') console.error('Calendar load error', err);
