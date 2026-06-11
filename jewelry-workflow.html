@@ -4600,7 +4600,7 @@ function savePrintSetup() {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 4px;
 }
 .cal-hdr {
   text-align: center;
@@ -4612,7 +4612,7 @@ function savePrintSetup() {
   letter-spacing: 0.3px;
 }
 .cal-cell {
-  min-height: 72px;
+  aspect-ratio: 1 / 1;
   border-radius: 6px;
   padding: 4px 5px;
   cursor: pointer;
@@ -4620,6 +4620,7 @@ function savePrintSetup() {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  overflow: hidden;
 }
 .cal-cell:hover { background: var(--card-head-bg); }
 .cal-blank { cursor: default; }
