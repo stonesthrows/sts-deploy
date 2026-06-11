@@ -25,6 +25,29 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
+export async function onRequestPatch(context) {
+  var token = context.env.NOTION_TOKEN;
+  if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
+  var s = await context.request.json();
+  if (!s.pageId) return jsonResp({ error: 'pageId required' }, 400);
+  var props = {};
+  if (s.notes     != null) props['Notes']                      = { rich_text: [{ text: { content: (s.notes||'').slice(0,2000) } }] };
+  if (s.stopTime  != null) props['Stop Time']                  = { date: { start: s.stopTime } };
+  if (s.startTime != null) props['Start Time']                 = { date: { start: s.startTime } };
+  if (s.totalMin  != null) props['Duration (min)']             = { number: s.totalMin };
+  if (s.dedMin    != null) props['Clocked-Out Deducted (min)'] = { number: s.dedMin };
+  if (s.netMin    != null) props['Net Work Time (min)']        = { number: s.netMin };
+  if (s.pieces    != null) props['Pieces Made']                = { number: s.pieces };
+  var res = await fetch(NOTION_API + '/pages/' + s.pageId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties: props }),
+  });
+  var data = await res.json();
+  if (!res.ok) return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
+  return jsonResp({ ok: true });
+}
+
 export async function onRequestDelete(context) {
   var token = context.env.NOTION_TOKEN;
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
@@ -99,6 +122,14 @@ export async function onRequestGet(context) {
   var token = context.env.NOTION_TOKEN;
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
 
+  var activeOnly = new URL(context.request.url).searchParams.get('active') === 'true';
+  var queryBody = activeOnly
+    ? { filter: { and: [
+        { property: 'Start Time', date: { is_not_empty: true } },
+        { property: 'Stop Time',  date: { is_empty: true } },
+      ]}, page_size: 10 }
+    : { sorts: [{ property: 'Date', direction: 'descending' }], page_size: 50 };
+
   var res = await fetch(NOTION_API + '/databases/' + DB_ID + '/query', {
     method: 'POST',
     headers: {
@@ -106,10 +137,7 @@ export async function onRequestGet(context) {
       'Notion-Version': NOTION_VER,
       'Content-Type':   'application/json',
     },
-    body: JSON.stringify({
-      sorts: [{ property: 'Date', direction: 'descending' }],
-      page_size: 50,
-    }),
+    body: JSON.stringify(queryBody),
   });
 
   var data = await res.json();

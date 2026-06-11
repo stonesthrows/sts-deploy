@@ -143,6 +143,9 @@
   .resume-warning { display: none; background: #fdf3e0; border: 1px solid #e8c264; border-radius: 8px; padding: 0.65rem 0.875rem; margin-bottom: 0.75rem; font-size: 12px; color: #7a4e10; line-height: 1.5; }
   .resume-warning strong { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9a5e10; margin-bottom: 2px; }
   .resume-warning.visible { display: block; }
+  .inv-size-row { display: flex; align-items: center; gap: 8px; background: var(--card-head-bg); border: 1px solid var(--bdr-light); border-radius: 7px; padding: 7px 10px; }
+  .inv-size-row-name { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+  .inv-size-row-qty { font-size: 13px; color: var(--accent); font-weight: 700; white-space: nowrap; }
 
   .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--hdr); border: 1px solid #2E5C78; border-radius: 8px; padding: 0.75rem 1.25rem; font-size: 13px; color: #fff; opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 100; white-space: nowrap; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -196,8 +199,19 @@
 <div id="inv-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;">
   <div style="background:var(--card-bg);border-radius:14px;padding:24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
     <div style="font-size:13px;font-weight:700;color:var(--text2);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;">📦 Add to Square Inventory?</div>
-    <div id="inv-modal-item" style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;"></div>
-    <div id="inv-modal-detail" style="font-size:13px;color:var(--text2);margin-bottom:20px;"></div>
+    <div id="inv-modal-item" style="margin-bottom:4px;"></div>
+    <div id="inv-modal-detail" style="font-size:13px;color:var(--text2);margin-bottom:16px;"></div>
+    <div id="inv-size-picker" style="display:none;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text2);text-transform:uppercase;margin-bottom:8px;">Which sizes did you make?</div>
+      <div id="inv-size-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;min-height:4px;"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="inv-size-select" style="flex:1;min-width:110px;background:#fff;border:1px solid var(--bdr);border-radius:6px;color:var(--text);font-size:13px;padding:0.45rem 0.6rem;outline:none;">
+          <option value="">Select size…</option>
+        </select>
+        <input type="number" id="inv-size-qty" min="1" placeholder="Qty" style="width:56px;background:#fff;border:1px solid var(--bdr);border-radius:6px;color:var(--text);font-size:13px;padding:0.45rem 0.6rem;outline:none;-moz-appearance:textfield;">
+        <button onclick="addSizeRow()" style="background:var(--hdr);color:var(--accent-light);border:none;border-radius:6px;font-size:12px;font-weight:700;padding:0.45rem 0.875rem;cursor:pointer;letter-spacing:0.05em;white-space:nowrap;">+ Add</button>
+      </div>
+    </div>
     <div id="inv-modal-status" style="font-size:12px;color:var(--text2);margin-bottom:12px;min-height:16px;"></div>
     <div style="display:flex;gap:10px;">
       <button id="inv-modal-confirm" onclick="inventoryConfirm()"
@@ -205,7 +219,7 @@
         Add to Square
       </button>
       <button onclick="inventorySkip()"
-        style="padding:10px 18px;background:none;border:1px solid var(--bdr);border-radius:8px;font-size:14px;color:var(--text2);cursor:pointer;">
+        style="padding:10px 18px;background:none;border:1px solid var(--bdr);border-radius:8px;font-size:14px;color:var(--text2);cursor:pointer;opacity:0.7;">
         Skip
       </button>
     </div>
@@ -224,29 +238,19 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   id: i,
   selectedItems: [], selectedEmployee: null,
   running: false, startTime: null, tickInterval: null, debounce: null,
-  clockStatus: 'unknown', // 'unknown' | 'checking' | 'clocked-in' | 'not-clocked-in' | 'error'
+  clockStatus: 'unknown', notionPageId: null,
 }));
 
-// ── Shared ───────────────────────────────────────────────────────────────────
-let employees = [];
-let sessions  = [];
+let employees = [], sessions = [];
 
-// ── DOM helpers ──────────────────────────────────────────────────────────────
 const $g = id => document.getElementById(id);
-// Scoped to a timer card
 const $t = (tid, id) => document.getElementById(`t${tid}-${id}`);
-const $card = tid => document.getElementById(`card-${tid}`);
 
-// ── Square proxy ─────────────────────────────────────────────────────────────
+// ── Square proxy ──────────────────────────────────────────────────────────────
 function sq(path, opts = {}) {
-  const bodyObj = opts.body ? JSON.parse(opts.body) : undefined;
-  const payload = { path: '/v2' + path, method: opts.method || 'GET', body: bodyObj };
-  if (CFG.sqToken) payload.token = CFG.sqToken; // omit when empty — server uses env var
-  return fetch('/api/square', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(r => r.json());
+  const payload = { path: '/v2' + path, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : undefined };
+  if (CFG.sqToken) payload.token = CFG.sqToken;
+  return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
 }
 
 function fmt(ms) {
@@ -261,80 +265,84 @@ function showToast(msg, error = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-// ── Cloud timer state (KV) ────────────────────────────────────────────────────
-async function saveTimerState(tid) {
+// ── Notion persistence ────────────────────────────────────────────────────────
+async function createActiveSession(tid) {
+  const items = T[tid].selectedItems;
   try {
-    await fetch('/api/timer-state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch('/api/notion-timesession', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        tid,
-        startTime: T[tid].startTime,
-        items: T[tid].selectedItems,
-        employee: T[tid].selectedEmployee,
-        notes: $t(tid, 'notes-input')?.value.trim() || '',
+        itemName: items[0]?.name || '', sku: items[0]?.sku || '',
+        category: items[0]?.category || '', employeeName: T[tid].selectedEmployee?.name || '',
+        squareItemId: items[0]?.id || '',
+        date: new Date(T[tid].startTime).toISOString().slice(0, 10),
+        notes: '', startTime: new Date(T[tid].startTime).toISOString(),
       }),
     });
-  } catch(e) { console.warn('KV save failed:', e); }
+    const data = await res.json();
+    if (res.ok) {
+      T[tid].notionPageId = data.notionPageId;
+      localStorage.setItem(`sts_notionPageId_${tid}`, data.notionPageId);
+      const loc = JSON.parse(localStorage.getItem(`sts_activeTimer_${tid}`) || '{}');
+      localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ ...loc, notionPageId: data.notionPageId }));
+    }
+  } catch(e) { console.warn('Notion start save failed:', e); }
 }
 
-async function deleteTimerState(tid) {
-  try { await fetch(`/api/timer-state?tid=${tid}`, { method: 'DELETE' }); }
-  catch(e) { console.warn('KV delete failed:', e); }
+async function patchNotion(pageId, fields) {
+  if (!pageId) return;
+  try {
+    await fetch('/api/notion-timesession', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId, ...fields }),
+    });
+  } catch(e) { console.warn('Notion patch failed:', e); }
 }
 
 async function saveNoteToCloud(tid) {
   const btn = $t(tid, 'save-note-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  await saveTimerState(tid);
+  await patchNotion(T[tid].notionPageId || localStorage.getItem(`sts_notionPageId_${tid}`), { notes: $t(tid, 'notes-input')?.value.trim() || '' });
   if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save note'; }, 1800); }
 }
 
+// ── Time helpers ──────────────────────────────────────────────────────────────
 function parseTimeInput(val) {
   if (!val) return null;
   const [h, m] = val.split(':').map(Number);
   const d = new Date(); d.setHours(h, m, 0, 0);
-  return d > Date.now() ? null : d.getTime(); // reject future times
+  return d > Date.now() ? null : d.getTime();
 }
-
 function initStartTimeInput(tid) {
-  const input = $t(tid, 'start-time-input');
-  if (!input) return;
+  const input = $t(tid, 'start-time-input'); if (!input) return;
   const now = new Date();
-  input.value = [now.getHours(), now.getMinutes()].map(n => String(n).padStart(2, '0')).join(':');
+  input.value = [now.getHours(), now.getMinutes()].map(n => String(n).padStart(2,'0')).join(':');
 }
-
 function toggleAdjustStart(tid) {
   const panel = $t(tid, 'adjust-panel');
   const opening = panel.style.display === 'none' || panel.style.display === '';
   if (opening) {
-    const input = $t(tid, 'adjust-input');
     const d = new Date(T[tid].startTime);
-    input.value = [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2, '0')).join(':');
+    $t(tid, 'adjust-input').value = [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2,'0')).join(':');
     panel.style.display = 'flex';
-  } else {
-    panel.style.display = 'none';
-  }
+  } else { panel.style.display = 'none'; }
 }
-
 function applyAdjustStart(tid) {
   const newStart = parseTimeInput($t(tid, 'adjust-input')?.value);
   if (!newStart) { showToast('Invalid time — cannot be in the future', true); return; }
   T[tid].startTime = newStart;
-  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
-  saveTimerState(tid);
+  const loc = JSON.parse(localStorage.getItem(`sts_activeTimer_${tid}`) || '{}');
+  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ ...loc, startTime: newStart }));
+  patchNotion(T[tid].notionPageId, { startTime: new Date(newStart).toISOString() });
   $t(tid, 'adjust-panel').style.display = 'none';
-  const d = new Date(newStart);
-  showToast(`Timer ${tid + 1} start time set to ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+  showToast(`Timer ${tid+1} start time set to ${new Date(newStart).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`);
 }
 
 // ── Build card HTML ───────────────────────────────────────────────────────────
 function buildCard(tid) {
-  const label = `Timer ${tid + 1}`;
   return `
   <div class="timer-card" id="card-${tid}">
-    <div class="card-header">${label}</div>
-
+    <div class="card-header">Timer ${tid+1}</div>
     <div class="step active" id="t${tid}-step-product">
       <div class="step-label">01 — Select products</div>
       <div class="search-wrap">
@@ -345,13 +353,11 @@ function buildCard(tid) {
       <div class="results" id="t${tid}-results"></div>
       <div id="t${tid}-selected-items-list"></div>
     </div>
-
     <div class="step" id="t${tid}-step-employee">
       <div class="step-label">02 — Who's working?</div>
       <div class="employee-grid" id="t${tid}-employee-grid"></div>
       <div class="clock-status" id="t${tid}-clock-status"></div>
     </div>
-
     <div class="step dimmed" id="t${tid}-step-timer">
       <div class="step-label">03 — Timer</div>
       <div class="resume-warning" id="t${tid}-resume-warning">
@@ -388,12 +394,9 @@ function buildCard(tid) {
   </div>`;
 }
 
-// ── Render cards ─────────────────────────────────────────────────────────────
 function buildCards() {
   $g('timers-grid').innerHTML = Array.from({ length: NUM_TIMERS }, (_, i) => buildCard(i)).join('');
-  // Initialize start time inputs to current time
   for (let i = 0; i < NUM_TIMERS; i++) initStartTimeInput(i);
-  // Attach search listeners after DOM is ready
   for (let i = 0; i < NUM_TIMERS; i++) {
     (tid => {
       $t(tid, 'search-input').addEventListener('input', () => {
@@ -414,11 +417,8 @@ async function loadEmployees() {
     employees = members.length
       ? members.map(m => ({ id: m.id, name: m.display_name || [m.given_name, m.family_name].filter(Boolean).join(' ') }))
       : [{ id: 'Q5gZGbDStWUysIE3CKhJ', name: 'Stevana Schafer' }, { id: 'TMAMWG-ZS9lqZWKm', name: 'Vanessa Bigley' }];
-  } catch { useMockEmployees(); }
+  } catch { employees = [{ id: 'Q5gZGbDStWUysIE3CKhJ', name: 'Stevana Schafer' }, { id: 'TMAMWG-ZS9lqZWKm', name: 'Vanessa Bigley' }]; }
   renderEmployees();
-}
-function useMockEmployees() {
-  employees = [{ id: 'Q5gZGbDStWUysIE3CKhJ', name: 'Stevana Schafer' }, { id: 'TMAMWG-ZS9lqZWKm', name: 'Vanessa Bigley' }];
 }
 function renderEmployees() {
   for (let tid = 0; tid < NUM_TIMERS; tid++) {
@@ -429,16 +429,13 @@ function renderEmployees() {
       btn.className = 'emp-btn'; btn.dataset.id = emp.id;
       btn.innerHTML = `<div class="emp-avatar">${init}</div>${emp.name}`;
       btn.onclick = () => {
-        $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
+        grid.querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        T[tid].selectedEmployee = emp;
-        T[tid].clockStatus = 'unknown';
-        checkReady(tid);
-        checkClockIn(tid);
+        T[tid].selectedEmployee = emp; T[tid].clockStatus = 'unknown';
+        checkReady(tid); checkClockIn(tid);
       };
       grid.appendChild(btn);
     });
-    // Re-highlight if a timer was already running when employees loaded
     if (T[tid].selectedEmployee) {
       const empId = T[tid].selectedEmployee.id;
       grid.querySelectorAll('.emp-btn').forEach(b => { if (b.dataset.id === empId) b.classList.add('selected'); });
@@ -450,394 +447,330 @@ function renderEmployees() {
 async function searchCatalog(tid, query) {
   $t(tid, 'spinner').classList.add('active');
   try {
-    // token omitted intentionally — server uses env var if no client token
     const searchData = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
     const found = searchData.objects || [];
     if (!found.length) { renderResults(tid, [], query); return; }
     const fullData = await sq('/catalog/batch-retrieve', { method: 'POST', body: JSON.stringify({ object_ids: found.map(o => o.id) }) });
     const rows = [];
     (fullData.objects || []).forEach(obj => {
-      const itemName = obj.item_data?.name || 'Unnamed';
-      const category = obj.item_data?.category_name || '';
+      const itemName  = obj.item_data?.name || 'Unnamed';
+      const category  = obj.item_data?.category_name || '';
       const variations = obj.item_data?.variations || [];
       if (variations.length <= 1) {
         const v = variations[0]?.item_variation_data;
-        rows.push({ id: variations[0]?.id || obj.id, name: itemName, sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category });
+        rows.push({ id: variations[0]?.id || obj.id, name: itemName, sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount/100).toFixed(2) : null, category, isParent: false });
       } else {
-        variations.forEach(variation => {
-          const v = variation.item_variation_data;
-          const varName = v?.name || '';
-          rows.push({ id: variation.id, name: varName ? `${itemName} — ${varName}` : itemName, sku: v?.sku || '', price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category });
+        rows.push({
+          id: obj.id, name: itemName, category, isParent: true, variantCount: variations.length,
+          variants: variations.map(v => ({ id: v.id, name: v.item_variation_data?.name || '', sku: v.item_variation_data?.sku || '', price: v.item_variation_data?.price_money ? (v.item_variation_data.price_money.amount/100).toFixed(2) : null })),
         });
       }
     });
     renderResults(tid, rows, query);
-  } catch(e) { console.error('searchCatalog error:', e); renderResults(tid, [], '⚠ ' + (e.message || e)); }
+  } catch(e) { renderResults(tid, [], '⚠ ' + (e.message || e)); }
   finally { $t(tid, 'spinner').classList.remove('active'); }
 }
 
-const MOCK = [
-  { id: 'i1', name: 'Custom Engagement Ring', sku: 'RING-001', price: '850.00', category: 'Rings' },
-  { id: 'i2', name: 'Argentium Silver Band', sku: 'RING-002', price: '120.00', category: 'Rings' },
-  { id: 'i5', name: 'Seamless Hoop Set', sku: 'HOOP-001', price: '65.00', category: 'Hoops' },
-  { id: 'i6', name: 'Permanent Bracelet — Chain', sku: 'PERM-001', price: '55.00', category: 'Permanent' },
-  { id: 'i7', name: 'Ear Cuff — Small 2 Orb', sku: 'CUFF-001', price: '45.00', category: 'Ear Cuffs' },
-  { id: 'i8', name: 'Ear Cuff — Large 3 Orb', sku: 'CUFF-002', price: '55.00', category: 'Ear Cuffs' },
-];
-function mockSearch(tid, q) {
-  const lq = q.toLowerCase();
-  renderResults(tid, MOCK.filter(i => i.name.toLowerCase().includes(lq) || i.sku.toLowerCase().includes(lq) || i.category.toLowerCase().includes(lq)), q);
-}
 function renderResults(tid, items, query) {
   const box = $t(tid, 'results'); box.innerHTML = '';
   if (!items.length) {
-    box.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:0.5rem 0;text-align:center">No items matching "${query}"</div>`;
+    box.innerHTML = `<div style="font-size:12px;color:var(--text-dim);padding:0.5rem 0;text-align:center">No items matching "${query}"</div>`;
   } else {
     items.forEach(item => {
       const d = document.createElement('div'); d.className = 'result-item';
-      d.innerHTML = `<div><div class="result-name">${item.name}</div><div class="result-meta">${item.category}${item.sku ? ' · ' + item.sku : ''}</div></div><div class="result-meta result-price">${item.price ? '$' + item.price : '—'}</div>`;
+      d.innerHTML = item.isParent
+        ? `<div><div class="result-name">${item.name}</div><div class="result-meta">${item.category} · ${item.variantCount} sizes</div></div><div class="result-meta" style="color:var(--accent);font-weight:600;white-space:nowrap;">sizes at stop →</div>`
+        : `<div><div class="result-name">${item.name}</div><div class="result-meta">${item.category}${item.sku ? ' · '+item.sku : ''}</div></div><div class="result-meta result-price">${item.price ? '$'+item.price : '—'}</div>`;
       d.onclick = () => selectItem(tid, item);
       box.appendChild(d);
     });
   }
   box.classList.add('visible');
 }
-function hideResults(tid) { $t(tid, 'results').classList.remove('visible'); $t(tid, 'results').innerHTML = ''; }
+function hideResults(tid) { $t(tid,'results').classList.remove('visible'); $t(tid,'results').innerHTML=''; }
 
 function selectItem(tid, item) {
-  // Ignore duplicates
-  if (T[tid].selectedItems.find(i => i.id === item.id)) { hideResults(tid); $t(tid, 'search-input').value = ''; return; }
+  if (T[tid].selectedItems.find(i => i.id === item.id)) { hideResults(tid); $t(tid,'search-input').value=''; return; }
   T[tid].selectedItems.push({ ...item, pieces: null });
-  hideResults(tid);
-  $t(tid, 'search-input').value = '';
-  renderSelectedItems(tid);
-  checkReady(tid);
+  hideResults(tid); $t(tid,'search-input').value='';
+  renderSelectedItems(tid); checkReady(tid);
 }
 function removeItem(tid, itemId) {
   T[tid].selectedItems = T[tid].selectedItems.filter(i => i.id !== itemId);
-  renderSelectedItems(tid);
-  checkReady(tid);
+  renderSelectedItems(tid); checkReady(tid);
 }
 function renderSelectedItems(tid) {
-  const el = $t(tid, 'selected-items-list');
-  if (!T[tid].selectedItems.length) { el.innerHTML = ''; return; }
+  const el = $t(tid,'selected-items-list');
+  if (!T[tid].selectedItems.length) { el.innerHTML=''; return; }
   el.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">` +
-    T[tid].selectedItems.map((item, idx) => `
-      <div style="display:flex;align-items:center;gap:8px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:7px 10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-          <div style="font-size:11px;color:var(--text2);">${[item.category, item.sku].filter(Boolean).join(' · ')}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;">
-          <label style="font-size:9px;color:var(--text2);font-weight:600;letter-spacing:0.04em;">PCS</label>
-          <input type="number" min="0" step="1" id="t${tid}-pieces-${idx}"
-            style="width:52px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:15px;font-weight:700;text-align:center;background:var(--card-bg);color:var(--text);-moz-appearance:textfield;"
-            placeholder="0" value="${item.pieces != null ? item.pieces : ''}">
-        </div>
-        <button onclick="removeItem(${tid},'${item.id}')" title="Remove"
-          style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-dim);padding:2px 4px;flex-shrink:0;line-height:1;">✕</button>
-      </div>`).join('') +
-  `</div>`;
+    T[tid].selectedItems.map((item, idx) => {
+      const pcsCol = item.isParent
+        ? `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;padding:0 4px;"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Sizes</span><span style="font-size:10px;color:var(--text3);">at stop</span></div>`
+        : `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;"><label style="font-size:9px;color:var(--text2);font-weight:600;letter-spacing:.04em;">PCS</label><input type="number" min="0" step="1" id="t${tid}-pieces-${idx}" style="width:52px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:15px;font-weight:700;text-align:center;background:var(--card-bg);color:var(--text);-moz-appearance:textfield;" placeholder="0" value="${item.pieces!=null?item.pieces:''}"></div>`;
+      return `<div style="display:flex;align-items:center;gap:8px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:7px 10px;">
+        <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div><div style="font-size:11px;color:var(--text2);">${[item.category,item.sku].filter(Boolean).join(' · ')}</div></div>
+        ${pcsCol}
+        <button onclick="removeItem(${tid},'${item.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-dim);padding:2px 4px;flex-shrink:0;line-height:1;">✕</button>
+      </div>`;
+    }).join('') + `</div>`;
 }
 function checkReady(tid) {
-  const hasSelections = T[tid].selectedItems.length > 0 && T[tid].selectedEmployee;
-  const blockedByClockIn = T[tid].clockStatus === 'not-clocked-in';
-  $t(tid, 'step-timer').classList.toggle('dimmed', !hasSelections);
-  $t(tid, 'start-btn').disabled = !hasSelections || T[tid].running || blockedByClockIn;
+  const ok = T[tid].selectedItems.length > 0 && T[tid].selectedEmployee;
+  $t(tid,'step-timer').classList.toggle('dimmed', !ok);
+  $t(tid,'start-btn').disabled = !ok || T[tid].running || T[tid].clockStatus === 'not-clocked-in';
 }
 
 async function checkClockIn(tid) {
-  const emp = T[tid].selectedEmployee;
-  if (!emp) return;
-  const badge = $t(tid, 'clock-status');
-
-  // No token — skip check silently
-  if (!CFG.sqToken) { T[tid].clockStatus = 'unknown'; badge.className = 'clock-status'; return; }
-
-  T[tid].clockStatus = 'checking';
-  badge.className = 'clock-status checking visible';
-  badge.textContent = '⏳ Checking clock-in status…';
-  checkReady(tid);
-
+  const emp = T[tid].selectedEmployee; if (!emp) return;
+  const badge = $t(tid,'clock-status');
+  if (!CFG.sqToken) { T[tid].clockStatus='unknown'; badge.className='clock-status'; return; }
+  T[tid].clockStatus='checking'; badge.className='clock-status checking visible'; badge.textContent='⏳ Checking clock-in status…'; checkReady(tid);
   try {
-    const data = await sq('/labor/shifts/search', {
-      method: 'POST',
-      body: JSON.stringify({
-        query: {
-          filter: {
-            team_member_ids: [emp.id],
-            status: 'OPEN',
-            location_ids: [CFG.sqLocation]
-          }
-        },
-        limit: 5
-      })
-    });
-    const openShifts = (data.shifts || []).filter(s => !s.end_at);
-    if (openShifts.length > 0) {
-      const since = new Date(openShifts[0].start_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      T[tid].clockStatus = 'clocked-in';
-      badge.className = 'clock-status clocked-in visible';
-      badge.textContent = `✓ Clocked in since ${since}`;
+    const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:5 }) });
+    const open = (data.shifts||[]).filter(s => !s.end_at);
+    if (open.length) {
+      T[tid].clockStatus='clocked-in'; badge.className='clock-status clocked-in visible';
+      badge.textContent=`✓ Clocked in since ${new Date(open[0].start_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
     } else {
-      T[tid].clockStatus = 'not-clocked-in';
-      badge.className = 'clock-status not-clocked-in visible';
-      // Debug: show raw count + any errors from Square
-      const errMsg = data.errors ? data.errors.map(e => e.detail || e.code).join('; ') : '';
-      badge.textContent = `⚠ ${emp.name} not clocked in (${(data.shifts||[]).length} shifts found${errMsg ? ' · ' + errMsg : ''})`;
+      T[tid].clockStatus='not-clocked-in'; badge.className='clock-status not-clocked-in visible';
+      const err = data.errors ? data.errors.map(e=>e.detail||e.code).join('; ') : '';
+      badge.textContent=`⚠ ${emp.name} not clocked in (${(data.shifts||[]).length} shifts found${err?' · '+err:''})`;
     }
-  } catch(e) {
-    // API error — don't block, just note it
-    T[tid].clockStatus = 'error';
-    badge.className = 'clock-status error visible';
-    badge.textContent = `Could not verify clock-in status: ${e.message||e}`;
-  }
+  } catch(e) { T[tid].clockStatus='error'; badge.className='clock-status error visible'; badge.textContent=`Could not verify clock-in: ${e.message||e}`; }
   checkReady(tid);
 }
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
 function _runningUI(tid) {
-  $t(tid, 'start-btn').style.display = 'none'; $t(tid, 'stop-btn').style.display = '';
-  $t(tid, 'timer-status').textContent = 'Running';
-  $t(tid, 'step-product').classList.add('dimmed'); $t(tid, 'step-employee').classList.add('dimmed');
-  $t(tid, 'step-timer').classList.remove('dimmed');
-  $t(tid, 'start-time-row').style.display = 'none';
-  $t(tid, 'adjust-wrap').style.display = 'block';
+  $t(tid,'start-btn').style.display='none'; $t(tid,'stop-btn').style.display='';
+  $t(tid,'timer-status').textContent='Running';
+  $t(tid,'step-product').classList.add('dimmed'); $t(tid,'step-employee').classList.add('dimmed');
+  $t(tid,'step-timer').classList.remove('dimmed');
+  $t(tid,'start-time-row').style.display='none'; $t(tid,'adjust-wrap').style.display='block';
   clearInterval(T[tid].tickInterval);
-  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime); }, 1000);
+  T[tid].tickInterval = setInterval(() => { $t(tid,'timer-display').textContent = fmt(Date.now()-T[tid].startTime); }, 1000);
 }
 
 function startTimer(tid) {
   T[tid].running = true;
-  const timeInput = $t(tid, 'start-time-input');
-  T[tid].startTime = parseTimeInput(timeInput?.value) || Date.now();
+  T[tid].startTime = parseTimeInput($t(tid,'start-time-input')?.value) || Date.now();
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
-  saveTimerState(tid);
+  createActiveSession(tid);
   _runningUI(tid);
 }
 
 function resumeTimer(tid, saved) {
-  // Support both old single-item saves and new multi-item saves
-  T[tid].selectedItems = saved.items || (saved.item ? [{ ...saved.item, pieces: null }] : []);
+  T[tid].selectedItems    = saved.items || (saved.item ? [{ ...saved.item, pieces:null }] : []);
   T[tid].selectedEmployee = saved.employee;
-  T[tid].startTime = saved.startTime; T[tid].running = true;
-  renderSelectedItems(tid);
-  _runningUI(tid);
-  // Show warning if timer started on a different day or more than 12 hours ago
+  T[tid].startTime        = saved.startTime;
+  T[tid].running          = true;
+  if (saved.notionPageId) { T[tid].notionPageId = saved.notionPageId; localStorage.setItem(`sts_notionPageId_${tid}`, saved.notionPageId); }
+  renderSelectedItems(tid); _runningUI(tid);
   const elapsed = Date.now() - saved.startTime;
   const startDate = new Date(saved.startTime);
-  const today = new Date();
-  const isDifferentDay = startDate.toDateString() !== today.toDateString();
-  if (isDifferentDay || elapsed > 12 * 3600 * 1000) {
-    const startLabel = isDifferentDay
-      ? startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' + startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      : startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const warn = $t(tid, 'resume-warning');
-    $t(tid, 'resume-warning-msg').textContent = `Started ${startLabel} — ${Math.round(elapsed / 3600000)} hrs ago. Verify the time before saving.`;
-    warn.classList.add('visible');
+  const isDifferentDay = startDate.toDateString() !== new Date().toDateString();
+  if (isDifferentDay || elapsed > 12*3600*1000) {
+    const label = isDifferentDay
+      ? startDate.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + ' at ' + startDate.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+      : startDate.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    $t(tid,'resume-warning-msg').textContent = `Started ${label} — ${Math.round(elapsed/3600000)} hrs ago. Verify the time before saving.`;
+    $t(tid,'resume-warning').classList.add('visible');
   }
-  showToast(`Timer ${tid + 1} resumed — running since ` + new Date(saved.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+  showToast(`Timer ${tid+1} resumed — running since ${new Date(saved.startTime).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`);
 }
 
 async function stopTimer(tid) {
   clearInterval(T[tid].tickInterval);
-  const stopTime = new Date().toISOString();
+  const stopTime  = new Date().toISOString();
   const startTime = new Date(T[tid].startTime).toISOString();
-  deleteTimerState(tid);
+  localStorage.removeItem(`sts_activeTimer_${tid}`);
+  localStorage.removeItem(`sts_notionPageId_${tid}`);
   const totalWall = Date.now() - T[tid].startTime;
-  $t(tid, 'stop-btn').disabled = true; $t(tid, 'timer-status').textContent = 'Reconciling…';
+  $t(tid,'stop-btn').disabled = true; $t(tid,'timer-status').textContent = 'Reconciling…';
   let clockedOutMs = 0;
   if (CFG.sqToken && T[tid].selectedEmployee) {
     try {
       const data = await sq(`/labor/shifts?team_member_id=${T[tid].selectedEmployee.id}&start_at_min=${startTime}&start_at_max=${stopTime}`);
       const shifts = data.shifts || [];
       if (shifts.length) {
-        let workedMs = 0;
-        const stopMs = new Date(stopTime).getTime();
-        shifts.forEach(sh => {
-          const cin  = Math.max(new Date(sh.start_at).getTime(), T[tid].startTime);
-          const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), stopMs) : stopMs;
-          if (cout > cin) workedMs += (cout - cin);
-        });
+        let workedMs = 0; const stopMs = new Date(stopTime).getTime();
+        shifts.forEach(sh => { const cin = Math.max(new Date(sh.start_at).getTime(), T[tid].startTime); const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), stopMs) : stopMs; if (cout > cin) workedMs += (cout-cin); });
         clockedOutMs = Math.max(0, totalWall - workedMs);
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
-  const notes = $t(tid, 'notes-input').value.trim();
+  const notes = $t(tid,'notes-input').value.trim();
   const items = T[tid].selectedItems.map((item, idx) => {
+    if (item.isParent) return { ...item, pieces: null };
     const inp = $t(tid, `pieces-${idx}`);
-    const pcs = inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null;
-    return { ...item, pieces: pcs };
+    return { ...item, pieces: inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null };
   });
-  $t(tid, 'timer-status').textContent = 'Done';
-  const session = { timerLabel: `Timer ${tid + 1}`, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: stopTime, saved: false, notionPageIds: [], error: null };
+  $t(tid,'timer-status').textContent = 'Done';
+  const session = { timerLabel:`Timer ${tid+1}`, tid, notionPageId: T[tid].notionPageId, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: stopTime, saved: false, error: null };
   sessions.unshift(session); renderLog();
-  showToast(`Timer ${tid + 1} — ${fmt(netMs)} recorded`);
-  saveToNotion(session);
-  const hasAnyPieces = items.some(it => it.pieces > 0);
-  if (hasAnyPieces && CFG.sqToken) {
-    showInventoryModal(tid, session);
-  } else {
-    resetTimer(tid);
-  }
+  showToast(`Timer ${tid+1} — ${fmt(netMs)} recorded`);
+  finalizeNotionSession(session);
+  const hasParent = items.some(it => it.isParent);
+  const hasPieces = items.some(it => !it.isParent && it.pieces > 0);
+  if (hasParent || (hasPieces && CFG.sqToken)) { showInventoryModal(tid, session); } else { resetTimer(tid); }
 }
 
-async function saveToNotion(session) {
-  const items = session.items || (session.item ? [session.item] : []);
-  if (!items.length) return;
-  session.notionPageIds = session.notionPageIds || [];
-  let anyError = null;
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const payload = {
-      itemName:     it.name,
-      sku:          it.sku        || '',
-      category:     it.category   || '',
-      employeeName: session.employee.name,
-      squareItemId: it.id         || '',
-      totalMin:     parseFloat((session.totalMs    / 60000).toFixed(2)),
-      dedMin:       parseFloat((session.clockedOutMs / 60000).toFixed(2)),
-      netMin:       parseFloat((session.netMs      / 60000).toFixed(2)),
-      date:         session.timestamp.slice(0, 10),
-      notes:        session.notes || '',
-      pieces:       it.pieces != null ? it.pieces : undefined,
-      startTime:    session.startTime || null,
-      stopTime:     session.stopTime  || null,
-    };
-    try {
-      const res = await fetch('/api/notion-timesession', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok) { session.notionPageIds.push(data.notionPageId || null); }
-      else { anyError = data.error || 'Notion error ' + res.status; }
-    } catch(e) { anyError = 'Network error: ' + e.message; }
-  }
-  if (anyError) { session.error = anyError; showToast('Notion save failed — ' + anyError, true); }
-  else { session.saved = true; showToast('Saved to Notion ✓'); }
+async function finalizeNotionSession(session) {
+  const pageId = session.notionPageId;
+  if (!pageId) { session.error = 'No Notion page — was Start pressed?'; renderLog(); return; }
+  const totalPcs = (session.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
+  try {
+    const res = await fetch('/api/notion-timesession', {
+      method: 'PATCH', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        pageId, startTime: session.startTime, stopTime: session.stopTime,
+        totalMin: parseFloat((session.totalMs/60000).toFixed(2)),
+        dedMin:   parseFloat((session.clockedOutMs/60000).toFixed(2)),
+        netMin:   parseFloat((session.netMs/60000).toFixed(2)),
+        notes: session.notes || '',
+        ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
+      }),
+    });
+    if (res.ok) { session.saved = true; showToast('Saved to Notion ✓'); }
+    else { const d = await res.json(); session.error = d.error || 'Notion error'; showToast('Notion save failed', true); }
+  } catch(e) { session.error = 'Network error: '+e.message; showToast('Notion save failed', true); }
   renderLog();
 }
 
 // ── Inventory modal ───────────────────────────────────────────────────────────
-let _invTid = null, _invSession = null;
+let _invTid = null, _invSession = null, _invSizeRows = [];
 
 function showInventoryModal(tid, session) {
-  _invTid = tid; _invSession = session;
-  const modal = $g('inv-modal-backdrop');
-  const itemsWithPieces = (session.items || []).filter(it => it.pieces > 0);
-  // Build item list for the modal
-  $g('inv-modal-item').innerHTML = itemsWithPieces.map(it =>
-    `<div><strong>${it.name}</strong> — ${it.pieces} piece${it.pieces !== 1 ? 's' : ''}</div>`
-  ).join('');
+  _invTid = tid; _invSession = session; _invSizeRows = [];
+  const parentItem = (session.items||[]).find(it => it.isParent);
+  const stdItems   = (session.items||[]).filter(it => !it.isParent && it.pieces > 0);
   $g('inv-modal-detail').textContent = session.employee.name;
   $g('inv-modal-status').textContent = '';
-  $g('inv-modal-confirm').disabled = false;
   $g('inv-modal-confirm').textContent = 'Add to Square';
-  modal.style.display = 'flex';
+  if (parentItem) {
+    $g('inv-size-picker').style.display = 'block';
+    $g('inv-size-rows').innerHTML = '';
+    const sel = $g('inv-size-select');
+    sel.innerHTML = '<option value="">Select size…</option>';
+    (parentItem.variants||[]).forEach(v => { const o = document.createElement('option'); o.value=v.id; o.textContent=v.name; o.dataset.name=v.name; o.dataset.sku=v.sku||''; sel.appendChild(o); });
+    $g('inv-size-qty').value = '';
+    $g('inv-modal-item').innerHTML = `<div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px;">${parentItem.name}</div>`;
+    $g('inv-modal-confirm').disabled = true;
+  } else {
+    $g('inv-size-picker').style.display = 'none';
+    $g('inv-modal-item').innerHTML = stdItems.map(it => `<div><strong>${it.name}</strong> — ${it.pieces} piece${it.pieces!==1?'s':''}</div>`).join('');
+    $g('inv-modal-confirm').disabled = false;
+  }
+  $g('inv-modal-backdrop').style.display = 'flex';
+}
+
+function addSizeRow() {
+  const sel = $g('inv-size-select'), qty = parseInt($g('inv-size-qty').value, 10);
+  if (!sel.value || !qty || qty < 1) { showToast('Select a size and enter a quantity', true); return; }
+  if (_invSizeRows.find(r => r.id === sel.value)) { showToast('That size is already added', true); return; }
+  const opt = sel.options[sel.selectedIndex];
+  _invSizeRows.push({ id: sel.value, name: opt.dataset.name, sku: opt.dataset.sku, qty });
+  $g('inv-size-rows').innerHTML = _invSizeRows.map(r => `
+    <div class="inv-size-row">
+      <span class="inv-size-row-name">${r.name}${r.sku ? ` <span style="font-weight:400;color:var(--text3);">· ${r.sku}</span>` : ''}</span>
+      <span class="inv-size-row-qty">${r.qty} pc${r.qty!==1?'s':''}</span>
+      <button onclick="removeSizeRow('${r.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-dim);padding:2px 4px;line-height:1;">✕</button>
+    </div>`).join('');
+  sel.value = ''; $g('inv-size-qty').value = '';
+  $g('inv-modal-confirm').disabled = false;
+}
+function removeSizeRow(id) {
+  _invSizeRows = _invSizeRows.filter(r => r.id !== id);
+  $g('inv-size-rows').innerHTML = _invSizeRows.map(r => `
+    <div class="inv-size-row">
+      <span class="inv-size-row-name">${r.name}${r.sku ? ` <span style="font-weight:400;color:var(--text3);">· ${r.sku}</span>` : ''}</span>
+      <span class="inv-size-row-qty">${r.qty} pc${r.qty!==1?'s':''}</span>
+      <button onclick="removeSizeRow('${r.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-dim);padding:2px 4px;line-height:1;">✕</button>
+    </div>`).join('');
+  $g('inv-modal-confirm').disabled = _invSizeRows.length === 0;
 }
 
 async function inventoryConfirm() {
   const s = _invSession;
-  const statusEl = $g('inv-modal-status');
-  const confirmBtn = $g('inv-modal-confirm');
-  confirmBtn.disabled = true;
-  confirmBtn.textContent = 'Adding…';
-  statusEl.textContent = '';
-
-  const itemsWithPieces = (s.items || []).filter(it => it.pieces > 0);
-  const changes = itemsWithPieces.map(it => ({
-    type: 'ADJUSTMENT',
-    adjustment: {
-      catalog_object_id: it.id,
-      location_id: CFG.sqLocation,
-      from_state: 'NONE',
-      to_state: 'IN_STOCK',
-      quantity: String(it.pieces),
-      occurred_at: s.timestamp,
-    }
-  }));
-
+  const statusEl = $g('inv-modal-status'), confirmBtn = $g('inv-modal-confirm');
+  confirmBtn.disabled = true; confirmBtn.textContent = 'Adding…'; statusEl.textContent = '';
+  const parentItem = (s.items||[]).find(it => it.isParent);
+  const changes = parentItem && _invSizeRows.length
+    ? _invSizeRows.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }))
+    : (s.items||[]).filter(it => !it.isParent && it.pieces>0).map(it => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:it.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(it.pieces), occurred_at:s.timestamp } }));
+  if (!changes.length) { inventoryDone(); return; }
   try {
-    const data = await sq('/inventory/changes/batch-create', {
-      method: 'POST',
-      body: JSON.stringify({
-        idempotency_key: `sts-inv-${s.timestamp}-multi`,
-        changes,
-      })
-    });
+    const data = await sq('/inventory/changes/batch-create', { method:'POST', body: JSON.stringify({ idempotency_key:`sts-inv-${s.timestamp}`, changes }) });
     if (data.errors && data.errors.length) {
-      const msg = data.errors.map(e => e.detail || e.code).join('; ');
-      statusEl.style.color = 'var(--red)';
-      statusEl.textContent = '⚠ ' + msg;
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'Retry';
-      return;
+      statusEl.style.color='var(--red)'; statusEl.textContent='⚠ '+data.errors.map(e=>e.detail||e.code).join('; ');
+      confirmBtn.disabled=false; confirmBtn.textContent='Retry'; return;
     }
-    s.inventoryAdded = itemsWithPieces.map(it => `${it.pieces}× ${it.name}`).join(', ');
-    try { localStorage.setItem('sts_sessions', JSON.stringify(sessions)); } catch(e) {}
-    renderLog();
-    const totalPcs = itemsWithPieces.reduce((acc, it) => acc + it.pieces, 0);
-    showToast(`+${totalPcs} piece${totalPcs !== 1 ? 's' : ''} added to Square ✓`);
+    const totalPcs = changes.reduce((acc,c) => acc+parseInt(c.adjustment.quantity,10), 0);
+    if (parentItem) { parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows; s.inventoryAdded = _invSizeRows.map(r=>`${r.qty}× ${r.name}`).join(', '); }
+    else { s.inventoryAdded = (s.items||[]).filter(it=>!it.isParent&&it.pieces>0).map(it=>`${it.pieces}× ${it.name}`).join(', '); }
+    const allPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
+    if (allPcs > 0 && s.notionPageId) patchNotion(s.notionPageId, { pieces: allPcs });
+    renderLog(); showToast(`+${totalPcs} piece${totalPcs!==1?'s':''} added to Square ✓`);
     inventoryDone();
-  } catch(e) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '⚠ Network error — ' + e.message;
-    confirmBtn.disabled = false;
-    confirmBtn.textContent = 'Retry';
-  }
+  } catch(e) { statusEl.style.color='var(--red)'; statusEl.textContent='⚠ Network error — '+e.message; confirmBtn.disabled=false; confirmBtn.textContent='Retry'; }
 }
 
-function inventorySkip() { inventoryDone(); }
-
+function inventorySkip() {
+  const parentItem = (_invSession?.items||[]).find(it => it.isParent);
+  if (parentItem && _invSizeRows.length) {
+    const totalPcs = _invSizeRows.reduce((acc,r) => acc+r.qty, 0);
+    parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows;
+    if (_invSession.notionPageId) patchNotion(_invSession.notionPageId, { pieces: totalPcs });
+    renderLog();
+  }
+  inventoryDone();
+}
 function inventoryDone() {
   $g('inv-modal-backdrop').style.display = 'none';
   if (_invTid !== null) resetTimer(_invTid);
-  _invTid = null; _invSession = null;
+  _invTid = null; _invSession = null; _invSizeRows = [];
 }
 
-
 function resetTimer(tid) {
-  T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`); deleteTimerState(tid);
-  $t(tid, 'start-time-row').style.display = ''; initStartTimeInput(tid);
-  $t(tid, 'adjust-wrap').style.display = 'none'; $t(tid, 'adjust-panel').style.display = 'none';
+  T[tid].running = false; T[tid].notionPageId = null;
+  localStorage.removeItem(`sts_activeTimer_${tid}`); localStorage.removeItem(`sts_notionPageId_${tid}`);
+  $t(tid,'start-time-row').style.display=''; initStartTimeInput(tid);
+  $t(tid,'adjust-wrap').style.display='none'; $t(tid,'adjust-panel').style.display='none';
   clearInterval(T[tid].tickInterval);
-  $t(tid, 'timer-display').textContent = '00:00:00'; $t(tid, 'timer-status').textContent = ''; $t(tid, 'timer-status').style.color = '';
-  $t(tid, 'stop-btn').disabled = false; $t(tid, 'start-btn').style.display = ''; $t(tid, 'stop-btn').style.display = 'none';
-  $t(tid, 'step-product').classList.remove('dimmed'); $t(tid, 'step-employee').classList.remove('dimmed');
-  $t(tid, 'notes-input').value = '';
-  T[tid].selectedItems = []; renderSelectedItems(tid);
-  $t(tid, 'search-input').value = '';
-  $t(tid, 'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
-  T[tid].selectedEmployee = null;
-  T[tid].clockStatus = 'unknown';
-  $t(tid, 'clock-status').className = 'clock-status';
-  $t(tid, 'resume-warning').classList.remove('visible');
+  $t(tid,'timer-display').textContent='00:00:00'; $t(tid,'timer-status').textContent=''; $t(tid,'timer-status').style.color='';
+  $t(tid,'stop-btn').disabled=false; $t(tid,'start-btn').style.display=''; $t(tid,'stop-btn').style.display='none';
+  $t(tid,'step-product').classList.remove('dimmed'); $t(tid,'step-employee').classList.remove('dimmed');
+  $t(tid,'notes-input').value=''; T[tid].selectedItems=[]; renderSelectedItems(tid);
+  $t(tid,'search-input').value='';
+  $t(tid,'employee-grid').querySelectorAll('.emp-btn').forEach(b => b.classList.remove('selected'));
+  T[tid].selectedEmployee=null; T[tid].clockStatus='unknown';
+  $t(tid,'clock-status').className='clock-status'; $t(tid,'resume-warning').classList.remove('visible');
   checkReady(tid);
 }
 
-// ── Log ───────────────────────────────────────────────────────────────────────
+// ── Session log ───────────────────────────────────────────────────────────────
 function renderLog() {
   const list = $g('log-list');
-  if (!sessions.length) { list.innerHTML = '<div class="log-empty">No sessions recorded yet</div>'; return; }
-  list.innerHTML = sessions.map((s, i) => {
+  if (!sessions.length) { list.innerHTML='<div class="log-empty">No sessions recorded yet</div>'; return; }
+  list.innerHTML = sessions.map((s,i) => {
     const d = new Date(s.timestamp);
-    const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    const label = d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
-    const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Notion not configured</div>`;
-    const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--gold-dim)">${s.timerLabel}</span>` : '';
-    // Support both new multi-item sessions and old single-item sessions
+    const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Saving…</div>`;
+    const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,.15);border:1px solid var(--bdr-light);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--text3)">${s.timerLabel}</span>` : '';
     const logItems = s.items || (s.item ? [s.item] : []);
-    const itemNames = logItems.map(it => it.name).join(', ');
-    const totalPcs = logItems.reduce((acc, it) => acc + (it.pieces || 0), 0);
-    const piecesTag = totalPcs > 0 ? `<div class="log-ded" style="color:var(--text2);">${totalPcs} piece${totalPcs !== 1 ? 's' : ''}${s.inventoryAdded ? ` · <span style="color:var(--green)">${s.inventoryAdded} added to Square ✓</span>` : ''}</div>` : '';
+    const totalPcs = logItems.reduce((acc,it) => acc+(it.pieces||0), 0);
+    const avgMin   = totalPcs > 0 ? (s.netMs/60000/totalPcs).toFixed(1) : null;
+    const sizeSummary = logItems.flatMap(it => it.selectedVariants||[]).map(v=>`${v.qty}× ${v.name}`).join(', ');
+    const piecesTag = totalPcs > 0
+      ? `<div class="log-ded" style="color:var(--text2);">${totalPcs} piece${totalPcs!==1?'s':''}${avgMin?` · <span style="color:var(--accent);font-weight:600;">${avgMin} min/pc</span>`:''}${s.inventoryAdded?` · <span style="color:var(--green)">added to Square ✓</span>`:''}</div>${sizeSummary?`<div class="log-ded">${sizeSummary}</div>`:''}`
+      : '';
     return `<div class="log-entry" style="position:relative;">
       <div style="flex:1;min-width:0;">
-        <div class="log-item-name">${itemNames}${timerTag}</div>
+        <div class="log-item-name">${logItems.map(it=>it.name).join(', ')}${timerTag}</div>
         <div class="log-item-meta">${s.employee.name} · ${label}</div>
-        ${s.notes ? `<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>` : ''}
+        ${s.notes?`<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>`:''}
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div class="log-duration">${fmt(s.netMs)}</div>
@@ -852,115 +785,86 @@ function renderLog() {
 }
 
 async function deleteSession(i) {
-  const s = sessions[i];
-  if (!s) return;
-  const logItems = s.items || (s.item ? [s.item] : []);
-  const nameStr = logItems.map(it => it.name).join(', ') || '?';
-  if (!confirm(`Delete this session?\n${nameStr} — ${s.employee ? s.employee.name : ''}`)) return;
-
-  // Archive in Notion — handle both old single-pageId and new array
-  const pageIds = s.notionPageIds && s.notionPageIds.length ? s.notionPageIds : (s.notionPageId ? [s.notionPageId] : []);
-  for (const pid of pageIds) {
-    if (!pid) continue;
-    try { await fetch(`/api/notion-timesession?pageId=${pid}`, { method: 'DELETE' }); } catch(e) {}
-  }
-
-  sessions.splice(i, 1);
-  try { localStorage.setItem('sts_sessions', JSON.stringify(sessions)); } catch(e) {}
-  renderLog();
-  showToast('Entry deleted');
+  const s = sessions[i]; if (!s) return;
+  const logItems = s.items||(s.item?[s.item]:[]);
+  if (!confirm(`Delete this session?\n${logItems.map(it=>it.name).join(', ')||'?'} — ${s.employee?.name||''}`)) return;
+  const pageIds = s.notionPageId ? [s.notionPageId] : (s.notionPageIds||[]);
+  for (const pid of pageIds) { if (!pid) continue; try { await fetch(`/api/notion-timesession?pageId=${pid}`,{method:'DELETE'}); } catch(e){} }
+  sessions.splice(i,1); renderLog(); showToast('Entry deleted');
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 function toggleConfig() { $g('config-body').classList.toggle('open'); }
 function saveConfig() {
-  CFG.sqToken     = $g('sq-token').value.trim();
-  CFG.sqLocation  = $g('sq-location').value.trim() || 'D7EZ98V48F79A';
-  CFG.notionToken = $g('notion-token').value.trim();
-  localStorage.setItem('sts-square-token',  CFG.sqToken);
-  localStorage.setItem('sts_sqLocation',    CFG.sqLocation);
-  localStorage.setItem('sts_notionToken',   CFG.notionToken);
+  CFG.sqToken = $g('sq-token').value.trim(); CFG.sqLocation = $g('sq-location').value.trim()||'D7EZ98V48F79A'; CFG.notionToken = $g('notion-token').value.trim();
+  localStorage.setItem('sts-square-token',CFG.sqToken); localStorage.setItem('sts_sqLocation',CFG.sqLocation); localStorage.setItem('sts_notionToken',CFG.notionToken);
   showToast('Config saved'); loadEmployees();
 }
 function loadConfig() {
-  CFG.sqToken     = localStorage.getItem('sts-square-token') || '';
-  CFG.sqLocation  = localStorage.getItem('sts_sqLocation')   || CFG.sqLocation;
-  CFG.notionToken = localStorage.getItem('sts_notionToken')  || '';
-  $g('sq-token').value     = CFG.sqToken;
-  $g('sq-location').value  = CFG.sqLocation;
-  $g('notion-token').value = CFG.notionToken;
+  CFG.sqToken = localStorage.getItem('sts-square-token')||''; CFG.sqLocation = localStorage.getItem('sts_sqLocation')||CFG.sqLocation; CFG.notionToken = localStorage.getItem('sts_notionToken')||'';
+  $g('sq-token').value=CFG.sqToken; $g('sq-location').value=CFG.sqLocation; $g('notion-token').value=CFG.notionToken;
 }
 
-// ── Session log ───────────────────────────────────────────────────────────────
+// ── Session log loader ────────────────────────────────────────────────────────
 async function loadSessionsFromNotion() {
   try {
     const res = await fetch('/api/notion-timesession');
     if (!res.ok) { loadSessionsFromLocal(); return; }
     const ns = await res.json();
-    if (!Array.isArray(ns) || !ns.length) { loadSessionsFromLocal(); return; }
-    sessions = ns.map(s => ({
-      notionPageIds:  [s.notionPageId],
-      items:          [{ name: s.itemName || '', sku: s.sku || '', category: s.category || '', id: s.squareItemId || '', pieces: s.pieces ?? null }],
-      employee:       { name: s.employeeName || '', id: '' },
-      totalMs:        (s.totalMin  || 0) * 60000,
-      clockedOutMs:   (s.dedMin    || 0) * 60000,
-      netMs:          (s.netMin    || 0) * 60000,
-      notes:          s.notes || '',
-      timestamp:      s.date ? s.date + 'T12:00:00Z' : new Date().toISOString(),
-      saved: true, error: null,
-    }));
+    if (!Array.isArray(ns)||!ns.length) { loadSessionsFromLocal(); return; }
+    sessions = ns
+      .filter(s => s.netMin != null)
+      .map(s => ({
+        notionPageId:  s.notionPageId,
+        items:         [{ name:s.itemName||'', sku:s.sku||'', category:s.category||'', id:s.squareItemId||'', pieces:s.pieces??null }],
+        employee:      { name:s.employeeName||'', id:'' },
+        totalMs:       (s.totalMin||0)*60000, clockedOutMs:(s.dedMin||0)*60000, netMs:(s.netMin||0)*60000,
+        notes:         s.notes||'',
+        timestamp:     s.stopTime||(s.date?s.date+'T12:00:00Z':new Date().toISOString()),
+        startTime:     s.startTime||null, stopTime:s.stopTime||null,
+        saved:true, error:null,
+      }));
     renderLog();
   } catch(e) { loadSessionsFromLocal(); }
 }
-
 function loadSessionsFromLocal() {
-  try { sessions = JSON.parse(localStorage.getItem('sts_sessions') || '[]'); } catch(e) { sessions = []; }
+  try { sessions = JSON.parse(localStorage.getItem('sts_sessions')||'[]'); } catch(e) { sessions=[]; }
   renderLog();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
-  buildCards();
-  loadConfig();
+  buildCards(); loadConfig();
+  const resumed = [false, false];
 
-  // Restore running timers: cloud KV first, localStorage fallback
-  try {
-    const res = await fetch('/api/timer-state');
-    if (res.ok) {
-      const cloud = await res.json();
-      for (let tid = 0; tid < NUM_TIMERS; tid++) {
-        const saved = cloud[tid];
-        if (saved && saved.startTime) {
-          try {
-            resumeTimer(tid, saved);
-            if (saved.notes) $t(tid, 'notes-input').value = saved.notes;
-          } catch(e) { console.error(`Resume timer ${tid} from cloud:`, e); }
-        } else {
-          const local = localStorage.getItem(`sts_activeTimer_${tid}`);
-          if (local) {
-            try { resumeTimer(tid, JSON.parse(local)); }
-            catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
+  // localStorage first (has full item/employee data + notionPageId)
+  for (let tid = 0; tid < NUM_TIMERS; tid++) {
+    const local = localStorage.getItem(`sts_activeTimer_${tid}`);
+    if (local) {
+      try {
+        const saved = JSON.parse(local);
+        saved.notionPageId = saved.notionPageId || localStorage.getItem(`sts_notionPageId_${tid}`);
+        resumeTimer(tid, saved); resumed[tid] = true;
+      } catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
+    }
+  }
+
+  // Notion fallback for any slot not yet resumed (cross-device)
+  if (resumed.some(r => !r)) {
+    try {
+      const res = await fetch('/api/notion-timesession?active=true');
+      if (res.ok) {
+        const active = await res.json(); let slot = 0;
+        for (const s of active) {
+          while (slot < NUM_TIMERS && resumed[slot]) slot++;
+          if (slot >= NUM_TIMERS) break;
+          if (s.startTime) {
+            resumeTimer(slot, { startTime: new Date(s.startTime).getTime(), items:[{ name:s.itemName||'', sku:s.sku||'', category:s.category||'', id:s.squareItemId||'', isParent:false }], employee:{ name:s.employeeName||'', id:'' }, notionPageId:s.notionPageId });
+            resumed[slot] = true;
           }
         }
       }
-    } else {
-      // KV unavailable — fall back to localStorage
-      for (let tid = 0; tid < NUM_TIMERS; tid++) {
-        const local = localStorage.getItem(`sts_activeTimer_${tid}`);
-        if (local) {
-          try { resumeTimer(tid, JSON.parse(local)); }
-          catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
-        }
-      }
-    }
-  } catch(e) {
-    for (let tid = 0; tid < NUM_TIMERS; tid++) {
-      const local = localStorage.getItem(`sts_activeTimer_${tid}`);
-      if (local) {
-        try { resumeTimer(tid, JSON.parse(local)); }
-        catch(e) { localStorage.removeItem(`sts_activeTimer_${tid}`); }
-      }
-    }
+    } catch(e) { console.warn('Notion active check failed:', e); }
   }
 
   loadSessionsFromNotion();
