@@ -136,6 +136,8 @@
   .log-edit-input:focus { border-color: var(--accent); }
   .log-del-btn { background: none; border: 1px solid var(--bdr-light); border-radius: 5px; cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 3px 7px; line-height: 1; transition: border-color 0.15s, color 0.15s, background 0.15s; flex-shrink: 0; }
   .log-del-btn:hover { border-color: var(--red); color: var(--red); background: #fdf0ec; }
+  @keyframes pulse-gold { 0%,100% { box-shadow: 0 0 0 0 rgba(201,152,58,0); } 50% { box-shadow: 0 0 0 6px rgba(201,152,58,0.35); } }
+  .btn-pulse { animation: pulse-gold 0.9s ease 4; }
 
   .config-panel { margin-top: 2rem; border-top: 1px solid var(--bdr); padding-top: 1.5rem; }
   .config-toggle { background: none; border: none; color: var(--text3); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 0; transition: color 0.15s; }
@@ -251,7 +253,7 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   clockStatus: 'unknown', notionPageId: null,
 }));
 
-let employees = [], sessions = [], _editingSession = null;
+let employees = [], sessions = [], _editingSession = null, _lastShift = {};
 
 const $g = id => document.getElementById(id);
 const $t = (tid, id) => document.getElementById(`t${tid}-${id}`);
@@ -536,24 +538,61 @@ function checkReady(tid) {
   $t(tid,'start-btn').disabled = !ok || T[tid].running || T[tid].clockStatus === 'not-clocked-in';
 }
 
+function _applyClockBadge(tid, openShift) {
+  const badge = $t(tid,'clock-status'); if (!badge) return;
+  if (openShift) {
+    T[tid].clockStatus = 'clocked-in'; badge.className = 'clock-status clocked-in visible';
+    badge.textContent = `✓ Clocked in since ${new Date(openShift.start_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+  } else {
+    T[tid].clockStatus = 'not-clocked-in'; badge.className = 'clock-status not-clocked-in visible';
+    badge.textContent = `⏸ Not clocked in`;
+  }
+  checkReady(tid);
+}
+
 async function checkClockIn(tid) {
   const emp = T[tid].selectedEmployee; if (!emp) return;
   const badge = $t(tid,'clock-status');
   if (!CFG.sqToken) { T[tid].clockStatus='unknown'; badge.className='clock-status'; return; }
-  T[tid].clockStatus='checking'; badge.className='clock-status checking visible'; badge.textContent='⏳ Checking clock-in status…'; checkReady(tid);
+  T[tid].clockStatus='checking'; badge.className='clock-status checking visible'; badge.textContent='⏳ Checking…'; checkReady(tid);
   try {
-    const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:5 }) });
-    const open = (data.shifts||[]).filter(s => !s.end_at);
-    if (open.length) {
-      T[tid].clockStatus='clocked-in'; badge.className='clock-status clocked-in visible';
-      badge.textContent=`✓ Clocked in since ${new Date(open[0].start_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
-    } else {
-      T[tid].clockStatus='not-clocked-in'; badge.className='clock-status not-clocked-in visible';
-      const err = data.errors ? data.errors.map(e=>e.detail||e.code).join('; ') : '';
-      badge.textContent=`⚠ ${emp.name} not clocked in (${(data.shifts||[]).length} shifts found${err?' · '+err:''})`;
-    }
+    const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:1 }) });
+    const open = (data.shifts||[]).find(s => !s.end_at) || null;
+    _applyClockBadge(tid, open);
+    _lastShift[tid] = !!open;
   } catch(e) { T[tid].clockStatus='error'; badge.className='clock-status error visible'; badge.textContent=`Could not verify clock-in: ${e.message||e}`; }
   checkReady(tid);
+}
+
+async function pollShifts() {
+  if (!CFG.sqToken) return;
+  for (let tid = 0; tid < NUM_TIMERS; tid++) {
+    const emp = T[tid].selectedEmployee; if (!emp) continue;
+    try {
+      const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:1 }) });
+      const openShift = (data.shifts||[]).find(s => !s.end_at) || null;
+      const nowOpen = !!openShift;
+      const wasOpen = _lastShift[tid]; // undefined = first poll
+
+      _applyClockBadge(tid, openShift);
+
+      if (wasOpen !== undefined && wasOpen !== nowOpen) {
+        if (wasOpen && !nowOpen && T[tid].running) {
+          // Clocked out while timer was running → auto-stop
+          showToast(`${emp.name} clocked out — saving session`);
+          await stopTimer(tid);
+        } else if (!wasOpen && nowOpen && !T[tid].running && T[tid].selectedItems.length > 0) {
+          // Clocked in with items ready → nudge Start button
+          showToast(`${emp.name} clocked in — ready to start`);
+          const btn = $t(tid,'start-btn');
+          if (btn && !btn.disabled) { btn.classList.add('btn-pulse'); btn.addEventListener('animationend', () => btn.classList.remove('btn-pulse'), { once: true }); }
+        } else if (!wasOpen && nowOpen && !T[tid].running) {
+          showToast(`${emp.name} clocked in`);
+        }
+      }
+      _lastShift[tid] = nowOpen;
+    } catch(e) { console.warn(`Shift poll tid=${tid}:`, e); }
+  }
 }
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
@@ -960,6 +999,8 @@ async function boot() {
 
   loadSessionsFromNotion();
   await loadEmployees();
+  // Start shift polling — initial run after a short delay, then every 45s
+  if (CFG.sqToken) { setTimeout(() => { pollShifts(); setInterval(pollShifts, 45000); }, 5000); }
 }
 boot();
 </script>
