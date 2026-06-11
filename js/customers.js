@@ -426,7 +426,10 @@ function buildCustomerExpandHtml(idx) {
         const stageClr = isActive ? '#2A5A9A' : '#7A7268';
         const dl       = typeof deadlineInfo === 'function' ? deadlineInfo(o.deadline) : { text: o.deadline||'', cls: '' };
         return `<div class="ct-prev-order">
-          <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
+          <div class="ct-prev-order-top">
+            <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
+            <button class="ct-prev-edit-btn" onclick="openOrderCard('${o.id}');event.stopPropagation()">✏ Edit</button>
+          </div>
           <div class="ct-prev-meta">
             <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
             ${o.price ? `<span class="ct-prev-price">${typeof fmtPrice==='function'?fmtPrice(o.price):'$'+o.price}</span>` : ''}
@@ -563,6 +566,18 @@ async function saveCustomerEdit(idx) {
     expand.innerHTML = buildCustomerExpandHtml(idx);
     loadCustomerGmail(c.email, idx);
   }, 50);
+}
+
+function refreshOpenCustomerExpands() {
+  document.querySelectorAll('.ct-row-wrap.ct-open').forEach(wrap => {
+    const idx    = wrap.id.replace('ct-wrap-', '');
+    const expand = document.getElementById('ct-expand-' + idx);
+    if (!expand) return;
+    const c = CUSTOMERS[parseInt(idx)];
+    expand.dataset.loaded = '1';
+    expand.innerHTML = buildCustomerExpandHtml(parseInt(idx));
+    if (c) loadCustomerGmail(c.email, parseInt(idx));
+  });
 }
 
 function toggleCustomerRow(idx) {

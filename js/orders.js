@@ -342,6 +342,10 @@ function saveOrderEdit() {
   if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
   saveToStorage();
+
+  // Refresh any open customer expand panels so order changes show immediately
+  if (typeof refreshOpenCustomerExpands === 'function') refreshOpenCustomerExpands();
+
   toast('Order updated ✓', '✓');
 }
 
