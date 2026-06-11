@@ -401,13 +401,18 @@ async function calSaveEvent() {
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (r.status === 401) { calClearTokens(); return; }
-    if (!r.ok) throw new Error('api-error');
+    if (r.status === 401) { calClearTokens(); toast('Session expired — please reconnect Google Calendar', '⚠'); return; }
+    if (!r.ok) {
+      const errBody = await r.json().catch(() => ({}));
+      console.error('Calendar API error', r.status, errBody);
+      throw new Error((errBody.error && errBody.error.message) || ('HTTP ' + r.status));
+    }
     toast('Event saved ✓', '📅');
     calCloseAddModal();
     calLoadEvents();
   } catch (err) {
-    toast('Failed to save event', '⚠');
+    console.error('calSaveEvent error:', err);
+    toast('Failed to save event: ' + err.message, '⚠');
   } finally {
     saveBtn.disabled = false; saveBtn.textContent = 'Save Event';
   }
