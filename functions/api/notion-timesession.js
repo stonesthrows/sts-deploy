@@ -64,7 +64,9 @@ export async function onRequestPost(context) {
     'Date':                         { date:   { start: s.date || new Date().toISOString().slice(0,10) } },
     'Notes':                        { rich_text: [{ text: { content: (s.notes || '').slice(0, 2000) } }] },
   };
-  if (s.pieces != null) props['Pieces Made'] = { number: s.pieces };
+  if (s.pieces    != null) props['Pieces Made'] = { number: s.pieces };
+  if (s.startTime)         props['Start Time']  = { date: { start: s.startTime } };
+  if (s.stopTime)          props['Stop Time']   = { date: { start: s.stopTime  } };
 
   async function notionPost(properties) {
     return fetch(NOTION_API + '/pages', {
@@ -133,6 +135,8 @@ export async function onRequestGet(context) {
         date:          props['Date']?.date?.start || null,
         notes:         txt(props['Notes']),
         pieces:        num(props['Pieces Made']),
+        startTime:     props['Start Time']?.date?.start || null,
+        stopTime:      props['Stop Time']?.date?.start  || null,
       };
     });
 

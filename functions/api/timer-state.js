@@ -34,7 +34,7 @@ function withTimeout(promise, ms) {
 
 export async function onRequestGet(context) {
   const kv = context.env.STS_TIMER;
-  if (!kv) return json({ error: 'STS_TIMER KV namespace not bound' }, 500);
+  if (!kv) return json({ error: 'STS_TIMER KV namespace not bound', 0: null, 1: null }, 500);
   try {
     const [v0, v1] = await withTimeout(
       Promise.all([kv.get('timer_0'), kv.get('timer_1')]),
@@ -56,7 +56,7 @@ export async function onRequestPut(context) {
     const body = await context.request.json();
     const { tid, ...state } = body;
     if (tid === undefined || tid === null) return json({ error: 'tid required' }, 400);
-    await withTimeout(kv.put(`timer_${tid}`, JSON.stringify(state), { expirationTtl: 86400 }), 4000);
+    await withTimeout(kv.put(`timer_${tid}`, JSON.stringify(state), { expirationTtl: 604800 }), 4000);
     return json({ ok: true });
   } catch(e) {
     return json({ error: e.message }, 500);

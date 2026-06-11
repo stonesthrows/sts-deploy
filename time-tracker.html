@@ -140,6 +140,10 @@
   .config-save { background: var(--accent); border: none; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.6rem 1.25rem; cursor: pointer; align-self: flex-start; transition: background 0.15s; }
   .config-save:hover { background: var(--accent-mid); }
 
+  .resume-warning { display: none; background: #fdf3e0; border: 1px solid #e8c264; border-radius: 8px; padding: 0.65rem 0.875rem; margin-bottom: 0.75rem; font-size: 12px; color: #7a4e10; line-height: 1.5; }
+  .resume-warning strong { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9a5e10; margin-bottom: 2px; }
+  .resume-warning.visible { display: block; }
+
   .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--hdr); border: 1px solid #2E5C78; border-radius: 8px; padding: 0.75rem 1.25rem; font-size: 13px; color: #fff; opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 100; white-space: nowrap; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.error { border-color: rgba(160,64,42,0.6); color: #e07050; }
@@ -221,7 +225,6 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   selectedItems: [], selectedEmployee: null,
   running: false, startTime: null, tickInterval: null, debounce: null,
   clockStatus: 'unknown', // 'unknown' | 'checking' | 'clocked-in' | 'not-clocked-in' | 'error'
-  paused: false, pausedAt: null, totalPausedMs: 0, pollInterval: null,
 }));
 
 // ── Shared ───────────────────────────────────────────────────────────────────
@@ -351,6 +354,10 @@ function buildCard(tid) {
 
     <div class="step dimmed" id="t${tid}-step-timer">
       <div class="step-label">03 — Timer</div>
+      <div class="resume-warning" id="t${tid}-resume-warning">
+        <strong>⚠ Timer resumed from a previous session</strong>
+        <span id="t${tid}-resume-warning-msg"></span>
+      </div>
       <div class="timer-section">
         <div class="timer-display" id="t${tid}-timer-display">00:00:00</div>
         <div class="timer-status" id="t${tid}-timer-status"></div>
@@ -597,18 +604,16 @@ function _runningUI(tid) {
   $t(tid, 'start-time-row').style.display = 'none';
   $t(tid, 'adjust-wrap').style.display = 'block';
   clearInterval(T[tid].tickInterval);
-  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime - T[tid].totalPausedMs); }, 1000);
+  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime); }, 1000);
 }
 
 function startTimer(tid) {
   T[tid].running = true;
-  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   const timeInput = $t(tid, 'start-time-input');
   T[tid].startTime = parseTimeInput(timeInput?.value) || Date.now();
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
   saveTimerState(tid);
   _runningUI(tid);
-  startClockPoll(tid);
 }
 
 function resumeTimer(tid, saved) {
@@ -616,50 +621,57 @@ function resumeTimer(tid, saved) {
   T[tid].selectedItems = saved.items || (saved.item ? [{ ...saved.item, pieces: null }] : []);
   T[tid].selectedEmployee = saved.employee;
   T[tid].startTime = saved.startTime; T[tid].running = true;
-  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   renderSelectedItems(tid);
   _runningUI(tid);
-  startClockPoll(tid);
+  // Show warning if timer started on a different day or more than 12 hours ago
+  const elapsed = Date.now() - saved.startTime;
+  const startDate = new Date(saved.startTime);
+  const today = new Date();
+  const isDifferentDay = startDate.toDateString() !== today.toDateString();
+  if (isDifferentDay || elapsed > 12 * 3600 * 1000) {
+    const startLabel = isDifferentDay
+      ? startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' + startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const warn = $t(tid, 'resume-warning');
+    $t(tid, 'resume-warning-msg').textContent = `Started ${startLabel} — ${Math.round(elapsed / 3600000)} hrs ago. Verify the time before saving.`;
+    warn.classList.add('visible');
+  }
   showToast(`Timer ${tid + 1} resumed — running since ` + new Date(saved.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
 }
 
 async function stopTimer(tid) {
   clearInterval(T[tid].tickInterval);
-  clearInterval(T[tid].pollInterval); T[tid].pollInterval = null;
-  // Finalize any active pause before saving
-  if (T[tid].paused && T[tid].pausedAt) {
-    T[tid].totalPausedMs += Date.now() - T[tid].pausedAt;
-    T[tid].paused = false; T[tid].pausedAt = null;
-  }
+  const stopTime = new Date().toISOString();
+  const startTime = new Date(T[tid].startTime).toISOString();
   deleteTimerState(tid);
   const totalWall = Date.now() - T[tid].startTime;
   $t(tid, 'stop-btn').disabled = true; $t(tid, 'timer-status').textContent = 'Reconciling…';
   let clockedOutMs = 0;
   if (CFG.sqToken && T[tid].selectedEmployee) {
     try {
-      const from = new Date(T[tid].startTime).toISOString(), to = new Date().toISOString();
-      const data = await sq(`/labor/shifts?team_member_id=${T[tid].selectedEmployee.id}&start_at_min=${from}&start_at_max=${to}`);
+      const data = await sq(`/labor/shifts?team_member_id=${T[tid].selectedEmployee.id}&start_at_min=${startTime}&start_at_max=${stopTime}`);
       const shifts = data.shifts || [];
       if (shifts.length) {
         let workedMs = 0;
-        shifts.forEach(sh => { const cin = Math.max(new Date(sh.start_at).getTime(), T[tid].startTime); const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), Date.now()) : Date.now(); if (cout > cin) workedMs += (cout - cin); });
+        const stopMs = new Date(stopTime).getTime();
+        shifts.forEach(sh => {
+          const cin  = Math.max(new Date(sh.start_at).getTime(), T[tid].startTime);
+          const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), stopMs) : stopMs;
+          if (cout > cin) workedMs += (cout - cin);
+        });
         clockedOutMs = Math.max(0, totalWall - workedMs);
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
-  } else if (T[tid].totalPausedMs > 0) {
-    // No Square token — use our own pause tracking as the deduction
-    clockedOutMs = T[tid].totalPausedMs;
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const notes = $t(tid, 'notes-input').value.trim();
-  // Read pieces from per-item inputs in the selected-items-list
   const items = T[tid].selectedItems.map((item, idx) => {
     const inp = $t(tid, `pieces-${idx}`);
     const pcs = inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null;
     return { ...item, pieces: pcs };
   });
   $t(tid, 'timer-status').textContent = 'Done';
-  const session = { timerLabel: `Timer ${tid + 1}`, items, employee: T[tid].selectedEmployee, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: new Date().toISOString(), saved: false, notionPageIds: [], error: null };
+  const session = { timerLabel: `Timer ${tid + 1}`, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: stopTime, saved: false, notionPageIds: [], error: null };
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid + 1} — ${fmt(netMs)} recorded`);
   saveToNotion(session);
@@ -690,6 +702,8 @@ async function saveToNotion(session) {
       date:         session.timestamp.slice(0, 10),
       notes:        session.notes || '',
       pieces:       it.pieces != null ? it.pieces : undefined,
+      startTime:    session.startTime || null,
+      stopTime:     session.stopTime  || null,
     };
     try {
       const res = await fetch('/api/notion-timesession', {
@@ -784,51 +798,9 @@ function inventoryDone() {
   _invTid = null; _invSession = null;
 }
 
-// ── Clock-out auto-pause ──────────────────────────────────────────────────────
-function pauseTimer(tid) {
-  if (!T[tid].running || T[tid].paused) return;
-  T[tid].paused = true; T[tid].pausedAt = Date.now();
-  clearInterval(T[tid].tickInterval);
-  $t(tid, 'timer-status').textContent = 'Paused — clocked out';
-  $t(tid, 'timer-status').style.color = 'var(--accent)';
-  showToast(`Timer ${tid + 1} paused — ${T[tid].selectedEmployee?.name || 'employee'} clocked out`, true);
-}
-
-function resumeTimerFromPause(tid) {
-  if (!T[tid].running || !T[tid].paused) return;
-  T[tid].totalPausedMs += Date.now() - T[tid].pausedAt;
-  T[tid].paused = false; T[tid].pausedAt = null;
-  T[tid].tickInterval = setInterval(() => { $t(tid, 'timer-display').textContent = fmt(Date.now() - T[tid].startTime - T[tid].totalPausedMs); }, 1000);
-  $t(tid, 'timer-status').textContent = 'Running';
-  $t(tid, 'timer-status').style.color = '';
-  showToast(`Timer ${tid + 1} resumed — ${T[tid].selectedEmployee?.name || 'employee'} clocked in`);
-}
-
-function startClockPoll(tid) {
-  clearInterval(T[tid].pollInterval);
-  if (!CFG.sqToken) return;
-  T[tid].pollInterval = setInterval(() => pollClockStatus(tid), 60000);
-}
-
-async function pollClockStatus(tid) {
-  if (!T[tid].running) return;
-  const emp = T[tid].selectedEmployee;
-  if (!emp || !CFG.sqToken) return;
-  try {
-    const data = await sq('/labor/shifts/search', {
-      method: 'POST',
-      body: JSON.stringify({ query: { filter: { team_member_ids: [emp.id], status: 'OPEN', location_ids: [CFG.sqLocation] } }, limit: 5 })
-    });
-    const isClockedIn = (data.shifts || []).some(s => !s.end_at);
-    if (!isClockedIn && !T[tid].paused) pauseTimer(tid);
-    else if (isClockedIn && T[tid].paused) resumeTimerFromPause(tid);
-  } catch(e) { /* silent — don't disrupt timer on poll errors */ }
-}
 
 function resetTimer(tid) {
   T[tid].running = false; localStorage.removeItem(`sts_activeTimer_${tid}`); deleteTimerState(tid);
-  clearInterval(T[tid].pollInterval); T[tid].pollInterval = null;
-  T[tid].paused = false; T[tid].pausedAt = null; T[tid].totalPausedMs = 0;
   $t(tid, 'start-time-row').style.display = ''; initStartTimeInput(tid);
   $t(tid, 'adjust-wrap').style.display = 'none'; $t(tid, 'adjust-panel').style.display = 'none';
   clearInterval(T[tid].tickInterval);
@@ -842,6 +814,7 @@ function resetTimer(tid) {
   T[tid].selectedEmployee = null;
   T[tid].clockStatus = 'unknown';
   $t(tid, 'clock-status').className = 'clock-status';
+  $t(tid, 'resume-warning').classList.remove('visible');
   checkReady(tid);
 }
 
