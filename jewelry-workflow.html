@@ -5115,10 +5115,13 @@ function savePrintSetup() {
       </div>
     </div>
 
+    <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.1);"></div>
+
     <div class="eo-foot">
       <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
       <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
       <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
       <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
       <button class="btn btn-outline btn-sm" onclick="closeEditOrderModal()">Close</button>
       <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">Save Changes</button>

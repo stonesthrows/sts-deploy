@@ -848,6 +848,177 @@ function printOrder(id) {
   window.open('work-order-print.html?' + p.toString(), '_blank');
 }
 
+// ════════════════════════════════════════════
+
+//  INVOICE FROM ORDER CARD
+// ════════════════════════════════════════════
+function eoShowInvoice() {
+  const id = document.getElementById('eo-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  const compose = document.getElementById('eo-invoice-compose');
+
+  const defaultDue = (typeof _gtInvDefaultDue === 'function') ? _gtInvDefaultDue() : (() => {
+    const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0];
+  })();
+
+  compose.innerHTML = `
+    <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">📋 Square Invoice / Estimate</div>
+    <div class="gt-inv-type-row">
+      <button class="gt-inv-type-btn active" data-type="invoice"  onclick="eoInvSetType(this)">📋 Invoice</button>
+      <button class="gt-inv-type-btn"        data-type="estimate" onclick="eoInvSetType(this)">📄 Estimate</button>
+    </div>
+    <div id="eo-inv-items" class="gt-inv-items">
+      <div class="gt-inv-item-row">
+        <input class="gt-inv-desc"  type="text"   placeholder="Item description">
+        <input class="gt-inv-price" type="number" placeholder="0.00" min="0" step="0.01">
+        <button class="gt-inv-rm" onclick="eoInvRemoveItem(this)">−</button>
+      </div>
+    </div>
+    <button class="gt-inv-add-btn" onclick="eoInvAddItem()">+ Add item</button>
+    <div class="gt-inv-fields">
+      <label><span id="eo-inv-due-label">Due date</span> <input class="gt-inv-due" id="eo-inv-due" type="date" value="${defaultDue}"></label>
+      <label>Note <input class="gt-inv-note" id="eo-inv-note" type="text" placeholder="Optional note…"></label>
+    </div>
+    <div class="gt-inv-foot">
+      <button class="btn btn-gold btn-sm" id="eo-inv-submit-btn" onclick="eoSubmitInvoice()">Create Draft</button>
+      <button class="btn btn-ghost btn-sm" onclick="eoCancelInvoice()">Cancel</button>
+      <span id="eo-inv-status" class="gt-inv-status"></span>
+    </div>`;
+
+  const firstRow = compose.querySelector('.gt-inv-item-row');
+  if (firstRow && o) {
+    firstRow.querySelector('.gt-inv-desc').value  = o.desc  ? o.desc.slice(0, 80) : '';
+    firstRow.querySelector('.gt-inv-price').value = o.price ? o.price : '';
+  }
+
+  compose.style.display = '';
+}
+
+function eoCancelInvoice() {
+  const compose = document.getElementById('eo-invoice-compose');
+  compose.style.display = 'none';
+  compose.innerHTML = '';
+}
+
+function eoInvSetType(btn) {
+  btn.closest('.gt-inv-type-row').querySelectorAll('.gt-inv-type-btn')
+    .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const lbl = document.getElementById('eo-inv-due-label');
+  if (lbl) lbl.textContent = btn.dataset.type === 'estimate' ? 'Valid until' : 'Due date';
+}
+
+function eoInvAddItem() {
+  const items = document.getElementById('eo-inv-items');
+  const row = document.createElement('div');
+  row.className = 'gt-inv-item-row';
+  row.innerHTML = '<input class="gt-inv-desc" type="text" placeholder="Item description">' +
+    '<input class="gt-inv-price" type="number" placeholder="0.00" min="0" step="0.01">' +
+    '<button class="gt-inv-rm" onclick="eoInvRemoveItem(this)">−</button>';
+  items.appendChild(row);
+  row.querySelector('.gt-inv-desc').focus();
+}
+
+function eoInvRemoveItem(btn) {
+  const row  = btn.closest('.gt-inv-item-row');
+  const list = row.parentNode;
+  if (list.querySelectorAll('.gt-inv-item-row').length > 1) row.remove();
+}
+
+function eoSubmitInvoice() {
+  const compose = document.getElementById('eo-invoice-compose');
+  const status  = document.getElementById('eo-inv-status');
+  const btn     = document.getElementById('eo-inv-submit-btn');
+
+  const customerEmail = document.getElementById('eo-email').value.trim();
+  const customerName  = document.getElementById('eo-name').value.trim();
+
+  if (!customerEmail) { status.textContent = 'No email — add one in the Email field above.'; return; }
+  if (!_gtSqLocation()) { status.textContent = 'No Square Location ID — add it in ⚙ Integrations.'; return; }
+
+  const items = [];
+  compose.querySelectorAll('.gt-inv-item-row').forEach(row => {
+    const desc  = row.querySelector('.gt-inv-desc').value.trim();
+    const price = parseFloat(row.querySelector('.gt-inv-price').value) || 0;
+    if (desc && price > 0) items.push({ name: desc, price });
+  });
+  if (!items.length) { status.textContent = 'Add at least one item with a price.'; return; }
+
+  const activeTypeBtn = compose.querySelector('.gt-inv-type-btn.active');
+  const invType  = (activeTypeBtn && activeTypeBtn.dataset.type === 'estimate') ? 'ESTIMATE' : 'INVOICE';
+  const dueDate  = document.getElementById('eo-inv-due').value || _gtInvDefaultDue();
+  const note     = document.getElementById('eo-inv-note').value.trim();
+
+  btn.textContent = 'Creating…';
+  btn.disabled    = true;
+  status.textContent = '';
+
+  _gtSqCall('/v2/customers/search', 'POST', {
+    query: { filter: { email_address: { exact: customerEmail } } }
+  })
+  .then(d => {
+    if (d.customers && d.customers.length) return d.customers[0].id;
+    const parts = customerName.split(' ');
+    return _gtSqCall('/v2/customers', 'POST', {
+      idempotency_key: 'sts-cust-' + customerEmail.replace(/\W/g, '') + Date.now(),
+      given_name:    parts[0] || customerName,
+      family_name:   parts.slice(1).join(' ') || '',
+      email_address: customerEmail
+    }).then(d2 => {
+      if (d2.customer) return d2.customer.id;
+      throw new Error(((d2.errors || [])[0] || {}).detail || 'Could not create customer');
+    });
+  })
+  .then(customerId => {
+    return _gtSqCall('/v2/orders', 'POST', {
+      idempotency_key: 'sts-ord-' + Date.now(),
+      order: {
+        location_id: _gtSqLocation(),
+        customer_id: customerId,
+        line_items:  items.map(item => ({
+          name: item.name,
+          quantity: '1',
+          base_price_money: { amount: Math.round(item.price * 100), currency: 'USD' }
+        }))
+      }
+    }).then(d3 => {
+      if (d3.order) return { customerId, orderId: d3.order.id };
+      throw new Error(((d3.errors || [])[0] || {}).detail || 'Could not create order');
+    });
+  })
+  .then(ids => {
+    return _gtSqCall('/v2/invoices', 'POST', {
+      idempotency_key: 'sts-inv-' + Date.now(),
+      invoice: Object.assign({
+        invoice_type:      invType,
+        location_id:       _gtSqLocation(),
+        order_id:          ids.orderId,
+        primary_recipient: { customer_id: ids.customerId },
+        delivery_method:   'EMAIL',
+        description:       note,
+        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
+      }, invType === 'INVOICE' ? {
+        payment_requests: [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }]
+      } : {})
+    });
+  })
+  .then(d4 => {
+    if (d4.invoice) {
+      const url      = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      const typeWord = invType === 'ESTIMATE' ? 'estimate' : 'invoice';
+      compose.innerHTML = '<div class="gt-inv-success" style="padding:10px 0;">✓ Draft ' + typeWord + ' created — ' +
+        '<a href="' + url + '" target="_blank" class="gt-inv-link">Review &amp; Send in Square →</a></div>';
+    } else {
+      throw new Error(((d4.errors || [])[0] || {}).detail || 'Invoice creation failed');
+    }
+  })
+  .catch(e => {
+    btn.textContent    = 'Create Draft';
+    btn.disabled       = false;
+    status.textContent = '⚠ ' + (e.message || 'Unknown error');
+  });
+}
+
 // Always start with cards fully expanded.
 collapsedCards.clear();
 renderKanban();
