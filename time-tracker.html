@@ -318,6 +318,26 @@ async function saveNoteToCloud(tid) {
   if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save note'; }, 1800); }
 }
 
+// ── Shift log formatter ───────────────────────────────────────────────────────
+function _formatShiftLog(shifts, projectStartMs, projectStopMs) {
+  if (!shifts.length) return '';
+  const pStart = projectStartMs, pStop = projectStopMs || Date.now();
+  const fTime = iso => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  // Group by calendar day
+  const byDay = {};
+  shifts.forEach(sh => {
+    const cin  = Math.max(new Date(sh.start_at).getTime(), pStart);
+    const cout = sh.end_at ? Math.min(new Date(sh.end_at).getTime(), pStop) : pStop;
+    if (cout <= cin) return;
+    const dayKey = new Date(cin).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const hrs = ((cout - cin) / 3600000).toFixed(1);
+    const entry = `${fTime(new Date(cin).toISOString())} – ${fTime(new Date(cout).toISOString())} (${hrs} hr)`;
+    (byDay[dayKey] = byDay[dayKey] || []).push(entry);
+  });
+  const lines = Object.entries(byDay).map(([day, entries]) => `${day}: ${entries.join(', ')}`);
+  return '— Shift Log —\n' + lines.join('\n');
+}
+
 // ── Datetime helpers ──────────────────────────────────────────────────────────
 function toDateTimeLocal(iso) {
   if (!iso) return '';
@@ -655,6 +675,7 @@ async function stopTimer(tid) {
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
   }
   const netMs = Math.max(0, totalWall - clockedOutMs);
+  const shiftLog = _formatShiftLog(shifts, T[tid].startTime, new Date(stopTime).getTime());
   const notes = $t(tid,'notes-input').value.trim();
   const items = T[tid].selectedItems.map((item, idx) => {
     if (item.isParent) return { ...item, pieces: null };
@@ -662,7 +683,7 @@ async function stopTimer(tid) {
     return { ...item, pieces: inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null };
   });
   $t(tid,'timer-status').textContent = 'Done';
-  const session = { timerLabel:`Timer ${tid+1}`, tid, notionPageId: T[tid].notionPageId, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, timestamp: stopTime, saved: false, error: null };
+  const session = { timerLabel:`Timer ${tid+1}`, tid, notionPageId: T[tid].notionPageId, items, employee: T[tid].selectedEmployee, startTime, stopTime, totalMs: totalWall, clockedOutMs, netMs, notes, shiftLog, timestamp: stopTime, saved: false, error: null };
   sessions.unshift(session); renderLog();
   showToast(`Timer ${tid+1} — ${fmt(netMs)} recorded`);
   finalizeNotionSession(session);
@@ -701,7 +722,7 @@ async function finalizeNotionSession(session) {
         totalMin: parseFloat((session.totalMs/60000).toFixed(2)),
         dedMin:   parseFloat((session.clockedOutMs/60000).toFixed(2)),
         netMin:   parseFloat((session.netMs/60000).toFixed(2)),
-        notes: session.notes || '',
+        notes: [session.notes, session.shiftLog].filter(Boolean).join('\n\n'),
         ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
       }),
     });
