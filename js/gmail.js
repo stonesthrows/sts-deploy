@@ -949,7 +949,6 @@ function gtSubmitInvoice(btn) {
     return _gtSqCall('/v2/invoices', 'POST', {
       idempotency_key: 'sts-inv-' + Date.now(),
       invoice: Object.assign({
-        invoice_type:      invType,
         location_id:       _gtSqLocation(),
         order_id:          ids.orderId,
         primary_recipient: { customer_id: ids.customerId },
