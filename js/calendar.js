@@ -323,7 +323,7 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── Day click ─────────────────────────────────
+// ── Day click / day panel ─────────────────────
 
 function calDayClick(dateKey) {
   const evs = _calEvents.filter(function (ev) {
@@ -331,13 +331,34 @@ function calDayClick(dateKey) {
     return dt === dateKey;
   });
   if (!evs.length) { calOpenAddModal(dateKey); return; }
-  const lines = evs.map(function (ev) {
-    const t = ev.start.dateTime
-      ? new Date(ev.start.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + ' — '
-      : '';
-    return t + (ev.summary || '(No title)');
-  });
-  alert(dateKey + '\n\n' + lines.join('\n'));
+  calOpenDayModal(dateKey, evs);
+}
+
+function calOpenDayModal(dateKey, evs) {
+  const modal = document.getElementById('cal-day-modal');
+  const d = new Date(dateKey + 'T12:00:00');
+  document.getElementById('cal-day-modal-title').textContent =
+    d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  document.getElementById('cal-day-modal-date').value = dateKey;
+
+  const list = document.getElementById('cal-day-modal-list');
+  list.innerHTML = evs.map(function (ev) {
+    const isAllDay = !ev.start.dateTime;
+    const timeStr = isAllDay ? 'All day'
+      : new Date(ev.start.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        + (ev.end && ev.end.dateTime ? ' – ' + new Date(ev.end.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '');
+    return '<div class="cal-day-ev-row" onclick="calOpenEditModal(\'' + escHtml(ev.id) + '\')">'
+      + '<div class="cal-day-ev-time">' + timeStr + '</div>'
+      + '<div class="cal-day-ev-name">' + escHtml(ev.summary || '(No title)') + '</div>'
+      + '<div class="cal-day-ev-edit">✏️</div>'
+      + '</div>';
+  }).join('');
+
+  modal.style.display = 'flex';
+}
+
+function calCloseDayModal() {
+  document.getElementById('cal-day-modal').style.display = 'none';
 }
 
 // ── Month navigation ──────────────────────────
@@ -352,22 +373,52 @@ function calNextMonth() {
   calLoadEvents();
 }
 
-// ── Add-event modal ───────────────────────────
+// ── Add / Edit modal ─────────────────────────
+
+let _calEditingEventId = null;
 
 function calOpenAddModal(prefillDate, prefillTitle) {
-  const modal = document.getElementById('cal-add-modal');
-  document.getElementById('cal-ev-title').value    = prefillTitle || '';
-  document.getElementById('cal-ev-date').value     = prefillDate || new Date().toISOString().slice(0, 10);
-  document.getElementById('cal-ev-time').value     = '09:00';
-  document.getElementById('cal-ev-end-time').value = '10:00';
-  document.getElementById('cal-ev-desc').value     = '';
+  _calEditingEventId = null;
+  document.getElementById('cal-modal-heading').textContent = 'New Event';
+  document.getElementById('cal-save-btn').textContent = 'Save Event';
+  document.getElementById('cal-delete-btn').style.display = 'none';
+  document.getElementById('cal-ev-title').value     = prefillTitle || '';
+  document.getElementById('cal-ev-date').value      = prefillDate || new Date().toISOString().slice(0, 10);
+  document.getElementById('cal-ev-time').value      = '09:00';
+  document.getElementById('cal-ev-end-time').value  = '10:00';
+  document.getElementById('cal-ev-desc').value      = '';
   document.getElementById('cal-ev-all-day').checked = false;
   calToggleAllDay();
-  modal.style.display = 'flex';
+  document.getElementById('cal-add-modal').style.display = 'flex';
+}
+
+function calOpenEditModal(eventId) {
+  const ev = _calEvents.find(function (e) { return e.id === eventId; });
+  if (!ev) return;
+  _calEditingEventId = eventId;
+  calCloseDayModal();
+  document.getElementById('cal-modal-heading').textContent = 'Edit Event';
+  document.getElementById('cal-save-btn').textContent = 'Update Event';
+  document.getElementById('cal-delete-btn').style.display = '';
+
+  const isAllDay = !ev.start.dateTime;
+  const dateKey  = isAllDay ? ev.start.date : ev.start.dateTime.slice(0, 10);
+  const timeVal  = isAllDay ? '09:00' : ev.start.dateTime.slice(11, 16);
+  const endVal   = (!isAllDay && ev.end && ev.end.dateTime) ? ev.end.dateTime.slice(11, 16) : '10:00';
+
+  document.getElementById('cal-ev-title').value     = ev.summary || '';
+  document.getElementById('cal-ev-date').value      = dateKey;
+  document.getElementById('cal-ev-all-day').checked = isAllDay;
+  document.getElementById('cal-ev-time').value      = timeVal;
+  document.getElementById('cal-ev-end-time').value  = endVal;
+  document.getElementById('cal-ev-desc').value      = ev.description || '';
+  calToggleAllDay();
+  document.getElementById('cal-add-modal').style.display = 'flex';
 }
 
 function calCloseAddModal() {
   document.getElementById('cal-add-modal').style.display = 'none';
+  _calEditingEventId = null;
 }
 
 function calToggleAllDay() {
@@ -397,11 +448,14 @@ async function calSaveEvent() {
         end:   { dateTime: date + 'T' + endTime + ':00', timeZone: tz } };
 
   const saveBtn = document.getElementById('cal-save-btn');
-  saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+  const isEdit  = !!_calEditingEventId;
+  saveBtn.disabled = true; saveBtn.textContent = isEdit ? 'Updating…' : 'Saving…';
 
   try {
-    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-      method: 'POST',
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+      + (isEdit ? '/' + encodeURIComponent(_calEditingEventId) : '');
+    const r = await fetch(url, {
+      method: isEdit ? 'PATCH' : 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -411,14 +465,42 @@ async function calSaveEvent() {
       console.error('Calendar API error', r.status, errBody);
       throw new Error((errBody.error && errBody.error.message) || ('HTTP ' + r.status));
     }
-    toast('Event saved ✓', '📅');
+    toast(isEdit ? 'Event updated ✓' : 'Event saved ✓', '📅');
     calCloseAddModal();
     calLoadEvents();
   } catch (err) {
     console.error('calSaveEvent error:', err);
     toast('Failed to save event: ' + err.message, '⚠');
   } finally {
-    saveBtn.disabled = false; saveBtn.textContent = 'Save Event';
+    saveBtn.disabled = false;
+    saveBtn.textContent = isEdit ? 'Update Event' : 'Save Event';
+  }
+}
+
+async function calDeleteEvent() {
+  if (!_calEditingEventId) return;
+  if (!confirm('Delete this event?')) return;
+  const token = await calEnsureToken();
+  if (!token) { calTriggerOAuth(); return; }
+  const delBtn = document.getElementById('cal-delete-btn');
+  delBtn.disabled = true; delBtn.textContent = 'Deleting…';
+  try {
+    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/' + encodeURIComponent(_calEditingEventId), {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (r.status === 401) { calClearTokens(); toast('Session expired — please reconnect Google Calendar', '⚠'); return; }
+    if (!r.ok && r.status !== 410) {
+      throw new Error('HTTP ' + r.status);
+    }
+    toast('Event deleted', '🗑');
+    calCloseAddModal();
+    calLoadEvents();
+  } catch (err) {
+    console.error('calDeleteEvent error:', err);
+    toast('Failed to delete: ' + err.message, '⚠');
+  } finally {
+    delBtn.disabled = false; delBtn.textContent = 'Delete';
   }
 }
 
