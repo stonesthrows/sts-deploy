@@ -617,8 +617,26 @@ async function stopTimer(tid) {
 }
 
 async function finalizeNotionSession(session) {
-  const pageId = session.notionPageId;
-  if (!pageId) { session.error = 'No Notion page — was Start pressed?'; renderLog(); return; }
+  let pageId = session.notionPageId;
+  if (!pageId) {
+    // Legacy timer started before Notion persistence — create the page now
+    try {
+      const items = session.items || [];
+      const res = await fetch('/api/notion-timesession', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemName: items[0]?.name || '', sku: items[0]?.sku || '',
+          category: items[0]?.category || '', employeeName: session.employee?.name || '',
+          squareItemId: items[0]?.id || '',
+          date: session.startTime ? session.startTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
+          notes: session.notes || '', startTime: session.startTime || null,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok) { pageId = d.notionPageId; session.notionPageId = pageId; }
+      else { session.error = d.error || 'Notion create failed'; renderLog(); return; }
+    } catch(e) { session.error = 'Network error: ' + e.message; renderLog(); return; }
+  }
   const totalPcs = (session.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
   try {
     const res = await fetch('/api/notion-timesession', {
