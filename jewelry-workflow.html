@@ -4612,14 +4612,14 @@ function savePrintSetup() {
   letter-spacing: 0.3px;
 }
 .cal-cell {
-  min-height: 52px;
+  min-height: 72px;
   border-radius: 6px;
   padding: 4px 5px;
   cursor: pointer;
   transition: background .12s;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
 }
 .cal-cell:hover { background: var(--card-head-bg); }
 .cal-blank { cursor: default; }
@@ -4640,21 +4640,29 @@ function savePrintSetup() {
 }
 .cal-dots {
   display: flex;
+  flex-direction: column;
   gap: 2px;
   margin-top: 3px;
-  flex-wrap: wrap;
-  justify-content: center;
+  width: 100%;
 }
-.cal-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
+.cal-chip {
+  font-size: 9px;
+  font-weight: 600;
   background: var(--accent);
-  display: inline-block;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 14px;
 }
 .cal-more {
   font-size: 9px;
   color: var(--text3);
-  line-height: 5px;
+  padding-left: 2px;
 }
 .cal-nav-btn {
   background: none;

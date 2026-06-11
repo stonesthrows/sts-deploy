@@ -276,11 +276,13 @@ function calRenderGrid() {
     const isToday  = dateObj.toDateString() === todayStr;
     const dateKey  = dateObj.toISOString().slice(0, 10);
     const evs      = eventMap[dateKey] || [];
-    const dotHtml  = evs.slice(0, 3).map(function () { return '<span class="cal-dot"></span>'; }).join('');
-    const moreHtml = evs.length > 3 ? '<span class="cal-more">+' + (evs.length - 3) + '</span>' : '';
+    const chipHtml = evs.slice(0, 3).map(function (ev) {
+      return '<span class="cal-chip">' + escHtml(ev.summary || '(No title)') + '</span>';
+    }).join('');
+    const moreHtml = evs.length > 3 ? '<span class="cal-more">+' + (evs.length - 3) + ' more</span>' : '';
     html += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" onclick="calDayClick(\'' + dateKey + '\')">'
       + '<span class="cal-num">' + d + '</span>'
-      + '<div class="cal-dots">' + dotHtml + moreHtml + '</div>'
+      + '<div class="cal-dots">' + chipHtml + moreHtml + '</div>'
       + '</div>';
   }
   grid.innerHTML = html;
