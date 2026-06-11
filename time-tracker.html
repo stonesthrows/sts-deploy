@@ -850,6 +850,7 @@ function renderLog() {
       <span style="color:var(--bdr);">·</span>
       <span>⏹ ${fmtDT(s.stopTime)}</span>
     </div>`;
+    const curPcs = logItems.reduce((acc,it) => acc+(it.pieces||0), 0) || '';
     const editRow = isEditing ? `<div class="log-edit-row">
       <div class="log-edit-field">
         <label>Start</label>
@@ -858,6 +859,11 @@ function renderLog() {
       <div class="log-edit-field">
         <label>Stop</label>
         <input class="log-edit-input" type="datetime-local" id="edit-stop-${i}" value="${toDateTimeLocal(s.stopTime)}">
+      </div>
+      <div class="log-edit-field">
+        <label>Pieces</label>
+        <input class="log-edit-input" type="number" min="0" step="1" id="edit-pcs-${i}" value="${curPcs}" placeholder="0" style="width:80px;">
+        <span style="font-size:11px;color:var(--text3);">total made</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:2px;">
         <button class="config-save" style="font-size:11px;padding:0.45rem 1rem;" onclick="saveEditSession(${i})">Save</button>
@@ -892,25 +898,31 @@ async function saveEditSession(i) {
   const s = sessions[i]; if (!s) return;
   const startVal = $g(`edit-start-${i}`)?.value;
   const stopVal  = $g(`edit-stop-${i}`)?.value;
+  const pcsVal   = $g(`edit-pcs-${i}`)?.value;
   if (!startVal || !stopVal) { showToast('Both start and stop times are required', true); return; }
   const newStart = new Date(startVal).toISOString();
   const newStop  = new Date(stopVal).toISOString();
   if (new Date(newStop) <= new Date(newStart)) { showToast('Stop time must be after start time', true); return; }
   const totalMs = new Date(newStop) - new Date(newStart);
   const netMs   = Math.max(0, totalMs - (s.clockedOutMs || 0));
+  const newPcs  = pcsVal !== '' && pcsVal != null ? parseInt(pcsVal, 10) : null;
   s.startTime = newStart; s.stopTime = newStop; s.totalMs = totalMs; s.netMs = netMs;
   s.timestamp = newStop;
+  // Update pieces on the first item (or session-level)
+  if (s.items?.length) { s.items[0].pieces = newPcs; }
   _editingSession = null;
   renderLog();
   const pageId = s.notionPageId || (s.notionPageIds||[])[0];
+  const patch = {
+    startTime: newStart, stopTime: newStop,
+    totalMin: parseFloat((totalMs/60000).toFixed(2)),
+    netMin:   parseFloat((netMs/60000).toFixed(2)),
+    ...(newPcs != null ? { pieces: newPcs } : {}),
+  };
   if (pageId) {
-    await patchNotion(pageId, {
-      startTime: newStart, stopTime: newStop,
-      totalMin: parseFloat((totalMs/60000).toFixed(2)),
-      netMin:   parseFloat((netMs/60000).toFixed(2)),
-    });
-    showToast('Times updated ✓');
-  } else { showToast('Times updated locally (no Notion page linked)'); }
+    await patchNotion(pageId, patch);
+    showToast('Session updated ✓');
+  } else { showToast('Updated locally (no Notion page linked)'); }
 }
 
 async function deleteSession(i) {
