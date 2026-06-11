@@ -1,11 +1,1 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "sts-preview",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-p", "3777", "."],
-      "port": 3777
-    }
-  ]
-}
+{"version":"0.0.1","configurations":[{"name":"sts-local","runtimeExecutable":"node","runtimeArgs":["serve.js"],"port":3000}]}
