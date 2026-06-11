@@ -126,6 +126,16 @@
   .log-ded { font-size: 10px; color: var(--text-dim); margin-top: 2px; text-align: right; }
   .log-saved { font-size: 10px; color: var(--green); margin-top: 2px; text-align: right; font-weight: 600; }
   .log-err { font-size: 10px; color: var(--red); margin-top: 2px; text-align: right; }
+  .log-time-row { font-size: 11px; color: var(--text3); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .log-edit-btn { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 11px; padding: 1px 4px; border-radius: 4px; transition: color 0.15s, background 0.15s; line-height: 1; }
+  .log-edit-btn:hover { color: var(--accent); background: var(--accent-bg); }
+  .log-edit-row { grid-column: 1 / -1; background: var(--card-head-bg); border: 1px solid var(--bdr); border-radius: 8px; padding: 12px 14px; margin-top: 4px; display: flex; flex-direction: column; gap: 10px; }
+  .log-edit-field { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+  .log-edit-field label { width: 56px; font-weight: 600; color: var(--text3); flex-shrink: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .log-edit-input { background: #fff; border: 1px solid var(--bdr); border-radius: 6px; color: var(--text); font-size: 12px; padding: 5px 8px; outline: none; transition: border-color 0.2s; }
+  .log-edit-input:focus { border-color: var(--accent); }
+  .log-del-btn { background: none; border: 1px solid var(--bdr-light); border-radius: 5px; cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 3px 7px; line-height: 1; transition: border-color 0.15s, color 0.15s, background 0.15s; flex-shrink: 0; }
+  .log-del-btn:hover { border-color: var(--red); color: var(--red); background: #fdf0ec; }
 
   .config-panel { margin-top: 2rem; border-top: 1px solid var(--bdr); padding-top: 1.5rem; }
   .config-toggle { background: none; border: none; color: var(--text3); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 0; transition: color 0.15s; }
@@ -241,7 +251,7 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   clockStatus: 'unknown', notionPageId: null,
 }));
 
-let employees = [], sessions = [];
+let employees = [], sessions = [], _editingSession = null;
 
 const $g = id => document.getElementById(id);
 const $t = (tid, id) => document.getElementById(`t${tid}-${id}`);
@@ -306,7 +316,13 @@ async function saveNoteToCloud(tid) {
   if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save note'; }, 1800); }
 }
 
-// ── Time helpers ──────────────────────────────────────────────────────────────
+// ── Datetime helpers ──────────────────────────────────────────────────────────
+function toDateTimeLocal(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function parseTimeInput(val) {
   if (!val) return null;
   const [h, m] = val.split(':').map(Number);
@@ -768,12 +784,16 @@ function resetTimer(tid) {
 }
 
 // ── Session log ───────────────────────────────────────────────────────────────
+function fmtDT(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+
 function renderLog() {
   const list = $g('log-list');
   if (!sessions.length) { list.innerHTML='<div class="log-empty">No sessions recorded yet</div>'; return; }
   list.innerHTML = sessions.map((s,i) => {
-    const d = new Date(s.timestamp);
-    const label = d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     const ded    = s.clockedOutMs > 0 ? `<div class="log-ded">−${fmt(s.clockedOutMs)} clocked-out deducted</div>` : '';
     const status = s.error ? `<div class="log-err">⚠ ${s.error}</div>` : s.saved ? `<div class="log-saved">✓ Saved to Notion</div>` : `<div class="log-ded">Saving…</div>`;
     const timerTag = s.timerLabel ? `<span style="font-size:9px;background:rgba(201,168,76,.15);border:1px solid var(--bdr-light);border-radius:4px;padding:1px 5px;margin-left:5px;color:var(--text3)">${s.timerLabel}</span>` : '';
@@ -784,22 +804,74 @@ function renderLog() {
     const piecesTag = totalPcs > 0
       ? `<div class="log-ded" style="color:var(--text2);">${totalPcs} piece${totalPcs!==1?'s':''}${avgMin?` · <span style="color:var(--accent);font-weight:600;">${avgMin} min/pc</span>`:''}${s.inventoryAdded?` · <span style="color:var(--green)">added to Square ✓</span>`:''}</div>${sizeSummary?`<div class="log-ded">${sizeSummary}</div>`:''}`
       : '';
-    return `<div class="log-entry" style="position:relative;">
-      <div style="flex:1;min-width:0;">
-        <div class="log-item-name">${logItems.map(it=>it.name).join(', ')}${timerTag}</div>
-        <div class="log-item-meta">${s.employee.name} · ${label}</div>
-        ${s.notes?`<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>`:''}
+    const isEditing = _editingSession === i;
+    const timeRow = `<div class="log-time-row">
+      <span>▶ ${fmtDT(s.startTime)}</span>
+      <button class="log-edit-btn" onclick="startEditSession(${i})" title="Edit times">✎</button>
+      <span style="color:var(--bdr);">·</span>
+      <span>⏹ ${fmtDT(s.stopTime)}</span>
+    </div>`;
+    const editRow = isEditing ? `<div class="log-edit-row">
+      <div class="log-edit-field">
+        <label>Start</label>
+        <input class="log-edit-input" type="datetime-local" id="edit-start-${i}" value="${toDateTimeLocal(s.startTime)}">
       </div>
-      <div style="text-align:right;flex-shrink:0;">
+      <div class="log-edit-field">
+        <label>Stop</label>
+        <input class="log-edit-input" type="datetime-local" id="edit-stop-${i}" value="${toDateTimeLocal(s.stopTime)}">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:2px;">
+        <button class="config-save" style="font-size:11px;padding:0.45rem 1rem;" onclick="saveEditSession(${i})">Save</button>
+        <button class="btn-save-note" onclick="cancelEditSession()">Cancel</button>
+      </div>
+    </div>` : '';
+    return `<div class="log-entry" style="grid-template-columns:1fr auto;align-items:start;">
+      <div style="min-width:0;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div>
+            <div class="log-item-name">${logItems.map(it=>it.name).join(', ')}${timerTag}</div>
+            <div class="log-item-meta">${s.employee.name}</div>
+            ${s.notes?`<div class="log-item-meta" style="margin-top:4px;font-style:italic">${s.notes}</div>`:''}
+            ${timeRow}
+          </div>
+          <button class="log-del-btn" onclick="deleteSession(${i})" title="Delete entry">✕</button>
+        </div>
+        ${editRow}
+      </div>
+      <div style="text-align:right;flex-shrink:0;padding-left:8px;">
         <div class="log-duration">${fmt(s.netMs)}</div>
         ${piecesTag}${ded}${status}
       </div>
-      <button onclick="deleteSession(${i})" title="Delete entry"
-        style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-dim);opacity:0;transition:opacity .15s;padding:2px 5px;border-radius:4px;"
-        onmouseenter="this.style.opacity=1;this.style.color='var(--red)'"
-        onmouseleave="this.style.opacity=0;this.style.color='var(--text-dim)'">✕</button>
     </div>`;
   }).join('');
+}
+
+function startEditSession(i) { _editingSession = i; renderLog(); }
+function cancelEditSession() { _editingSession = null; renderLog(); }
+
+async function saveEditSession(i) {
+  const s = sessions[i]; if (!s) return;
+  const startVal = $g(`edit-start-${i}`)?.value;
+  const stopVal  = $g(`edit-stop-${i}`)?.value;
+  if (!startVal || !stopVal) { showToast('Both start and stop times are required', true); return; }
+  const newStart = new Date(startVal).toISOString();
+  const newStop  = new Date(stopVal).toISOString();
+  if (new Date(newStop) <= new Date(newStart)) { showToast('Stop time must be after start time', true); return; }
+  const totalMs = new Date(newStop) - new Date(newStart);
+  const netMs   = Math.max(0, totalMs - (s.clockedOutMs || 0));
+  s.startTime = newStart; s.stopTime = newStop; s.totalMs = totalMs; s.netMs = netMs;
+  s.timestamp = newStop;
+  _editingSession = null;
+  renderLog();
+  const pageId = s.notionPageId || (s.notionPageIds||[])[0];
+  if (pageId) {
+    await patchNotion(pageId, {
+      startTime: newStart, stopTime: newStop,
+      totalMin: parseFloat((totalMs/60000).toFixed(2)),
+      netMin:   parseFloat((netMs/60000).toFixed(2)),
+    });
+    showToast('Times updated ✓');
+  } else { showToast('Times updated locally (no Notion page linked)'); }
 }
 
 async function deleteSession(i) {
@@ -808,6 +880,7 @@ async function deleteSession(i) {
   if (!confirm(`Delete this session?\n${logItems.map(it=>it.name).join(', ')||'?'} — ${s.employee?.name||''}`)) return;
   const pageIds = s.notionPageId ? [s.notionPageId] : (s.notionPageIds||[]);
   for (const pid of pageIds) { if (!pid) continue; try { await fetch(`/api/notion-timesession?pageId=${pid}`,{method:'DELETE'}); } catch(e){} }
+  if (_editingSession === i) _editingSession = null;
   sessions.splice(i,1); renderLog(); showToast('Entry deleted');
 }
 
