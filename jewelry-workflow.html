@@ -752,30 +752,72 @@
       max-height: 1200px;
       border-top: 1px solid #F0EDE8;
     }
-    .ct-exp-contact {
-      display: flex; gap: 18px; flex-wrap: wrap;
-      padding: 12px 20px 0;
-    }
-    .ct-exp-contact-item {
-      font-size: 13px; color: var(--accent);
-      text-decoration: none; font-weight: 600;
-      display: flex; align-items: center; gap: 5px;
-    }
-    .ct-exp-contact-item:hover { text-decoration: underline; }
+    /* ── Expand body layout ──────────────────── */
+    .ct-exp-body { padding: 0; }
     .ct-exp-actions {
       display: flex; gap: 8px; flex-wrap: wrap;
-      padding: 10px 20px;
+      padding: 10px 20px 12px;
     }
-    .ct-exp-gmail {
-      padding: 0 20px 16px;
+    .ct-exp-section {
+      padding: 0 20px 14px;
       border-top: 1px solid #F0EDE8;
-      margin-top: 4px;
     }
-    .ct-exp-gmail-title {
+    .ct-exp-section-title {
       font-size: 10.5px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--text2);
       padding: 10px 0 8px;
     }
+
+    /* ── Contact info block ──────────────────── */
+    .ct-info-block {
+      padding: 12px 20px 4px;
+    }
+    .ct-info-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .ct-info-title {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text2);
+    }
+    .ct-edit-toggle-btn {
+      font-size: 11.5px; font-weight: 600; color: var(--accent);
+      background: none; border: none; cursor: pointer; padding: 0;
+    }
+    .ct-edit-toggle-btn:hover { text-decoration: underline; }
+    .ct-info-row {
+      display: flex; gap: 12px; align-items: baseline;
+      padding: 3px 0;
+      border-bottom: 1px solid #F5F0EB;
+      font-size: 13px;
+    }
+    .ct-info-row:last-child { border-bottom: none; }
+    .ct-info-label {
+      width: 110px; flex-shrink: 0;
+      font-size: 11px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .ct-info-val { color: var(--text); }
+    .ct-info-link { color: var(--accent); text-decoration: none; }
+    .ct-info-link:hover { text-decoration: underline; }
+    .ct-info-empty { color: var(--text3); font-style: italic; }
+
+    /* ── Previous orders ─────────────────────── */
+    .ct-prev-order {
+      padding: 7px 10px;
+      border-radius: 7px;
+      border: 1px solid #EDE8E2;
+      margin-bottom: 6px;
+      background: #fff;
+    }
+    .ct-prev-desc { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .ct-prev-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .ct-prev-stage { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+    .ct-prev-price { font-size: 11.5px; color: var(--text); }
+    .ct-prev-dl    { font-size: 10px; }
+    .ct-prev-takein { font-size: 10.5px; color: var(--text2); }
+
+    /* ── Gmail in expand ─────────────────────── */
     .ct-gmail-thread {
       display: block;
       padding: 9px 12px;
@@ -800,6 +842,39 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .ct-exp-gmail-msg { font-size: 13px; color: var(--text2); padding: 6px 0; }
+
+    /* ── Inline customer edit form ───────────── */
+    .ct-exp-edit-form {
+      padding: 10px 20px 12px;
+      border-top: 1px solid #EDE8E2;
+      background: #FAF7F2;
+    }
+    .ct-edit-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      margin-bottom: 10px;
+    }
+    .ct-edit-full { grid-column: 1 / -1; }
+    .ct-edit-label {
+      display: flex; flex-direction: column; gap: 3px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--text2);
+    }
+    .ct-edit-input {
+      padding: 6px 10px;
+      border: 1.5px solid #D9D0C6;
+      border-radius: 6px;
+      font-size: 13px; color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .ct-edit-input:focus { border-color: var(--accent); }
+    .ct-edit-foot {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .ct-edit-status { font-size: 12.5px; color: var(--text2); }
     .c-avatar-wrap { display: flex; align-items: center; gap: 11px; }
     .c-avatar {
       width: 34px; height: 34px; border-radius: 50%;

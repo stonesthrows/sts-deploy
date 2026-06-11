@@ -104,10 +104,11 @@ function refreshCustomersFromOrders() {
   // Keep a snapshot of Notion-sourced extra fields keyed by lowercase name
   const extras = {};
   CUSTOMERS.forEach(c => {
-    if (c.notionPageId || c.notes) {
+    if (c.notionPageId || c.notes || c.address) {
       extras[c.name.toLowerCase()] = {
         notionPageId: c.notionPageId,
         notes:        c.notes,
+        address:      c.address,
       };
     }
   });
@@ -156,15 +157,16 @@ async function loadCustomersFromNotion() {
       const existing = CUSTOMERS.find(c => c.name.toLowerCase() === nc.name.toLowerCase());
       if (existing) {
         existing.notionPageId = nc.notionPageId;
-        if (nc.notes) existing.notes = nc.notes;
+        if (nc.notes)   existing.notes   = nc.notes;
+        if (nc.address) existing.address = nc.address;
         if (nc.phone && !existing.phone) existing.phone = nc.phone;
       } else {
-        // Customer exists in Notion but has no orders yet — show them anyway
         CUSTOMERS.push({
           name:         nc.name,
-          email:        nc.email || '',
-          phone:        nc.phone || '',
-          notes:        nc.notes || '',
+          email:        nc.email   || '',
+          phone:        nc.phone   || '',
+          address:      nc.address || '',
+          notes:        nc.notes   || '',
           lastContact:  nc.lastContact || '',
           totalOrders:  nc.totalOrders || 0,
           totalValue:   nc.totalValue  || 0,
@@ -397,6 +399,172 @@ function closeDrawerDropdown() {
   if (d) { d.innerHTML = ''; d.classList.remove('open'); }
 }
 
+function buildCustomerExpandHtml(idx) {
+  const c = CUSTOMERS[idx];
+  if (!c) return '';
+  const esc       = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const q         = s => String(s||'').replace(/"/g,'&quot;');
+  const safeName  = c.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const safeEmail = (c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+  // ── Info rows ────────────────────────────────
+  const infoRow = (label, val, href) => {
+    if (!val) return `<div class="ct-info-row"><span class="ct-info-label">${label}</span><span class="ct-info-val ct-info-empty">—</span></div>`;
+    const valHtml = href
+      ? `<a class="ct-info-val ct-info-link" href="${esc(href)}">${esc(val)}</a>`
+      : `<span class="ct-info-val">${esc(val)}</span>`;
+    return `<div class="ct-info-row"><span class="ct-info-label">${label}</span>${valHtml}</div>`;
+  };
+
+  // ── Previous orders ──────────────────────────
+  const orders = ORDERS.filter(o => o.name === c.name);
+  const stageLabel = id => { const s = (typeof STAGES !== 'undefined' ? STAGES : []).find(x => x.id === id); return s ? s.label : id; };
+  const ordersHtml = orders.length
+    ? orders.map(o => {
+        const isActive = !['complete','delivered'].includes(o.stage);
+        const stageBg  = isActive ? '#EAF0FB' : '#F2EDE6';
+        const stageClr = isActive ? '#2A5A9A' : '#7A7268';
+        const dl       = typeof deadlineInfo === 'function' ? deadlineInfo(o.deadline) : { text: o.deadline||'', cls: '' };
+        return `<div class="ct-prev-order">
+          <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
+          <div class="ct-prev-meta">
+            <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
+            ${o.price ? `<span class="ct-prev-price">${typeof fmtPrice==='function'?fmtPrice(o.price):'$'+o.price}</span>` : ''}
+            ${o.deadline ? `<span class="ct-prev-dl ${dl.cls}">${dl.text}</span>` : ''}
+            ${o.takeIn ? `<span class="ct-prev-takein">Taken in ${typeof fmtDate==='function'?fmtDate(o.takeIn):o.takeIn}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : '<div class="ct-exp-gmail-msg">No orders on record.</div>';
+
+  return `
+    <div class="ct-exp-body">
+
+      <!-- Contact info display -->
+      <div class="ct-info-block" id="ct-info-display-${idx}">
+        <div class="ct-info-header">
+          <span class="ct-info-title">Contact Info</span>
+          <button class="ct-edit-toggle-btn" onclick="showCustomerEditForm(${idx});event.stopPropagation()">✏ Edit</button>
+        </div>
+        ${infoRow('Name',    c.name)}
+        ${infoRow('Phone',   c.phone,   c.phone   ? 'tel:'    + c.phone   : null)}
+        ${infoRow('Email',   c.email,   c.email   ? 'mailto:' + c.email   : null)}
+        ${infoRow('Address', c.address)}
+        ${infoRow('Notes',   c.notes)}
+        ${infoRow('Last Contact', c.lastContact ? (typeof fmtDate==='function'?fmtDate(c.lastContact):c.lastContact) : null)}
+        ${infoRow('Lifetime Value', c.totalValue ? '$' + c.totalValue.toLocaleString() : null)}
+      </div>
+
+      <!-- Edit form (hidden by default) -->
+      <div class="ct-exp-edit-form" id="ct-edit-form-${idx}" style="display:none;">
+        <div class="ct-info-header">
+          <span class="ct-info-title">Edit Customer</span>
+        </div>
+        <div class="ct-edit-grid">
+          <label class="ct-edit-label">Name
+            <input class="ct-edit-input" id="ct-edit-name-${idx}"    type="text"  value="${q(c.name)}"    onclick="event.stopPropagation()">
+          </label>
+          <label class="ct-edit-label">Phone
+            <input class="ct-edit-input" id="ct-edit-phone-${idx}"   type="tel"   value="${q(c.phone)}"   placeholder="555-000-0000" onclick="event.stopPropagation()">
+          </label>
+          <label class="ct-edit-label">Email
+            <input class="ct-edit-input" id="ct-edit-email-${idx}"   type="email" value="${q(c.email)}"   placeholder="email@example.com" onclick="event.stopPropagation()">
+          </label>
+          <label class="ct-edit-label">Address
+            <input class="ct-edit-input" id="ct-edit-address-${idx}" type="text"  value="${q(c.address)}" placeholder="Street, City, State ZIP" onclick="event.stopPropagation()">
+          </label>
+          <label class="ct-edit-label ct-edit-full">Notes
+            <input class="ct-edit-input" id="ct-edit-notes-${idx}"   type="text"  value="${q(c.notes)}"   placeholder="Optional notes…" onclick="event.stopPropagation()">
+          </label>
+        </div>
+        <div class="ct-edit-foot">
+          <button class="btn btn-gold btn-sm"  onclick="saveCustomerEdit(${idx});event.stopPropagation()">✓ Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelCustomerEdit(${idx});event.stopPropagation()">Cancel</button>
+          <span class="ct-edit-status" id="ct-edit-status-${idx}"></span>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="ct-exp-actions">
+        <button class="btn btn-gold btn-sm"    onclick="prefillFromCustomer('${safeName}','${safeEmail}','order');event.stopPropagation()">＋ New Order</button>
+        <button class="btn btn-outline btn-sm" onclick="prefillFromCustomer('${safeName}','${safeEmail}','repair');event.stopPropagation()">🔧 New Repair</button>
+      </div>
+
+      <!-- Previous orders -->
+      <div class="ct-exp-section">
+        <div class="ct-exp-section-title">Previous Orders (${orders.length})</div>
+        ${ordersHtml}
+      </div>
+
+      <!-- Gmail -->
+      <div class="ct-exp-section">
+        <div class="ct-exp-section-title">Gmail Correspondence</div>
+        <div id="ct-gmail-${idx}"><div class="ct-exp-gmail-msg">⏳ Loading…</div></div>
+      </div>
+
+    </div>`;
+}
+
+function showCustomerEditForm(idx) {
+  document.getElementById('ct-edit-form-' + idx).style.display = '';
+}
+
+function cancelCustomerEdit(idx) {
+  document.getElementById('ct-edit-form-' + idx).style.display = 'none';
+  document.getElementById('ct-edit-status-' + idx).textContent = '';
+}
+
+async function saveCustomerEdit(idx) {
+  const c      = CUSTOMERS[idx];
+  const status = document.getElementById('ct-edit-status-' + idx);
+  if (!c || !status) return;
+
+  const name    = document.getElementById('ct-edit-name-'    + idx).value.trim();
+  const email   = document.getElementById('ct-edit-email-'   + idx).value.trim();
+  const phone   = document.getElementById('ct-edit-phone-'   + idx).value.trim();
+  const address = document.getElementById('ct-edit-address-' + idx).value.trim();
+  const notes   = document.getElementById('ct-edit-notes-'   + idx).value.trim();
+
+  if (!name) { status.textContent = 'Name is required.'; return; }
+
+  status.textContent = 'Saving…';
+
+  c.name    = name;
+  c.email   = email;
+  c.phone   = phone;
+  c.address = address;
+  c.notes   = notes;
+
+  // Update all matching orders with new email/phone
+  ORDERS.forEach(o => {
+    if (o.name.toLowerCase() === name.toLowerCase()) {
+      if (email) o.email = email;
+      if (phone) o.phone = phone;
+    }
+  });
+
+  try {
+    await upsertCustomerToNotion(c);
+    status.textContent = '✓ Saved';
+  } catch(e) {
+    status.textContent = '✓ Saved locally';
+  }
+
+  saveCustomersToCache();
+  renderCustomers();
+
+  // Re-open the row (renderCustomers rebuilds the DOM)
+  setTimeout(() => {
+    const wrap   = document.getElementById('ct-wrap-' + idx);
+    const expand = document.getElementById('ct-expand-' + idx);
+    if (!wrap || !expand) return;
+    wrap.classList.add('ct-open');
+    expand.dataset.loaded = '1';
+    expand.innerHTML = buildCustomerExpandHtml(idx);
+    loadCustomerGmail(c.email, idx);
+  }, 50);
+}
+
 function toggleCustomerRow(idx) {
   const wrap   = document.getElementById('ct-wrap-' + idx);
   const expand = document.getElementById('ct-expand-' + idx);
@@ -414,25 +582,7 @@ function toggleCustomerRow(idx) {
   const safeName  = c.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const safeEmail = (c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-  const phoneHtml = c.phone
-    ? `<a class="ct-exp-contact-item" href="tel:${c.phone}">📞 ${c.phone}</a>`
-    : '';
-  const emailHtml = c.email
-    ? `<a class="ct-exp-contact-item" href="mailto:${c.email}">✉ ${c.email}</a>`
-    : '';
-
-  expand.innerHTML = `
-    <div class="ct-exp-contact">${phoneHtml}${emailHtml}</div>
-    <div class="ct-exp-actions">
-      <button class="btn btn-gold btn-sm"    onclick="prefillFromCustomer('${safeName}','${safeEmail}','order');event.stopPropagation()">＋ New Order</button>
-      <button class="btn btn-outline btn-sm" onclick="prefillFromCustomer('${safeName}','${safeEmail}','repair');event.stopPropagation()">🔧 New Repair</button>
-      <button class="btn btn-outline btn-sm" onclick="openCustomerDrawer(${idx});event.stopPropagation()">📋 Full Profile</button>
-    </div>
-    <div class="ct-exp-gmail">
-      <div class="ct-exp-gmail-title">Gmail Correspondence</div>
-      <div id="ct-gmail-${idx}"><div class="ct-exp-gmail-msg">⏳ Loading…</div></div>
-    </div>`;
-
+  expand.innerHTML = buildCustomerExpandHtml(idx);
   loadCustomerGmail(c.email, idx);
 }
 

@@ -31,13 +31,14 @@ function notionHdrs(token) {
 
 function customerToProps(c) {
   return {
-    'Name':         { title:     [{ text: { content: c.name || '' } }] },
-    'Email':        { email:     c.email || null },
+    'Name':         { title:        [{ text: { content: c.name || '' } }] },
+    'Email':        { email:        c.email || null },
     'Phone':        { phone_number: c.phone || null },
-    'Notes':        { rich_text: [{ text: { content: (c.notes || '').slice(0, 2000) } }] },
-    'Total Orders': { number:    c.totalOrders ?? null },
-    'Total Value':  { number:    c.totalValue  ?? null },
-    'App ID':       { rich_text: [{ text: { content: c.appId || '' } }] },
+    'Address':      { rich_text:    [{ text: { content: (c.address || '').slice(0, 2000) } }] },
+    'Notes':        { rich_text:    [{ text: { content: (c.notes   || '').slice(0, 2000) } }] },
+    'Total Orders': { number:       c.totalOrders ?? null },
+    'Total Value':  { number:       c.totalValue  ?? null },
+    'App ID':       { rich_text:    [{ text: { content: c.appId || '' } }] },
     ...(c.lastContact ? { 'Last Contact': { date: { start: c.lastContact } } } : {}),
   };
 }
@@ -51,6 +52,7 @@ function pageToCustomer(page) {
     name:         ttl(p['Name']),
     email:        p['Email']?.email || '',
     phone:        p['Phone']?.phone_number || '',
+    address:      txt(p['Address']),
     notes:        txt(p['Notes']),
     lastContact:  p['Last Contact']?.date?.start || '',
     totalOrders:  p['Total Orders']?.number ?? 0,
