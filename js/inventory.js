@@ -15,7 +15,7 @@ const INV_RING_CAT_IDS = {
 // Item name substrings to exclude per ring sub-tab
 const INV_RING_EXCLUDE = {
   'geometric': ['wide'],
-  'symbolic': ['horseshoe', 'rainbow'],
+  'symbolic': ['horseshoe', 'rainbow', 'bodhi leaf'],
 };
 
 // If set, only items whose name contains one of these substrings are shown
