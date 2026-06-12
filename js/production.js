@@ -705,10 +705,35 @@ function prodSaveToCustomerConfirm() {
   if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
   if (typeof renderCustomers      === 'function') renderCustomers();
 
+  // Also update the order record with the parsed desc and notes
+  var order = (typeof ORDERS !== 'undefined') ? ORDERS.find(function(o){ return o.id === _prodSaveOrderId; }) : null;
+  if (order) {
+    if (jobDesc.trim()) order.desc  = jobDesc.trim();
+    if (notes.trim())   order.notes = notes.trim();
+    // Update contact info on order too
+    if (email)   order.email = email;
+    if (phone)   order.phone = phone;
+    if (typeof saveToStorage === 'function') saveToStorage();
+
+    // Patch Custom Orders pipeline in Notion
+    if (order.notionId) {
+      var patch = { notionId: order.notionId };
+      if (jobDesc.trim()) patch.desc  = jobDesc.trim();
+      if (notes.trim())   patch.notes = notes.trim();
+      if (email)          patch.email = email;
+      if (phone)          patch.phone = phone;
+      fetch('/api/notion-pipeline', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(patch),
+      }).catch(function(e){ console.warn('Pipeline patch error:', e); });
+    }
+  }
+
   prodSaveToCustomerClose();
   toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
 
-  // Sync to Notion in background
+  // Sync customer to Notion Customers db in background
   if (typeof upsertCustomerToNotion === 'function') {
     upsertCustomerToNotion(cust).then(function() {
       if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
