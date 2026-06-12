@@ -208,6 +208,7 @@ function _renderThread(t) {
         '</div>' +
         '<button class="gt-inv-add-btn" onclick="gtInvAddItem(this);event.stopPropagation()">+ Add item</button>' +
         '<div class="gt-inv-fields">' +
+          '<label>Title <input class="gt-inv-title" type="text" placeholder="e.g. Custom Ring — Balance Due" onclick="event.stopPropagation()"></label>' +
           '<label><span class="gt-inv-due-label">Due date</span> <input class="gt-inv-due" type="date" onclick="event.stopPropagation()"></label>' +
           '<label>Note <input class="gt-inv-note" type="text" placeholder="Optional note to customer…" onclick="event.stopPropagation()"></label>' +
         '</div>' +
@@ -917,6 +918,7 @@ function gtSubmitInvoice(btn) {
   var activeTypeBtn = compose.querySelector('.gt-inv-type-btn.active');
   var invType = (activeTypeBtn && activeTypeBtn.dataset.type === 'estimate') ? 'ESTIMATE' : 'INVOICE';
   var dueDate = compose.querySelector('.gt-inv-due').value || _gtInvDefaultDue();
+  var title   = compose.querySelector('.gt-inv-title').value.trim();
   var note    = compose.querySelector('.gt-inv-note').value.trim();
 
   btn.textContent = 'Creating…';
@@ -969,7 +971,8 @@ function gtSubmitInvoice(btn) {
         order_id:          ids.orderId,
         primary_recipient: { customer_id: ids.customerId },
         delivery_method:   'EMAIL',
-        ...(note ? { description: note } : {}),
+        ...(title ? { title: title } : {}),
+        ...(note  ? { description: note } : {}),
         accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
       }, invType === 'INVOICE' ? {
         payment_requests: [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }]

@@ -877,6 +877,7 @@ function eoShowInvoice() {
     </div>
     <button class="gt-inv-add-btn" onclick="eoInvAddItem()">+ Add item</button>
     <div class="gt-inv-fields">
+      <label>Title <input class="gt-inv-title" id="eo-inv-title" type="text" placeholder="e.g. Custom Ring — Balance Due"></label>
       <label><span id="eo-inv-due-label">Due date</span> <input class="gt-inv-due" id="eo-inv-due" type="date" value="${defaultDue}"></label>
       <label>Note <input class="gt-inv-note" id="eo-inv-note" type="text" placeholder="Optional note…"></label>
     </div>
@@ -948,6 +949,7 @@ function eoSubmitInvoice() {
   const activeTypeBtn = compose.querySelector('.gt-inv-type-btn.active');
   const invType  = (activeTypeBtn && activeTypeBtn.dataset.type === 'estimate') ? 'ESTIMATE' : 'INVOICE';
   const dueDate  = document.getElementById('eo-inv-due').value || _gtInvDefaultDue();
+  const title    = document.getElementById('eo-inv-title').value.trim();
   const note     = document.getElementById('eo-inv-note').value.trim();
 
   btn.textContent = 'Creating…';
@@ -995,7 +997,8 @@ function eoSubmitInvoice() {
         order_id:          ids.orderId,
         primary_recipient: { customer_id: ids.customerId },
         delivery_method:   'EMAIL',
-        ...(note ? { description: note } : {}),
+        ...(title ? { title: title } : {}),
+        ...(note  ? { description: note } : {}),
         accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
       }, invType === 'INVOICE' ? {
         payment_requests: [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }]
