@@ -95,8 +95,12 @@ export async function onRequest(context) {
   }
 
   if (!visionResp.ok) {
-    const msg = await visionResp.text().catch(() => visionResp.statusText);
-    return json({ error: `Vision API error (${visionResp.status}): ${msg}` }, visionResp.status);
+    let errMsg = visionResp.statusText;
+    try {
+      const errData = await visionResp.json();
+      errMsg = errData?.error?.message || errData?.error?.status || errMsg;
+    } catch { /* keep statusText */ }
+    return json({ error: `Vision API error (${visionResp.status}): ${errMsg}` }, visionResp.status);
   }
 
   const visionData = await visionResp.json();
