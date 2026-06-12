@@ -289,7 +289,10 @@ function prodOrderCardHTML(o, showDeliverBtn) {
            + ' ondragend="prodDragEnd(event)"'
            + ' onclick="openOrderCard(\'' + o.id + '\')">';
   html += '<div class="prod-card-drag-handle" title="Drag to move">⠿</div>';
-  html += '<div class="prod-order-name">' + o.name + '</div>';
+  var nameHtml = showDeliverBtn
+    ? o.name
+    : '<span class="prod-cust-link" onclick="event.stopPropagation();prodOpenCustomer(\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')" title="View all orders for this customer">' + o.name + '</span>';
+  html += '<div class="prod-order-name">' + nameHtml + '</div>';
   html += '<div class="prod-order-desc">' + o.desc + '</div>';
   html += '<div class="prod-order-foot">';
   html += '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>';
@@ -312,13 +315,12 @@ function prodOrderCardHTML(o, showDeliverBtn) {
   }
   if (!showDeliverBtn) {
     var safeName  = (o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeEmail = (o.email || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     html += '<div class="prod-archive-actions">'
           + '<button class="prod-archive-btn prod-archive-btn-order"'
-          + ' onclick="event.stopPropagation();prefillFromCustomer(\'' + safeName + '\',\'' + safeEmail + '\',\'order\')">'
+          + ' onclick="event.stopPropagation();prodArchiveAction(\'' + safeName + '\',\'order\')">'
           + '＋ New Order</button>'
           + '<button class="prod-archive-btn prod-archive-btn-repair"'
-          + ' onclick="event.stopPropagation();prefillFromCustomer(\'' + safeName + '\',\'' + safeEmail + '\',\'repair\')">'
+          + ' onclick="event.stopPropagation();prodArchiveAction(\'' + safeName + '\',\'repair\')">'
           + '🔧 Repair</button>'
           + '</div>';
   }
@@ -339,6 +341,121 @@ function prodToggleMonth(key) {
     prodOpenMonths[key + '-completed'] = true;
   }
   renderProduction();
+}
+
+// ── Archive action confirmation modal ────────────────────────
+
+var _prodActionType = 'order';
+
+function prodArchiveAction(name, type) {
+  _prodActionType = type;
+  var title = type === 'repair' ? '🔧 New Repair Job' : '＋ New Order';
+  var titleEl = document.getElementById('prodActionModalTitle');
+  if (titleEl) titleEl.textContent = title;
+
+  var input = document.getElementById('prodActionName');
+  if (input) { input.value = name; }
+
+  // Show match note if customer is already on file
+  prodActionNameInput(name);
+
+  var bg = document.getElementById('prodActionModalBg');
+  if (bg) { bg.classList.add('open'); setTimeout(function(){ if(input) input.focus(); }, 50); }
+}
+
+function prodActionNameInput(val) {
+  var note    = document.getElementById('prodActionMatchNote');
+  var suggest = document.getElementById('prodActionSuggest');
+  if (!note || !suggest) return;
+
+  var q = (val || '').trim().toLowerCase();
+  if (!q) { note.textContent = ''; suggest.style.display = 'none'; return; }
+
+  // Exact / fuzzy match against CUSTOMERS
+  var matches = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : []).filter(function(c) {
+    return c.name.toLowerCase().indexOf(q) >= 0;
+  }).slice(0, 6);
+
+  var exact = matches.find(function(c){ return c.name.toLowerCase() === q; });
+  if (exact) {
+    note.textContent = '✓ Matches existing customer — will link to their record.';
+    note.style.color = '#2a7a4a';
+  } else if (matches.length) {
+    note.textContent = 'No exact match — choose below or continue as typed.';
+    note.style.color = '#8A5A10';
+  } else {
+    note.textContent = 'No existing customer found — a new record will be created.';
+    note.style.color = '#6A8898';
+  }
+
+  if (matches.length && !exact) {
+    suggest.innerHTML = matches.map(function(c) {
+      var esc = (c.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var safe = (c.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #eee;"'
+           + ' onmouseover="this.style.background=\'#F4F0E8\'"'
+           + ' onmouseout="this.style.background=\'\'"'
+           + ' onclick="prodActionSelectCustomer(\'' + safe + '\')">'
+           + esc + '</div>';
+    }).join('');
+    suggest.style.display = 'block';
+  } else {
+    suggest.style.display = 'none';
+  }
+}
+
+function prodActionSelectCustomer(name) {
+  var input = document.getElementById('prodActionName');
+  if (input) input.value = name;
+  document.getElementById('prodActionSuggest').style.display = 'none';
+  prodActionNameInput(name);
+}
+
+function prodActionConfirm() {
+  var input = document.getElementById('prodActionName');
+  var name  = input ? input.value.trim() : '';
+  if (!name) { if (input) input.focus(); return; }
+
+  // Find email from CUSTOMERS if available
+  var cust  = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : [])
+              .find(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
+  var email = cust ? (cust.email || '') : '';
+
+  prodActionModalClose();
+  if (typeof prefillFromCustomer === 'function') prefillFromCustomer(name, email, _prodActionType);
+}
+
+function prodActionModalClose() {
+  var bg = document.getElementById('prodActionModalBg');
+  if (bg) bg.classList.remove('open');
+  var suggest = document.getElementById('prodActionSuggest');
+  if (suggest) suggest.style.display = 'none';
+}
+
+// ── Click customer name → jump to Customers tab and expand row ─
+
+function prodOpenCustomer(name) {
+  if (typeof CUSTOMERS === 'undefined') return;
+  var idx = CUSTOMERS.findIndex(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
+  if (idx < 0) { toast('No customer record found for ' + name, '👥'); return; }
+
+  // Switch to the customers sub-tab
+  var parentEl = document.querySelector('[data-parent="custom-orders"]');
+  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
+  var subEl = document.querySelector('.sub-nav-tab[data-tab="customers"]');
+  if (typeof switchSubTab === 'function') switchSubTab('customers', subEl);
+
+  // Switch sub-tab filter to "all" so the customer is visible
+  if (typeof switchCustTab === 'function') switchCustTab('all', document.querySelector('.cst-tab[data-cst="all"]'));
+
+  // Expand the matching row and scroll to it
+  setTimeout(function() {
+    if (typeof toggleCustomerRow === 'function') {
+      var wrap = document.getElementById('ct-wrap-' + idx);
+      if (wrap && !wrap.classList.contains('ct-open')) toggleCustomerRow(idx);
+      if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, 80);
 }
 
 function prodMarkDelivered(id) {

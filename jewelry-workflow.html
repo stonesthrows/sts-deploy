@@ -1770,6 +1770,11 @@
       border-radius: 6px; cursor: pointer; transition: background 0.15s;
     }
     .prod-delivered-btn:hover { background: #d8f0d8; }
+    .prod-cust-link {
+      cursor: pointer; text-decoration: underline dotted;
+      text-underline-offset: 2px; color: inherit;
+    }
+    .prod-cust-link:hover { color: var(--accent); }
     .prod-archive-actions {
       display: flex; gap: 6px; margin-top: 6px;
     }
@@ -5565,6 +5570,33 @@ function savePrintSetup() {
 <script src="js/production.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/supplier-history.js"></script>
+<!-- ── Archive Action Confirmation Modal ───────────────────── -->
+<div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
+  <div class="sot-modal" style="width:400px;">
+    <h3 id="prodActionModalTitle" style="margin-bottom:6px;">New Order</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Confirm the customer name before opening the form. If they have a prior record it will be linked automatically.</p>
+
+    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Customer Name</label>
+    <div style="position:relative;">
+      <input id="prodActionName" type="text" autocomplete="off"
+        style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;"
+        oninput="prodActionNameInput(this.value)"
+        onkeydown="if(event.key==='Enter')prodActionConfirm()">
+      <div id="prodActionSuggest" style="
+        display:none;position:absolute;top:100%;left:0;right:0;z-index:600;
+        background:#fff;border:1px solid var(--bdr);border-radius:0 0 8px 8px;
+        box-shadow:0 6px 16px rgba(0,0,0,.12);max-height:180px;overflow-y:auto;"></div>
+    </div>
+
+    <div id="prodActionMatchNote" style="font-size:11.5px;color:#2a7a4a;margin-top:6px;min-height:16px;"></div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-gold" style="flex:1" onclick="prodActionConfirm()">Continue →</button>
+      <button class="btn btn-outline" onclick="prodActionModalClose()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js?v=2"></script>
 <script src="js/calendar.js"></script>
