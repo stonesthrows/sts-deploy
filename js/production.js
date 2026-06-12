@@ -594,6 +594,17 @@ async function prodScanPdf(orderId, pdfUrl) {
 
 // ── Save OCR text to Customer record ────────────────────────
 
+function prodFixCaps(s) {
+  if (!s) return s;
+  // If the string is entirely uppercase letters/spaces/punctuation, convert to Title Case
+  if (s === s.toUpperCase() && /[A-Z]/.test(s)) {
+    return s.replace(/\w\S*/g, function(w) {
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    });
+  }
+  return s;
+}
+
 function prodParseOcrText(text) {
   var result = { name: '', email: '', phone: '', address: '', jobDesc: '', notes: '' };
   if (!text) return result;
@@ -611,12 +622,12 @@ function prodParseOcrText(text) {
   // Notes: any line after a "notes" / "special instructions" / "instructions" label
   var notesM  = text.match(/(?:notes?|special\s+instructions?|instructions?|comments?)[:\s]+([^\n\r]+)/i);
 
-  if (nameM)  result.name    = nameM[1].trim();
+  if (nameM)  result.name    = prodFixCaps(nameM[1].trim());
   if (emailM) result.email   = emailM[0].trim();
   if (phoneM) result.phone   = (phoneM[1] || phoneM[0]).trim();
-  if (addrM)  result.address = addrM[1].trim();
-  if (jobM)   result.jobDesc = jobM[1].trim();
-  if (notesM) result.notes   = notesM[1].trim();
+  if (addrM)  result.address = prodFixCaps(addrM[1].trim());
+  if (jobM)   result.jobDesc = prodFixCaps(jobM[1].trim());
+  if (notesM) result.notes   = prodFixCaps(notesM[1].trim());
   return result;
 }
 
