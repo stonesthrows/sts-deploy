@@ -314,17 +314,22 @@ function prodOrderCardHTML(o, showDeliverBtn) {
       html += '<button class="prod-scan-btn" id="prod-scan-btn-' + o.id + '"'
             + ' onclick="event.stopPropagation();prodScanPdf(\'' + o.id + '\',\'' + o.pdfUrl.replace(/'/g,"\\'") + '\')">'
             + (cachedOcr ? '🔍 Re-scan PDF' : '🔍 Scan PDF') + '</button>';
+      var saveBtn = '<button class="prod-ocr-save-btn" onclick="event.stopPropagation();prodSaveToCustomerOpen(\'' + o.id + '\',\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">📋 Save to Customer</button>';
       if (cachedOcr) {
         html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '">'
               + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
               + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
               + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none">'
-              + prodEsc(cachedOcr) + '</div></div>';
+              + prodEsc(cachedOcr) + '</div>'
+              + '<div style="padding:6px 8px 8px">' + saveBtn + '</div>'
+              + '</div>';
       } else {
         html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '" style="display:none">'
               + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
               + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
-              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none"></div></div>';
+              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none"></div>'
+              + '<div style="padding:6px 8px 8px" id="prod-ocr-save-wrap-' + o.id + '" style="display:none">' + saveBtn + '</div>'
+              + '</div>';
       }
     }
   }
@@ -569,6 +574,10 @@ async function prodScanPdf(orderId, pdfUrl) {
     if (body)  { body.textContent = text; body.style.display = ''; }
     if (chev)  chev.textContent = '▴';
 
+    // Show the save-to-customer button (only present when panel was hidden before scan)
+    var saveWrap = document.getElementById('prod-ocr-save-wrap-' + orderId);
+    if (saveWrap) saveWrap.style.display = '';
+
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Re-scan PDF'; }
     toast('PDF scanned — ' + (data.pageCount || 1) + ' page' + (data.pageCount !== 1 ? 's' : ''), '📝');
 
@@ -581,6 +590,107 @@ async function prodScanPdf(orderId, pdfUrl) {
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan PDF'; }
     toast('OCR failed: ' + e.message, '⚠️');
   }
+}
+
+// ── Save OCR text to Customer record ────────────────────────
+
+function prodParseOcrText(text) {
+  var result = { name: '', email: '', phone: '', address: '' };
+  if (!text) return result;
+
+  var nameM   = text.match(/\bname[:\s]+([^\n\r]+)/i);
+  var emailM  = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  var phoneM  = text.match(/(?:phone|tel|cell|ph)[:\s]*([+\d()\-.\s]{7,20})/i)
+             || text.match(/\b(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})\b/);
+  var addrM   = text.match(/(?:address|addr)[:\s]+([^\n\r]+)/i);
+
+  if (nameM)  result.name    = nameM[1].trim();
+  if (emailM) result.email   = emailM[0].trim();
+  if (phoneM) result.phone   = (phoneM[1] || phoneM[0]).trim();
+  if (addrM)  result.address = addrM[1].trim();
+  return result;
+}
+
+var _prodSaveOrderId   = null;
+var _prodSaveOrderName = null;
+
+function prodSaveToCustomerOpen(orderId, orderName) {
+  var text = prodOcrCache(orderId);
+  if (!text) { toast('No scanned text found — scan the PDF first', '⚠️'); return; }
+
+  _prodSaveOrderId   = orderId;
+  _prodSaveOrderName = orderName;
+
+  var parsed = prodParseOcrText(text);
+
+  // Find matching customer by order name to pre-fill name field
+  var custName = parsed.name || orderName || '';
+  if (!parsed.name && orderName) {
+    var match = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : [])
+      .find(function(c){ return c.name.toLowerCase() === orderName.toLowerCase(); });
+    if (match) {
+      custName       = match.name;
+      parsed.email   = parsed.email   || match.email   || '';
+      parsed.phone   = parsed.phone   || match.phone   || '';
+      parsed.address = parsed.address || match.address || '';
+    }
+  }
+
+  var f = {
+    name:    document.getElementById('prodSaveName'),
+    email:   document.getElementById('prodSaveEmail'),
+    phone:   document.getElementById('prodSavePhone'),
+    address: document.getElementById('prodSaveAddress'),
+  };
+  if (f.name)    f.name.value    = custName;
+  if (f.email)   f.email.value   = parsed.email;
+  if (f.phone)   f.phone.value   = parsed.phone;
+  if (f.address) f.address.value = parsed.address;
+
+  var bg = document.getElementById('prodSaveCustomerBg');
+  if (bg) bg.classList.add('open');
+}
+
+function prodSaveToCustomerClose() {
+  var bg = document.getElementById('prodSaveCustomerBg');
+  if (bg) bg.classList.remove('open');
+}
+
+function prodSaveToCustomerConfirm() {
+  var name    = (document.getElementById('prodSaveName')    || {}).value || '';
+  var email   = (document.getElementById('prodSaveEmail')   || {}).value || '';
+  var phone   = (document.getElementById('prodSavePhone')   || {}).value || '';
+  var address = (document.getElementById('prodSaveAddress') || {}).value || '';
+
+  name = name.trim();
+  if (!name) { toast('Name is required', '⚠️'); return; }
+
+  var customers = (typeof CUSTOMERS !== 'undefined') ? CUSTOMERS : [];
+
+  // Find existing customer (case-insensitive)
+  var idx = customers.findIndex(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
+  var isNew = idx < 0;
+  var cust = isNew ? { id: 'c-' + Date.now(), name: name } : Object.assign({}, customers[idx]);
+
+  if (email)   cust.email   = email;
+  if (phone)   cust.phone   = phone;
+  if (address) cust.address = address;
+
+  if (isNew) {
+    customers.push(cust);
+  } else {
+    customers[idx] = cust;
+  }
+
+  if (typeof saveToStorage === 'function') saveToStorage();
+
+  // Sync to Notion
+  if (typeof upsertCustomerToNotion === 'function') {
+    upsertCustomerToNotion(cust).catch(function(e){ console.warn('Notion sync:', e); });
+  }
+
+  prodSaveToCustomerClose();
+  toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
 }
 
 // ============================================================
