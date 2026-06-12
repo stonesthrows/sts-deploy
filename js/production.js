@@ -732,13 +732,6 @@ function prodSaveToCustomerConfirm() {
 
   prodSaveToCustomerClose();
   toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
-
-  // Sync customer to Notion Customers db in background
-  if (typeof upsertCustomerToNotion === 'function') {
-    upsertCustomerToNotion(cust).then(function() {
-      if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
-    }).catch(function(e){ console.warn('Notion sync:', e); });
-  }
 }
 
 // ============================================================

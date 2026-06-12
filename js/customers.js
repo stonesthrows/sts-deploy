@@ -147,76 +147,45 @@ function refreshCustomersFromOrders() {
 
 // ── Notion sync ──────────────────────────────
 
-async function loadCustomersFromNotion() {
-  try {
-    const r = await fetch('/api/notion-customers');
-    if (!r.ok) return;
-    const notionCustomers = await r.json();
-    // Merge notionPageId and notes into matching CUSTOMERS entries; add any Notion-only records
-    notionCustomers.forEach(nc => {
-      const existing = CUSTOMERS.find(c => c.name.toLowerCase() === nc.name.toLowerCase());
-      if (existing) {
-        existing.notionPageId = nc.notionPageId;
-        if (nc.notes)   existing.notes   = nc.notes;
-        if (nc.address) existing.address = nc.address;
-        if (nc.phone && !existing.phone) existing.phone = nc.phone;
-      } else {
-        CUSTOMERS.push({
-          name:         nc.name,
-          email:        nc.email   || '',
-          phone:        nc.phone   || '',
-          address:      nc.address || '',
-          notes:        nc.notes   || '',
-          lastContact:  nc.lastContact || '',
-          totalOrders:  nc.totalOrders || 0,
-          totalValue:   nc.totalValue  || 0,
-          activeOrders: 0,
-          notionPageId: nc.notionPageId,
-        });
-      }
-    });
-    renderCustomers();
-    saveCustomersToCache();
-  } catch (e) {
-    console.log('Notion customers load skipped:', e.message);
-  }
+function loadCustomersFromNotion() {
+  // Customers are derived from the Custom Orders pipeline — no separate Customers DB
+  refreshCustomersFromOrders();
+  renderCustomers();
+  saveCustomersToCache();
 }
 
 async function syncCustomersFromNotion() {
   const btn = document.getElementById('syncCustomersBtn');
   if (btn) { btn.textContent = '⏳ Syncing…'; btn.disabled = true; }
   try {
-    await loadCustomersFromNotion();
+    // Pull latest orders from the pipeline, then rebuild customers from them
+    if (typeof notionSyncFromNotion === 'function') await notionSyncFromNotion();
+    refreshCustomersFromOrders();
+    renderCustomers();
+    saveCustomersToCache();
     if (btn) { btn.textContent = '✓ Synced'; }
   } catch (e) {
-    if (btn) { btn.textContent = '✗ Failed'; }
+    refreshCustomersFromOrders();
+    renderCustomers();
+    saveCustomersToCache();
+    if (btn) { btn.textContent = '✓ Synced locally'; }
   } finally {
     setTimeout(() => { if (btn) { btn.textContent = '↻ Sync Customers'; btn.disabled = false; } }, 2000);
   }
 }
 
-async function upsertCustomerToNotion(customer) {
-  try {
-    const payload = {
-      name:         customer.name,
-      email:        customer.email || '',
-      phone:        customer.phone || '',
-      notes:        customer.notes || '',
-      lastContact:  customer.lastContact || new Date().toISOString().slice(0,10),
-      totalOrders:  customer.totalOrders || 0,
-      totalValue:   customer.totalValue  || 0,
-      notionPageId: customer.notionPageId || null,
-    };
-    const r = await fetch('/api/notion-customers', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    });
-    if (!r.ok) return;
-    const { notionPageId } = await r.json();
-    if (notionPageId) customer.notionPageId = notionPageId;
-  } catch (e) {
-    console.log('Notion customer upsert skipped:', e.message);
+// Patch all matching order records in the Custom Orders pipeline with updated contact info
+async function patchCustomerOrdersInNotion(name, fields) {
+  const orders = (typeof ORDERS !== 'undefined' ? ORDERS : [])
+    .filter(o => o.name && o.name.toLowerCase() === name.toLowerCase() && o.notionId);
+  for (const o of orders) {
+    try {
+      await fetch('/api/notion-pipeline', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(Object.assign({ notionId: o.notionId }, fields)),
+      });
+    } catch(e) { console.warn('Pipeline patch error:', e); }
   }
 }
 
@@ -547,7 +516,7 @@ async function saveCustomerEdit(idx) {
   });
 
   try {
-    await upsertCustomerToNotion(c);
+    await patchCustomerOrdersInNotion(name, { email, phone, notes });
     status.textContent = '✓ Saved';
   } catch(e) {
     status.textContent = '✓ Saved locally';
