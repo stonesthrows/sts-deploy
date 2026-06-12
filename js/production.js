@@ -673,6 +673,24 @@ function prodSaveToCustomerOpen(orderId, orderName) {
 
   var bg = document.getElementById('prodSaveCustomerBg');
   if (bg) bg.classList.add('open');
+  setTimeout(prodValidateSaveFields, 0);
+}
+
+function prodValidateSaveFields() {
+  var email = (document.getElementById('prodSaveEmail') || {}).value || '';
+  var phone = (document.getElementById('prodSavePhone') || {}).value || '';
+  var eWarn = document.getElementById('prodSaveEmailWarn');
+  var pWarn = document.getElementById('prodSavePhoneWarn');
+
+  if (eWarn) {
+    var emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    eWarn.textContent = emailOk ? '' : '⚠️ Doesn\'t look like a valid email address';
+  }
+  if (pWarn) {
+    var digits = phone.replace(/\D/g, '');
+    var phoneOk = !phone || digits.length === 10 || digits.length === 11;
+    pWarn.textContent = phoneOk ? '' : '⚠️ Phone has ' + digits.length + ' digits — expected 10 or 11';
+  }
 }
 
 function prodSaveToCustomerClose() {

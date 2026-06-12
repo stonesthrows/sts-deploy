@@ -5638,11 +5638,15 @@ function savePrintSetup() {
 
     <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Email</label>
     <input id="prodSaveEmail" type="email"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
+      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
+      oninput="prodValidateSaveFields()">
+    <div id="prodSaveEmailWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Phone</label>
     <input id="prodSavePhone" type="tel"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
+      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
+      oninput="prodValidateSaveFields()">
+    <div id="prodSavePhoneWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Address</label>
     <input id="prodSaveAddress" type="text"
