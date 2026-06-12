@@ -28,6 +28,12 @@ function prodGetColumn(o) {
 // Track which month folders are open (persists for the session)
 var prodOpenMonths = {};
 var prodDraggedId  = null;
+var prodSearchTerm = '';
+
+function prodSetSearch(val) {
+  prodSearchTerm = (val || '').toLowerCase().trim();
+  renderProduction();
+}
 
 // ── Drag handlers ─────────────────────────────────────────────
 
@@ -101,12 +107,17 @@ function renderProduction() {
   var grid = document.getElementById('prodGrid');
   if (!grid) return;
 
+  var q = prodSearchTerm;
   var readyOrders = ORDERS.filter(function(o) {
-    if (o.stage === 'ready-pick' || o.stage === 'ship-out') return true;
+    if (o.stage === 'ready-pick' || o.stage === 'ship-out') { /* check below */ }
     // Only show cancelled orders in the active column if they have no date yet
-    // (i.e. just cancelled and not yet resolved). Dated cancellations live in the archive.
-    if (o.stage === 'cancelled') return !o.cancelledAt;
-    return false;
+    else if (o.stage === 'cancelled' && !o.cancelledAt) { /* check below */ }
+    else return false;
+    if (q) {
+      var haystack = ((o.name || '') + ' ' + (o.desc || '')).toLowerCase();
+      if (haystack.indexOf(q) < 0) return false;
+    }
+    return true;
   });
 
   var html = '';
@@ -311,6 +322,10 @@ function prodMonthLabel(key) {
 
 function prodToggleMonth(key) {
   prodOpenMonths[key] = !prodOpenMonths[key];
+  // When a month folder (YYYY-MM) is opened, auto-expand its Completed sub-folder
+  if (prodOpenMonths[key] && /^\d{4}-\d{2}$/.test(key)) {
+    prodOpenMonths[key + '-completed'] = true;
+  }
   renderProduction();
 }
 

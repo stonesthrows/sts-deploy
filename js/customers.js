@@ -669,13 +669,17 @@ function loadCustomerGmail(email, idx) {
 
 // Pre-fill New Order form with a past customer's info
 function prefillFromCustomer(name, email, type) {
-  switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'));
+  // Navigate to custom-orders parent, then to the new-order sub-tab
+  const parentEl = document.querySelector('[data-parent="custom-orders"]');
+  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
+  const subEl = document.querySelector('.sub-nav-tab[data-tab="new-order"]');
+  if (typeof switchSubTab === 'function') switchSubTab('new-order', subEl);
   document.getElementById('f-name').value  = name;
   document.getElementById('f-email').value = email;
-  setOrderType(type);
-  // Scroll form to top
-  document.getElementById('tab-new-order').scrollTop = 0;
-  toast(`Form pre-filled for ${name} — fill in the details and submit`, '✓');
+  if (typeof setOrderType === 'function') setOrderType(type);
+  const panel = document.getElementById('tab-new-order');
+  if (panel) panel.scrollTop = 0;
+  if (typeof toast === 'function') toast(`Form pre-filled for ${name} — fill in the details and submit`, '✓');
 }
 
 // ════════════════════════════════════════════

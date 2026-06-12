@@ -3294,6 +3294,12 @@
       <div class="page-title">📬 Ready to Pick Up/Ship</div>
       <div class="page-sub">Orders waiting to be picked up or delivered — by location</div>
     </div>
+    <div class="search-box" style="min-width:220px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="prodSearch" placeholder="Search orders…" oninput="prodSetSearch(this.value)">
+    </div>
   </div>
   <div id="prodGrid">
     <!-- rendered by renderProduction() -->
