@@ -5,7 +5,7 @@
 // ════════════════════════════════════════════
 
 var GMAIL_CLIENT_ID = '787985557761-4g12h5j9a6h3okq75onbrsv5vo6br719.apps.googleusercontent.com';
-var GMAIL_SCOPE     = 'https://www.googleapis.com/auth/gmail.modify';
+var GMAIL_SCOPE     = 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive.readonly';
 
 var _gmailTokenClient = null;
 var _gmailAccessToken = null;

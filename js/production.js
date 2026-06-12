@@ -309,6 +309,24 @@ function prodOrderCardHTML(o, showDeliverBtn) {
   }
   if (o.pdfUrl) {
     html += '<a class="prod-pdf-btn" href="' + o.pdfUrl + '" target="_blank" onclick="event.stopPropagation()">📄 View PDF</a>';
+    if (!showDeliverBtn) {
+      var cachedOcr = prodOcrCache(o.id);
+      html += '<button class="prod-scan-btn" id="prod-scan-btn-' + o.id + '"'
+            + ' onclick="event.stopPropagation();prodScanPdf(\'' + o.id + '\',\'' + o.pdfUrl.replace(/'/g,"\\'") + '\')">'
+            + (cachedOcr ? '🔍 Re-scan PDF' : '🔍 Scan PDF') + '</button>';
+      if (cachedOcr) {
+        html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '">'
+              + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
+              + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
+              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none">'
+              + prodEsc(cachedOcr) + '</div></div>';
+      } else {
+        html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '" style="display:none">'
+              + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
+              + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
+              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none"></div></div>';
+      }
+    }
   }
   if (showDeliverBtn && o.stage !== 'cancelled') {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
@@ -469,6 +487,100 @@ function prodMarkDelivered(id) {
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
   renderProduction();
   toast(o.name + ' marked as delivered ✓', '✓');
+}
+
+// ════════════════════════════════════════════
+//  PDF OCR  —  via Cloud Vision API
+// ════════════════════════════════════════════
+
+var OCR_CACHE_KEY = 'sts-ocr-cache-v1';
+
+function prodOcrCache(orderId, setText) {
+  try {
+    var cache = JSON.parse(localStorage.getItem(OCR_CACHE_KEY) || '{}');
+    if (setText !== undefined) {
+      cache[orderId] = setText;
+      localStorage.setItem(OCR_CACHE_KEY, JSON.stringify(cache));
+      return setText;
+    }
+    return cache[orderId] || null;
+  } catch(e) { return null; }
+}
+
+function prodEsc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Extract Google Drive file ID from a Drive URL
+function prodDriveFileId(url) {
+  var m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  return m ? m[1] : null;
+}
+
+function prodToggleOcr(orderId) {
+  var body = document.getElementById('prod-ocr-body-' + orderId);
+  var chev = document.getElementById('prod-ocr-chev-' + orderId);
+  if (!body) return;
+  var open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  if (chev) chev.textContent = open ? '▴' : '▾';
+}
+
+async function prodScanPdf(orderId, pdfUrl) {
+  // Check Gmail/Drive auth token
+  if (typeof _gmailAccessToken === 'undefined' || !_gmailAccessToken ||
+      (typeof _gmailTokenValid === 'function' && !_gmailTokenValid())) {
+    toast('Connect Gmail first to enable Drive access for PDF scanning', '🔑');
+    if (typeof gmailSignIn === 'function') gmailSignIn(true);
+    return;
+  }
+
+  var fileId = prodDriveFileId(pdfUrl);
+  if (!fileId) { toast('Could not parse Google Drive file ID from URL', '⚠️'); return; }
+
+  // Update button to loading state
+  var btn = document.getElementById('prod-scan-btn-' + orderId);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Scanning…'; }
+
+  try {
+    var resp = await fetch('/api/pdf-ocr', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fileId: fileId, accessToken: _gmailAccessToken }),
+    });
+
+    var data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      throw new Error(data.error || 'OCR request failed');
+    }
+
+    var text = data.text || '(no text found)';
+
+    // Cache result
+    prodOcrCache(orderId, text);
+
+    // Show panel
+    var panel = document.getElementById('prod-ocr-panel-' + orderId);
+    var body  = document.getElementById('prod-ocr-body-' + orderId);
+    var chev  = document.getElementById('prod-ocr-chev-' + orderId);
+    if (panel) panel.style.display = '';
+    if (body)  { body.textContent = text; body.style.display = ''; }
+    if (chev)  chev.textContent = '▴';
+
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Re-scan PDF'; }
+    toast('PDF scanned — ' + (data.pageCount || 1) + ' page' + (data.pageCount !== 1 ? 's' : ''), '📝');
+
+  } catch(e) {
+    var panel = document.getElementById('prod-ocr-panel-' + orderId);
+    if (panel) {
+      panel.style.display = '';
+      panel.innerHTML = '<div class="prod-ocr-error">⚠️ ' + prodEsc(e.message) + '</div>';
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan PDF'; }
+    toast('OCR failed: ' + e.message, '⚠️');
+  }
 }
 
 // ============================================================
