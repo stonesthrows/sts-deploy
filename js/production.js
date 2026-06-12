@@ -701,15 +701,19 @@ function prodSaveToCustomerConfirm() {
     customers[idx] = cust;
   }
 
-  if (typeof saveToStorage === 'function') saveToStorage();
-
-  // Sync to Notion
-  if (typeof upsertCustomerToNotion === 'function') {
-    upsertCustomerToNotion(cust).catch(function(e){ console.warn('Notion sync:', e); });
-  }
+  // Persist to localStorage cache and re-render customers tab immediately
+  if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
+  if (typeof renderCustomers      === 'function') renderCustomers();
 
   prodSaveToCustomerClose();
   toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
+
+  // Sync to Notion in background
+  if (typeof upsertCustomerToNotion === 'function') {
+    upsertCustomerToNotion(cust).then(function() {
+      if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
+    }).catch(function(e){ console.warn('Notion sync:', e); });
+  }
 }
 
 // ============================================================
