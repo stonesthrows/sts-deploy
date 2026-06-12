@@ -595,7 +595,7 @@ async function prodScanPdf(orderId, pdfUrl) {
 // ── Save OCR text to Customer record ────────────────────────
 
 function prodParseOcrText(text) {
-  var result = { name: '', email: '', phone: '', address: '' };
+  var result = { name: '', email: '', phone: '', address: '', jobDesc: '', notes: '' };
   if (!text) return result;
 
   var nameM   = text.match(/\bname[:\s]+([^\n\r]+)/i);
@@ -604,10 +604,19 @@ function prodParseOcrText(text) {
              || text.match(/\b(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})\b/);
   var addrM   = text.match(/(?:address|addr)[:\s]+([^\n\r]+)/i);
 
+  // Job description: look for labelled line, then fall back to "description" label
+  var jobM    = text.match(/(?:job\s*desc(?:ription)?|work\s*desc(?:ription)?|service|repair\s*desc(?:ription)?)[:\s]+([^\n\r]+)/i)
+             || text.match(/\bdescription[:\s]+([^\n\r]+)/i);
+
+  // Notes: any line after a "notes" / "special instructions" / "instructions" label
+  var notesM  = text.match(/(?:notes?|special\s+instructions?|instructions?|comments?)[:\s]+([^\n\r]+)/i);
+
   if (nameM)  result.name    = nameM[1].trim();
   if (emailM) result.email   = emailM[0].trim();
   if (phoneM) result.phone   = (phoneM[1] || phoneM[0]).trim();
   if (addrM)  result.address = addrM[1].trim();
+  if (jobM)   result.jobDesc = jobM[1].trim();
+  if (notesM) result.notes   = notesM[1].trim();
   return result;
 }
 
@@ -641,11 +650,15 @@ function prodSaveToCustomerOpen(orderId, orderName) {
     email:   document.getElementById('prodSaveEmail'),
     phone:   document.getElementById('prodSavePhone'),
     address: document.getElementById('prodSaveAddress'),
+    jobDesc: document.getElementById('prodSaveJobDesc'),
+    notes:   document.getElementById('prodSaveNotes'),
   };
   if (f.name)    f.name.value    = custName;
   if (f.email)   f.email.value   = parsed.email;
   if (f.phone)   f.phone.value   = parsed.phone;
   if (f.address) f.address.value = parsed.address;
+  if (f.jobDesc) f.jobDesc.value = parsed.jobDesc;
+  if (f.notes)   f.notes.value   = parsed.notes;
 
   var bg = document.getElementById('prodSaveCustomerBg');
   if (bg) bg.classList.add('open');
@@ -661,9 +674,14 @@ function prodSaveToCustomerConfirm() {
   var email   = (document.getElementById('prodSaveEmail')   || {}).value || '';
   var phone   = (document.getElementById('prodSavePhone')   || {}).value || '';
   var address = (document.getElementById('prodSaveAddress') || {}).value || '';
+  var jobDesc = (document.getElementById('prodSaveJobDesc') || {}).value || '';
+  var notes   = (document.getElementById('prodSaveNotes')   || {}).value || '';
 
   name = name.trim();
   if (!name) { toast('Name is required', '⚠️'); return; }
+
+  // Combine job description and notes into the customer notes field
+  var combinedNotes = [jobDesc.trim() ? 'Job: ' + jobDesc.trim() : '', notes.trim()].filter(Boolean).join('\n');
 
   var customers = (typeof CUSTOMERS !== 'undefined') ? CUSTOMERS : [];
 
@@ -672,9 +690,10 @@ function prodSaveToCustomerConfirm() {
   var isNew = idx < 0;
   var cust = isNew ? { id: 'c-' + Date.now(), name: name } : Object.assign({}, customers[idx]);
 
-  if (email)   cust.email   = email;
-  if (phone)   cust.phone   = phone;
-  if (address) cust.address = address;
+  if (email)         cust.email   = email;
+  if (phone)         cust.phone   = phone;
+  if (address)       cust.address = address;
+  if (combinedNotes) cust.notes   = combinedNotes;
 
   if (isNew) {
     customers.push(cust);
