@@ -310,6 +310,18 @@ function prodOrderCardHTML(o, showDeliverBtn) {
   if (showDeliverBtn && o.stage !== 'cancelled') {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
   }
+  if (!showDeliverBtn) {
+    var safeName  = (o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeEmail = (o.email || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html += '<div class="prod-archive-actions">'
+          + '<button class="prod-archive-btn prod-archive-btn-order"'
+          + ' onclick="event.stopPropagation();prefillFromCustomer(\'' + safeName + '\',\'' + safeEmail + '\',\'order\')">'
+          + '＋ New Order</button>'
+          + '<button class="prod-archive-btn prod-archive-btn-repair"'
+          + ' onclick="event.stopPropagation();prefillFromCustomer(\'' + safeName + '\',\'' + safeEmail + '\',\'repair\')">'
+          + '🔧 Repair</button>'
+          + '</div>';
+  }
   html += '</div>';
   return html;
 }
