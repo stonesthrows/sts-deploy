@@ -35,109 +35,81 @@ function toast(msg, icon='✓') {
 
 //  TAB SWITCHING
 // ════════════════════════════════════════════
-// Sub-tabs that live under Custom Orders
-const SUB_TABS = new Set(['dashboard','customers','production']);
-// Sub-tabs that live under Supplies (within Operations)
-const SUPPLIES_TABS = new Set(['supplier','order-history']);
+// Top-level tabs that have NO sub-nav (direct panels)
+const DIRECT_TABS = new Set(['gmail','triplog','notes']);
 
-function switchTab(id, el) {
-  // If this is a Custom Orders sub-tab
-  if (SUB_TABS.has(id)) {
-    const parentEl = document.querySelector('[data-parent="custom-orders"]');
-    switchParent('custom-orders', parentEl);
-    const subEl = el || document.querySelector('[data-tab="' + id + '"].sub-nav-tab');
-    switchSubTab(id, subEl);
-    return;
-  }
-  // If this is a Supplies sub-tab, route via Operations
-  if (SUPPLIES_TABS.has(id)) {
-    const parentEl = document.querySelector('[data-parent="operations"]');
-    switchParent('operations', parentEl);
-    const suppliesTab = document.querySelector('#sub-nav-operations .sub-nav-tab[data-tab="supplies"]');
-    switchOpsTab('supplies', suppliesTab);
-    const subEl = el || document.querySelector('#sub-sub-nav-supplies .sub-sub-nav-tab[data-tab="' + id + '"]');
-    switchSuppliesTab(id, subEl);
-    if (id === 'supplier')      ohInitSupplier();
-    if (id === 'order-history') ohInitHistory();
-    return;
-  }
+// Each parent group and the ordered sub-tabs it contains
+const NAV_GROUPS = {
+  'custom-orders': ['dashboard','production','new-order','customers','print-bag'],
+  'inventory':     ['inv-adjust','inv-restock-queue','timer'],
+  'supplies':      ['supplier','order-history'],
+  'more':          ['sales','calendar','pj-calc','pj-ref'],
+};
+
+// Reverse lookup: sub-tab id -> parent group id
+const PARENT_OF = {};
+Object.keys(NAV_GROUPS).forEach(p => NAV_GROUPS[p].forEach(s => { PARENT_OF[s] = p; }));
+
+// Per-panel "on show" hooks — fired every time a panel becomes active, from
+// clicks AND from nav restore, so behaviour is identical through every path.
+const TAB_HOOKS = {
+  dashboard: function() {
+    if (typeof collapsedCards !== 'undefined') collapsedCards.clear();
+    if (typeof renderKanban === 'function') renderKanban();
+    if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
+  },
+  production: function() { if (typeof renderProduction === 'function') setTimeout(renderProduction, 0); },
+  sales:      function() { if (typeof renderSales === 'function') setTimeout(renderSales, 0); if (typeof salesAutoSync === 'function') setTimeout(salesAutoSync, 500); },
+  gmail:      function() { if (typeof loadScheduledBrief === 'function') loadScheduledBrief(); },
+  supplier:   function() { ohInitSupplier(); },
+  'order-history': function() { ohInitHistory(); },
+  triplog:    function() { if (typeof tlInit === 'function') tlInit(); },
+  calendar:   function() { if (typeof calInit === 'function') calInit(); },
+  'inv-restock-queue': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); },
+  timer:      function() { if (typeof timerTabInit === 'function') timerTabInit(); },
+  'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
+};
+function runTabHook(id) { const h = TAB_HOOKS[id]; if (h) { try { h(); } catch(e) {} } }
+
+// Keep aria-selected in sync with the visual .active state (a11y)
+function _syncAria() {
+  document.querySelectorAll('.nav-tab, .sub-nav-tab').forEach(t => {
+    t.setAttribute('aria-selected', t.classList.contains('active') ? 'true' : 'false');
+  });
+}
+
+// Find the top-nav element for a parent group or a direct tab
+function _navTabEl(id) {
+  return document.querySelector('.nav-tab[data-parent="' + id + '"]')
+      || document.querySelector('.nav-tab[data-tab="' + id + '"]');
+}
+
+// Show exactly one tab panel, fire its hook, refresh aria
+function _showPanel(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
+  runTabHook(id);
+  _syncAria();
+}
+
+// Universal entry point — jump to ANY tab by id, whether it's a direct
+// top-level tab or a sub-tab inside a group. Safe for all cross-module callers.
+function switchTab(id, el) {
+  const parent = PARENT_OF[id];
+  if (parent) {
+    switchParent(parent, _navTabEl(parent), true, true); // skipSave, skipFirstSub
+    switchSubTab(id, el);
+    return;
+  }
+  // Direct top-level tab (gmail / triplog / notes)
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.sub-nav').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  if (el) el.classList.add('active');
-  if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
-  if (id === 'production') setTimeout(renderProduction, 0);
-  if (id === 'gmail') loadScheduledBrief();
+  const navEl = el || _navTabEl(id);
+  if (navEl) navEl.classList.add('active');
+  _showPanel(id);
   _navSave('parent', id);
-}
-
-// Switch between Sales / Supplies / Trips within Operations sub-nav
-function switchOpsTab(id, el, _skipSave) {
-  document.querySelectorAll('#sub-nav-operations .sub-nav-tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  if (id === 'supplies') {
-    const ssn = document.getElementById('sub-sub-nav-supplies');
-    if (ssn) ssn.classList.add('active');
-    document.querySelectorAll('.sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
-    const firstSub = ssn && ssn.querySelector('.sub-sub-nav-tab');
-    if (firstSub) firstSub.classList.add('active');
-    const firstId = firstSub ? firstSub.getAttribute('data-tab') : 'supplier';
-    const panel = document.getElementById('tab-' + firstId);
-    if (panel) panel.classList.add('active');
-    ohInitSupplier();
-  } else {
-    const panel = document.getElementById('tab-' + id);
-    if (panel) panel.classList.add('active');
-    if (id === 'sales') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
-  }
-  if (!_skipSave) { _navSave('parent', 'operations'); _navSave('ops-sub', id); }
-}
-
-// Switch between sub-tabs within the Supplies sub-sub-nav
-function switchSuppliesTab(id, el, _skipSave) {
-  document.querySelectorAll('#sub-sub-nav-supplies .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const panel = document.getElementById('tab-' + id);
-  if (panel) panel.classList.add('active');
-  if (!_skipSave) _navSave('supplies-sub', id);
-}
-
-// Switch between Notes / Perm. Jewelry within Tools sub-nav
-function switchToolsTab(id, el, _skipSave) {
-  document.querySelectorAll('#sub-nav-tools .sub-nav-tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  if (!_skipSave) { _navSave('parent', 'tools'); _navSave('tools-sub', id); }
-  if (id === 'perm-jewelry') {
-    const ssn = document.getElementById('sub-sub-nav-perm-jewelry');
-    if (ssn) ssn.classList.add('active');
-    document.querySelectorAll('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
-    const firstSub = ssn && ssn.querySelector('.sub-sub-nav-tab');
-    if (firstSub) firstSub.classList.add('active');
-    const firstId = firstSub ? firstSub.getAttribute('data-tab') : 'pj-calc';
-    const panel = document.getElementById('tab-' + firstId);
-    if (panel) panel.classList.add('active');
-  } else {
-    const panel = document.getElementById('tab-' + id);
-    if (panel) panel.classList.add('active');
-  }
-}
-
-// Switch between sub-tabs within the Perm Jewelry sub-sub-nav
-function switchPermJewelryTab(id, el) {
-  document.querySelectorAll('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const panel = document.getElementById('tab-' + id);
-  if (panel) panel.classList.add('active');
-  _navSave('perm-jewelry-sub', id);
 }
 
 // One-time inits for Supplies sub-tabs
@@ -149,8 +121,7 @@ function ohInitHistory() {
 }
 
 // ── Nav state persistence ────────────────────
-// Saves/restores the active parent+sub tab across hard refreshes
-
+// Saves/restores the active parent + active sub across hard refreshes
 function _navSave(key, val) {
   try { localStorage.setItem('sts-nav-' + key, val); } catch(e) {}
 }
@@ -159,107 +130,91 @@ function _navGet(key) {
 }
 
 function _navRestore() {
-  const parent = _navGet('parent') || 'custom-orders';
-  const parentEl = document.querySelector('[data-parent="' + parent + '"]');
+  let parent = _navGet('parent') || 'custom-orders';
 
-  if (parent === 'gmail') {
-    switchTab('gmail', document.querySelector('[data-tab="gmail"]'));
-    return;
-  }
-  if (parent === 'calendar') {
-    switchTab('calendar', document.querySelector('[data-tab="calendar"]'));
-    if (typeof calInit === 'function') calInit();
-    return;
-  }
+  // Direct top-level tab
+  if (DIRECT_TABS.has(parent)) { switchTab(parent, _navTabEl(parent)); return; }
 
-  switchParent(parent, parentEl, true); // true = skip save (avoid loop)
+  // Unknown/legacy parent (e.g. old 'operations'/'tools') -> safe default
+  if (!NAV_GROUPS[parent]) parent = 'custom-orders';
 
-  if (parent === 'custom-orders') {
-    const sub = _navGet('custom-orders-sub');
-    if (sub) {
-      const subEl = document.querySelector('#sub-nav-custom-orders .sub-nav-tab[data-tab="' + sub + '"]');
-      switchSubTab(sub, subEl, true);
-      if (sub === 'production') setTimeout(renderProduction, 0);
-      if (sub === 'dashboard') { if (typeof renderKanban === 'function') setTimeout(renderKanban, 0); }
-    }
-  } else if (parent === 'operations') {
-    const opsSub = _navGet('ops-sub') || 'sales';
-    const opsEl  = document.querySelector('#sub-nav-operations .sub-nav-tab[data-tab="' + opsSub + '"]');
-    switchOpsTab(opsSub, opsEl, true);
-    if (opsSub === 'supplies') {
-      const supSub = _navGet('supplies-sub') || 'supplier';
-      const supEl  = document.querySelector('#sub-sub-nav-supplies .sub-sub-nav-tab[data-tab="' + supSub + '"]');
-      switchSuppliesTab(supSub, supEl, true);
-      if (supSub === 'supplier')      ohInitSupplier();
-      if (supSub === 'order-history') ohInitHistory();
-    }
-  } else if (parent === 'inventory') {
-    if (!window._invLoaded) window.invLoad();
+  switchParent(parent, _navTabEl(parent), true, true); // skipSave, skipFirstSub
+
+  // Restore the active sub-tab (also accepts the legacy '<parent>-sub' key)
+  const sub = _navGet('sub-' + parent) || _navGet(parent + '-sub') || NAV_GROUPS[parent][0];
+  switchSubTab(sub, null, true);
+
+  // Inventory keeps an internal category structure inside the Adjust panel
+  if (parent === 'inventory' && sub === 'inv-adjust') {
     const invMain = _navGet('inv-main') || 'earrings';
-    invSwitchMain(invMain);
+    if (typeof invSwitchMain === 'function') invSwitchMain(invMain);
     if (invMain === 'rings') {
-      if (!window._invRingLoaded) invLoadRings();
+      if (!window._invRingLoaded && typeof invLoadRings === 'function') invLoadRings();
       const ringSub = _navGet('inv-ring-sub');
       if (ringSub) {
         const ringEl = document.querySelector('.inv-ring-sub-btn[id="inv-ring-subtab-' + ringSub + '"]');
-        invSwitchRingSub(ringSub, ringEl);
+        if (typeof invSwitchRingSub === 'function') invSwitchRingSub(ringSub, ringEl);
       }
     } else if (invMain === 'pendants') {
-      if (!window._invPendantLoaded) invLoadPendants();
+      if (!window._invPendantLoaded && typeof invLoadPendants === 'function') invLoadPendants();
       const pendSub = _navGet('inv-pendant-sub') || 'p-spirit';
       const pendEl = document.querySelector('.inv-pendant-sub-btn[id="inv-pendant-subtab-' + pendSub + '"]');
-      invSwitchPendantSub(pendSub, pendEl);
-    }
-  } else if (parent === 'tools') {
-    const toolsSub = _navGet('tools-sub') || 'notes';
-    const toolsEl  = document.querySelector('#sub-nav-tools .sub-nav-tab[data-tab="' + toolsSub + '"]');
-    switchToolsTab(toolsSub, toolsEl, true);
-    if (toolsSub === 'perm-jewelry') {
-      const pjSub = _navGet('perm-jewelry-sub') || 'pj-calc';
-      const pjEl  = document.querySelector('#sub-sub-nav-perm-jewelry .sub-sub-nav-tab[data-tab="' + pjSub + '"]');
-      switchPermJewelryTab(pjSub, pjEl);
-      if (pjSub === 'pj-ref' && typeof pjBuildRef === 'function') pjBuildRef();
+      if (typeof invSwitchPendantSub === 'function') invSwitchPendantSub(pendSub, pendEl);
     }
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => setTimeout(_navRestore, 0));
 
-function switchParent(parentId, el, _skipSave) {
-  // Activate this parent nav tab, hide all sub-navs and sub-sub-navs, show the right one
+// Keyboard support: Enter/Space activates a focused tab; Arrows move focus
+document.addEventListener('keydown', function(e) {
+  const t = e.target;
+  if (!t || !t.classList) return;
+  if (!t.classList.contains('nav-tab') && !t.classList.contains('sub-nav-tab')) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    t.click();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const sibs = Array.from(t.parentElement.children).filter(n => n.matches('.nav-tab, .sub-nav-tab'));
+    const next = sibs[sibs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : -1)];
+    if (next) next.focus();
+  }
+});
+
+// Activate a parent group: highlight its nav tab, reveal its sub-nav, and
+// (unless skipped) open its first sub-tab.
+function switchParent(parentId, el, _skipSave, _skipFirstSub) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.sub-nav').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.sub-sub-nav').forEach(s => s.classList.remove('active'));
-  if (el) el.classList.add('active');
+  const navEl = el || _navTabEl(parentId);
+  if (navEl) navEl.classList.add('active');
   const subNav = document.getElementById('sub-nav-' + parentId);
   if (subNav) subNav.classList.add('active');
-  // Always show the first sub-tab when switching to a parent tab
-  document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
-  const firstSub = subNav && subNav.querySelector('.sub-nav-tab');
-  if (firstSub) firstSub.classList.add('active');
-  const defaultId = firstSub ? firstSub.getAttribute('data-tab') : 'dashboard';
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const panel = document.getElementById('tab-' + defaultId);
-  if (panel) panel.classList.add('active');
-  if (parentId === 'operations') { setTimeout(renderSales, 0); setTimeout(salesAutoSync, 500); }
+  // Lazy-load inventory data the first time its group is opened
+  if (parentId === 'inventory' && !window._invLoaded && typeof window.invLoad === 'function') window.invLoad();
+  if (!_skipFirstSub) {
+    document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
+    const firstSub = subNav && subNav.querySelector('.sub-nav-tab');
+    if (firstSub) {
+      firstSub.classList.add('active');
+      const firstId = firstSub.getAttribute('data-tab');
+      _showPanel(firstId);
+      if (!_skipSave) _navSave('sub-' + parentId, firstId);
+    }
+  }
   if (!_skipSave) _navSave('parent', parentId);
+  _syncAria();
 }
 
+// Activate a sub-tab within its parent group's sub-nav
 function switchSubTab(id, el, _skipSave) {
-  // Deactivate all tab panels and sub-nav tabs, activate the chosen one
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const parent = PARENT_OF[id];
   document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
-  const panel = document.getElementById('tab-' + id);
-  if (panel) panel.classList.add('active');
-  if (el) el.classList.add('active');
-  // When navigating to the kanban board, always reset to expanded view
-  if (id === 'dashboard') {
-    if (typeof collapsedCards !== 'undefined') collapsedCards.clear();
-    if (typeof renderKanban === 'function') renderKanban();
-    if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
-  }
-  if (id === 'production') setTimeout(renderProduction, 0);
-  if (!_skipSave) _navSave('custom-orders-sub', id);
+  const subEl = el || (parent && document.querySelector('#sub-nav-' + parent + ' .sub-nav-tab[data-tab="' + id + '"]'));
+  if (subEl) subEl.classList.add('active');
+  _showPanel(id);
+  if (!_skipSave && parent) { _navSave('parent', parent); _navSave('sub-' + parent, id); }
 }
 
 // ════════════════════════════════════════════

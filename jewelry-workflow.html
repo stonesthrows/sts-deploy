@@ -206,28 +206,6 @@
     .sub-nav-tab:hover { color: var(--accent-mid); }
     .sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
 
-    /* ── Sub-sub-nav (3rd level, e.g. Supplies within Operations) ── */
-    .sub-sub-nav {
-      display: none;
-      background: #F0EBE3;
-      padding: 0 24px;
-      border-bottom: 1px solid var(--hdr-pill);
-    }
-    .sub-sub-nav.active { display: flex; }
-    .sub-sub-nav-tab {
-      padding: 8px 14px;
-      color: #7A7268;
-      font-size: 11.5px;
-      font-weight: 500;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s;
-      user-select: none;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .sub-sub-nav-tab:hover { color: var(--accent-mid); }
-    .sub-sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
-
     /* ── Layout ──────────────────────────────── */
     .content { padding: 20px 24px; }
     .tab-panel { display: none; }
@@ -1576,6 +1554,9 @@
     .nav { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
     .nav::-webkit-scrollbar { display: none; }
     .nav-tab { flex-shrink: 0; }
+    .sub-nav.active { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
+    .sub-nav::-webkit-scrollbar { display: none; }
+    .sub-nav-tab { flex-shrink: 0; }
 
     /* ── Page header bar ────────────────────── */
     .page-bar {
@@ -2879,99 +2860,85 @@
 </div>
 
 <!-- Nav -->
-<div class="nav">
-  <div class="nav-tab active" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
+<div class="nav" role="tablist" aria-label="Main">
+  <div class="nav-tab active" role="tab" tabindex="0" aria-selected="true" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
     ✏️ Orders <span class="nav-badge" id="badge-active">6</span>
   </div>
-  <div class="nav-tab" data-tab="gmail" onclick="switchTab('gmail',this)">
-    📧 Gmail
-  </div>
-  <div class="nav-tab" data-parent="operations" onclick="switchParent('operations',this)">
-    ⚙️ Operations
-  </div>
-  <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="inventory" onclick="switchParent('inventory',this)">
     💎 Inventory
   </div>
-  <div class="nav-tab" data-parent="tools" onclick="switchParent('tools',this)">
-    🛠️ Tools
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="supplies" onclick="switchParent('supplies',this)">
+    📦 Supplies
   </div>
-  <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
-    📅 Calendar
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="triplog" onclick="switchTab('triplog',this)">
+    🚗 Trips
+  </div>
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="gmail" onclick="switchTab('gmail',this)">
+    📧 Gmail
+  </div>
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="notes" onclick="switchTab('notes',this)">
+    📝 Notes
+  </div>
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
+    📊 More
   </div>
 </div>
 
-<!-- Sub-nav (Custom Orders) -->
-<div class="sub-nav active" id="sub-nav-custom-orders">
-  <div class="sub-nav-tab active" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
+<!-- Sub-nav (Orders) -->
+<div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
     📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
   </div>
-<div class="sub-nav-tab" data-tab="production" onclick="switchSubTab('production',this)">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="production" onclick="switchSubTab('production',this)">
     📬 Ready to Pick Up/Ship
   </div>
-  <div class="sub-nav-tab" data-tab="customers" onclick="switchSubTab('customers',this)">
-    👥 Customers
-  </div>
-  <div class="sub-nav-tab" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
     ✚ New Order
   </div>
-  <div class="sub-nav-tab" data-tab="print-bag" onclick="switchSubTab('print-bag',this)">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="customers" onclick="switchSubTab('customers',this)">
+    👥 Customers
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="print-bag" onclick="switchSubTab('print-bag',this)">
     🖨 Print Order Bag
   </div>
 </div>
 
-<!-- Sub-nav (Operations) -->
-<div class="sub-nav" id="sub-nav-operations">
-  <div class="sub-nav-tab active" data-tab="sales" onclick="switchOpsTab('sales',this)">
-    📊 Sales
-  </div>
-  <div class="sub-nav-tab" data-tab="supplies" onclick="switchOpsTab('supplies',this)">
-    📦 Supplies
-  </div>
-  <div class="sub-nav-tab" data-tab="triplog" onclick="switchOpsTab('triplog',this);tlInit()">
-    🚗 Trips
-  </div>
-</div>
-
-<!-- Sub-sub-nav (Supplies within Operations) -->
-<div class="sub-sub-nav" id="sub-sub-nav-supplies">
-  <div class="sub-sub-nav-tab active" data-tab="supplier" onclick="switchSuppliesTab('supplier',this);ohInitSupplier()">
-    📦 Order Materials
-  </div>
-  <div class="sub-sub-nav-tab" data-tab="order-history" onclick="switchSuppliesTab('order-history',this);ohInitHistory()">
-    📋 Order History
-  </div>
-</div>
-
 <!-- Sub-nav (Inventory) -->
-<div class="sub-nav" id="sub-nav-inventory">
-  <div class="sub-nav-tab active" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
+<div class="sub-nav" id="sub-nav-inventory" role="tablist" aria-label="Inventory">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
     💎 Adjust Inventory
   </div>
-  <div class="sub-nav-tab" data-tab="inv-restock-queue" onclick="switchSubTab('inv-restock-queue',this);restockQueueRender()">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="inv-restock-queue" onclick="switchSubTab('inv-restock-queue',this)">
     📦 Restock Queue
   </div>
-  <div class="sub-nav-tab" data-tab="timer" onclick="switchSubTab('timer',this);timerTabInit()">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="timer" onclick="switchSubTab('timer',this)">
     ⏱ Timer
   </div>
 </div>
 
-<!-- Sub-nav (Tools) -->
-<div class="sub-nav" id="sub-nav-tools">
-  <div class="sub-nav-tab active" data-tab="notes" onclick="switchToolsTab('notes',this)">
-    📝 Notes
+<!-- Sub-nav (Supplies) -->
+<div class="sub-nav" id="sub-nav-supplies" role="tablist" aria-label="Supplies">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="supplier" onclick="switchSubTab('supplier',this)">
+    📦 Order Materials
   </div>
-  <div class="sub-nav-tab" data-tab="perm-jewelry" onclick="switchToolsTab('perm-jewelry',this)">
-    ⛓️ Perm. Jewelry
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="order-history" onclick="switchSubTab('order-history',this)">
+    📋 Order History
   </div>
 </div>
 
-<!-- Sub-sub-nav (Perm Jewelry within Tools) -->
-<div class="sub-sub-nav" id="sub-sub-nav-perm-jewelry">
-  <div class="sub-sub-nav-tab active" data-tab="pj-calc" onclick="switchPermJewelryTab('pj-calc',this)">
-    🔢 Calculator
+<!-- Sub-nav (More) -->
+<div class="sub-nav" id="sub-nav-more" role="tablist" aria-label="More">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="sales" onclick="switchSubTab('sales',this)">
+    📊 Sales
   </div>
-  <div class="sub-sub-nav-tab" data-tab="pj-ref" onclick="switchPermJewelryTab('pj-ref',this);pjBuildRef()">
-    📋 Reference
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="calendar" onclick="switchSubTab('calendar',this)">
+    📅 Calendar
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="pj-calc" onclick="switchSubTab('pj-calc',this)">
+    ⛓️ Perm. Jewelry — Calc
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="pj-ref" onclick="switchSubTab('pj-ref',this)">
+    📋 Perm. Jewelry — Ref
   </div>
 </div>
 
