@@ -3374,6 +3374,20 @@
 
     </div>
 
+    <!-- TripLog widget -->
+    <div class="home-stage-card" style="margin-bottom:14px;">
+      <div class="home-stage-head">
+        <span>🚗 Latest Trip</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="home-widget-link" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻ Refresh</button>
+          <a onclick="sbNavDirect('triplog',null)">Open TripLog →</a>
+        </div>
+      </div>
+      <div id="tlDashContent" class="tl-dash-content" style="padding:12px 14px;min-height:60px;">
+        <span style="color:var(--text-dim);font-size:13px;">Loading…</span>
+      </div>
+    </div>
+
     <!-- Orders by stage -->
     <div class="home-stage-card">
       <div class="home-stage-head">
@@ -3419,19 +3433,6 @@
         <div class="stat-label">At the Bench</div>
         <div class="stat-value" id="stat-bench">—</div>
       </div>
-    </div>
-  </div>
-
-  <div class="tl-dash-widget" id="tlDashWidget">
-    <div class="tl-dash-hdr">
-      <span class="tl-dash-title">🚗 Latest Trip</span>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="tl-dash-open" onclick="switchSubTab('triplog', document.querySelector('.sub-nav-tab[data-tab=triplog]'))">Open TripLog →</button>
-        <button class="tl-dash-refresh" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻</button>
-      </div>
-    </div>
-    <div id="tlDashContent" class="tl-dash-content">
-      <span style="color:var(--text3);font-size:13px;">Loading…</span>
     </div>
   </div>
 
