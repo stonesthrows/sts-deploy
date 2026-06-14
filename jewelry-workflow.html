@@ -42,7 +42,10 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       font-size: 14px;
     }
 
@@ -151,10 +154,7 @@
       width: 6px; height: 6px;
       background: #6AB87A;
       border-radius: 50%;
-      transition: background 0.3s;
     }
-    .header-pill.conn-bad .dot { background: #E05C5C; }
-    .header-pill.conn-bad .conn-label { color: #E05C5C; }
 
     /* ── Nav ─────────────────────────────────── */
     .nav {
@@ -209,17 +209,41 @@
     .sub-nav-tab:hover { color: var(--accent-mid); }
     .sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
 
+    /* ── Sub-sub-nav (3rd level, e.g. Supplies within Operations) ── */
+    .sub-sub-nav {
+      display: none;
+      background: #F0EBE3;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--hdr-pill);
+    }
+    .sub-sub-nav.active { display: flex; }
+    .sub-sub-nav-tab {
+      padding: 8px 14px;
+      color: #7A7268;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sub-sub-nav-tab:hover { color: var(--accent-mid); }
+    .sub-sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
     /* ── Layout ──────────────────────────────── */
-    .content { padding: 20px 24px; }
+    .content { padding: 16px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
     .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    .tab-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
+    #tab-dashboard.active { overflow: hidden; }
 
     /* ── Stat Cards ──────────────────────────── */
     .stats-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-bottom: 22px;
+      margin-bottom: 14px;
+      flex-shrink: 0;
     }
     .stat-card {
       background: #FFFFFF;
@@ -229,35 +253,7 @@
       display: flex;
       align-items: center;
       gap: 14px;
-      cursor: pointer;
-      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .stat-card:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,0.18); }
-    .stat-card.stat-active-filter { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,152,58,0.25); }
-    .kanban-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:var(--text2); }
-    .kanban-filter-clear { background:var(--surface2); border:1px solid var(--border1); border-radius:20px; padding:3px 10px; font-size:11px; cursor:pointer; color:var(--text1); }
-    .kanban-filter-clear:hover { background:var(--surface3); }
-
-    /* ── ⋯ overflow menu ──────────────────────────── */
-    .overflow-wrap { position: relative; display: inline-flex; }
-    .overflow-btn { background: var(--surface2); color: var(--text1); border: 1px solid var(--border1); border-radius: 7px; padding: 7px 12px; font-size: 16px; line-height:1; font-weight: 700; cursor: pointer; }
-    .overflow-btn:hover { background: var(--surface3); }
-    .overflow-menu {
-      display: none; position: absolute; top: calc(100% + 6px); right: 0;
-      background: var(--card); border: 1px solid var(--border1); border-radius: 10px;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.13); z-index: 200;
-      min-width: 180px; padding: 6px;
-    }
-    .overflow-menu.open { display: block; }
-    .overflow-menu a, .overflow-menu button {
-      display: block; width: 100%; text-align: left; padding: 9px 12px;
-      font-size: 13px; border: none; background: none; color: var(--text1);
-      border-radius: 7px; cursor: pointer; text-decoration: none; box-sizing: border-box;
-    }
-    .overflow-menu a:hover, .overflow-menu button:hover { background: var(--surface2); }
-
-    /* ── Mobile bottom tab bar ──────────────────────── */
-    .botnav { display: none; }
     .stat-icon {
       width: 42px; height: 42px;
       border-radius: 10px;
@@ -275,7 +271,8 @@
     /* ── Kanban ──────────────────────────────── */
     .kanban-bar {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
     }
     .kanban-title { font-size: 15px; font-weight: 700; color: var(--text); }
     .kanban-actions { display: flex; gap: 8px; }
@@ -284,14 +281,17 @@
       display: flex;
       gap: 10px;
       overflow-x: auto;
-      padding-bottom: 16px;
-      align-items: flex-start;
+      overflow-y: hidden;
+      padding-bottom: 8px;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
     }
     .kanban-board::-webkit-scrollbar { height: 5px; }
     .kanban-board::-webkit-scrollbar-track { background: #ECE7DF; border-radius: 3px; }
     .kanban-board::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
 
-    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; }
+    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; display: flex; flex-direction: column; }
     .k-head {
       padding: 8px 11px;
       border-radius: 8px 8px 0 0;
@@ -311,11 +311,16 @@
     .k-body {
       border-radius: 0 0 8px 8px;
       padding: 7px;
-      min-height: 180px;
+      min-height: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
       gap: 7px;
+      overflow-y: auto;
     }
+    .k-body::-webkit-scrollbar { width: 4px; }
+    .k-body::-webkit-scrollbar-track { background: transparent; }
+    .k-body::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
     .k-empty {
       text-align: center;
       padding: 4px 8px;
@@ -431,7 +436,8 @@
       font-size: 9px;
       font-weight: 700;
     }
-    .k-sub-wrap .k-body  { border-radius: 0; min-height: 60px; }
+    .k-sub-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .k-sub-wrap .k-body  { border-radius: 0; min-height: 0; }
     .k-sub-wrap:last-child .k-body { border-radius: 0 0 8px 8px; }
 
     /* Sub-section stage colors — Intake group */
@@ -1585,26 +1591,6 @@
     .nav { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
     .nav::-webkit-scrollbar { display: none; }
     .nav-tab { flex-shrink: 0; }
-    /* Bottom tab bar — mobile only */
-    .botnav {
-      display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
-      background: var(--card); border-top: 1px solid var(--border1);
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-    }
-    .botnav-item {
-      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 8px 4px 6px; gap: 2px; cursor: pointer; color: var(--text2); font-size: 10px;
-      min-height: 56px; border: none; background: none; text-decoration: none;
-    }
-    .botnav-item .bn-icon { font-size: 20px; line-height: 1; }
-    .botnav-item.active { color: var(--accent); }
-    .botnav-item.active .bn-icon { filter: drop-shadow(0 0 1px rgba(201,152,58,0.5)); }
-    /* Push page content above the bottom bar */
-    .content { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
-
-    .sub-nav.active { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
-    .sub-nav::-webkit-scrollbar { display: none; }
-    .sub-nav-tab { flex-shrink: 0; }
 
     /* ── Page header bar ────────────────────── */
     .page-bar {
@@ -1799,52 +1785,6 @@
       border-radius: 6px; cursor: pointer; transition: background 0.15s;
     }
     .prod-delivered-btn:hover { background: #d8f0d8; }
-    .prod-cust-link {
-      cursor: pointer; text-decoration: underline dotted;
-      text-underline-offset: 2px; color: inherit;
-    }
-    .prod-cust-link:hover { color: var(--accent); }
-    /* ── PDF OCR ── */
-    .prod-scan-btn {
-      display: inline-flex; align-items: center; gap: 5px;
-      margin-top: 5px; padding: 4px 10px; font-size: 11px; font-weight: 600;
-      background: #F4F0FB; color: #5A3A9A; border: 1px solid #C8B8E8;
-      border-radius: 6px; cursor: pointer; font-family: inherit; transition: background .15s;
-      width: 100%;  justify-content: center;
-    }
-    .prod-scan-btn:hover  { background: #E8E0F8; }
-    .prod-scan-btn:disabled { opacity: .55; cursor: default; }
-    .prod-ocr-panel {
-      margin-top: 6px; border: 1px solid #D8D0EC; border-radius: 7px;
-      background: #FAF8FF; overflow: hidden;
-    }
-    .prod-ocr-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 10px; background: #EDE8F8; cursor: pointer;
-      font-size: 11px; font-weight: 700; color: #5A3A9A;
-    }
-    .prod-ocr-body {
-      padding: 10px; font-size: 12px; line-height: 1.6; color: var(--text);
-      white-space: pre-wrap; max-height: 260px; overflow-y: auto;
-    }
-    .prod-ocr-error { color: #c04848; font-size: 12px; padding: 8px 10px; }
-    .prod-ocr-save-btn {
-      font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer;
-      background: var(--gold); color: #fff; border: none; font-weight: 600;
-    }
-    .prod-ocr-save-btn:hover { opacity: .88; }
-    .prod-archive-actions {
-      display: flex; gap: 6px; margin-top: 6px;
-    }
-    .prod-archive-btn {
-      flex: 1; padding: 5px 0; font-size: 11px; font-weight: 600;
-      border-radius: 6px; cursor: pointer; border: 1px solid; transition: background 0.15s;
-      font-family: inherit;
-    }
-    .prod-archive-btn-order  { background: #EAF3FB; color: #1A5A8A; border-color: #A8CCE8; }
-    .prod-archive-btn-order:hover  { background: #D0E8F8; }
-    .prod-archive-btn-repair { background: #FEF6E8; color: #8A5A10; border-color: #E8CCA0; }
-    .prod-archive-btn-repair:hover { background: #FAEBD0; }
     .prod-empty {
       padding: 32px; text-align: center; color: #9A8860; font-size: 13px;
     }
@@ -2768,9 +2708,9 @@
 
     /* Nav */
     .nav { padding: 0 8px; }
-    .nav-tab { padding: 13px 12px; font-size: 12px; min-height: 44px; box-sizing: border-box; }
+    .nav-tab { padding: 11px 12px; font-size: 12px; }
     .sub-nav { padding: 0 8px; }
-    .sub-nav-tab { padding: 12px 12px; font-size: 11.5px; min-height: 44px; box-sizing: border-box; }
+    .sub-nav-tab { padding: 9px 12px; font-size: 11.5px; }
 
     /* Content area */
     .content { padding: 12px 12px; }
@@ -2901,92 +2841,103 @@
       </div>
     </div>
   </div>
-  <div class="header-pill" id="connPill">
+  <div class="header-pill">
     <span class="dot"></span>
-    <span class="conn-label">Notion connected</span>
+    <span>Notion + ClickUp + Gmail connected</span>
   </div>
 </div>
 
 <!-- Nav -->
-<div class="nav" role="tablist" aria-label="Main">
-  <div class="nav-tab active" role="tab" tabindex="0" aria-selected="true" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
+<div class="nav">
+  <div class="nav-tab active" data-parent="custom-orders" onclick="switchParent('custom-orders',this)">
     ✏️ Orders <span class="nav-badge" id="badge-active">6</span>
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="inventory" onclick="switchParent('inventory',this)">
-    💎 Inventory
-  </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="supplies" onclick="switchParent('supplies',this)">
-    📦 Supplies
-  </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="triplog" onclick="switchTab('triplog',this)">
-    🚗 Trips
-  </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="gmail" onclick="switchTab('gmail',this)">
+  <div class="nav-tab" data-tab="gmail" onclick="switchTab('gmail',this)">
     📧 Gmail
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="notes" onclick="switchTab('notes',this)">
-    📝 Notes
+  <div class="nav-tab" data-parent="operations" onclick="switchParent('operations',this)">
+    ⚙️ Operations
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
-    📊 More
+  <div class="nav-tab" data-parent="inventory" onclick="switchParent('inventory',this);if(!window._invLoaded)window.invLoad()">
+    💎 Inventory
+  </div>
+  <div class="nav-tab" data-parent="tools" onclick="switchParent('tools',this)">
+    🛠️ Tools
+  </div>
+  <div class="nav-tab" data-tab="calendar" onclick="switchTab('calendar',this);calInit()">
+    📅 Calendar
   </div>
 </div>
 
-<!-- Sub-nav (Orders) -->
-<div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
+<!-- Sub-nav (Custom Orders) -->
+<div class="sub-nav active" id="sub-nav-custom-orders">
+  <div class="sub-nav-tab active" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
     📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="production" onclick="switchSubTab('production',this)">
+<div class="sub-nav-tab" data-tab="production" onclick="switchSubTab('production',this)">
     📬 Ready to Pick Up/Ship
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
-    ✚ New Order
-  </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="customers" onclick="switchSubTab('customers',this)">
+  <div class="sub-nav-tab" data-tab="customers" onclick="switchSubTab('customers',this)">
     👥 Customers
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="print-bag" onclick="switchSubTab('print-bag',this)">
+  <div class="sub-nav-tab" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+    ✚ New Order
+  </div>
+  <div class="sub-nav-tab" data-tab="print-bag" onclick="switchSubTab('print-bag',this)">
     🖨 Print Order Bag
   </div>
 </div>
 
-<!-- Sub-nav (Inventory) -->
-<div class="sub-nav" id="sub-nav-inventory" role="tablist" aria-label="Inventory">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
-    💎 Adjust Inventory
+<!-- Sub-nav (Operations) -->
+<div class="sub-nav" id="sub-nav-operations">
+  <div class="sub-nav-tab active" data-tab="sales" onclick="switchOpsTab('sales',this)">
+    📊 Sales
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="inv-restock-queue" onclick="switchSubTab('inv-restock-queue',this)">
-    📦 Restock Queue
+  <div class="sub-nav-tab" data-tab="supplies" onclick="switchOpsTab('supplies',this)">
+    📦 Supplies
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="timer" onclick="switchSubTab('timer',this)">
-    ⏱ Timer
+  <div class="sub-nav-tab" data-tab="triplog" onclick="switchOpsTab('triplog',this);tlInit()">
+    🚗 Trips
   </div>
 </div>
 
-<!-- Sub-nav (Supplies) -->
-<div class="sub-nav" id="sub-nav-supplies" role="tablist" aria-label="Supplies">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="supplier" onclick="switchSubTab('supplier',this)">
+<!-- Sub-sub-nav (Supplies within Operations) -->
+<div class="sub-sub-nav" id="sub-sub-nav-supplies">
+  <div class="sub-sub-nav-tab active" data-tab="supplier" onclick="switchSuppliesTab('supplier',this);ohInitSupplier()">
     📦 Order Materials
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="order-history" onclick="switchSubTab('order-history',this)">
+  <div class="sub-sub-nav-tab" data-tab="order-history" onclick="switchSuppliesTab('order-history',this);ohInitHistory()">
     📋 Order History
   </div>
 </div>
 
-<!-- Sub-nav (More) -->
-<div class="sub-nav" id="sub-nav-more" role="tablist" aria-label="More">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="sales" onclick="switchSubTab('sales',this)">
-    📊 Sales
+<!-- Sub-nav (Inventory) -->
+<div class="sub-nav" id="sub-nav-inventory">
+  <div class="sub-nav-tab active" data-tab="to-restock" onclick="switchSubTab('to-restock',this);restockQueueRender();timerTabInit()">
+    📦 To Restock
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="calendar" onclick="switchSubTab('calendar',this)">
-    📅 Calendar
+  <div class="sub-nav-tab" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
+    💎 Adjust Inventory
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="pj-calc" onclick="switchSubTab('pj-calc',this)">
-    ⛓️ Perm. Jewelry — Calc
+</div>
+
+<!-- Sub-nav (Tools) -->
+<div class="sub-nav" id="sub-nav-tools">
+  <div class="sub-nav-tab active" data-tab="notes" onclick="switchToolsTab('notes',this)">
+    📝 Notes
   </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="pj-ref" onclick="switchSubTab('pj-ref',this)">
-    📋 Perm. Jewelry — Ref
+  <div class="sub-nav-tab" data-tab="perm-jewelry" onclick="switchToolsTab('perm-jewelry',this)">
+    ⛓️ Perm. Jewelry
+  </div>
+</div>
+
+<!-- Sub-sub-nav (Perm Jewelry within Tools) -->
+<div class="sub-sub-nav" id="sub-sub-nav-perm-jewelry">
+  <div class="sub-sub-nav-tab active" data-tab="pj-calc" onclick="switchPermJewelryTab('pj-calc',this)">
+    🔢 Calculator
+  </div>
+  <div class="sub-sub-nav-tab" data-tab="pj-ref" onclick="switchPermJewelryTab('pj-ref',this);pjBuildRef()">
+    📋 Reference
   </div>
 </div>
 
@@ -2995,28 +2946,28 @@
 <div id="tab-dashboard" class="tab-panel active">
 
   <div class="stats-row">
-    <div class="stat-card" id="scard-active" onclick="applyStatFilter('active')" title="Show all active orders">
+    <div class="stat-card">
       <div class="stat-icon si-gold">📋</div>
       <div>
         <div class="stat-label">Active Orders</div>
         <div class="stat-value" id="stat-active">—</div>
       </div>
     </div>
-    <div class="stat-card" id="scard-due" onclick="applyStatFilter('due')" title="Show orders due within 7 days">
+    <div class="stat-card">
       <div class="stat-icon si-red">⏰</div>
       <div>
         <div class="stat-label">Due ≤ 7 Days</div>
         <div class="stat-value" id="stat-due">—</div>
       </div>
     </div>
-    <div class="stat-card" id="scard-materials" onclick="applyStatFilter('materials')" title="Show orders awaiting materials">
+    <div class="stat-card">
       <div class="stat-icon si-purple">📦</div>
       <div>
         <div class="stat-label">Awaiting Materials</div>
         <div class="stat-value" id="stat-materials">—</div>
       </div>
     </div>
-    <div class="stat-card" id="scard-bench" onclick="applyStatFilter('bench')" title="Show orders at the bench">
+    <div class="stat-card">
       <div class="stat-icon si-green">🔨</div>
       <div>
         <div class="stat-label">At the Bench</div>
@@ -3025,23 +2976,16 @@
     </div>
   </div>
 
-  <div class="kanban-filter-bar" id="kanbanFilterBar" style="display:none"></div>
-
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
-      <div class="overflow-wrap" id="kbOverflowWrap">
-        <button class="overflow-btn" onclick="toggleKbOverflow()" title="More actions">⋯</button>
-        <div class="overflow-menu" id="kbOverflowMenu">
-          <button onclick="openPrintSetup();toggleKbOverflow()">⚙ Print Setup</button>
-          <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" onclick="toggleKbOverflow()">📓 Notion DB</a>
-          <button id="notionSyncBtn" onclick="notionSyncFromNotion();toggleKbOverflow()" title="Pull latest orders from Notion">↻ Sync Notion</button>
-          <button onclick="syncGmail();toggleKbOverflow()">⟳ Sync Gmail</button>
-          <button onclick="checkDriveScans(this);toggleKbOverflow()" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
-          <button onclick="openIntegrationsModal();toggleKbOverflow()" title="Configure API keys and integrations">⚙ Integrations</button>
-        </div>
-      </div>
+    <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
+    <button onclick="openPrintSetup()" style="background:var(--surface2);color:var(--text1);border:1px solid var(--border1);border-radius:7px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">⚙ Print Setup</button>
+    <div class="kanban-actions">
+      <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" class="notion-chip">📓 Notion DB</a>
+      <button class="notion-chip" id="notionSyncBtn" onclick="notionSyncFromNotion()" title="Pull latest orders from Notion">↻ Sync Notion</button>
+      <button class="notion-chip" onclick="syncGmail()">⟳ Sync Gmail</button>
+      <button class="notion-chip" onclick="checkDriveScans(this)" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
+      <button class="notion-chip" onclick="openIntegrationsModal()" title="Configure API keys and integrations">⚙ Integrations</button>
     </div>
   </div>
 
@@ -5589,24 +5533,26 @@ function savePrintSetup() {
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
-<!-- ═══════════════════ RESTOCK QUEUE TAB ═══════════════════ -->
-<div id="tab-inv-restock-queue" class="tab-panel">
-  <div style="max-width:680px;margin:0 auto;padding:18px 16px 32px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
-      <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
+<!-- ═══════════════════ TO RESTOCK TAB ═══════════════════ -->
+<div id="tab-to-restock" class="tab-panel">
+  <div style="display:flex;height:calc(100vh - 100px);">
+    <!-- Left: Restock Queue -->
+    <div style="width:420px;flex-shrink:0;overflow-y:auto;padding:18px 16px 32px;border-right:1px solid var(--bdr-light);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
+        <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
+      </div>
+      <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
+        No items in the Inventory Restock list yet.<br>
+        <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+      </div>
+      <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
-    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
-      No items in the Inventory Restock list yet.<br>
-      <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+    <!-- Right: Timer -->
+    <div style="flex:1;min-width:0;">
+      <iframe id="timer-iframe" src="" style="width:100%;height:100%;border:none;display:block;" allowtransparency="true"></iframe>
     </div>
-    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
-</div>
-
-<!-- ═══════════════════ TIMER TAB ═══════════════════ -->
-<div id="tab-timer" class="tab-panel">
-  <iframe id="timer-iframe" src="" style="width:100%;height:calc(100vh - 100px);border:none;display:block;" allowtransparency="true"></iframe>
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
@@ -5621,74 +5567,6 @@ function savePrintSetup() {
 <script src="js/production.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/supplier-history.js"></script>
-<!-- ── Archive Action Confirmation Modal ───────────────────── -->
-<div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
-  <div class="sot-modal" style="width:400px;">
-    <h3 id="prodActionModalTitle" style="margin-bottom:6px;">New Order</h3>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Confirm the customer name before opening the form. If they have a prior record it will be linked automatically.</p>
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Customer Name</label>
-    <div style="position:relative;">
-      <input id="prodActionName" type="text" autocomplete="off"
-        style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;"
-        oninput="prodActionNameInput(this.value)"
-        onkeydown="if(event.key==='Enter')prodActionConfirm()">
-      <div id="prodActionSuggest" style="
-        display:none;position:absolute;top:100%;left:0;right:0;z-index:600;
-        background:#fff;border:1px solid var(--bdr);border-radius:0 0 8px 8px;
-        box-shadow:0 6px 16px rgba(0,0,0,.12);max-height:180px;overflow-y:auto;"></div>
-    </div>
-
-    <div id="prodActionMatchNote" style="font-size:11.5px;color:#2a7a4a;margin-top:6px;min-height:16px;"></div>
-
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button class="btn btn-gold" style="flex:1" onclick="prodActionConfirm()">Continue →</button>
-      <button class="btn btn-outline" onclick="prodActionModalClose()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Save OCR to Customer Modal ──────────────────────────── -->
-<div id="prodSaveCustomerBg" class="sot-modal-bg" onclick="if(event.target===this)prodSaveToCustomerClose()">
-  <div class="sot-modal" style="width:420px;">
-    <h3 style="margin-bottom:4px;">📋 Save to Customer</h3>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Review and edit the fields parsed from the PDF. Saving will update (or create) the customer record.</p>
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Name <span style="color:#c0392b">*</span></label>
-    <input id="prodSaveName" type="text"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Email</label>
-    <input id="prodSaveEmail" type="email"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
-      oninput="prodValidateSaveFields()">
-    <div id="prodSaveEmailWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Phone</label>
-    <input id="prodSavePhone" type="tel"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
-      oninput="prodValidateSaveFields()">
-    <div id="prodSavePhoneWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Address</label>
-    <input id="prodSaveAddress" type="text"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Job Description</label>
-    <input id="prodSaveJobDesc" type="text"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
-
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Notes</label>
-    <input id="prodSaveNotes" type="text"
-      style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:16px;">
-
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-gold" style="flex:1" onclick="prodSaveToCustomerConfirm()">Save Customer</button>
-      <button class="btn btn-outline" onclick="prodSaveToCustomerClose()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js?v=2"></script>
 <script src="js/calendar.js"></script>
@@ -5697,83 +5575,6 @@ function timerTabInit() {
   const iframe = document.getElementById('timer-iframe');
   if (!iframe.getAttribute('src')) iframe.src = 'time-tracker.html';
 }
-
-// ── ⋯ Overflow menu toggle ─────────────────────
-function toggleKbOverflow() {
-  document.getElementById('kbOverflowMenu').classList.toggle('open');
-}
-// Close overflow menu when clicking outside it
-document.addEventListener('click', function(e) {
-  const wrap = document.getElementById('kbOverflowWrap');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('kbOverflowMenu').classList.remove('open');
-  }
-});
-
-// ── Stat card → kanban filter ──────────────────
-window.kanbanStatFilter = null;
-window.kanbanStatFilterKey = null;
-
-function applyStatFilter(key) {
-  if (window.kanbanStatFilterKey === key) {
-    // Toggle off
-    window.kanbanStatFilter = null;
-    window.kanbanStatFilterKey = null;
-  } else {
-    window.kanbanStatFilterKey = key;
-    if (key === 'active') {
-      window.kanbanStatFilter = null; // active = no extra filter needed
-    } else if (key === 'due') {
-      window.kanbanStatFilter = o => {
-        if (!o.deadline) return false;
-        const diff = Math.round((new Date(o.deadline) - TODAY) / 86400000);
-        return diff >= 0 && diff <= 7;
-      };
-    } else if (key === 'materials') {
-      window.kanbanStatFilter = o => o.stage === 'order-mat' || o.stage === 'materials';
-    } else if (key === 'bench') {
-      window.kanbanStatFilter = o => o.stage === 'build';
-    }
-  }
-  // Update visual active state on cards
-  ['active','due','materials','bench'].forEach(k => {
-    const el = document.getElementById('scard-' + k);
-    if (el) el.classList.toggle('stat-active-filter', k === window.kanbanStatFilterKey);
-  });
-  if (typeof renderKanban === 'function') renderKanban();
-}
 </script>
-
-<!-- Hidden file input for camera / photo attachment -->
-<input type="file" id="cameraInput" accept="image/*" capture="environment"
-       style="display:none" onchange="handlePhoto(this)">
-
-<!-- Mobile bottom tab bar (#6) -->
-<nav class="botnav" aria-label="Quick navigation">
-  <button class="botnav-item" data-target="custom-orders" onclick="switchParent('custom-orders', document.querySelector('.nav-tab[data-parent=custom-orders]'))">
-    <span class="bn-icon">✏️</span>Orders
-  </button>
-  <button class="botnav-item" data-target="inventory" onclick="switchParent('inventory', document.querySelector('.nav-tab[data-parent=inventory]'))">
-    <span class="bn-icon">💎</span>Inventory
-  </button>
-  <button class="botnav-item" data-target="supplies" onclick="switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'))">
-    <span class="bn-icon">📦</span>Supplies
-  </button>
-  <button class="botnav-item" data-target="gmail" onclick="switchTab('gmail', document.querySelector('.nav-tab[data-tab=gmail]'))">
-    <span class="bn-icon">📧</span>Gmail
-  </button>
-</nav>
-
-<!-- Photo lightbox -->
-<div class="photo-lightbox" id="photoLightbox" onclick="closeLightbox()">
-  <span class="lb-close" onclick="closeLightbox()">✕</span>
-  <div class="lb-title" id="lbTitle"></div>
-  <img id="lightboxImg" src="" alt="Work order photo" onclick="event.stopPropagation()">
-  <div class="lb-actions" onclick="event.stopPropagation()">
-    <button class="btn btn-secondary" onclick="retakePhoto()">📷 Replace</button>
-    <button class="btn btn-danger"    onclick="removePhoto()">🗑 Remove</button>
-  </div>
-</div>
-
 </body>
 </html>
