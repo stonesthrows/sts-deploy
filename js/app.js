@@ -36,12 +36,12 @@ function toast(msg, icon='✓') {
 //  TAB SWITCHING
 // ════════════════════════════════════════════
 // Top-level tabs that have NO sub-nav (direct panels)
-const DIRECT_TABS = new Set(['gmail','triplog','notes']);
+const DIRECT_TABS = new Set(['gmail','triplog','notes','home']);
 
 // Each parent group and the ordered sub-tabs it contains
 const NAV_GROUPS = {
   'custom-orders': ['dashboard','production','new-order','customers','print-bag'],
-  'inventory':     ['inv-adjust','inv-restock-queue','timer'],
+  'inventory':     ['to-restock','inv-adjust'],
   'supplies':      ['supplier','order-history'],
   'more':          ['sales','calendar','pj-calc','pj-ref'],
 };
@@ -53,6 +53,9 @@ Object.keys(NAV_GROUPS).forEach(p => NAV_GROUPS[p].forEach(s => { PARENT_OF[s] =
 // Per-panel "on show" hooks — fired every time a panel becomes active, from
 // clicks AND from nav restore, so behaviour is identical through every path.
 const TAB_HOOKS = {
+  home: function() {
+    if (typeof homeTabInit === 'function') homeTabInit();
+  },
   dashboard: function() {
     if (typeof collapsedCards !== 'undefined') collapsedCards.clear();
     if (typeof renderKanban === 'function') renderKanban();
@@ -65,8 +68,7 @@ const TAB_HOOKS = {
   'order-history': function() { ohInitHistory(); },
   triplog:    function() { if (typeof tlInit === 'function') tlInit(); },
   calendar:   function() { if (typeof calInit === 'function') calInit(); },
-  'inv-restock-queue': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); },
-  timer:      function() { if (typeof timerTabInit === 'function') timerTabInit(); },
+  'to-restock': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); if (typeof timerTabInit === 'function') timerTabInit(); },
   'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
 };
 function runTabHook(id) { const h = TAB_HOOKS[id]; if (h) { try { h(); } catch(e) {} } }

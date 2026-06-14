@@ -42,10 +42,7 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
       background: var(--bg);
       color: var(--text);
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      min-height: 100vh;
       font-size: 14px;
     }
 
@@ -213,18 +210,16 @@
     .sub-nav-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
 
     /* ── Layout ──────────────────────────────── */
-    .content { padding: 16px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .content { padding: 20px 24px; }
     .tab-panel { display: none; }
-    .tab-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
-    #tab-dashboard.active { overflow: hidden; }
+    .tab-panel.active { display: block; }
 
     /* ── Stat Cards ──────────────────────────── */
     .stats-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-bottom: 14px;
-      flex-shrink: 0;
+      margin-bottom: 22px;
     }
     .stat-card {
       background: #FFFFFF;
@@ -239,7 +234,7 @@
     }
     .stat-card:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,0.18); }
     .stat-card.stat-active-filter { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,152,58,0.25); }
-    .kanban-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:var(--text2); flex-shrink:0; }
+    .kanban-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:var(--text2); }
     .kanban-filter-clear { background:var(--surface2); border:1px solid var(--border1); border-radius:20px; padding:3px 10px; font-size:11px; cursor:pointer; color:var(--text1); }
     .kanban-filter-clear:hover { background:var(--surface3); }
 
@@ -280,8 +275,7 @@
     /* ── Kanban ──────────────────────────────── */
     .kanban-bar {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px;
-      flex-shrink: 0;
+      margin-bottom: 14px;
     }
     .kanban-title { font-size: 15px; font-weight: 700; color: var(--text); }
     .kanban-actions { display: flex; gap: 8px; }
@@ -290,17 +284,14 @@
       display: flex;
       gap: 10px;
       overflow-x: auto;
-      overflow-y: hidden;
-      padding-bottom: 8px;
-      align-items: stretch;
-      flex: 1;
-      min-height: 0;
+      padding-bottom: 16px;
+      align-items: flex-start;
     }
     .kanban-board::-webkit-scrollbar { height: 5px; }
     .kanban-board::-webkit-scrollbar-track { background: #ECE7DF; border-radius: 3px; }
     .kanban-board::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
 
-    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; }
     .k-head {
       padding: 8px 11px;
       border-radius: 8px 8px 0 0;
@@ -320,16 +311,11 @@
     .k-body {
       border-radius: 0 0 8px 8px;
       padding: 7px;
-      min-height: 0;
-      flex: 1;
+      min-height: 180px;
       display: flex;
       flex-direction: column;
       gap: 7px;
-      overflow-y: auto;
     }
-    .k-body::-webkit-scrollbar { width: 4px; }
-    .k-body::-webkit-scrollbar-track { background: transparent; }
-    .k-body::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
     .k-empty {
       text-align: center;
       padding: 4px 8px;
@@ -445,8 +431,7 @@
       font-size: 9px;
       font-weight: 700;
     }
-    .k-sub-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-    .k-sub-wrap .k-body  { border-radius: 0; min-height: 0; }
+    .k-sub-wrap .k-body  { border-radius: 0; min-height: 60px; }
     .k-sub-wrap:last-child .k-body { border-radius: 0 0 8px 8px; }
 
     /* Sub-section stage colors — Intake group */
@@ -2854,13 +2839,310 @@
     .toast { left: 12px; right: 12px; min-width: 0; max-width: 100%; }
   }
 
+  /* ═══════════════════════════════════════════════════
+     SIDEBAR NAV REDESIGN (fable-redesign branch)
+     ═══════════════════════════════════════════════════ */
+
+  /* Hide old header / nav chrome — elements stay in DOM for JS */
+  .header { display: none !important; }
+  .nav    { display: none !important; }
+  .sub-nav { display: none !important; }
+
+  /* ── Sidebar ──────────────────────────────────────── */
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0;
+    width: 196px;
+    height: 100vh;
+    background: var(--hdr);
+    border-right: 1px solid var(--hdr-bdr);
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: #2E5C78; border-radius: 2px; }
+
+  .sidebar-brand {
+    padding: 14px 14px 13px;
+    border-bottom: 1px solid var(--hdr-bdr);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-shrink: 0;
+  }
+  .sidebar-brand .logo-mark { width: 28px; height: 28px; font-size: 14px; border-radius: 6px; }
+  .sidebar-brand .logo-text { font-size: 13px; }
+  .sidebar-brand .logo-sub  { display: block; color: #5A7888; font-size: 10px; margin-left: 0; }
+
+  .sb-nav { padding: 8px 0 24px; flex: 1; }
+
+  .sb-section {
+    font-size: 9px;
+    color: #4A6878;
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    padding: 12px 14px 4px;
+    font-weight: 700;
+  }
+  .sb-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    cursor: pointer;
+    color: #7A9AAA;
+    font-size: 12.5px;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: background .12s, color .12s;
+    user-select: none;
+    line-height: 1.2;
+  }
+  .sb-item:hover { background: #1A3448; color: #C4D8E8; }
+  .sb-item.sb-active {
+    background: #234659;
+    color: var(--accent-light);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+  .sb-badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .sb-badge:empty { display: none; }
+
+  /* ── Topbar ───────────────────────────────────────── */
+  .topbar {
+    position: fixed;
+    top: 0; left: 196px; right: 0;
+    height: 50px;
+    background: var(--hdr);
+    border-bottom: 1px solid var(--hdr-bdr);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 12px;
+    z-index: 150;
+  }
+  .topbar-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-light);
+    letter-spacing: 0.1px;
+  }
+  .topbar-spacer { flex: 1; }
+  .sb-menu-btn {
+    display: none;
+    align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    background: none; border: none; cursor: pointer;
+    color: var(--accent-light); font-size: 20px; line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* ── Content offset ───────────────────────────────── */
+  .content {
+    margin-left: 196px;
+    padding-top: 70px; /* 50px topbar + 20px original gap */
+  }
+
+  /* ── Sidebar overlay (mobile) ─────────────────────── */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 190;
+  }
+  .sidebar-overlay.active { display: block; }
+
+  /* ── Mobile adjustments ───────────────────────────── */
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      z-index: 300;
+    }
+    .sidebar.sb-open { transform: translateX(0); }
+    .topbar { left: 0; }
+    .content { margin-left: 0; padding-top: 70px; }
+    .sb-menu-btn { display: flex !important; }
+    .botnav { display: none !important; }
+  }
+  @media (min-width: 769px) {
+    .botnav { display: none !important; }
+  }
+
+  /* ── New Order two-column layout ─────────────────── */
+  .new-order-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  @media (max-width: 900px) {
+    .new-order-cols { grid-template-columns: 1fr; }
+  }
+
+  /* ── Home Dashboard ───────────────────────────────── */
+  .home-dash { max-width: 960px; }
+
+  .home-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .home-greeting { font-size: 20px; font-weight: 700; color: var(--text); }
+  .home-date     { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  .home-kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 20px;
+  }
+  .home-kpi {
+    background: var(--card-bg);
+    border: 1px solid var(--bdr);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .home-kpi:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,.18); }
+  .home-kpi-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+  }
+  .home-kpi-num { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+  .home-kpi-lbl { font-size: 11px; color: var(--text2); margin-top: 3px; font-weight: 500; text-transform: uppercase; letter-spacing: .3px; }
+
+  .home-widgets {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 14px; margin-bottom: 20px;
+  }
+  .home-widget {
+    background: var(--card-bg);
+    border: 1px solid var(--bdr);
+    border-radius: 12px; overflow: hidden;
+  }
+  .home-widget-head {
+    background: var(--card-head-bg);
+    padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; font-weight: 700; color: var(--text);
+    border-bottom: 1px solid var(--bdr);
+  }
+  .home-widget-link {
+    background: none; border: none; cursor: pointer;
+    font-size: 11px; color: var(--accent); font-weight: 600;
+    padding: 0; text-decoration: none;
+  }
+  .home-widget-link:hover { text-decoration: underline; }
+  .home-widget-body { padding: 10px 14px; min-height: 140px; }
+  .hw-loading { color: var(--text-dim); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  .hw-gmail-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
+  }
+  .hw-gmail-row:last-child { border-bottom: none; }
+  .hw-gmail-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .hw-gmail-from { font-weight: 600; color: var(--text); width: 90px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-gmail-sub  { color: var(--text2); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-gmail-time { color: var(--text-dim); font-size: 10px; flex-shrink: 0; }
+
+  .hw-cal-event {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
+  }
+  .hw-cal-event:last-child { border-bottom: none; }
+  .hw-cal-date { width: 34px; text-align: center; flex-shrink: 0; }
+  .hw-cal-day   { font-size: 18px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .hw-cal-month { font-size: 9px; color: var(--text-dim); text-transform: uppercase; }
+  .hw-cal-info  { flex: 1; }
+  .hw-cal-title { font-weight: 600; color: var(--text); }
+  .hw-cal-time  { color: var(--text-dim); font-size: 11px; margin-top: 1px; }
+
+  .home-stage-card {
+    background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden;
+    margin-bottom: 0;
+  }
+  .home-stage-head {
+    background: var(--card-head-bg); padding: 10px 14px;
+    font-size: 13px; font-weight: 700; color: var(--text);
+    border-bottom: 1px solid var(--bdr);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .home-stage-head a { font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
+  .home-stage-head a:hover { text-decoration: underline; }
+  .home-stage-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0; padding: 0;
+  }
+  .home-stage-col {
+    padding: 10px 14px; border-right: 1px solid var(--bdr-light);
+    border-bottom: 1px solid var(--bdr-light);
+  }
+  .home-stage-col:last-child { border-right: none; }
+  .home-stage-count { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
+  .home-stage-lbl { font-size: 10px; color: var(--text2); margin-top: 3px; font-weight: 500; }
+  .home-stage-col.has-orders .home-stage-count { color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .home-kpi-row { grid-template-columns: 1fr 1fr; }
+    .home-widgets { grid-template-columns: 1fr; }
+  }
+
   </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
+<!-- ══ SIDEBAR ══════════════════════════════════════ -->
+<div class="sidebar" id="appSidebar">
+  <div class="sidebar-brand">
+    <div class="logo-mark">💎</div>
+    <div>
+      <span class="logo-text">Stones Throw Studio</span>
+      <span class="logo-sub">Order Workflow</span>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-item sb-active" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
 
-<!-- Header -->
+    <div class="sb-section">Orders</div>
+    <div class="sb-item" data-sb="dashboard"    onclick="sbNav('custom-orders','dashboard',this)">📋 Custom Orders <span class="sb-badge" id="sb-badge-active"></span></div>
+    <div class="sb-item" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
+    <div class="sb-item" data-sb="new-order"    onclick="sbNav('custom-orders','new-order',this)">✚ New Order</div>
+    <div class="sb-item" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
+
+    <div class="sb-section">Inventory</div>
+    <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
+    <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
+
+    <div class="sb-section">Supplies</div>
+    <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
+    <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
+
+    <div class="sb-section">More</div>
+    <div class="sb-item" data-sb="triplog" onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
+    <div class="sb-item" data-sb="notes"   onclick="sbNavDirect('notes',this)">📝 Notes</div>
+    <div class="sb-item" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
+    <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
+  </nav>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="sbClose()"></div>
+<!-- ═══════════════════════════════════════════════════ -->
+
+<!-- Header (hidden — functional elements moved to topbar) -->
 <div class="header">
   <div class="logo-mark">💎</div>
   <div>
@@ -2869,57 +3151,7 @@
   </div>
   <div class="header-spacer"></div>
 
-  <!-- Trip Verify Pill -->
-  <div class="tv-wrap" id="tvWrap" style="display:none">
-    <button class="tv-pill" id="tvPill" onclick="tvToggle()">
-      <span class="tv-dot"></span>
-      🚗 Verify Trips
-    </button>
-    <div class="tv-panel" id="tvPanel" style="display:none">
-      <div class="tv-panel-head">
-        <span id="tvPanelDate">Yesterday's Trips</span>
-        <button class="eo-close" onclick="tvToggle()">×</button>
-      </div>
-      <div id="tvPanelBody" class="tv-panel-body">
-        <div style="text-align:center;padding:20px;color:var(--text-dim)">Loading…</div>
-      </div>
-      <div class="tv-panel-foot">
-        <button class="btn btn-danger btn-sm" onclick="tvFlag()">⚠ Flag Issue</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-gold btn-sm" onclick="tvConfirm()">✓ Looks Good</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="theme-wrap">
-    <button class="theme-btn" onclick="toggleThemePicker()" title="Change color theme">🎨</button>
-    <div class="theme-picker" id="themePicker">
-      <div class="theme-swatch active" data-theme="" onclick="setTheme('')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#4E7A94 50%,#C9983A 50%)"></div>
-        <span class="theme-name">Steel</span>
-      </div>
-      <div class="theme-swatch" data-theme="warm" onclick="setTheme('warm')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,#C9983A 50%)"></div>
-        <span class="theme-name">Warm</span>
-      </div>
-      <div class="theme-swatch" data-theme="sage" onclick="setTheme('sage')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#EEF4EC 50%,#5B8C50 50%)"></div>
-        <span class="theme-name">Sage</span>
-      </div>
-      <div class="theme-swatch" data-theme="coast" onclick="setTheme('coast')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#EBF0F8 50%,#3A70C0 50%)"></div>
-        <span class="theme-name">Coast</span>
-      </div>
-      <div class="theme-swatch" data-theme="midnight" onclick="setTheme('midnight')">
-        <div class="theme-dot" style="background:linear-gradient(135deg,#1A1A1C 50%,#D4A040 50%)"></div>
-        <span class="theme-name">Midnight</span>
-      </div>
-    </div>
-  </div>
-  <div class="header-pill" id="connPill">
-    <span class="dot"></span>
-    <span class="conn-label">Notion connected</span>
-  </div>
+  <!-- pills moved to topbar below -->
 </div>
 
 <!-- Nav -->
@@ -2968,14 +3200,11 @@
 
 <!-- Sub-nav (Inventory) -->
 <div class="sub-nav" id="sub-nav-inventory" role="tablist" aria-label="Inventory">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="to-restock" onclick="switchSubTab('to-restock',this)">
+    📦 To Restock
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
     💎 Adjust Inventory
-  </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="inv-restock-queue" onclick="switchSubTab('inv-restock-queue',this)">
-    📦 Restock Queue
-  </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="timer" onclick="switchSubTab('timer',this)">
-    ⏱ Timer
   </div>
 </div>
 
@@ -3005,9 +3234,141 @@
   </div>
 </div>
 
+<!-- ══ TOPBAR ═══════════════════════════════════════ -->
+<div class="topbar" id="appTopbar">
+  <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
+  <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
+  <div class="topbar-spacer"></div>
+  <div class="tv-wrap" id="tvWrap" style="display:none">
+    <button class="tv-pill" id="tvPill" onclick="tvToggle()">
+      <span class="tv-dot"></span>
+      🚗 Verify Trips
+    </button>
+    <div class="tv-panel" id="tvPanel" style="display:none">
+      <div class="tv-panel-head">
+        <span id="tvPanelDate">Yesterday's Trips</span>
+        <button class="eo-close" onclick="tvToggle()">×</button>
+      </div>
+      <div id="tvPanelBody" class="tv-panel-body">
+        <div style="text-align:center;padding:20px;color:var(--text-dim)">Loading…</div>
+      </div>
+      <div class="tv-panel-foot">
+        <button class="btn btn-danger btn-sm" onclick="tvFlag()">⚠ Flag Issue</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-gold btn-sm" onclick="tvConfirm()">✓ Looks Good</button>
+      </div>
+    </div>
+  </div>
+  <div class="theme-wrap">
+    <button class="theme-btn" onclick="toggleThemePicker()" title="Change color theme">🎨</button>
+    <div class="theme-picker" id="themePicker">
+      <div class="theme-swatch active" data-theme="" onclick="setTheme('')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#4E7A94 50%,#C9983A 50%)"></div>
+        <span class="theme-name">Steel</span>
+      </div>
+      <div class="theme-swatch" data-theme="warm" onclick="setTheme('warm')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,#C9983A 50%)"></div>
+        <span class="theme-name">Warm</span>
+      </div>
+      <div class="theme-swatch" data-theme="sage" onclick="setTheme('sage')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EEF4EC 50%,#5B8C50 50%)"></div>
+        <span class="theme-name">Sage</span>
+      </div>
+      <div class="theme-swatch" data-theme="coast" onclick="setTheme('coast')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EBF0F8 50%,#3A70C0 50%)"></div>
+        <span class="theme-name">Coast</span>
+      </div>
+      <div class="theme-swatch" data-theme="midnight" onclick="setTheme('midnight')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#1A1A1C 50%,#D4A040 50%)"></div>
+        <span class="theme-name">Midnight</span>
+      </div>
+    </div>
+  </div>
+  <div class="header-pill" id="connPill">
+    <span class="dot"></span>
+    <span class="conn-label">Notion connected</span>
+  </div>
+</div>
+<!-- ═════════════════════════════════════════════════ -->
+
 <!-- ═══════════════════ DASHBOARD ═══════════════════ -->
 <div class="content">
-<div id="tab-dashboard" class="tab-panel active">
+
+<!-- ── HOME DASHBOARD ──────────────────────────────── -->
+<div id="tab-home" class="tab-panel active">
+  <div class="home-dash">
+
+    <div class="home-header">
+      <div>
+        <div class="home-greeting" id="homeGreeting">Good morning</div>
+        <div class="home-date" id="homeDate"></div>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="if(typeof notionStartupSync==='function')notionStartupSync();toast('Refreshing…','⟳')">⟳ Refresh</button>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="home-kpi-row">
+      <div class="home-kpi" onclick="sbNav('custom-orders','dashboard',null)" title="View all active orders">
+        <div class="home-kpi-icon si-gold">📋</div>
+        <div><div class="home-kpi-num" id="hkpi-active">—</div><div class="home-kpi-lbl">Active Orders</div></div>
+      </div>
+      <div class="home-kpi" onclick="sbNav('custom-orders','dashboard',null)">
+        <div class="home-kpi-icon si-purple">🔨</div>
+        <div><div class="home-kpi-num" id="hkpi-bench">—</div><div class="home-kpi-lbl">At the Bench</div></div>
+      </div>
+      <div class="home-kpi" onclick="sbNav('custom-orders','dashboard',null)">
+        <div class="home-kpi-icon si-red">⏰</div>
+        <div><div class="home-kpi-num" id="hkpi-due">—</div><div class="home-kpi-lbl">Due This Week</div></div>
+      </div>
+      <div class="home-kpi" onclick="sbNav('custom-orders','production',null)">
+        <div class="home-kpi-icon si-green">✅</div>
+        <div><div class="home-kpi-num" id="hkpi-ready">—</div><div class="home-kpi-lbl">Ready to Pick Up</div></div>
+      </div>
+    </div>
+
+    <!-- Widgets row -->
+    <div class="home-widgets">
+
+      <!-- Gmail widget -->
+      <div class="home-widget">
+        <div class="home-widget-head">
+          <span>📧 Gmail</span>
+          <button class="home-widget-link" onclick="sbNavDirect('gmail',null)">Open full →</button>
+        </div>
+        <div class="home-widget-body" id="hw-gmail-body">
+          <div class="hw-loading" id="hw-gmail-loading">Connecting to Gmail…</div>
+        </div>
+      </div>
+
+      <!-- Calendar widget -->
+      <div class="home-widget">
+        <div class="home-widget-head">
+          <span>📅 Calendar</span>
+          <button class="home-widget-link" onclick="sbNav('more','calendar',null)">Open full →</button>
+        </div>
+        <div class="home-widget-body" id="hw-cal-body">
+          <div class="hw-loading" id="hw-cal-loading">Connecting to Calendar…</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Orders by stage -->
+    <div class="home-stage-card">
+      <div class="home-stage-head">
+        <span>📋 Orders in Studio</span>
+        <a onclick="sbNav('custom-orders','dashboard',null)">View kanban →</a>
+      </div>
+      <div class="home-stage-grid" id="hw-stage-grid">
+        <div style="padding:20px;color:var(--text-dim);font-size:13px">Loading orders…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<!-- ─────────────────────────────────────────────────── -->
+
+<div id="tab-dashboard" class="tab-panel">
 
   <div class="stats-row">
     <div class="stat-card" id="scard-active" onclick="applyStatFilter('active')" title="Show all active orders">
@@ -3065,7 +3426,10 @@
 </div>
 
 <div id="tab-new-order" class="tab-panel">
-  <div class="form-wrap">
+  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+    <button class="btn btn-gold" style="display:flex;align-items:center;gap:7px;font-size:13px;" onclick="sbNav('custom-orders','print-bag',null)">🖨 Print Order Bag</button>
+  </div>
+  <div class="new-order-cols">
     <div class="form-card">
       <div class="form-head">
         <div class="form-head-title">Order Intake</div>
@@ -3193,7 +3557,7 @@
     </div>
 
   <!-- Estimate Builder Card -->
-  <div class="form-card" style="margin-top:16px;" id="estimateBuilderCard">
+  <div class="form-card" id="estimateBuilderCard">
     <div class="form-head">
       <div class="form-head-title">💰 Estimate Builder</div>
       <div class="form-head-sub">Add materials + labor, choose your markup, then approve and send a draft to Square.</div>
@@ -3268,7 +3632,7 @@
       <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates a draft estimate in Square for your review</span>
     </div>
   </div>
-</div><!-- /form-wrap -->
+  </div><!-- /new-order-cols -->
 </div><!-- /tab-new-order -->
 
 <!-- ═══════════════════ CUSTOMERS ═══════════════════ -->
@@ -5604,24 +5968,26 @@ function savePrintSetup() {
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
-<!-- ═══════════════════ RESTOCK QUEUE TAB ═══════════════════ -->
-<div id="tab-inv-restock-queue" class="tab-panel">
-  <div style="max-width:680px;margin:0 auto;padding:18px 16px 32px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
-      <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
+<!-- ═══════════════════ TO RESTOCK TAB ═══════════════════ -->
+<div id="tab-to-restock" class="tab-panel">
+  <div style="display:flex;height:calc(100vh - 100px);">
+    <!-- Left: Restock Queue -->
+    <div style="width:420px;flex-shrink:0;overflow-y:auto;padding:18px 16px 32px;border-right:1px solid var(--bdr-light);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
+        <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
+      </div>
+      <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
+        No items in the Inventory Restock list yet.<br>
+        <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+      </div>
+      <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
-    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
-      No items in the Inventory Restock list yet.<br>
-      <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+    <!-- Right: Timer -->
+    <div style="flex:1;min-width:0;">
+      <iframe id="timer-iframe" src="" style="width:100%;height:100%;border:none;display:block;" allowtransparency="true"></iframe>
     </div>
-    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
-</div>
-
-<!-- ═══════════════════ TIMER TAB ═══════════════════ -->
-<div id="tab-timer" class="tab-panel">
-  <iframe id="timer-iframe" src="" style="width:100%;height:calc(100vh - 100px);border:none;display:block;" allowtransparency="true"></iframe>
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
@@ -5778,6 +6144,170 @@ function applyStatFilter(key) {
     <span class="bn-icon">📧</span>Gmail
   </button>
 </nav>
+
+<!-- ══ SIDEBAR NAV JS ════════════════════════════════ -->
+<script>
+(function() {
+  const SB_TITLES = {
+    'home':              'Dashboard',
+    'dashboard':         'Custom Orders',
+    'production':        'Ready to Ship',
+    'new-order':         'New Order',
+    'customers':         'Customers',
+    'print-bag':         'Print Order Bag',
+    'inv-adjust':        'Adjust Inventory',
+    'to-restock':        'To Restock',
+    'supplier':          'Order Materials',
+    'order-history':     'Order History',
+    'triplog':           'Trips',
+    'gmail':             'Gmail',
+    'notes':             'Notes',
+    'sales':             'Sales',
+    'calendar':          'Calendar',
+    'pj-calc':           'PJ Calc',
+    'pj-ref':            'PJ Reference',
+  };
+
+  // ── Home dashboard init ──────────────────────────────
+  window.homeTabInit = function() {
+    // Greeting
+    const h = new Date().getHours();
+    const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    const greetEl = document.getElementById('homeGreeting');
+    if (greetEl) greetEl.textContent = greet + ' ☀️';
+    const dateEl = document.getElementById('homeDate');
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+
+    // KPIs from ORDERS
+    if (typeof ORDERS !== 'undefined') {
+      const active = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered');
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      set('hkpi-active', active.length);
+      set('hkpi-bench',  active.filter(o => o.stage === 'build').length);
+      set('hkpi-due',    active.filter(o => {
+        if (!o.deadline) return false;
+        const diff = Math.round((new Date(o.deadline) - new Date()) / 86400000);
+        return diff >= 0 && diff <= 7;
+      }).length);
+      set('hkpi-ready',  active.filter(o => o.stage === 'ready-pick' || o.stage === 'ship-out').length);
+
+      // Stage breakdown grid
+      const stageGrid = document.getElementById('hw-stage-grid');
+      if (stageGrid && typeof COLUMN_GROUPS !== 'undefined') {
+        const counts = {};
+        active.forEach(o => { counts[o.stage] = (counts[o.stage] || 0) + 1; });
+        const cols = COLUMN_GROUPS.map(g => {
+          const n = g.stages.reduce((s, st) => s + (counts[st.id] || 0), 0);
+          return { label: g.label, count: n };
+        }).filter(c => c.count > 0);
+        stageGrid.innerHTML = cols.length
+          ? cols.map(c => `<div class="home-stage-col has-orders"><div class="home-stage-count">${c.count}</div><div class="home-stage-lbl">${c.label}</div></div>`).join('')
+          : '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
+      }
+    }
+
+    // Gmail widget — pull from existing gmail thread list if loaded
+    _homeRefreshGmail();
+
+    // Calendar widget — pull from existing calendar if loaded
+    _homeRefreshCalendar();
+  };
+
+  function _homeRefreshGmail() {
+    const body = document.getElementById('hw-gmail-body');
+    if (!body) return;
+    // Try to use already-loaded gmail data (gt-content rows)
+    const existing = document.querySelectorAll('#gt-content .gt-thread-row, #gt-content .gt-msg-row');
+    if (existing.length > 0) {
+      const rows = Array.from(existing).slice(0, 5);
+      body.innerHTML = rows.map(r => {
+        const from = r.querySelector('.gt-from, .gt-sender')?.textContent?.trim() || '—';
+        const sub  = r.querySelector('.gt-subject, .gt-subj')?.textContent?.trim() || '';
+        const time = r.querySelector('.gt-time, .gt-date')?.textContent?.trim() || '';
+        return `<div class="hw-gmail-row"><span class="hw-gmail-dot" style="background:var(--accent)"></span><span class="hw-gmail-from">${from}</span><span class="hw-gmail-sub">${sub}</span><span class="hw-gmail-time">${time}</span></div>`;
+      }).join('');
+    } else {
+      body.innerHTML = '<div class="hw-loading">Sign in to Gmail to see messages.<br><br><button class="btn btn-gold btn-sm" onclick="sbNavDirect(\'gmail\',null)">Open Gmail →</button></div>';
+    }
+  }
+
+  function _homeRefreshCalendar() {
+    const body = document.getElementById('hw-cal-body');
+    if (!body) return;
+    // Try to pull from already-rendered calendar events
+    const calEvents = document.querySelectorAll('.cal-event, .fc-event, .cal-ev');
+    if (calEvents.length > 0) {
+      const evts = Array.from(calEvents).slice(0, 4);
+      body.innerHTML = evts.map(e => {
+        const title = e.querySelector('.fc-title, .cal-title')?.textContent?.trim() || e.textContent?.trim() || 'Event';
+        const time  = e.querySelector('.fc-time, .cal-time')?.textContent?.trim() || '';
+        return `<div class="hw-cal-event"><div class="hw-cal-date"><div class="hw-cal-day">—</div><div class="hw-cal-month">—</div></div><div class="hw-cal-info"><div class="hw-cal-title">${title}</div><div class="hw-cal-time">${time}</div></div></div>`;
+      }).join('');
+    } else {
+      body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
+    }
+  }
+
+  window.sbNav = function(parentId, subId) {
+    switchParent(parentId, _navTabEl(parentId), true, true);
+    switchSubTab(subId, null, false);
+    _sbSetActive(subId);
+    sbClose();
+  };
+
+  window.sbNavDirect = function(tabId) {
+    switchTab(tabId, _navTabEl(tabId));
+    _sbSetActive(tabId);
+    sbClose();
+  };
+
+  window._sbSetActive = function(tabId) {
+    document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('sb-active'));
+    const target = document.querySelector('.sb-item[data-sb="' + tabId + '"]');
+    if (target) target.classList.add('sb-active');
+    const titleEl = document.getElementById('sbPageTitle');
+    if (titleEl) titleEl.textContent = SB_TITLES[tabId] || tabId;
+  };
+
+  window._sbSync = function() {
+    const activeSub = document.querySelector('.sub-nav.active .sub-nav-tab.active');
+    if (activeSub) { _sbSetActive(activeSub.getAttribute('data-tab')); return; }
+    const activeDirect = document.querySelector('.nav-tab.active');
+    if (activeDirect) {
+      const id = activeDirect.getAttribute('data-tab') || activeDirect.getAttribute('data-parent');
+      if (id) _sbSetActive(id);
+    }
+  };
+
+  window.sbToggle = function() {
+    document.getElementById('appSidebar').classList.toggle('sb-open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  };
+
+  window.sbClose = function() {
+    document.getElementById('appSidebar').classList.remove('sb-open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // On a completely fresh session (no saved nav), default to the home dashboard
+    try { if (!localStorage.getItem('sts-nav-parent')) localStorage.setItem('sts-nav-parent', 'home'); } catch(e) {}
+    // Sync sidebar highlight after _navRestore fires (which runs at setTimeout 0)
+    setTimeout(_sbSync, 60);
+
+    // Mirror active-order badge count from hidden nav badge to sidebar badge
+    const srcBadge = document.getElementById('badge-active');
+    const dstBadge = document.getElementById('sb-badge-active');
+    if (srcBadge && dstBadge) {
+      dstBadge.textContent = srcBadge.textContent;
+      new MutationObserver(function() {
+        dstBadge.textContent = srcBadge.textContent;
+      }).observe(srcBadge, { childList: true, characterData: true, subtree: true });
+    }
+  });
+})();
+</script>
+<!-- ═════════════════════════════════════════════════ -->
 
 <!-- Photo lightbox -->
 <div class="photo-lightbox" id="photoLightbox" onclick="closeLightbox()">
