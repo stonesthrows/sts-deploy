@@ -806,3 +806,72 @@ function odoDeleteLast() {
   odoRender();
   toast('Entry deleted', '🗑');
 }
+
+// ── Dashboard widget: latest trip + expected odometer ─────────────────
+let _dashTriplogLoaded = false;
+
+async function dashTriplogLoad(force) {
+  if (!force && _dashTriplogLoaded) return;
+  _dashTriplogLoaded = true;
+
+  const el = document.getElementById('tlDashContent');
+  if (!el) return;
+  el.innerHTML = '<span style="color:var(--text3);font-size:13px;">Loading…</span>';
+
+  const today   = new Date();
+  const lookback = new Date(today);
+  lookback.setDate(today.getDate() - 14);
+  const start = lookback.toISOString().slice(0, 10);
+  const end   = today.toISOString().slice(0, 10);
+
+  try {
+    const res  = await fetch(`${TRIPLOG_PROXY}?startDate=${start}&endDate=${end}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const trips = (data.trips || []).sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    dashTriplogRender(trips[0] || null);
+  } catch (err) {
+    el.innerHTML = `<span style="color:#c0392b;font-size:13px;">Could not load: ${err.message}</span>`;
+  }
+}
+
+function dashTriplogRender(trip) {
+  const el = document.getElementById('tlDashContent');
+  if (!el) return;
+
+  if (!trip) {
+    el.innerHTML = '<span style="color:var(--text3);font-size:13px;">No recent trips found.</span>';
+    return;
+  }
+
+  const dt       = new Date(trip.startTime);
+  const dateStr  = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const miles    = (trip.mileage ?? 0).toFixed(1);
+  const odo      = trip.endOdometer != null ? Math.round(trip.endOdometer).toLocaleString() : '—';
+  const from     = trip.fromLocation?.display || '—';
+  const to       = trip.toLocation?.display   || '—';
+  const activity = trip.activity || '—';
+
+  el.innerHTML = `
+    <div class="tl-dash-date-block">
+      <div class="tl-dash-date">${dateStr}</div>
+      <div class="tl-dash-activity">${activity}</div>
+    </div>
+    <div class="tl-dash-route">
+      <span class="tl-dash-from">${from}</span>
+      <span class="tl-dash-arrow">→</span>
+      <span class="tl-dash-to">${to}</span>
+    </div>
+    <div class="tl-dash-divider"></div>
+    <div class="tl-dash-stats">
+      <div class="tl-dash-stat">
+        <div class="tl-dash-stat-val">${miles}</div>
+        <div class="tl-dash-stat-lbl">Miles</div>
+      </div>
+      <div class="tl-dash-stat" title="Odometer at end of this trip">
+        <div class="tl-dash-stat-val">${odo}</div>
+        <div class="tl-dash-stat-lbl">Odometer</div>
+      </div>
+    </div>
+  `;
+}

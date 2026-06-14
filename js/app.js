@@ -60,6 +60,7 @@ const TAB_HOOKS = {
     if (typeof collapsedCards !== 'undefined') collapsedCards.clear();
     if (typeof renderKanban === 'function') renderKanban();
     if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
+    if (typeof dashTriplogLoad === 'function') dashTriplogLoad();
   },
   production: function() { if (typeof renderProduction === 'function') setTimeout(renderProduction, 0); },
   sales:      function() { if (typeof renderSales === 'function') setTimeout(renderSales, 0); if (typeof salesAutoSync === 'function') setTimeout(salesAutoSync, 500); },

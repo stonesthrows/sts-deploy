@@ -272,6 +272,27 @@
     .stat-label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.2px; text-transform: uppercase; margin-bottom: 3px; }
     .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
 
+    /* ── TripLog dashboard widget ─────────────── */
+    .tl-dash-widget { background: var(--card-bg, #fff); border: 1px solid #E4DDD4; border-radius: 12px; padding: 13px 18px; margin-bottom: 18px; }
+    .tl-dash-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .tl-dash-title { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .tl-dash-open { background:none; border:none; font-size:12px; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
+    .tl-dash-open:hover { text-decoration:underline; }
+    .tl-dash-refresh { background:#F2EEE9; border:1px solid #E4DDD4; border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; color:var(--text2); line-height:1.6; }
+    .tl-dash-refresh:hover { background:#EAE4DE; }
+    .tl-dash-content { display:flex; align-items:center; gap:18px; flex-wrap:wrap; min-height:36px; }
+    .tl-dash-date-block { min-width:90px; }
+    .tl-dash-date { font-size:13px; font-weight:700; color:var(--text); }
+    .tl-dash-activity { font-size:10.5px; color:var(--text3); margin-top:1px; text-transform:uppercase; letter-spacing:0.3px; }
+    .tl-dash-route { flex:1; font-size:13px; color:var(--text2); min-width:120px; }
+    .tl-dash-from, .tl-dash-to { font-weight:600; color:var(--text); }
+    .tl-dash-arrow { color:var(--text3); margin:0 5px; }
+    .tl-dash-divider { width:1px; height:36px; background:#E4DDD4; flex-shrink:0; }
+    .tl-dash-stats { display:flex; gap:22px; flex-shrink:0; }
+    .tl-dash-stat { text-align:center; }
+    .tl-dash-stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; }
+    .tl-dash-stat-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.3px; margin-top:2px; }
+
     /* ── Kanban ──────────────────────────────── */
     .kanban-bar {
       display: flex; align-items: center; justify-content: space-between;
@@ -3398,6 +3419,19 @@
         <div class="stat-label">At the Bench</div>
         <div class="stat-value" id="stat-bench">—</div>
       </div>
+    </div>
+  </div>
+
+  <div class="tl-dash-widget" id="tlDashWidget">
+    <div class="tl-dash-hdr">
+      <span class="tl-dash-title">🚗 Latest Trip</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="tl-dash-open" onclick="switchSubTab('triplog', document.querySelector('.sub-nav-tab[data-tab=triplog]'))">Open TripLog →</button>
+        <button class="tl-dash-refresh" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻</button>
+      </div>
+    </div>
+    <div id="tlDashContent" class="tl-dash-content">
+      <span style="color:var(--text3);font-size:13px;">Loading…</span>
     </div>
   </div>
 
