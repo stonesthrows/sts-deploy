@@ -8,6 +8,19 @@ function renderKanban() {
   const board = document.getElementById('kanbanBoard');
   board.innerHTML = '';
 
+  // ── Active stat-card filter banner ────────────
+  const filterBar = document.getElementById('kanbanFilterBar');
+  const activeFilterKey = window.kanbanStatFilterKey || null;
+  if (filterBar) {
+    if (activeFilterKey && activeFilterKey !== 'active') {
+      const labels = { due: 'Due ≤ 7 Days', materials: 'Awaiting Materials', bench: 'At the Bench' };
+      filterBar.innerHTML = `<span>Filtered: <strong>${labels[activeFilterKey] || activeFilterKey}</strong></span><button class="kanban-filter-clear" onclick="applyStatFilter('${activeFilterKey}')">✕ Clear</button>`;
+      filterBar.style.display = 'flex';
+    } else {
+      filterBar.style.display = 'none';
+    }
+  }
+
   COLUMN_GROUPS.forEach(group => {
     const col = document.createElement('div');
     col.className = `k-col ${group.cls}`;
@@ -15,7 +28,8 @@ function renderKanban() {
     const allStageIds = group.stages.map(s => s.id);
     const allCards    = ORDERS.filter(o =>
       allStageIds.includes(o.stage) &&
-      (showCompleted || !completedHidden.has(o.id))
+      (showCompleted || !completedHidden.has(o.id)) &&
+      (!window.kanbanStatFilter || window.kanbanStatFilter(o))
     );
     const totalCount = allCards.length;
 

@@ -78,6 +78,38 @@ function _syncAria() {
   });
 }
 
+// Center the active tab within its (horizontally scrollable) bar so you can
+// always see where you are — matters on mobile where the bar scrolls and a
+// page reload resets scrollLeft to 0 (active tab could be off-screen).
+function _scrollTabIntoView(el) {
+  if (!el) return;
+  const c = el.parentElement;
+  if (!c || c.scrollWidth <= c.clientWidth) return; // not scrollable (desktop)
+  const er = el.getBoundingClientRect(), cr = c.getBoundingClientRect();
+  c.scrollLeft += (er.left - cr.left) - (c.clientWidth - el.offsetWidth) / 2;
+}
+function _scrollActiveIntoView() {
+  _scrollTabIntoView(document.querySelector('.nav-tab.active'));
+  _scrollTabIntoView(document.querySelector('.sub-nav.active .sub-nav-tab.active'));
+  // Mirror active state onto the mobile bottom quick-bar
+  document.querySelectorAll('.botnav-item').forEach(b => {
+    const t = b.getAttribute('data-target');
+    b.classList.toggle('active', t === (document.querySelector('.nav-tab.active')?.getAttribute('data-parent')
+      || document.querySelector('.nav-tab.active')?.getAttribute('data-tab')));
+  });
+}
+
+// Connection-health pill in the header. Reflects whether the last Notion
+// call (the source of truth) actually succeeded, so a silent backend
+// failure is visible at a glance instead of looking "connected".
+function setConnStatus(ok) {
+  const pill = document.getElementById('connPill');
+  if (!pill) return;
+  pill.classList.toggle('conn-bad', !ok);
+  const label = pill.querySelector('.conn-label');
+  if (label) label.textContent = ok ? 'Notion connected' : 'Notion unreachable';
+}
+
 // Find the top-nav element for a parent group or a direct tab
 function _navTabEl(id) {
   return document.querySelector('.nav-tab[data-parent="' + id + '"]')
@@ -91,6 +123,7 @@ function _showPanel(id) {
   if (panel) panel.classList.add('active');
   runTabHook(id);
   _syncAria();
+  _scrollActiveIntoView();
 }
 
 // Universal entry point — jump to ANY tab by id, whether it's a direct

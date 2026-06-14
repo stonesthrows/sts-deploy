@@ -109,9 +109,11 @@ async function notionSyncFromNotion() {
   try {
     const r = await fetch(PIPELINE_PROXY);
     if (!r.ok) {
+      setConnStatus(false);
       toast('Notion sync failed: ' + r.status, '✗');
       return;
     }
+    setConnStatus(true);
     const notionOrders = await r.json();
 
     // ── Build lookup maps for existing local orders ───────────
@@ -178,6 +180,7 @@ async function notionSyncFromNotion() {
 
   } catch(e) {
     console.error('Notion sync error', e);
+    setConnStatus(false);
     toast('Notion sync error — see console', '✗');
   } finally {
     if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = '↻ Sync Notion'; }
@@ -214,6 +217,7 @@ async function notionStartupSync() {
   try {
     const r = await fetch(PIPELINE_PROXY);
     if (!r.ok) {
+      setConnStatus(false);
       console.warn('notionStartupSync: API returned', r.status);
       return;
     }
@@ -222,6 +226,7 @@ async function notionStartupSync() {
       console.warn('notionStartupSync: Notion returned 0 orders — skipping replacement to avoid data loss');
       return;
     }
+    setConnStatus(true);
     console.log('notionStartupSync: loaded', notionOrders.length, 'orders from Notion');
 
     const byAppId    = {};
