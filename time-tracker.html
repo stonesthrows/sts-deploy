@@ -700,6 +700,27 @@ async function checkClockIn(tid) {
   checkReady(tid);
 }
 
+async function patchActiveShiftLog(tid) {
+  const pageId = T[tid].notionPageId; if (!pageId) return;
+  const fTime = ms => new Date(ms).toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+  const fDay  = ms => new Date(ms).toLocaleDateString('en-US', {weekday:'long',month:'short',day:'numeric'});
+  const byDay = {};
+  T[tid].shiftEvents.forEach(e => { const d = fDay(e.time); (byDay[d]=byDay[d]||[]).push(e); });
+  const shiftLog = '— Session Timeline —\n' + Object.entries(byDay).map(([day, es]) =>
+    day + '\n' + es.map(e => {
+      const label = e.type==='start' ? '▶ Timer Start' : e.type==='stop' ? '⏹ Timer Stop' : e.type==='in' ? '  ▶ Clock In' : '  ⏸ Clock Out';
+      return `  ${label}: ${fTime(e.time)}`;
+    }).join('\n')
+  ).join('\n');
+  const userNotes = ($t(tid,'notes-input')?.value||'').trim();
+  try {
+    await fetch('/api/notion-timesession', {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ pageId, notes: [userNotes, shiftLog].filter(Boolean).join('\n\n') }),
+    });
+  } catch(e) { console.warn('patchActiveShiftLog failed:', e); }
+}
+
 async function pollShifts() {
   if (!CFG.sqToken) return;
   for (let tid = 0; tid < NUM_TIMERS; tid++) {
@@ -714,9 +735,11 @@ async function pollShifts() {
           T[tid].shiftEvents.push({ time: Date.now(), type: 'out' });
           renderShiftLog(tid);
           showToast(`${emp.name} clocked out`);
+          patchActiveShiftLog(tid);
         } else if (!wasOpen && nowOpen && T[tid].running) {
           T[tid].shiftEvents.push({ time: Date.now(), type: 'in' });
           renderShiftLog(tid);
+          patchActiveShiftLog(tid);
         }
       } else {
         _applyClockBadge(tid, openShift);
