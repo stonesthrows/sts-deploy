@@ -69,7 +69,7 @@ const TAB_HOOKS = {
   'order-history': function() { ohInitHistory(); },
   triplog:    function() { if (typeof tlInit === 'function') tlInit(); },
   calendar:   function() { if (typeof calInit === 'function') calInit(); },
-  'to-restock': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); if (typeof timerTabInit === 'function') timerTabInit(); },
+  'to-restock': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); },
   'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
 };
 function runTabHook(id) { const h = TAB_HOOKS[id]; if (h) { try { h(); } catch(e) {} } }

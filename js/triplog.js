@@ -824,14 +824,20 @@ async function dashTriplogLoad(force) {
   const start = lookback.toISOString().slice(0, 10);
   const end   = today.toISOString().slice(0, 10);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
   try {
-    const res  = await fetch(`${TRIPLOG_PROXY}?startDate=${start}&endDate=${end}`);
+    const res  = await fetch(`${TRIPLOG_PROXY}?startDate=${start}&endDate=${end}`, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const trips = (data.trips || []).sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
     dashTriplogRender(trips[0] || null);
   } catch (err) {
-    el.innerHTML = `<span style="color:#c0392b;font-size:13px;">Could not load: ${err.message}</span>`;
+    clearTimeout(timeout);
+    const msg = err.name === 'AbortError' ? 'Request timed out' : err.message;
+    el.innerHTML = `<span style="color:#c0392b;font-size:13px;">⚠ Couldn't load trips — ${msg}</span>`;
   }
 }
 
