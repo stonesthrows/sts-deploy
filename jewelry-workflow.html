@@ -6254,18 +6254,37 @@ function applyStatFilter(key) {
       }).length);
       set('hkpi-ready',  active.filter(o => o.stage === 'ready-pick' || o.stage === 'ship-out').length);
 
-      // Stage breakdown grid
+      // Orders flat list — sorted by deadline, capped at 8
       const stageGrid = document.getElementById('hw-stage-grid');
-      if (stageGrid && typeof COLUMN_GROUPS !== 'undefined') {
-        const counts = {};
-        active.forEach(o => { counts[o.stage] = (counts[o.stage] || 0) + 1; });
-        const cols = COLUMN_GROUPS.map(g => {
-          const n = g.stages.reduce((s, st) => s + (counts[st.id] || 0), 0);
-          return { label: g.label, count: n };
-        }).filter(c => c.count > 0);
-        stageGrid.innerHTML = cols.length
-          ? cols.map(c => `<div class="home-stage-col has-orders"><div class="home-stage-count">${c.count}</div><div class="home-stage-lbl">${c.label}</div></div>`).join('')
-          : '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
+      if (stageGrid && typeof STAGES !== 'undefined') {
+        const stageLabelMap = {};
+        STAGES.forEach(s => { stageLabelMap[s.id] = s.label; });
+        const typeIcon = { repair: '🔧', estimate: '📋' };
+        const sorted = active.slice().sort((a, b) => {
+          if (!a.deadline && !b.deadline) return 0;
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0;
+        });
+        const shown = sorted.slice(0, 8);
+        stageGrid.style.display = 'block';
+        if (!shown.length) {
+          stageGrid.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
+        } else {
+          const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          stageGrid.innerHTML = shown.map(o => {
+            const dl   = deadlineInfo(o.deadline);
+            const icon = typeIcon[o.orderType] || '💍';
+            const slbl = stageLabelMap[o.stage] || o.stage || '—';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--bdr-light);font-size:13px;">
+              <span style="font-size:14px;flex-shrink:0;">${icon}</span>
+              <span style="flex:1;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(o.name||'—')}</span>
+              <span style="font-size:11px;color:var(--text2);flex-shrink:0;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;">${esc(slbl)}</span>
+              <span class="${dl.cls}" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;">${dl.text}</span>
+            </div>`;
+          }).join('')
+          + (active.length > 8 ? `<div style="padding:7px 14px;font-size:11px;color:var(--text2);">+${active.length - 8} more — <a onclick="sbNav('custom-orders','dashboard',null)" style="color:var(--accent);cursor:pointer;">View all →</a></div>` : '');
+        }
       }
     }
 
@@ -6367,36 +6386,46 @@ function applyStatFilter(key) {
       return;
     }
 
-    const last = weekends[weekends.length - 1];
-    const prev = weekends[weekends.length - 2];
+    const recent  = weekends.slice(-4);
+    const last    = recent[recent.length - 1];
+    const prev    = recent[recent.length - 2];
     const lastTotal = last.total || 0;
     const prevTotal = prev ? (prev.total || 0) : 0;
-    const change = prevTotal ? ((lastTotal - prevTotal) / prevTotal * 100).toFixed(0) : null;
+    const change    = prevTotal ? ((lastTotal - prevTotal) / prevTotal * 100).toFixed(0) : null;
+
+    // Bar chart dimensions
+    const maxVal  = Math.max(...recent.map(w => w.total || 0), 1);
+    const BAR_H   = 80; // px total bar height area
+
+    const bars = recent.map(w => {
+      const satH = Math.round(((w.saturday || 0) / maxVal) * BAR_H);
+      const sunH = Math.round(((w.sunday   || 0) / maxVal) * BAR_H);
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;">
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;">$${Math.round(w.total||0).toLocaleString()}</div>
+          <div style="width:100%;max-width:52px;display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px;border-radius:5px 5px 0 0;overflow:hidden;">
+            <div style="background:#E8B850;height:${sunH}px;width:100%;"></div>
+            <div style="background:#C9983A;height:${satH}px;width:100%;"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:5px;text-align:center;white-space:nowrap;">${w.label}</div>
+        </div>`;
+    }).join('');
+
     const changeHtml = change !== null
-      ? `<span style="font-size:11px;font-weight:700;color:${change >= 0 ? '#2A7A48' : '#C43030'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
+      ? `<span style="font-weight:700;color:${change >= 0 ? '#2A7A48' : '#C43030'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
       : '';
 
     body.innerHTML = `
-      <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
-        <div style="min-width:110px;margin-right:20px;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:2px;">${last.label}</div>
-          <div style="font-size:26px;font-weight:800;color:var(--text);line-height:1;">$${Math.round(lastTotal).toLocaleString()}</div>
-          <div style="margin-top:4px;">${changeHtml}</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;padding:4px 0 0;border-bottom:1px solid var(--bdr-light);padding-bottom:4px;">
+        ${bars}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;align-items:center;gap:14px;font-size:11px;color:var(--text2);">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#C9983A;border-radius:2px;"></span>Sat</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#E8B850;border-radius:2px;"></span>Sun</span>
         </div>
-        <div style="width:1px;height:44px;background:var(--bdr);margin-right:20px;flex-shrink:0;"></div>
-        <div style="display:flex;gap:20px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Saturday</div>
-            <div style="font-size:16px;font-weight:700;color:var(--text);">$${Math.round(last.saturday||0).toLocaleString()}</div>
-          </div>
-          <div>
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Sunday</div>
-            <div style="font-size:16px;font-weight:700;color:var(--text);">$${Math.round(last.sunday||0).toLocaleString()}</div>
-          </div>
-          <div>
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Transactions</div>
-            <div style="font-size:16px;font-weight:700;color:var(--text);">${last.num_transactions||0}</div>
-          </div>
+        <div style="font-size:11px;color:var(--text2);">
+          ${changeHtml}${changeHtml ? ' · ' : ''}${last.num_transactions || 0} transactions
         </div>
       </div>`;
   };
