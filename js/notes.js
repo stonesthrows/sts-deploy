@@ -572,6 +572,7 @@ function restockQueueRender() {
       + ' onblur="rqSaveText(this,' + idx + ')"'
       + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
       + '>' + safeText + '</span>'
+      + '<button class="rq-start-btn" onclick="rqStartTimer(\'' + safeText.replace(/'/g, "\\'") + '\',' + idx + ')" title="Start timer for this item">⏱</button>'
       + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
@@ -580,6 +581,27 @@ function restockQueueRender() {
       + '</select>'
       + '</div>';
   }).join('');
+}
+
+var _rqActiveIdx = null;
+
+function rqStartTimer(itemText, idx) {
+  _rqActiveIdx = idx;
+  document.querySelectorAll('.rq-item').forEach(function(el) { el.classList.remove('rq-active'); });
+  var el = document.getElementById('rq-item-' + idx);
+  if (el) el.classList.add('rq-active');
+
+  var iframe = document.getElementById('timer-iframe');
+  if (!iframe) return;
+  var msg = { type: 'sts-preselect', query: itemText };
+  if (!iframe.getAttribute('src')) {
+    iframe.src = 'time-tracker.html';
+    iframe.addEventListener('load', function() {
+      iframe.contentWindow.postMessage(msg, '*');
+    }, { once: true });
+  } else {
+    iframe.contentWindow.postMessage(msg, '*');
+  }
 }
 
 function rqMove(idx, dir) {

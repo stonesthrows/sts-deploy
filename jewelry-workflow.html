@@ -2030,7 +2030,18 @@
     .rq-item {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 10px;
       display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
+    .rq-item.rq-active {
+      border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,0.18);
+      background: #FFFBF3;
+    }
+    .rq-start-btn {
+      background: none; border: 1px solid #D8D0C8; border-radius: 6px;
+      color: var(--accent); font-size: 13px; padding: 3px 8px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4; transition: border-color 0.15s, background 0.15s;
+    }
+    .rq-start-btn:hover { border-color: var(--accent); background: var(--accent-bg); }
     .rq-arrows { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
     .rq-arrow {
       background: none; border: none; padding: 0 3px; font-size: 11px; line-height: 1.2;

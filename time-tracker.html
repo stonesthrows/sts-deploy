@@ -1219,6 +1219,74 @@ async function boot() {
   if (CFG.sqToken) { setTimeout(() => { pollShifts(); setInterval(pollShifts, 45000); }, 5000); }
 }
 boot();
+
+// ── Restock Queue → Timer bridge ─────────────────────────────────────────────
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'sts-preselect') return;
+  var query = (e.data.query || '').trim();
+  if (query) autoPreselectItem(0, query);
+});
+
+async function autoPreselectItem(tid, query) {
+  if (!CFG.sqToken) {
+    showToast('Set your Square token in timer settings first');
+    return;
+  }
+  // Clear current product selection so the new one isn't appended
+  T[tid].selectedItems = [];
+  renderSelectedItems(tid);
+  checkReady(tid);
+
+  $t(tid, 'search-input').value = query;
+  $t(tid, 'spinner').classList.add('active');
+
+  try {
+    const searchData = await sq('/catalog/search', {
+      method: 'POST',
+      body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }),
+    });
+    const found = searchData.objects || [];
+    if (!found.length) { showToast('No Square items found for "' + query + '"'); return; }
+
+    const fullData = await sq('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: JSON.stringify({ object_ids: found.map(o => o.id) }),
+    });
+    const rows = [];
+    (fullData.objects || []).forEach(obj => {
+      const itemName   = obj.item_data?.name || 'Unnamed';
+      const category   = obj.item_data?.category_name || '';
+      const variations = obj.item_data?.variations || [];
+      if (variations.length <= 1) {
+        const v = variations[0]?.item_variation_data;
+        rows.push({ id: variations[0]?.id || obj.id, name: itemName, sku: v?.sku || '',
+          price: v?.price_money ? (v.price_money.amount / 100).toFixed(2) : null, category, isParent: false });
+      } else {
+        rows.push({ id: obj.id, name: itemName, category, isParent: true, variantCount: variations.length,
+          variants: variations.map(v => ({ id: v.id, name: v.item_variation_data?.name || '',
+            sku: v.item_variation_data?.sku || '',
+            price: v.item_variation_data?.price_money ? (v.item_variation_data.price_money.amount / 100).toFixed(2) : null })) });
+      }
+    });
+
+    if (!rows.length) { showToast('No Square items found for "' + query + '"'); return; }
+
+    // Prefer exact name match, then partial, then first result
+    const lq   = query.toLowerCase();
+    const best  = rows.find(r => r.name.toLowerCase() === lq)
+               || rows.find(r => r.name.toLowerCase().includes(lq))
+               || rows[0];
+
+    selectItem(tid, best);
+    $t(tid, 'search-input').value = '';
+    showToast('✓ ' + best.name + ' selected from Square');
+  } catch (e) {
+    showToast('Search failed: ' + (e.message || e));
+    console.warn('autoPreselectItem error:', e);
+  } finally {
+    $t(tid, 'spinner').classList.remove('active');
+  }
+}
 </script>
 </body>
 </html>
