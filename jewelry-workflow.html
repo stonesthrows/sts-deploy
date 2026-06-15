@@ -6297,19 +6297,51 @@ function applyStatFilter(key) {
   function _homeRefreshCalendar() {
     const body = document.getElementById('hw-cal-body');
     if (!body) return;
-    // Try to pull from already-rendered calendar events
-    const calEvents = document.querySelectorAll('.cal-event, .fc-event, .cal-ev');
-    if (calEvents.length > 0) {
-      const evts = Array.from(calEvents).slice(0, 4);
-      body.innerHTML = evts.map(e => {
-        const title = e.querySelector('.fc-title, .cal-title')?.textContent?.trim() || e.textContent?.trim() || 'Event';
-        const time  = e.querySelector('.fc-time, .cal-time')?.textContent?.trim() || '';
-        return `<div class="hw-cal-event"><div class="hw-cal-date"><div class="hw-cal-day">—</div><div class="hw-cal-month">—</div></div><div class="hw-cal-info"><div class="hw-cal-title">${title}</div><div class="hw-cal-time">${time}</div></div></div>`;
+
+    // _calEvents is the global populated by calendar.js after calLoadEvents()
+    if (typeof _calEvents !== 'undefined' && _calEvents.length > 0) {
+      const now = new Date();
+      const upcoming = _calEvents
+        .filter(ev => {
+          const dtStr = ev.start && (ev.start.dateTime || ev.start.date);
+          return dtStr && new Date(dtStr) >= now;
+        })
+        .slice(0, 5);
+      if (!upcoming.length) {
+        body.innerHTML = '<div class="hw-loading">No upcoming events this month.</div>';
+        return;
+      }
+      body.innerHTML = upcoming.map(ev => {
+        const dtStr   = ev.start.dateTime || ev.start.date;
+        const dt      = new Date(dtStr);
+        const isAllDay = !ev.start.dateTime;
+        const dayNum  = dt.getDate();
+        const month   = dt.toLocaleDateString('en-US', { month: 'short' });
+        const timeStr = isAllDay ? 'All day' : dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const title   = (ev.summary || '(No title)').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return `<div class="hw-cal-event"><div class="hw-cal-date"><div class="hw-cal-day">${dayNum}</div><div class="hw-cal-month">${month}</div></div><div class="hw-cal-info"><div class="hw-cal-title">${title}</div><div class="hw-cal-time">${timeStr}</div></div></div>`;
       }).join('');
+    } else if (typeof calEnsureToken === 'function') {
+      // calendar.js is loaded — check for a token and trigger a fetch if we have one
+      calEnsureToken().then(token => {
+        if (token) {
+          body.innerHTML = '<div class="hw-loading">Loading events…</div>';
+          if (typeof calLoadEvents === 'function') calLoadEvents();
+        } else {
+          body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
+        }
+      });
     } else {
       body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
     }
   }
+
+  // Whenever calRender() fires (calendar tab loads events), also refresh the dashboard widget
+  const _origCalRender = window.calRender;
+  window.calRender = function() {
+    if (_origCalRender) _origCalRender.call(this);
+    _homeRefreshCalendar();
+  };
 
   window.dashSquareLoad = function() {
     const body = document.getElementById('hw-square-body');
