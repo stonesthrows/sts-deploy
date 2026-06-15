@@ -135,8 +135,11 @@ function renderKanban() {
     board.appendChild(col);
   });
 
-  // Only count orders that are NOT completed
-  const activeOrders = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered');
+  // Only count orders that are genuinely in-progress (not completed, delivered, cancelled, or hidden)
+  const activeOrders = ORDERS.filter(o =>
+    o.stage !== 'complete' && o.stage !== 'delivered' && o.stage !== 'cancelled' &&
+    !completedHidden.has(o.id)
+  );
   const activeCount  = activeOrders.length;
 
   // Nav badges

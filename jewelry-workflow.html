@@ -303,7 +303,7 @@
 
     .kanban-board {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       overflow-x: auto;
       padding-bottom: 16px;
       align-items: flex-start;
@@ -312,7 +312,7 @@
     .kanban-board::-webkit-scrollbar-track { background: #ECE7DF; border-radius: 3px; }
     .kanban-board::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
 
-    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; }
+    .k-col { flex: 1 1 0; min-width: 120px; }
     .k-head {
       padding: 8px 11px;
       border-radius: 8px 8px 0 0;
@@ -3213,14 +3213,14 @@
 
 <!-- Sub-nav (Orders) -->
 <div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+    ✚ New Order
+  </div>
   <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
     📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="production" onclick="switchSubTab('production',this)">
     📬 Ready to Pick Up/Ship
-  </div>
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
-    ✚ New Order
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="customers" onclick="switchSubTab('customers',this)">
     👥 Customers
