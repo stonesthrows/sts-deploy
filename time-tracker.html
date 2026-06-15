@@ -212,7 +212,10 @@
   <div class="log-section">
     <div class="log-title">
       <span>Session log</span>
-      <a class="notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="sync-all-btn" onclick="syncAllSessions()" style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--text3);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;" title="Sync all sessions with Square shifts">⟳ Sync All</button>
+        <a class="notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
+      </div>
     </div>
     <div id="log-list"><div class="log-empty">No sessions recorded yet</div></div>
   </div>
@@ -1162,6 +1165,19 @@ async function syncShiftsForSession(i) {
     }
   } catch(e) { showToast('Shift sync failed: ' + e.message, true); }
   if (btn) { btn.disabled = false; btn.textContent = '⟳'; }
+}
+
+async function syncAllSessions() {
+  const btn = $g('sync-all-btn'); if (btn) { btn.disabled = true; btn.textContent = '⟳ Syncing…'; }
+  const eligible = sessions.map((s,i) => ({s,i})).filter(({s}) => s.startTime && s.stopTime);
+  let done = 0;
+  for (const {i} of eligible) {
+    await syncShiftsForSession(i);
+    done++;
+    if (btn) btn.textContent = `⟳ ${done}/${eligible.length}…`;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync All'; }
+  showToast(`Synced ${done} session${done!==1?'s':''} ✓`);
 }
 
 async function saveEditSession(i) {
