@@ -487,6 +487,7 @@ function notesDrop(event, targetKey) {
 
 var _rqMeta = { order: [], assignees: {} };  // { order: [pageId,...], assignees: { pageId: person } }
 var _rqMetaLoaded = false;
+var _rqExpanded = false;
 
 function _rqLoadMeta(cb) {
   fetch('/api/restock-meta')
@@ -554,8 +555,10 @@ function restockQueueRender() {
   list.style.display = 'flex';
 
   var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
+  var SHOW_LIMIT = 6;
+  var visibleItems = _rqExpanded ? items : items.slice(0, SHOW_LIMIT);
 
-  list.innerHTML = items.map(function(item, idx) {
+  list.innerHTML = visibleItems.map(function(item, idx) {
     var assignee = (item.notionPageId && _rqMeta.assignees[item.notionPageId]) || '';
     var cls = assignee ? ' rq-' + assignee.toLowerCase() : '';
     var textCls = item.done ? ' rq-done' : '';
@@ -581,6 +584,14 @@ function restockQueueRender() {
       + '</select>'
       + '</div>';
   }).join('');
+
+  if (items.length > SHOW_LIMIT) {
+    var hidden = items.length - SHOW_LIMIT;
+    list.innerHTML += '<div id="rq-show-more" style="padding:6px 0 2px;text-align:center;">'
+      + '<button onclick="_rqExpanded=!_rqExpanded;restockQueueRender()" style="background:none;border:1px solid #C8DFEE;border-radius:6px;color:#6A8898;font-size:11px;font-weight:600;letter-spacing:0.08em;padding:4px 14px;cursor:pointer;">'
+      + (_rqExpanded ? 'Show less ▲' : 'Show ' + hidden + ' more ▼')
+      + '</button></div>';
+  }
 }
 
 var _rqActiveIdx = null;
