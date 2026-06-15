@@ -6318,19 +6318,34 @@ function applyStatFilter(key) {
   function _homeRefreshGmail() {
     const body = document.getElementById('hw-gmail-body');
     if (!body) return;
-    // Try to use already-loaded gmail data (gt-content rows)
-    const existing = document.querySelectorAll('#gt-content .gt-thread-row, #gt-content .gt-msg-row');
-    if (existing.length > 0) {
-      const rows = Array.from(existing).slice(0, 5);
-      body.innerHTML = rows.map(r => {
-        const from = r.querySelector('.gt-from, .gt-sender')?.textContent?.trim() || '—';
-        const sub  = r.querySelector('.gt-subject, .gt-subj')?.textContent?.trim() || '';
-        const time = r.querySelector('.gt-time, .gt-date')?.textContent?.trim() || '';
-        return `<div class="hw-gmail-row"><span class="hw-gmail-dot" style="background:var(--accent)"></span><span class="hw-gmail-from">${from}</span><span class="hw-gmail-sub">${sub}</span><span class="hw-gmail-time">${time}</span></div>`;
-      }).join('');
-    } else {
-      body.innerHTML = '<div class="hw-loading">Sign in to Gmail to see messages.<br><br><button class="btn btn-gold btn-sm" onclick="sbNavDirect(\'gmail\',null)">Open Gmail →</button></div>';
+
+    let threads = [];
+    try {
+      const saved = localStorage.getItem('sts-gmail-threads');
+      if (saved) {
+        const d = JSON.parse(saved);
+        threads = (d.threads || []).filter(t => t.category === 'needs-reply').slice(0, 5);
+      }
+    } catch(e) {}
+
+    if (!threads.length) {
+      body.innerHTML = '<div class="hw-loading">No customer emails cached.<br><br><button class="btn btn-gold btn-sm" onclick="sbNavDirect(\'gmail\',null)">Open Gmail →</button></div>';
+      return;
     }
+
+    const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    body.innerHTML = threads.map(t => `
+      <div class="hw-gmail-row" style="cursor:pointer;align-items:flex-start;" onclick="sbNavDirect('gmail',null)">
+        <span class="hw-gmail-dot" style="background:${t.unread ? 'var(--accent)' : 'transparent'};border:${t.unread ? 'none' : '1.5px solid var(--bdr)'};margin-top:4px;flex-shrink:0;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px;">
+            <span class="hw-gmail-from" style="font-weight:${t.unread ? '700' : '600'}">${esc(t.from)}</span>
+            <span class="hw-gmail-time">${esc(t.age)}</span>
+          </div>
+          <div class="hw-gmail-sub" style="color:var(--text2);">${esc(t.subject)}</div>
+          <div class="hw-gmail-sub" style="color:var(--text-dim);font-size:10px;">${esc((t.snippet||'').slice(0,80))}</div>
+        </div>
+      </div>`).join('');
   }
 
   function _homeRefreshCalendar() {
@@ -6380,6 +6395,13 @@ function applyStatFilter(key) {
   window.calRender = function() {
     if (_origCalRender) _origCalRender.call(this);
     _homeRefreshCalendar();
+  };
+
+  // Whenever loadGmailThreads() fires (gmail syncs), also refresh the dashboard widget
+  const _origLoadGmailThreads = window.loadGmailThreads;
+  window.loadGmailThreads = function(data) {
+    if (_origLoadGmailThreads) _origLoadGmailThreads.call(this, data);
+    _homeRefreshGmail();
   };
 
   window.dashSquareLoad = function() {
