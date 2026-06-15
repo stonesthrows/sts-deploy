@@ -3399,6 +3399,20 @@
       </div>
     </div>
 
+    <!-- Square Weekend Sales widget -->
+    <div class="home-stage-card" style="margin-bottom:14px;">
+      <div class="home-stage-head">
+        <span>💰 Weekend Sales</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="home-widget-link" onclick="dashSquareLoad()" title="Refresh">↻ Refresh</button>
+          <a onclick="sbNav('more','sales',null)">Open Sales →</a>
+        </div>
+      </div>
+      <div id="hw-square-body" style="padding:12px 16px;min-height:52px;">
+        <div class="hw-loading">Loading…</div>
+      </div>
+    </div>
+
     <!-- Orders by stage -->
     <div class="home-stage-card">
       <div class="home-stage-head">
@@ -6257,6 +6271,9 @@ function applyStatFilter(key) {
 
     // Calendar widget — pull from existing calendar if loaded
     _homeRefreshCalendar();
+
+    // Square weekend sales widget
+    dashSquareLoad();
   };
 
   function _homeRefreshGmail() {
@@ -6293,6 +6310,61 @@ function applyStatFilter(key) {
       body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
     }
   }
+
+  window.dashSquareLoad = function() {
+    const body = document.getElementById('hw-square-body');
+    if (!body) return;
+
+    // Merge hardcoded baseline with localStorage synced data (same logic as sales.js)
+    let weekends = [];
+    try {
+      const synced = JSON.parse(localStorage.getItem('sts-square-weekends') || '[]');
+      const base = (typeof SQUARE_WEEKENDS !== 'undefined') ? SQUARE_WEEKENDS : [];
+      const syncedMap = {};
+      synced.forEach(w => { syncedMap[w.weekend] = w; });
+      weekends = base.map(w => syncedMap[w.weekend] || w);
+      synced.forEach(w => { if (!base.find(b => b.weekend === w.weekend)) weekends.push(w); });
+      weekends.sort((a, b) => a.weekend < b.weekend ? -1 : a.weekend > b.weekend ? 1 : 0);
+    } catch(e) {}
+
+    if (!weekends.length) {
+      body.innerHTML = '<div class="hw-loading">No sales data yet. <button class="btn btn-gold btn-sm" style="margin-left:8px" onclick="sbNav(\'more\',\'sales\',null)">Open Sales →</button></div>';
+      return;
+    }
+
+    const last = weekends[weekends.length - 1];
+    const prev = weekends[weekends.length - 2];
+    const lastTotal = last.total || 0;
+    const prevTotal = prev ? (prev.total || 0) : 0;
+    const change = prevTotal ? ((lastTotal - prevTotal) / prevTotal * 100).toFixed(0) : null;
+    const changeHtml = change !== null
+      ? `<span style="font-size:11px;font-weight:700;color:${change >= 0 ? '#2A7A48' : '#C43030'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
+      : '';
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
+        <div style="min-width:110px;margin-right:20px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:2px;">${last.label}</div>
+          <div style="font-size:26px;font-weight:800;color:var(--text);line-height:1;">$${Math.round(lastTotal).toLocaleString()}</div>
+          <div style="margin-top:4px;">${changeHtml}</div>
+        </div>
+        <div style="width:1px;height:44px;background:var(--bdr);margin-right:20px;flex-shrink:0;"></div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Saturday</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">$${Math.round(last.saturday||0).toLocaleString()}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Sunday</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">$${Math.round(last.sunday||0).toLocaleString()}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text2);margin-bottom:1px;">Transactions</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">${last.num_transactions||0}</div>
+          </div>
+        </div>
+      </div>`;
+  };
 
   window.sbNav = function(parentId, subId) {
     switchParent(parentId, _navTabEl(parentId), true, true);
