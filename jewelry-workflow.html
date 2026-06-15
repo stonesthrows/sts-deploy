@@ -3371,21 +3371,40 @@
     <!-- Two-column body -->
     <div class="home-body-grid">
 
-      <!-- LEFT column: Sales + Orders -->
+      <!-- LEFT column: Sales + TripLog row + Orders -->
       <div style="display:flex;flex-direction:column;gap:14px;">
 
-        <!-- Square Weekend Sales widget -->
-        <div class="home-stage-card">
-          <div class="home-stage-head">
-            <span>💰 Weekend Sales</span>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <button class="home-widget-link" onclick="dashSquareLoad()" title="Refresh">↻ Refresh</button>
-              <a onclick="sbNav('more','sales',null)">Open Sales →</a>
+        <!-- Sales + TripLog side by side -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+          <!-- Square Weekend Sales widget -->
+          <div class="home-stage-card">
+            <div class="home-stage-head">
+              <span>💰 Weekend Sales</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="home-widget-link" onclick="dashSquareLoad()" title="Refresh">↻</button>
+                <a onclick="sbNav('more','sales',null)">Sales →</a>
+              </div>
+            </div>
+            <div id="hw-square-body" style="padding:12px 14px;min-height:52px;">
+              <div class="hw-loading">Loading…</div>
             </div>
           </div>
-          <div id="hw-square-body" style="padding:12px 16px;min-height:52px;">
-            <div class="hw-loading">Loading…</div>
+
+          <!-- TripLog widget -->
+          <div class="home-stage-card">
+            <div class="home-stage-head">
+              <span>🚗 Latest Trip</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="home-widget-link" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻</button>
+                <a onclick="sbNavDirect('triplog',null)">Trips →</a>
+              </div>
+            </div>
+            <div id="tlDashContent" class="tl-dash-content" style="padding:12px 14px;min-height:60px;">
+              <span style="color:var(--text-dim);font-size:13px;">Loading…</span>
+            </div>
           </div>
+
         </div>
 
         <!-- Orders in Studio -->
@@ -3401,7 +3420,7 @@
 
       </div>
 
-      <!-- RIGHT column: Gmail + Calendar + TripLog -->
+      <!-- RIGHT column: Gmail + Calendar -->
       <div style="display:flex;flex-direction:column;gap:14px;">
 
         <!-- Gmail widget -->
@@ -3423,20 +3442,6 @@
           </div>
           <div class="home-widget-body" id="hw-cal-body">
             <div class="hw-loading" id="hw-cal-loading">Connecting to Calendar…</div>
-          </div>
-        </div>
-
-        <!-- TripLog widget -->
-        <div class="home-stage-card">
-          <div class="home-stage-head">
-            <span>🚗 Latest Trip</span>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <button class="home-widget-link" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻ Refresh</button>
-              <a onclick="sbNavDirect('triplog',null)">Open TripLog →</a>
-            </div>
-          </div>
-          <div id="tlDashContent" class="tl-dash-content" style="padding:12px 14px;min-height:60px;">
-            <span style="color:var(--text-dim);font-size:13px;">Loading…</span>
           </div>
         </div>
 
