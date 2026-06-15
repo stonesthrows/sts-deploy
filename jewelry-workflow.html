@@ -2464,6 +2464,47 @@
       padding: 0 2px;
     }
     .sot-ord-remove:hover { color: #C43030; }
+    .sot-amt-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .sot-amt-input {
+      width: 58px;
+      height: 26px;
+      border: 1px solid #D0C8C0;
+      border-radius: 5px;
+      background: #FAF7F2;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      text-align: right;
+      padding: 0 6px;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    .sot-amt-input::-webkit-inner-spin-button,
+    .sot-amt-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .sot-amt-input:focus { border-color: var(--gold); background: #fff; }
+    .sot-amt-unit {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8A7E72;
+      min-width: 20px;
+    }
+    .sot-rg-btn {
+      background: #e63946;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .sot-rg-btn:hover { background: #c82333; }
     /* Order footer */
     .sot-order-foot {
       padding: 12px 14px;
@@ -4039,6 +4080,7 @@
         <div class="sot-foot-row">
           <button class="sot-foot-btn primary" onclick="sotPrint()">&#128424; Print</button>
           <button class="sot-foot-btn" onclick="sotCopy()">&#128203; Copy</button>
+          <button class="sot-rg-btn" onclick="sotSendToRG()">🛒 Send to RG</button>
         </div>
         <div style="margin-top:6px;font-size:11px;color:var(--text3);text-align:right" id="sotSyncStatus"></div>
       </div>
@@ -6265,7 +6307,7 @@ function applyStatFilter(key) {
 
     // KPIs from ORDERS
     if (typeof ORDERS !== 'undefined') {
-      const active = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered');
+      const active = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered' && o.stage !== 'cancelled');
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
       set('hkpi-active', active.length);
       set('hkpi-bench',  active.filter(o => o.stage === 'build').length);
