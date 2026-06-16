@@ -1606,6 +1606,8 @@
     }
     .stl-filters .stl-select { flex: 1; }
     .stl-metal-select { min-width: 130px; flex: 0 0 130px !important; }
+    #stl-gem-wrap { display: none; gap: 8px; width: 100%; }
+    #stl-gem-wrap .stl-select { flex: 1; }
     .stl-tabs {
       display: flex; gap: 0;
       border-bottom: 1px solid #E8E0D4;
@@ -3919,7 +3921,7 @@
     <div class="form-foot">
       <button class="btn btn-green" onclick="approveEstimate()">✓ Approve &amp; Send to Square</button>
       <button class="btn btn-ghost" onclick="clearEstimate()">Clear Estimate</button>
-      <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates a draft estimate in Square for your review</span>
+      <span id="est-save-status" style="margin-left:auto;font-size:11.5px;color:var(--accent);opacity:0;transition:opacity 0.4s;"></span>
     </div>
   </div>
   </div><!-- /new-order-cols -->
@@ -4568,6 +4570,42 @@
 }
 .inv-dot.ok  { background: #22c55e; }
 .inv-dot.err { background: #ef4444; }
+
+.inv-queue-btn {
+  padding: 0 9px;
+  height: 28px;
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fbbf24;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  transition: background .15s, color .15s;
+}
+.inv-queue-btn:hover { background: #fef3c7; color: #92400e; }
+
+/* Low-stock modal */
+#inv-ls-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 900;
+  align-items: center;
+  justify-content: center;
+}
+#inv-ls-modal {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 24px;
+  width: 360px;
+  max-width: 95vw;
+  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+}
 </style>
 
 <!-- ═══════════════════ TRIPLOG ═══════════════════ -->
@@ -6051,6 +6089,33 @@ function savePrintSetup() {
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
+<!-- ── Low-stock / Add to Restock Queue modal ── -->
+<div id="inv-ls-modal-bg" onclick="if(event.target===this)invCloseLowStockModal()">
+  <div id="inv-ls-modal">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">⚑ Low Stock</div>
+    <div id="inv-ls-item-name" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;"></div>
+    <div id="inv-ls-var-name" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 12px;background:var(--card-head-bg);border-radius:9px;border:1px solid var(--bdr);">
+      <span style="font-size:12px;color:var(--text-dim);">Current stock:</span>
+      <span id="inv-ls-qty" style="font-size:14px;font-weight:700;color:#d97706;"></span>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">
+        Low-stock threshold for this item
+      </label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input id="inv-ls-threshold" type="number" min="1" max="99"
+          style="width:72px;padding:7px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:14px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
+        <span style="font-size:12px;color:var(--text-dim);">Show button when stock is below this number</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="invCloseLowStockModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="invConfirmLowStockAdd()">＋ Add to Restock Queue</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ TO RESTOCK TAB ═══════════════════ -->
 <div id="tab-to-restock" class="tab-panel">
   <div style="display:flex;height:calc(100vh - 100px);">
@@ -6061,10 +6126,15 @@ function savePrintSetup() {
         <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
       </div>
       <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
-        No items in the Inventory Restock list yet.<br>
-        <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+        No items in the Inventory Restock list yet.
       </div>
       <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex;gap:6px;margin-top:12px;">
+        <input id="rq-add-input" type="text" placeholder="Add to restock queue…"
+          style="flex:1;padding:7px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text);"
+          onkeydown="if(event.key==='Enter')rqAddItem()">
+        <button class="btn btn-gold btn-sm" onclick="rqAddItem()">＋ Add</button>
+      </div>
     </div>
     <!-- Right: Timer -->
     <div style="flex:1;min-width:0;">

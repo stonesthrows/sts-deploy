@@ -45,6 +45,42 @@ window.StullerSearch = (() => {
         <option value="STER">Sterling Silver</option>
       </select>
     </div>
+    <!-- Gem filters — shown for diamond/stone categories -->
+    <div id="stl-gem-wrap" style="display:none;gap:8px">
+      <select id="stl-shape" class="stl-select">
+        <option value="">Any Shape</option>
+        <option value="RD">Round</option>
+        <option value="OV">Oval</option>
+        <option value="PS">Pear</option>
+        <option value="CU">Cushion</option>
+        <option value="PC">Princess</option>
+        <option value="MQ">Marquise</option>
+        <option value="EM">Emerald Cut</option>
+        <option value="AS">Asscher</option>
+        <option value="RA">Radiant</option>
+        <option value="HT">Heart</option>
+        <option value="TR">Trillion</option>
+      </select>
+      <select id="stl-stone-type" class="stl-select" style="display:none">
+        <option value="">Any Stone</option>
+        <option value="AMETHYST">Amethyst</option>
+        <option value="AQUAMARINE">Aquamarine</option>
+        <option value="CITRINE">Citrine</option>
+        <option value="EMERALD">Emerald</option>
+        <option value="GARNET">Garnet</option>
+        <option value="MORGANITE">Morganite</option>
+        <option value="OPAL">Opal</option>
+        <option value="PERIDOT">Peridot</option>
+        <option value="RUBY">Ruby</option>
+        <option value="SAPPHIRE">Sapphire</option>
+        <option value="SPINEL">Spinel</option>
+        <option value="TANZANITE">Tanzanite</option>
+        <option value="TOPAZ">Topaz</option>
+        <option value="TOURMALINE">Tourmaline</option>
+        <option value="ALEXANDRITE">Alexandrite</option>
+        <option value="MOISSANITE">Moissanite</option>
+      </select>
+    </div>
   </div>
 
   <div class="stl-tabs">
@@ -100,18 +136,37 @@ window.StullerSearch = (() => {
     }
   }
 
-  // Metal-relevant category IDs — show metal selector only for these
-  const METAL_CATS = new Set(['4', '24004', '360', '361']);
+  // Category sets for conditional filter display
+  const METAL_CATS  = new Set(['4', '24004', '360', '361']);
+  const GEM_CATS    = new Set(['302', '305', '321']); // Diamonds, Lab-Grown, Colored Stones
+  const STONE_CATS  = new Set(['321']);               // Colored Stones only → show stone type
 
-  // When category changes: show/hide metal selector, auto-search if on Browse tab
+  // When category changes: show/hide metal or gem selectors, auto-search if on Browse tab
   function onCatChange() {
     const catId     = (document.getElementById('stl-cat')?.value || '');
     const metalWrap = document.getElementById('stl-metal-wrap');
+    const gemWrap   = document.getElementById('stl-gem-wrap');
+    const stoneType = document.getElementById('stl-stone-type');
+
     if (metalWrap) {
       const show = !catId || METAL_CATS.has(catId);
       metalWrap.style.display = show ? '' : 'none';
       if (!show) document.getElementById('stl-metal').value = '';
     }
+    if (gemWrap) {
+      const showGem = GEM_CATS.has(catId);
+      gemWrap.style.display = showGem ? 'flex' : 'none';
+      if (!showGem) {
+        document.getElementById('stl-shape').value = '';
+        if (stoneType) { stoneType.value = ''; }
+      }
+    }
+    if (stoneType) {
+      const showType = STONE_CATS.has(catId);
+      stoneType.style.display = showType ? '' : 'none';
+      if (!showType) stoneType.value = '';
+    }
+
     const browsePane = document.getElementById('stl-pane-browse');
     if (browsePane && browsePane.style.display !== 'none') {
       browse();
@@ -128,9 +183,16 @@ window.StullerSearch = (() => {
 
     el.innerHTML = '<div class="stl-loading">Looking up…</div>';
 
+    const shape     = (document.getElementById('stl-shape')?.value || '').trim();
+    const stoneType = (document.getElementById('stl-stone-type')?.value || '').trim();
+
     const body = { Include: ['All'], Skus: [sku], Filter: ['Orderable'] };
     if (catId) body.CategoryIds = [catId];
-    if (metal) body.AdvancedProductFilters = [{ Type: 'MetalQuality', Values: [{ Value: metal }] }];
+    const advFilters = [];
+    if (metal)     advFilters.push({ Type: 'MetalQuality', Values: [{ Value: metal }] });
+    if (shape)     advFilters.push({ Type: 'Shape',        Values: [{ Value: shape }] });
+    if (stoneType) advFilters.push({ Type: 'StoneType',    Values: [{ Value: stoneType }] });
+    if (advFilters.length) body.AdvancedProductFilters = advFilters;
 
     try {
       const resp = await fetch('/api/stuller', {
@@ -162,10 +224,12 @@ window.StullerSearch = (() => {
 
   // ── Category browse ─────────────────────────
   async function browse() {
-    const catId = (document.getElementById('stl-cat')?.value || '').trim();
-    const metal = (document.getElementById('stl-metal')?.value || '').trim();
-    const el    = document.getElementById('stl-browse-result');
-    const hint  = document.getElementById('stl-browse-hint');
+    const catId     = (document.getElementById('stl-cat')?.value || '').trim();
+    const metal     = (document.getElementById('stl-metal')?.value || '').trim();
+    const shape     = (document.getElementById('stl-shape')?.value || '').trim();
+    const stoneType = (document.getElementById('stl-stone-type')?.value || '').trim();
+    const el        = document.getElementById('stl-browse-result');
+    const hint      = document.getElementById('stl-browse-hint');
 
     if (!catId) {
       if (hint) hint.textContent = 'Select a category above, then click Search.';
@@ -175,14 +239,17 @@ window.StullerSearch = (() => {
     if (hint) hint.textContent = '';
     el.innerHTML = '<div class="stl-loading">Searching…</div>';
 
+    const advFilters = [];
+    if (metal)     advFilters.push({ Type: 'MetalQuality', Values: [{ Value: metal }] });
+    if (shape)     advFilters.push({ Type: 'Shape',        Values: [{ Value: shape }] });
+    if (stoneType) advFilters.push({ Type: 'StoneType',    Values: [{ Value: stoneType }] });
+
     const body = {
       Include: ['All'],
       CategoryIds: [catId],
       Series: [],
       Filter: ['Orderable', 'OnPriceList'],
-      AdvancedProductFilters: metal
-        ? [{ Type: 'MetalQuality', Values: [{ Value: metal }] }]
-        : []
+      AdvancedProductFilters: advFilters
     };
 
     try {
