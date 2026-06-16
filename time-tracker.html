@@ -283,6 +283,56 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   shiftEvents: [],
 }));
 
+// Local catalog items not reliably found via Square text search
+const LOCAL_ITEMS = [
+  {
+    id: 'local-chevron-ear-cuff',
+    name: 'Chevron Ear Cuff',
+    category: 'Ear Cuffs',
+    isParent: true, isLocal: true,
+    squareSearchTerms: ['Chevron', 'Ear Cuff'],
+    variantCount: 4,
+    variants: [
+      { id: 'local-var-chevron-silver-sm', name: 'Double Silver (Sm)', sku: '', price: null },
+      { id: 'local-var-chevron-silver-lg', name: 'Double Silver (Lg)', sku: '', price: null },
+      { id: 'local-var-chevron-gf-sm',     name: 'Double GF (Sm)',     sku: '', price: null },
+      { id: 'local-var-chevron-gf-lg',     name: 'Double GF (Lg)',     sku: '', price: null },
+    ],
+  },
+  { id: 'local-item-chevron-silver-sm', name: 'Chevron Ear Cuff – Double Silver (Sm)', category: 'Ear Cuffs', isParent: false, isLocal: true, sku: '', price: null, pieces: null },
+  { id: 'local-item-chevron-silver-lg', name: 'Chevron Ear Cuff – Double Silver (Lg)', category: 'Ear Cuffs', isParent: false, isLocal: true, sku: '', price: null, pieces: null },
+  { id: 'local-item-chevron-gf-sm',     name: 'Chevron Ear Cuff – Double GF (Sm)',     category: 'Ear Cuffs', isParent: false, isLocal: true, sku: '', price: null, pieces: null },
+  { id: 'local-item-chevron-gf-lg',     name: 'Chevron Ear Cuff – Double GF (Lg)',     category: 'Ear Cuffs', isParent: false, isLocal: true, sku: '', price: null, pieces: null },
+];
+
+function searchLocalItems(query) {
+  const q = query.toLowerCase();
+  return LOCAL_ITEMS.filter(it => it.name.toLowerCase().includes(q) || it.category.toLowerCase().includes(q));
+}
+
+async function resolveLocalVariantIds(localParent, sizeRows) {
+  try {
+    const terms = localParent.squareSearchTerms || [localParent.name];
+    const searchData = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: terms } }, limit: 10 }) });
+    const found = searchData.objects || [];
+    if (!found.length) return null;
+    const fullData = await sq('/catalog/batch-retrieve', { method: 'POST', body: JSON.stringify({ object_ids: found.map(o => o.id) }) });
+    const squareItem = (fullData.objects || []).find(obj =>
+      terms.some(t => (obj.item_data?.name || '').toLowerCase().includes(t.toLowerCase()))
+    );
+    if (!squareItem) return null;
+    const variations = squareItem.item_data?.variations || [];
+    const resolved = sizeRows.map(row => {
+      const match = variations.find(v => (v.item_variation_data?.name || '').toLowerCase() === row.name.toLowerCase());
+      return match ? { ...row, squareId: match.id } : null;
+    }).filter(Boolean);
+    return resolved.length ? resolved : null;
+  } catch(e) {
+    console.warn('resolveLocalVariantIds failed:', e);
+    return null;
+  }
+}
+
 let employees = [], sessions = [], _editingSession = null, _lastShift = {};
 let _setup1Visible = false;
 
@@ -567,10 +617,11 @@ async function searchCatalog(tid, query) {
   $t(tid, 'spinner').classList.add('active');
   try {
     const searchData = await sq('/catalog/search', { method: 'POST', body: JSON.stringify({ object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 }) });
+    const localMatches = searchLocalItems(query);
     const found = searchData.objects || [];
-    if (!found.length) { renderResults(tid, [], query); return; }
+    if (!found.length) { renderResults(tid, localMatches, query); return; }
     const fullData = await sq('/catalog/batch-retrieve', { method: 'POST', body: JSON.stringify({ object_ids: found.map(o => o.id) }) });
-    const rows = [];
+    const rows = [...localMatches];
     (fullData.objects || []).forEach(obj => {
       const itemName  = obj.item_data?.name || 'Unnamed';
       const category  = obj.item_data?.category_name || '';
@@ -591,7 +642,16 @@ async function searchCatalog(tid, query) {
 function renderResults(tid, items, query) {
   const box = $t(tid, 'results'); box.innerHTML = '';
   if (!items.length) {
-    box.innerHTML = `<div style="font-size:12px;color:var(--text-dim);padding:0.5rem 0;text-align:center">No items matching "${query}"</div>`;
+    const noMatch = document.createElement('div');
+    noMatch.style.cssText = 'font-size:12px;color:var(--text-dim);padding:0.4rem 0 0.2rem;text-align:center';
+    noMatch.textContent = `No Square catalog match for "${query}"`;
+    const customBtn = document.createElement('div');
+    customBtn.className = 'result-item';
+    customBtn.style.cssText = 'justify-content:center;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;';
+    customBtn.textContent = `+ Use "${query}" as custom item`;
+    customBtn.onclick = () => selectCustomItem(tid, query);
+    box.appendChild(noMatch);
+    box.appendChild(customBtn);
   } else {
     items.forEach(item => {
       const d = document.createElement('div'); d.className = 'result-item';
@@ -605,6 +665,11 @@ function renderResults(tid, items, query) {
   box.classList.add('visible');
 }
 function hideResults(tid) { $t(tid,'results').classList.remove('visible'); $t(tid,'results').innerHTML=''; }
+
+function selectCustomItem(tid, name) {
+  const customItem = { id: 'custom-' + Date.now(), name, category: 'Custom', isCustom: true, pieces: null };
+  selectItem(tid, customItem);
+}
 
 function selectItem(tid, item) {
   if (T[tid].selectedItems.find(i => i.id === item.id)) { hideResults(tid); $t(tid,'search-input').value=''; return; }
@@ -858,7 +923,7 @@ async function stopTimer(tid) {
   showToast(`Timer ${tid+1} — ${fmtDur(netMs)} recorded`);
   finalizeNotionSession(session);
   const hasParent = items.some(it => it.isParent);
-  const hasPieces = items.some(it => !it.isParent && it.pieces > 0);
+  const hasPieces = items.some(it => !it.isParent && !it.isLocal && it.pieces > 0);
   if (hasParent || (hasPieces && CFG.sqToken)) { showInventoryModal(tid, session); } else { resetTimer(tid); }
 }
 
@@ -959,9 +1024,27 @@ async function inventoryConfirm() {
   const statusEl = $g('inv-modal-status'), confirmBtn = $g('inv-modal-confirm');
   confirmBtn.disabled = true; confirmBtn.textContent = 'Adding…'; statusEl.textContent = '';
   const parentItem = (s.items||[]).find(it => it.isParent);
-  const changes = parentItem && _invSizeRows.length
-    ? _invSizeRows.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }))
-    : (s.items||[]).filter(it => !it.isParent && it.pieces>0).map(it => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:it.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(it.pieces), occurred_at:s.timestamp } }));
+  let changes;
+  if (parentItem && _invSizeRows.length) {
+    if (parentItem.isLocal) {
+      const resolved = await resolveLocalVariantIds(parentItem, _invSizeRows);
+      if (!resolved) {
+        // Square IDs not resolvable — record sizes in Notion only
+        const totalPcs = _invSizeRows.reduce((acc,r) => acc+r.qty, 0);
+        parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows;
+        s.inventoryAdded = _invSizeRows.map(r=>`${r.qty}× ${r.name}`).join(', ');
+        const allPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
+        if (allPcs > 0 && s.notionPageId) patchNotion(s.notionPageId, { pieces: allPcs });
+        renderLog(); showToast('Pieces recorded in Notion (Square item not found)');
+        inventoryDone(); return;
+      }
+      changes = resolved.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.squareId, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }));
+    } else {
+      changes = _invSizeRows.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }));
+    }
+  } else {
+    changes = (s.items||[]).filter(it => !it.isParent && !it.isLocal && it.pieces>0).map(it => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:it.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(it.pieces), occurred_at:s.timestamp } }));
+  }
   if (!changes.length) { inventoryDone(); return; }
   try {
     const data = await sq('/inventory/changes/batch-create', { method:'POST', body: JSON.stringify({ idempotency_key:`sts-inv-${s.timestamp}`, changes }) });
