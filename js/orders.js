@@ -237,6 +237,7 @@ function openOrderCard(id) {
   toggleShippingAddress();
 
   _setOrderFormEditMode(true, o.name);
+  populateEstimateFromOrder(o);
   switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'));
 }
 
@@ -777,7 +778,7 @@ let estMultiplier = 2.5;
 let estRowCount   = 0;
 let estSaveTimer  = null;
 
-function addMaterialRow() {
+function addMaterialRow(desc = '', cost = '') {
   const container = document.getElementById('est-materials');
   if (!container) return;
   const rowId = 'est-row-' + (++estRowCount);
@@ -790,7 +791,36 @@ function addMaterialRow() {
     '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()">' +
     '<button class="est-remove-btn" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
+  const inputs = div.querySelectorAll('input');
+  if (desc) inputs[0].value = desc;
+  if (cost) inputs[1].value = cost;
   calcEstimate();
+}
+
+function populateEstimateFromOrder(o) {
+  const container = document.getElementById('est-materials');
+  if (!container) return;
+  container.innerHTML = '';
+  estRowCount = 0;
+
+  const lines = (o.materials || '').split('\n').filter(l => l.trim());
+  if (lines.length) {
+    lines.forEach(line => {
+      const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
+      if (match) addMaterialRow(match[1].trim(), match[2]);
+      else        addMaterialRow(line.trim(), '');
+    });
+  } else {
+    addMaterialRow();
+  }
+
+  // Restore labor + multiplier from localStorage (not synced to Notion)
+  let estState = {};
+  try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
+  const saved = estState[o.id] || {};
+  const laborEl = document.getElementById('est-labor');
+  if (laborEl) laborEl.value = saved.labor != null ? saved.labor : '';
+  setMultiplier(saved.multiplier || 2.5);
 }
 
 function removeMaterialRow(id) {
@@ -842,6 +872,16 @@ async function saveEstimateToNotion() {
   o.materials = materialsText;
   if (finalPrice > 0) o.price = finalPrice;
   saveToStorage();
+
+  // Persist labor + multiplier locally so they survive a page refresh
+  try {
+    const estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}');
+    estState[editingId] = {
+      labor:      parseFloat(document.getElementById('est-labor')?.value) || 0,
+      multiplier: estMultiplier,
+    };
+    localStorage.setItem('sts-est-state', JSON.stringify(estState));
+  } catch(e) {}
 
   const statusEl = document.getElementById('est-save-status');
   if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.opacity = '1'; }
