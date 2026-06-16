@@ -33,16 +33,18 @@ window.StullerSearch = (() => {
       <option value="360">Settings &amp; Mountings</option>
       <option value="361">Chains</option>
     </select>
-    <select id="stl-metal" class="stl-select stl-metal-select">
-      <option value="">Any Metal</option>
-      <option value="14KY">14K Yellow</option>
-      <option value="14KW">14K White</option>
-      <option value="14KR">14K Rose</option>
-      <option value="18KY">18K Yellow</option>
-      <option value="18KW">18K White</option>
-      <option value="PLAT">Platinum</option>
-      <option value="STER">Sterling Silver</option>
-    </select>
+    <div id="stl-metal-wrap" style="display:none">
+      <select id="stl-metal" class="stl-select stl-metal-select">
+        <option value="">Any Metal</option>
+        <option value="14KY">14K Yellow</option>
+        <option value="14KW">14K White</option>
+        <option value="14KR">14K Rose</option>
+        <option value="18KY">18K Yellow</option>
+        <option value="18KW">18K White</option>
+        <option value="PLAT">Platinum</option>
+        <option value="STER">Sterling Silver</option>
+      </select>
+    </div>
   </div>
 
   <div class="stl-tabs">
@@ -98,8 +100,18 @@ window.StullerSearch = (() => {
     }
   }
 
-  // When category changes while on the browse tab, auto-search
+  // Metal-relevant category IDs — show metal selector only for these
+  const METAL_CATS = new Set(['4', '24004', '360', '361']);
+
+  // When category changes: show/hide metal selector, auto-search if on Browse tab
   function onCatChange() {
+    const catId     = (document.getElementById('stl-cat')?.value || '');
+    const metalWrap = document.getElementById('stl-metal-wrap');
+    if (metalWrap) {
+      const show = !catId || METAL_CATS.has(catId);
+      metalWrap.style.display = show ? '' : 'none';
+      if (!show) document.getElementById('stl-metal').value = '';
+    }
     const browsePane = document.getElementById('stl-pane-browse');
     if (browsePane && browsePane.style.display !== 'none') {
       browse();
