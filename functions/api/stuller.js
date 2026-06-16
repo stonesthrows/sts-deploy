@@ -21,22 +21,26 @@ export async function onRequestOptions() {
 }
 
 async function proxyToStuller(url, method, body, env) {
-  const user = env.STULLER_USER;
-  const pass = env.STULLER_PASS;
-
-  if (!user || !pass) {
-    return jsonResponse({
-      error: 'Stuller credentials not configured — add STULLER_USER and STULLER_PASS in Cloudflare Pages → Settings → Environment Variables.'
-    }, 500);
-  }
-
-  const headers = {
-    'Authorization': 'Basic ' + btoa(`${user}:${pass}`),
-    'Accept': 'application/json',
-  };
-  if (method === 'POST') headers['Content-Type'] = 'application/json';
-
   try {
+    const user = env.STULLER_USER;
+    const pass = env.STULLER_PASS;
+
+    if (!user || !pass) {
+      return jsonResponse({
+        error: 'Stuller credentials not configured — add STULLER_USER and STULLER_PASS in Cloudflare Pages → Settings → Environment Variables.'
+      }, 500);
+    }
+
+    // Use TextEncoder-based base64 to handle any characters in credentials
+    const credBytes = new TextEncoder().encode(`${user}:${pass}`);
+    const credB64 = btoa(String.fromCharCode(...credBytes));
+
+    const headers = {
+      'Authorization': 'Basic ' + credB64,
+      'Accept': 'application/json',
+    };
+    if (method === 'POST') headers['Content-Type'] = 'application/json';
+
     const resp = await fetch(url, { method, headers, body: body || undefined });
     const text = await resp.text();
     return new Response(text, {
@@ -44,7 +48,7 @@ async function proxyToStuller(url, method, body, env) {
       headers: { 'Content-Type': 'application/json', ...corsHeaders() },
     });
   } catch (err) {
-    return jsonResponse({ error: 'Proxy error: ' + err.message }, 502);
+    return jsonResponse({ error: 'Function error: ' + err.message }, 500);
   }
 }
 
