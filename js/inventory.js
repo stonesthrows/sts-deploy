@@ -5,11 +5,11 @@
 
 // Square category IDs → ring sub-tabs
 const INV_RING_CAT_IDS = {
-  'stackable':  ['77KNH35GU32XUN7P56SOMVG2', 'AQKGEIJODPWO2JW67B6P7L7W'],
-  'spirit':     ['ZIICMTQVHNGD4RCNGMWYS3JB'],
-  'geometric':  ['R5VVEETOKEH4T2TORR4ST2DD', 'R47DX3MHU2CQ6MKWN5QLKG3T'],
-  'symbolic':   ['PZBEBEWWCI3MS52THSF2E2DM'],
-  'meditation': ['KCBQ7S6OOBEATCBNCH4IWSZ5', 'A6V47F3AH7YYNTSXD7NA67PZ'],
+  'stackable':   ['77KNH35GU32XUN7P56SOMVG2', 'AQKGEIJODPWO2JW67B6P7L7W'],
+  'ring-spirit': ['ZIICMTQVHNGD4RCNGMWYS3JB'],
+  'geometric':   ['R5VVEETOKEH4T2TORR4ST2DD', 'R47DX3MHU2CQ6MKWN5QLKG3T'],
+  'symbolic':    ['PZBEBEWWCI3MS52THSF2E2DM'],
+  'meditation':  ['KCBQ7S6OOBEATCBNCH4IWSZ5', 'A6V47F3AH7YYNTSXD7NA67PZ'],
 };
 
 // Item name substrings to exclude per ring sub-tab
@@ -51,6 +51,11 @@ const INV_CAT_IDS = {
 
 const INV_LOCATION_ID = 'D7EZ98V48F79A';
 
+// Category name substrings for fallback lookup when hardcoded IDs return 0 items
+const INV_CAT_NAME_HINTS = {
+  'hoops': 'seamless hoop',
+};
+
 let _invData       = {};  // { [sub]: { items, counts } }
 let _invDirty      = {};  // { varId: newQty } — unsaved edits
 let _invCurSub     = 'ear-cuffs';
@@ -59,6 +64,34 @@ let _invRingLoaded    = false;
 
 let _invPendantCurSub = 'p-spirit';
 let _invPendantLoaded = false;
+
+// ── Category name fallback search ────────────────────────────────────────────
+
+async function _invFallbackCatSearch(sub) {
+  const hint = INV_CAT_NAME_HINTS[sub];
+  if (!hint) return [];
+  try {
+    const res = await _sqFetch('/v2/catalog/list?types=CATEGORY');
+    const matches = (res.objects || [])
+      .filter(o => !o.is_deleted && (o.category_data?.name || '').toLowerCase().includes(hint));
+    if (!matches.length) {
+      console.warn(`[inv] ${sub}: no Square category found matching "${hint}"`);
+      return [];
+    }
+    const matchedIds = matches.map(o => o.id);
+    console.log(`[inv] ${sub}: fallback matched ${matches.length} category(ies):`,
+      matches.map(o => `"${o.category_data.name}" (${o.id})`).join(', '),
+      '— update INV_CAT_IDS to fix permanently');
+    const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
+      method: 'POST',
+      body: JSON.stringify({ category_ids: matchedIds }),
+    });
+    return (searchRes.items || []).filter(o => !o.is_deleted);
+  } catch (e) {
+    console.warn(`[inv] fallback search failed for ${sub}:`, e.message);
+    return [];
+  }
+}
 
 // ── Square API helper (routes through /api/square proxy to avoid CORS) ──────
 
@@ -188,7 +221,14 @@ async function _invLoadSub(sub) {
       }),
     });
 
-    const items = (searchRes.items || []).filter(o => !o.is_deleted);
+    let items = (searchRes.items || []).filter(o => !o.is_deleted);
+    console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
+
+    // Fallback: if no items found via hardcoded IDs, try finding the category by name
+    if (!items.length && INV_CAT_NAME_HINTS[sub]) {
+      const fallback = await _invFallbackCatSearch(sub);
+      if (fallback.length) items = fallback;
+    }
 
     // Fetch any individually-pinned items (type:'item' entries from the manager)
     if (extraItemIds.length) {
@@ -249,7 +289,15 @@ function _invRenderSub(sub) {
   const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
-    _invSetPanelHtml(sub, '<div style="padding:32px;text-align:center;color:var(--text-dim)">No items found in this category</div>');
+    _invSetPanelHtml(sub, `<div style="padding:32px;text-align:center;color:var(--text-dim)">
+      <div style="font-size:15px;margin-bottom:8px;">No items found in this category</div>
+      <div style="font-size:12px;max-width:340px;margin:0 auto;line-height:1.6;">
+        The Square categories mapped to this tab returned 0 items.<br>
+        Check the browser console for details, or use
+        <button onclick="invMgrOpen()" style="background:none;border:none;color:var(--accent,#C9983A);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;">⚙ Manage Items</button>
+        to assign the correct Square categories to this tab.
+      </div>
+    </div>`);
     return;
   }
 
@@ -316,6 +364,11 @@ function _invRenderSub(sub) {
     html += '</div>';
   });
 
+  if (!html) {
+    const hiddenVarCount = _invGetHiddenVars().length;
+    const hiddenItemCount = _invGetHidden().size;
+    console.log(`[inv] ${sub}: ${items.length} item(s) fetched but 0 cards rendered — hidden items: ${hiddenItemCount}, hidden vars: ${hiddenVarCount}`);
+  }
   _invSetPanelHtml(sub, html || '<div style="padding:24px;text-align:center;color:var(--text-dim)">No matches</div>');
 }
 
