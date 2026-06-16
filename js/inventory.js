@@ -180,20 +180,15 @@ async function _invLoadSub(sub) {
 
   try {
     // Fetch catalog items belonging to these categories
-    const searchRes = await _sqFetch('/v2/catalog/search', {
+    // Uses search-catalog-items which correctly handles Square's multi-category format
+    const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
       method: 'POST',
       body: JSON.stringify({
-        object_types: ['ITEM'],
-        query: {
-          set_query: {
-            attribute_name:   'category_id',
-            attribute_values: catIds,
-          },
-        },
+        category_ids: catIds,
       }),
     });
 
-    const items = (searchRes.objects || []).filter(o => !o.is_deleted);
+    const items = (searchRes.items || []).filter(o => !o.is_deleted);
 
     // Fetch any individually-pinned items (type:'item' entries from the manager)
     if (extraItemIds.length) {
