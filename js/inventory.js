@@ -83,6 +83,20 @@ async function _sqFetch(path, opts = {}) {
   return json;
 }
 
+// ── Extra items from Inventory Manager ───────
+
+function _invGetExtraEntries(sub) {
+  try {
+    // localStorage (set by inv-manager) takes precedence; fall back to hardcoded INV_EXTRA
+    const stored = localStorage.getItem('sts-inv-extra');
+    if (stored) {
+      const extra = JSON.parse(stored);
+      return Array.isArray(extra[sub]) ? extra[sub] : [];
+    }
+  } catch {}
+  return (typeof INV_EXTRA !== 'undefined' && Array.isArray(INV_EXTRA[sub])) ? INV_EXTRA[sub] : [];
+}
+
 // ── Load / fetch ─────────────────────────────
 
 async function invLoad() {
@@ -92,8 +106,14 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  const catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub];
+  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub];
   if (!catIds) return;
+
+  // Merge any extra categories/items added via the Inventory Manager
+  const extraEntries = _invGetExtraEntries(sub);
+  const extraCatIds  = extraEntries.filter(e => e.type === 'category').map(e => e.squareId);
+  const extraItemIds = extraEntries.filter(e => e.type === 'item').map(e => e.squareId);
+  if (extraCatIds.length) catIds = [...catIds, ...extraCatIds];
 
   _invSetPanelHtml(sub, '<div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div>');
 
@@ -113,6 +133,22 @@ async function _invLoadSub(sub) {
     });
 
     const items = (searchRes.objects || []).filter(o => !o.is_deleted);
+
+    // Fetch any individually-pinned items (type:'item' entries from the manager)
+    if (extraItemIds.length) {
+      try {
+        const batchRes = await _sqFetch('/v2/catalog/batch-retrieve', {
+          method: 'POST',
+          body: JSON.stringify({ object_ids: extraItemIds }),
+        });
+        const existing = new Set(items.map(i => i.id));
+        (batchRes.objects || [])
+          .filter(o => !o.is_deleted && o.type === 'ITEM' && !existing.has(o.id))
+          .forEach(o => items.push(o));
+      } catch (e) {
+        console.warn('inv-manager extra items fetch failed:', e.message);
+      }
+    }
 
     // Collect all variation IDs
     const varIds = [];

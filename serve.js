@@ -18,7 +18,8 @@ const MIME = {
 };
 
 http.createServer((req, res) => {
-  let filePath = path.join(ROOT, req.url === '/' ? '/jewelry-workflow.html' : req.url);
+  const rawPath = req.url.split('?')[0];
+  let filePath = path.join(ROOT, rawPath === '/' ? '/jewelry-workflow.html' : rawPath);
   const ext  = path.extname(filePath).toLowerCase();
   const mime = MIME[ext] || 'text/plain';
 

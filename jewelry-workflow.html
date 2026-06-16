@@ -858,6 +858,18 @@
     .ct-prev-dl    { font-size: 10px; }
     .ct-prev-takein { font-size: 10.5px; color: var(--text2); }
 
+    .ct-current-order {
+      cursor: pointer;
+      border-color: #C8D9F0;
+      background: #F4F8FE;
+    }
+    .ct-current-order:hover { background: #E8F0FB; border-color: #A0BCDF; }
+    .ct-open-order-hint {
+      font-size: 10.5px; font-weight: 600; color: var(--accent);
+      flex-shrink: 0; opacity: 0.8;
+    }
+    .ct-current-order:hover .ct-open-order-hint { opacity: 1; text-decoration: underline; }
+
     /* ── Gmail in expand ─────────────────────── */
     .ct-gmail-thread {
       display: block;
@@ -4172,10 +4184,11 @@
 <div id="tab-inv-adjust" class="tab-panel">
 
 <!-- Category nav (Earrings / Rings / Pendants) inside the panel -->
-<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
+<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;align-items:center;">
   <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
+  <button class="btn btn-outline btn-sm" onclick="invMgrOpen()" style="margin-left:auto;font-size:12px;">⚙ Manage Items</button>
 </div>
 
 <!-- Earrings panel -->
@@ -6199,6 +6212,7 @@ function savePrintSetup() {
 
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js?v=2"></script>
+<script src="js/inv-manager.js"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() {
