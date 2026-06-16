@@ -3380,7 +3380,7 @@
 
 <!-- Sub-nav (Orders) -->
 <div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="clearForm();switchSubTab('new-order',this)">
     ✚ New Order
   </div>
   <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
@@ -3648,7 +3648,7 @@
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
     <div style="display:flex;align-items:center;gap:8px;">
-      <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
+      <button onclick="clearForm();switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
       <div class="overflow-wrap" id="kbOverflowWrap">
         <button class="overflow-btn" onclick="toggleKbOverflow()" title="More actions">⋯</button>
         <div class="overflow-menu" id="kbOverflowMenu">
@@ -4588,6 +4588,21 @@
   transition: background .15s, color .15s;
 }
 .inv-queue-btn:hover { background: #fef3c7; color: #92400e; }
+
+.inv-qal-btn {
+  padding: 0 9px;
+  height: 26px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #b45309;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.inv-qal-btn:hover { background: #fef3c7; color: #92400e; }
 
 /* Low-stock modal */
 #inv-ls-modal-bg {
@@ -6113,6 +6128,20 @@ function savePrintSetup() {
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn btn-outline" onclick="invCloseLowStockModal()">Cancel</button>
       <button class="btn btn-gold" onclick="invConfirmLowStockAdd()">＋ Add to Restock Queue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Queue All Low / Bulk Restock Queue modal ── -->
+<div id="inv-qal-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;"
+  onclick="if(event.target===this)invCloseQueueAllLowModal()">
+  <div style="background:var(--card-bg);border-radius:14px;padding:24px;width:560px;max-width:calc(100vw - 32px);max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.28);">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">⚑ Queue All Low Stock</div>
+    <div id="inv-qal-item-name" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;"></div>
+    <div id="inv-qal-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="invCloseQueueAllLowModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="invConfirmQueueAllLow()">＋ Add to Restock Queue</button>
     </div>
   </div>
 </div>

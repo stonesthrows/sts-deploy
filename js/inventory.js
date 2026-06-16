@@ -323,14 +323,31 @@ function _invRenderSub(sub) {
     const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
+    // Pre-pass: collect low-stock variations for this item
+    const lowVarsForItem = [];
+    vars.forEach(v => {
+      const sqQty = counts[v.id] ?? null;
+      const curQty = _invDirty[v.id] !== undefined ? _invDirty[v.id] : (sqQty ?? 0);
+      const threshold = _invGetThreshold(v.id);
+      if (sqQty !== null && sqQty < threshold) {
+        lowVarsForItem.push({ varId: v.id, varName: v.item_variation_data?.name || '', curQty, threshold });
+      }
+    });
+    if (lowVarsForItem.length >= 2) {
+      _invQueueAllData[item.id] = { itemName: name, lowVars: lowVarsForItem };
+    }
+
     html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
       <div class="inv-card-head" style="display:flex;align-items:center;justify-content:space-between;">
         <span>${_esc(name)}</span>
-        <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
-          title="Remove entire item from webapp (won't affect Square)"
-          style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
-          onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
-          onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${lowVarsForItem.length >= 2 ? `<button class="inv-qal-btn" onclick="invOpenQueueAllLowModal('${item.id}')" title="Queue all low sizes">⚑ Queue All Low</button>` : ''}
+          <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
+            title="Remove entire item from webapp (won't affect Square)"
+            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
+            onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
+            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
+        </div>
       </div>`;
 
     vars.forEach(v => {
@@ -662,6 +679,8 @@ function _invSaveThreshold(varId, val) {
 // ── Low-stock modal ───────────────────────────────────────────────────────────
 
 let _invLowStockState = {};
+let _invQueueAllData  = {};
+let _invQueueAllState = {};
 
 function invOpenLowStockModal(varId, itemName, varName, curQty, sub) {
   _invLowStockState = { varId, itemName, varName, curQty, sub };
@@ -698,6 +717,81 @@ function invConfirmLowStockAdd() {
   }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
 
   invCloseLowStockModal();
+}
+
+// ── Queue All Low modal ───────────────────────────────────────────────────────
+
+function invOpenQueueAllLowModal(itemId) {
+  const { itemName, lowVars } = _invQueueAllData[itemId] || {};
+  if (!itemName || !lowVars?.length) return;
+  _invQueueAllState = { itemName, lowVars };
+
+  document.getElementById('inv-qal-item-name').textContent = itemName;
+
+  const list = document.getElementById('inv-qal-list');
+  list.innerHTML = lowVars.map((v, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--card-head-bg);border:1px solid var(--bdr);">
+      <input type="checkbox" class="inv-qal-check" data-idx="${i}" checked
+        style="width:16px;height:16px;accent-color:var(--accent,#C9983A);flex-shrink:0;cursor:pointer;">
+      <span style="min-width:72px;font-size:13px;font-weight:600;color:var(--text);">${_esc(v.varName || '(Default)')}</span>
+      <span style="font-size:11px;color:var(--text-dim);min-width:64px;">stock: ${v.curQty}</span>
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);">
+        qty
+        <input type="number" class="inv-qal-qty" data-idx="${i}" min="1" max="99" value="3"
+          style="width:50px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);">
+        threshold
+        <input type="number" class="inv-qal-threshold" data-idx="${i}" min="1" max="99" value="${v.threshold}"
+          style="width:50px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
+      </label>
+    </div>
+  `).join('');
+
+  document.getElementById('inv-qal-modal-bg').style.display = 'flex';
+}
+
+function invCloseQueueAllLowModal() {
+  document.getElementById('inv-qal-modal-bg').style.display = 'none';
+  _invQueueAllState = {};
+}
+
+function invConfirmQueueAllLow() {
+  const { itemName, lowVars } = _invQueueAllState;
+  if (!itemName) return;
+
+  // Save thresholds for all rows (checked and unchecked)
+  document.querySelectorAll('.inv-qal-threshold').forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    _invSaveThreshold(lowVars[idx].varId, Math.max(1, parseInt(inp.value) || 6));
+  });
+
+  // Build entry text from checked sizes only
+  const parts = [];
+  document.querySelectorAll('.inv-qal-check').forEach(chk => {
+    if (!chk.checked) return;
+    const idx = parseInt(chk.dataset.idx);
+    const qty = Math.max(1, parseInt(document.querySelector(`.inv-qal-qty[data-idx="${idx}"]`).value) || 3);
+    parts.push(`${lowVars[idx].varName} (×${qty})`);
+  });
+
+  invCloseQueueAllLowModal();
+
+  if (!parts.length) return;
+
+  const text = `${itemName} – ${parts.join(', ')}`;
+  fetch('/api/notion-notes', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ text, block: 'Inventory Restock' }),
+  }).then(r => {
+    if (r.ok) {
+      toast(`Added to Restock Queue ✓`, '✓');
+      if (typeof refreshNotes === 'function') refreshNotes();
+    } else {
+      toast('Failed to add to Restock Queue', '⚠');
+    }
+  }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
 }
 
 function _esc(s) {
