@@ -173,26 +173,15 @@ window.StullerSearch = (() => {
     }
   }
 
-  // ── SKU lookup (uses selected category as optional filter) ──
+  // ── SKU lookup — SKU alone, no category/metal filters (they confuse the API) ──
   async function lookupSku() {
-    const sku   = (document.getElementById('stl-sku-input')?.value || '').trim();
-    const catId = (document.getElementById('stl-cat')?.value || '').trim();
-    const metal = (document.getElementById('stl-metal')?.value || '').trim();
-    const el    = document.getElementById('stl-sku-result');
+    const sku = (document.getElementById('stl-sku-input')?.value || '').trim();
+    const el  = document.getElementById('stl-sku-result');
     if (!sku) return;
 
     el.innerHTML = '<div class="stl-loading">Looking up…</div>';
 
-    const shape     = (document.getElementById('stl-shape')?.value || '').trim();
-    const stoneType = (document.getElementById('stl-stone-type')?.value || '').trim();
-
-    const body = { Include: ['All'], Skus: [sku], Filter: ['Orderable'] };
-    if (catId) body.CategoryIds = [catId];
-    const advFilters = [];
-    if (metal)     advFilters.push({ Type: 'MetalQuality', Values: [{ Value: metal }] });
-    if (shape)     advFilters.push({ Type: 'Shape',        Values: [{ Value: shape }] });
-    if (stoneType) advFilters.push({ Type: 'StoneType',    Values: [{ Value: stoneType }] });
-    if (advFilters.length) body.AdvancedProductFilters = advFilters;
+    const body = { Include: ['All'], Skus: [sku] };
 
     try {
       const resp = await fetch('/api/stuller', {
@@ -265,14 +254,17 @@ window.StullerSearch = (() => {
         el.innerHTML = `<div class="stl-error">API error (HTTP ${resp.status}). Try again in a moment.<br><small style="opacity:.6">${_esc(text.slice(0,120))}</small></div>`;
         return;
       }
-      if (!resp.ok || data.error) {
-        el.innerHTML = `<div class="stl-error">${_esc(data.error || 'Search failed')} (HTTP ${resp.status})</div>`;
+      if (!resp.ok) {
+        // Show full Stuller error so we can diagnose filter type names
+        const detail = data?.Message || data?.message || data?.error
+          || JSON.stringify(data).slice(0, 300);
+        el.innerHTML = `<div class="stl-error">HTTP ${resp.status}: ${_esc(detail)}</div>`;
         return;
       }
 
       const products = data.Products || data.products || (Array.isArray(data) ? data : []);
       if (!products.length) {
-        el.innerHTML = '<div class="stl-error">No results. Try a different category or metal quality.</div>';
+        el.innerHTML = '<div class="stl-error">No results. Try a different category or remove filters.</div>';
         return;
       }
 
@@ -287,15 +279,19 @@ window.StullerSearch = (() => {
 
   // ── Product card ────────────────────────────
   function _card(p) {
-    const sku      = p.Sku   || p.sku   || p.SKU    || '';
-    const name     = p.ShortDescription || p.Description || p.Name || p.name || 'Unknown';
-    const price    = p.Price ?? p.price ?? p.UnitPrice ?? null;
-    const priceStr = price != null ? '$' + parseFloat(price).toFixed(2) : 'Price N/A';
+    const sku  = p.Sku || p.sku || p.SKU || '';
+    const name = p.ShortDescription || p.Description || p.Name || p.name || 'Unknown';
+    // Stuller API returns price in various shapes depending on product type
+    const rawPrice = p.Price ?? p.price ?? p.UnitPrice ?? p.ListPrice
+                  ?? p.PriceList?.[0]?.Price ?? p.Prices?.[0]?.Amount
+                  ?? p.BasePrice ?? null;
+    const price    = rawPrice != null ? parseFloat(rawPrice) : NaN;
+    const priceStr = !isNaN(price) && price > 0 ? '$' + price.toFixed(2) : 'Price N/A';
 
     return `<div class="stl-card"
       data-sku="${_esc(sku)}"
       data-name="${_esc(name)}"
-      data-price="${price ?? 0}">
+      data-price="${!isNaN(price) ? price : 0}">
       <div class="stl-card-body">
         <div class="stl-card-sku">${_esc(sku) || '—'}</div>
         <div class="stl-card-name">${_esc(name)}</div>
