@@ -105,8 +105,9 @@ window.StullerSearch = (() => {
         el.innerHTML = `<div class="stl-error">${_esc(data.error || 'SKU not found')} (HTTP ${resp.status})</div>`;
         return;
       }
-      const p = Array.isArray(data) ? data[0] : data;
-      if (!p) { el.innerHTML = '<div class="stl-error">No product found for that SKU.</div>'; return; }
+      const products = data.Products || data.products || (Array.isArray(data) ? data : (data ? [data] : []));
+      const p = products[0];
+      if (!p) { el.innerHTML = '<div class="stl-error">No product found for that SKU. Check the item number and try again.</div>'; return; }
       el.innerHTML = '<div class="stl-cards">' + _card(p) + '</div>';
     } catch (err) {
       el.innerHTML = `<div class="stl-error">Network error: ${_esc(err.message)}</div>`;
