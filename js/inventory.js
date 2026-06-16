@@ -224,10 +224,14 @@ async function _invLoadSub(sub) {
     let items = (searchRes.items || []).filter(o => !o.is_deleted);
     console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
 
-    // Fallback: if no items found via hardcoded IDs, try finding the category by name
-    if (!items.length && INV_CAT_NAME_HINTS[sub]) {
+    // Merge items from any name-matched categories (e.g. "Earrings (Seamless Hoops)")
+    // so items spread across multiple Square categories all appear together
+    if (INV_CAT_NAME_HINTS[sub]) {
       const fallback = await _invFallbackCatSearch(sub);
-      if (fallback.length) items = fallback;
+      if (fallback.length) {
+        const existingIds = new Set(items.map(i => i.id));
+        fallback.filter(i => !existingIds.has(i.id)).forEach(i => items.push(i));
+      }
     }
 
     // Fetch any individually-pinned items (type:'item' entries from the manager)
