@@ -481,13 +481,17 @@ function notesDrop(event, targetKey) {
 }
 
 // ════════════════════════════════════════════
-//  RESTOCK QUEUE  —  priority + assignee view
+//  RESTOCK QUEUE  —  priority + assignee + inline timer
 //  Order + assignees stored in /api/restock-meta
 // ════════════════════════════════════════════
 
-var _rqMeta = { order: [], assignees: {} };  // { order: [pageId,...], assignees: { pageId: person } }
+var _rqMeta       = { order: [], assignees: {} };
 var _rqMetaLoaded = false;
-var _rqExpanded = false;
+var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, notes, tickInterval } }
+var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
+var _rqSessionsLoaded = false;
+
+// ── Meta persistence ──────────────────────────────────────────────────────────
 
 function _rqLoadMeta(cb) {
   fetch('/api/restock-meta')
@@ -495,6 +499,8 @@ function _rqLoadMeta(cb) {
     .then(function(d) {
       _rqMeta = { order: d.order || [], assignees: d.assignees || {} };
       _rqMetaLoaded = true;
+      _rqRestoreTimers();
+      if (!_rqSessionsLoaded) rqLoadSessions();
       if (cb) cb();
     })
     .catch(function() { _rqMetaLoaded = true; if (cb) cb(); });
@@ -507,6 +513,8 @@ function _rqSaveMeta() {
     body: JSON.stringify(_rqMeta),
   }).catch(function() { toast('Failed to save queue state', '⚠'); });
 }
+
+// ── Sorted items ──────────────────────────────────────────────────────────────
 
 function _rqSortedItems() {
   var items = itemsFor('restock').slice();
@@ -532,6 +540,63 @@ function _rqPatch(pageId, fields) {
   }).catch(function() { toast('Failed to save', '⚠'); });
 }
 
+// ── Timer helpers ─────────────────────────────────────────────────────────────
+
+function _rqFmtElapsed(ms) {
+  var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
+  return h > 0 ? h + 'h ' + (m % 60) + 'm' : m + 'm';
+}
+
+function _rqFmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function _rqSaveTimerState() {
+  var state = {};
+  Object.keys(_rqTimers).forEach(function(pid) {
+    var t = _rqTimers[pid];
+    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText };
+  });
+  localStorage.setItem('sts_rqTimers', JSON.stringify(state));
+}
+
+function _rqRestoreTimers() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('sts_rqTimers') || '{}');
+    Object.keys(saved).forEach(function(pid) {
+      var s = saved[pid];
+      if (_rqTimers[pid]) return; // already active
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, notes: '', tickInterval: null };
+      _rqStartTick(pid);
+    });
+  } catch(e) {}
+}
+
+function _rqStartTick(pid) {
+  var t = _rqTimers[pid];
+  if (!t) return;
+  clearInterval(t.tickInterval);
+  t.tickInterval = setInterval(function() {
+    var el = document.getElementById('rq-elapsed-' + pid);
+    if (el) el.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+  }, 30000);
+}
+
+function _rqRestartTicks() {
+  Object.keys(_rqTimers).forEach(function(pid) {
+    var t = _rqTimers[pid];
+    clearInterval(t.tickInterval);
+    var el = document.getElementById('rq-elapsed-' + pid);
+    if (el) el.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+    t.tickInterval = setInterval(function() {
+      var elInner = document.getElementById('rq-elapsed-' + pid);
+      if (elInner) elInner.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+    }, 30000);
+  });
+}
+
+// ── Queue render ──────────────────────────────────────────────────────────────
+
 function restockQueueRender() {
   var list  = document.getElementById('restock-queue-list');
   var empty = document.getElementById('restock-queue-empty');
@@ -555,17 +620,26 @@ function restockQueueRender() {
   list.style.display = 'flex';
 
   var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
-  var SHOW_LIMIT = 6;
-  var visibleItems = _rqExpanded ? items : items.slice(0, SHOW_LIMIT);
 
-  list.innerHTML = visibleItems.map(function(item, idx) {
-    var assignee = (item.notionPageId && _rqMeta.assignees[item.notionPageId]) || '';
-    var cls = assignee ? ' rq-' + assignee.toLowerCase() : '';
-    var textCls = item.done ? ' rq-done' : '';
+  list.innerHTML = items.map(function(item, idx) {
+    var pid      = item.notionPageId || '';
+    var assignee = (pid && _rqMeta.assignees[pid]) || '';
+    var timer    = pid ? _rqTimers[pid] : null;
+    var isRunning = !!timer;
+    var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
+    var itemCls  = isRunning ? ' rq-active' : '';
+    var textCls  = item.done ? ' rq-done' : '';
     var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
-    var isFirst = idx === 0;
-    var isLast  = idx === items.length - 1;
-    return '<div class="rq-item" id="rq-item-' + idx + '">'
+    var safePid  = pid.replace(/'/g, '');
+    var isFirst  = idx === 0;
+    var isLast   = idx === items.length - 1;
+
+    // ⏱ button state
+    var startDisabled = !pid || !assignee || isRunning;
+    var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
+    var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
+
+    var mainRow = '<div class="rq-item-row">'
       + '<span class="rq-arrows">'
       + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
       + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
@@ -575,45 +649,206 @@ function restockQueueRender() {
       + ' onblur="rqSaveText(this,' + idx + ')"'
       + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
       + '>' + safeText + '</span>'
-      + '<button class="rq-start-btn" onclick="rqStartTimer(\'' + safeText.replace(/'/g, "\\'") + '\',' + idx + ')" title="Start timer for this item">⏱</button>'
-      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
+      + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
           return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
         }).join('')
       + '</select>'
+      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
       + '</div>';
+
+    var timerPanel = '';
+    if (isRunning) {
+      var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
+      var startLbl = _rqFmtTime(timer.startTime);
+      timerPanel = '<div class="rq-timer-panel">'
+        + '<div class="rq-timer-running-row">'
+        + '<span class="rq-timer-dot"></span>'
+        + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
+        + '<span class="rq-timer-meta">started ' + startLbl + '</span>'
+        + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+        + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
+        + '</div>'
+        + '<div class="rq-timer-notes-row">'
+        + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
+        + '</div>'
+        + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
+        + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
+        + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
+        + '</div>'
+        + '</div>';
+    }
+
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + '</div>';
   }).join('');
 
-  if (items.length > SHOW_LIMIT) {
-    var hidden = items.length - SHOW_LIMIT;
-    list.innerHTML += '<div id="rq-show-more" style="padding:6px 0 2px;text-align:center;">'
-      + '<button onclick="_rqExpanded=!_rqExpanded;restockQueueRender()" style="background:none;border:1px solid #B0CDE0;border-radius:6px;color:#2E5C78;font-size:11px;font-weight:600;letter-spacing:0.08em;padding:4px 14px;cursor:pointer;">'
-      + (_rqExpanded ? 'Show less ▲' : 'Show ' + hidden + ' more ▼')
-      + '</button></div>';
+  _rqRestartTicks();
+}
+
+// ── Timer start / stop ────────────────────────────────────────────────────────
+
+function rqStartTimer(pid, itemText, assigneeName) {
+  if (!pid || !assigneeName) { toast('Assign first', '⚠'); return; }
+  if (_rqTimers[pid]) return;
+  var startTime = Date.now();
+  _rqTimers[pid] = { startTime: startTime, employee: { name: assigneeName, id: '' }, sessionNotionPageId: null, itemText: itemText, notes: '', tickInterval: null };
+  _rqSaveTimerState();
+  fetch('/api/notion-timesession', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemName: itemText, employeeName: assigneeName, date: new Date(startTime).toISOString().slice(0, 10), startTime: new Date(startTime).toISOString(), notes: '' }),
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.notionPageId && _rqTimers[pid]) {
+      _rqTimers[pid].sessionNotionPageId = d.notionPageId;
+      _rqSaveTimerState();
+    }
+  }).catch(function() {});
+  restockQueueRender();
+}
+
+function rqStopTimer(pid) {
+  var t = _rqTimers[pid];
+  if (!t) return;
+  var stopBtn = document.getElementById('rq-stop-' + pid);
+  if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = 'Saving…'; }
+  clearInterval(t.tickInterval);
+  var stopTime = new Date().toISOString();
+  var totalMs  = Date.now() - t.startTime;
+  var totalMin = parseFloat((totalMs / 60000).toFixed(2));
+  var netMin   = Math.max(0, totalMin - 15);
+  // Capture notes before clearing state
+  var notesEl  = document.getElementById('rq-notes-' + pid);
+  var notes    = notesEl ? notesEl.value.trim() : (t.notes || '');
+  var session  = {
+    notionPageId: t.sessionNotionPageId,
+    items: [{ name: t.itemText }],
+    employee: t.employee,
+    startTime: new Date(t.startTime).toISOString(),
+    stopTime: stopTime,
+    totalMs: totalMs,
+    netMs: netMin * 60000,
+    notes: notes,
+    saved: false,
+    error: null,
+  };
+  delete _rqTimers[pid];
+  _rqSaveTimerState();
+  _rqSessions.unshift(session);
+  rqRenderSessions();
+  restockQueueRender();
+  if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
+  fetch('/api/notion-timesession', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes }),
+  }).then(function(r) {
+    session.saved = r.ok;
+    session.error = r.ok ? null : 'Notion error';
+    rqRenderSessions();
+    if (r.ok) toast('Session saved ✓', '✓');
+    else toast('Notion save failed', '⚠');
+  }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
+}
+
+function rqToggleTimerNotes(pid) {
+  var el = document.getElementById('rq-notesarea-' + pid);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
+}
+
+function rqSaveTimerNote(pid) {
+  var t = _rqTimers[pid]; if (!t) return;
+  var notesEl = document.getElementById('rq-notes-' + pid);
+  var notes = notesEl ? notesEl.value.trim() : '';
+  t.notes = notes;
+  if (t.sessionNotionPageId) {
+    fetch('/api/notion-timesession', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId: t.sessionNotionPageId, notes: notes }),
+    }).then(function(r) { if (r.ok) toast('Note saved ✓', '✓'); }).catch(function() {});
   }
 }
 
-var _rqActiveIdx = null;
+// ── Session log ───────────────────────────────────────────────────────────────
 
-function rqStartTimer(itemText, idx) {
-  _rqActiveIdx = idx;
-  document.querySelectorAll('.rq-item').forEach(function(el) { el.classList.remove('rq-active'); });
-  var el = document.getElementById('rq-item-' + idx);
-  if (el) el.classList.add('rq-active');
-
-  var iframe = document.getElementById('timer-iframe');
-  if (!iframe) return;
-  var msg = { type: 'sts-preselect', query: itemText };
-  if (!iframe.getAttribute('src')) {
-    iframe.src = 'time-tracker.html';
-    iframe.addEventListener('load', function() {
-      iframe.contentWindow.postMessage(msg, '*');
-    }, { once: true });
-  } else {
-    iframe.contentWindow.postMessage(msg, '*');
-  }
+function rqLoadSessions() {
+  fetch('/api/notion-timesession')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(ns) {
+      if (!Array.isArray(ns) || !ns.length) { _rqSessionsLoaded = true; return; }
+      _rqSessions = ns
+        .filter(function(s) { return s.netMin != null; })
+        .map(function(s) {
+          return {
+            notionPageId: s.notionPageId,
+            items: [{ name: s.itemName || '' }],
+            employee: { name: s.employeeName || '', id: '' },
+            startTime: s.startTime || null,
+            stopTime:  s.stopTime  || null,
+            totalMs:   (s.totalMin || 0) * 60000,
+            netMs:     (s.netMin   || 0) * 60000,
+            notes:     s.notes || '',
+            saved: true, error: null,
+          };
+        });
+      _rqSessionsLoaded = true;
+      rqRenderSessions();
+    })
+    .catch(function() { _rqSessionsLoaded = true; });
 }
+
+function _rqFmtDur(ms) {
+  var m = Math.round(ms / 60000), h = Math.floor(m / 60);
+  return h > 0 ? h + 'h ' + (m % 60) + 'm' : m + 'm';
+}
+
+function _rqFmtDT(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function rqRenderSessions() {
+  var list = document.getElementById('rq-log-list');
+  if (!list) return;
+  if (!_rqSessions.length) {
+    list.innerHTML = '<div class="rq-log-empty">No sessions recorded yet</div>';
+    return;
+  }
+  list.innerHTML = _rqSessions.map(function(s, i) {
+    var name   = (s.items && s.items[0] && s.items[0].name) || '—';
+    var emp    = s.employee ? s.employee.name : '';
+    var meta   = [emp, s.startTime ? _rqFmtDT(s.startTime) : null].filter(Boolean).join(' · ');
+    var status = s.error
+      ? '<span class="rq-sbar-err">⚠ ' + s.error + '</span>'
+      : s.saved ? '<span class="rq-sbar-saved">✓ Saved</span>' : '<span style="color:var(--text-dim)">Saving…</span>';
+    return '<div class="rq-session-bar">'
+      + '<div class="rq-sbar-name">' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>'
+      + (meta ? '<div class="rq-sbar-meta">' + meta + '</div>' : '')
+      + '<div class="rq-sbar-footer">'
+      + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
+      + (s.notes ? '<span style="color:var(--text3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + s.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '')
+      + status
+      + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ')" title="Delete">✕</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function rqDeleteSession(i) {
+  var s = _rqSessions[i]; if (!s) return;
+  var name = (s.items && s.items[0] && s.items[0].name) || '?';
+  if (!confirm('Delete this session?\n' + name + ' — ' + (s.employee ? s.employee.name : ''))) return;
+  if (s.notionPageId) {
+    fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' }).catch(function() {});
+  }
+  _rqSessions.splice(i, 1);
+  rqRenderSessions();
+}
+
+// ── Queue mutations ───────────────────────────────────────────────────────────
 
 function rqMove(idx, dir) {
   var items = _rqSortedItems();
