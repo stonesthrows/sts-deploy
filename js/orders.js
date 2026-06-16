@@ -3,6 +3,15 @@
 //  Kanban board, new order form, estimate builder, drag-drop, camera
 // ════════════════════════════════════════════
 
+function fmtPhoneInput(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 10);
+  let out = '';
+  if (digits.length > 6)      out = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+  else if (digits.length > 3) out = '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+  else if (digits.length)     out = '(' + digits;
+  el.value = out;
+}
+
 // ════════════════════════════════════════════
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
