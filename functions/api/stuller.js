@@ -5,10 +5,9 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const sku = url.searchParams.get('sku');
   if (!sku) return jsonResponse({ error: 'Missing ?sku= parameter' }, 400);
-  return proxyToStuller(
-    `https://api.stuller.com/v2/products/${encodeURIComponent(sku)}`,
-    'GET', null, context.env
-  );
+  // Use POST /v2/products with Skus filter — the GET single-SKU endpoint format is undocumented
+  const body = JSON.stringify({ Include: ['All'], Skus: [sku], Filter: ['Orderable'] });
+  return proxyToStuller('https://api.stuller.com/v2/products', 'POST', body, context.env);
 }
 
 export async function onRequestPost(context) {
