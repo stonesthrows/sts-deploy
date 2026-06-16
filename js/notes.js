@@ -666,12 +666,17 @@ function restockQueueRender() {
         + '<div class="rq-timer-running-row">'
         + '<span class="rq-timer-dot"></span>'
         + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
-        + '<span class="rq-timer-meta">started ' + startLbl + '</span>'
+        + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
-        + '<div class="rq-timer-notes-row">'
+        + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
         + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
+        + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
+        + '</div>'
+        + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
+        + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
+        + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
         + '</div>'
         + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
         + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
@@ -769,6 +774,55 @@ function rqSaveTimerNote(pid) {
       body: JSON.stringify({ pageId: t.sessionNotionPageId, notes: notes }),
     }).then(function(r) { if (r.ok) toast('Note saved ✓', '✓'); }).catch(function() {});
   }
+}
+
+function _rqToDateTimeLocal(ms) {
+  var d = new Date(ms);
+  var p = function(n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+    + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function rqToggleAdjustStart(pid) {
+  var panel = document.getElementById('rq-adjust-' + pid);
+  if (!panel) return;
+  var opening = panel.style.display !== 'flex';
+  if (opening) {
+    var input = document.getElementById('rq-adjust-input-' + pid);
+    var t = _rqTimers[pid];
+    if (input && t) input.value = _rqToDateTimeLocal(t.startTime);
+    panel.style.display = 'flex';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function rqApplyAdjustStart(pid) {
+  var input = document.getElementById('rq-adjust-input-' + pid);
+  if (!input || !input.value) return;
+  var d = new Date(input.value);
+  if (isNaN(d.getTime()) || d.getTime() > Date.now()) {
+    toast('Invalid time — cannot be in the future', '⚠');
+    return;
+  }
+  var t = _rqTimers[pid];
+  if (!t) return;
+  t.startTime = d.getTime();
+  _rqSaveTimerState();
+  if (t.sessionNotionPageId) {
+    fetch('/api/notion-timesession', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId: t.sessionNotionPageId, startTime: new Date(t.startTime).toISOString() }),
+    }).catch(function() {});
+  }
+  var panel = document.getElementById('rq-adjust-' + pid);
+  if (panel) panel.style.display = 'none';
+  var startEl = document.getElementById('rq-startlbl-' + pid);
+  if (startEl) startEl.textContent = _rqFmtTime(t.startTime);
+  var elapsedEl = document.getElementById('rq-elapsed-' + pid);
+  if (elapsedEl) elapsedEl.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+  toast('Start time updated', '✓');
 }
 
 // ── Session log ───────────────────────────────────────────────────────────────

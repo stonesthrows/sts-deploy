@@ -2252,6 +2252,21 @@
       background: none; border: none; font-family: inherit; padding: 0;
     }
     .rq-timer-notes-toggle:hover { color: var(--accent); }
+    .rq-adjust-link {
+      font-size: 10px; color: var(--text3); cursor: pointer; background: none;
+      border: none; font-family: inherit; padding: 0; letter-spacing: 0.05em;
+      text-decoration: underline; text-underline-offset: 2px; transition: color 0.15s;
+    }
+    .rq-adjust-link:hover { color: var(--accent); }
+    .rq-adjust-panel {
+      display: none; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;
+    }
+    .rq-adjust-input {
+      background: #fff; border: 1px solid var(--bdr); border-radius: 6px;
+      color: var(--text); font-size: 12px; padding: 4px 7px; outline: none;
+      transition: border-color 0.2s; font-family: inherit;
+    }
+    .rq-adjust-input:focus { border-color: var(--accent); }
     .rq-timer-notes-wrap { display: none; }
     .rq-timer-notes-area {
       width: 100%; background: #fff; border: 1px solid var(--bdr); border-radius: 8px;
@@ -3430,6 +3445,9 @@
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
     <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
 
+    <div class="sb-section">Intake</div>
+    <div class="sb-item" data-sb="shopify-intake" onclick="sbNav('intake','shopify-intake',this)">🛍️ Shopify Intake</div>
+
     <div class="sb-section">More</div>
     <div class="sb-item" data-sb="triplog" onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
     <div class="sb-item" data-sb="notes"   onclick="sbNavDirect('notes',this)">📝 Notes</div>
@@ -3478,6 +3496,9 @@
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
     📊 More
   </div>
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="intake" onclick="switchParent('intake',this)">
+    🛍️ Intake
+  </div>
 </div>
 
 <!-- Sub-nav (Orders) -->
@@ -3516,6 +3537,13 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="order-history" onclick="switchSubTab('order-history',this)">
     📋 Order History
+  </div>
+</div>
+
+<!-- Sub-nav (Intake) -->
+<div class="sub-nav" id="sub-nav-intake" role="tablist" aria-label="Intake">
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="shopify-intake" onclick="switchSubTab('shopify-intake',this)">
+    🛍️ Shopify Intake
   </div>
 </div>
 
