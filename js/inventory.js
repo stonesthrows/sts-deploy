@@ -83,6 +83,39 @@ async function _sqFetch(path, opts = {}) {
   return json;
 }
 
+// ── Hidden items (deprecated from webapp, not Square) ────
+
+function _invGetHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem('sts-inv-hidden') || '[]')); } catch { return new Set(); }
+}
+
+function invHideItem(itemId, itemName, sub) {
+  if (!confirm(`Remove "${itemName}" from the webapp?\n\nThis won't affect Square — you can restore it anytime via ⚙ Manage Items.`)) return;
+
+  const hidden = _invGetHidden();
+  hidden.add(itemId);
+  localStorage.setItem('sts-inv-hidden', JSON.stringify([...hidden]));
+
+  // Remove from inv-manager extras if individually assigned there
+  try {
+    const extra = JSON.parse(localStorage.getItem('sts-inv-extra') || '{}');
+    let changed = false;
+    Object.keys(extra).forEach(key => {
+      const before = extra[key].length;
+      extra[key] = extra[key].filter(e => e.squareId !== itemId);
+      if (extra[key].length !== before) changed = true;
+    });
+    if (changed) localStorage.setItem('sts-inv-extra', JSON.stringify(extra));
+  } catch {}
+
+  // Remove from cached data and re-render immediately
+  if (_invData[sub]) {
+    _invData[sub].items = _invData[sub].items.filter(i => i.id !== itemId);
+    _invRenderSub(sub);
+    _invUpdateCountLabel();
+  }
+}
+
 // ── Extra items from Inventory Manager ───────
 
 function _invGetExtraEntries(sub) {
@@ -199,18 +232,28 @@ function _invRenderSub(sub) {
 
   const excludes = (INV_RING_EXCLUDE[sub] || []).map(s => s.toLowerCase());
   const includes = (INV_RING_INCLUDE[sub] || []).map(s => s.toLowerCase());
+  const hidden   = _invGetHidden();
 
   let html = '';
   items.forEach(item => {
     const name = item.item_data?.name || 'Unnamed';
     const nameLower = name.toLowerCase();
+    if (hidden.has(item.id)) return;
     if (q && !nameLower.includes(q)) return;
     if (excludes.some(ex => nameLower.includes(ex))) return;
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
+    const nameSafe = _esc(name).replace(/'/g, '&#39;');
     const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted);
     html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
-      <div class="inv-card-head">${_esc(name)}</div>`;
+      <div class="inv-card-head" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>${_esc(name)}</span>
+        <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
+          title="Remove from webapp (won't affect Square)"
+          style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
+          onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
+          onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
+      </div>`;
 
     vars.forEach(v => {
       const varName = v.item_variation_data?.name || '';

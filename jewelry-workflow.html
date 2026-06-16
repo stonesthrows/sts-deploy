@@ -3570,11 +3570,11 @@
   <div class="new-order-cols">
     <div class="form-card">
       <div class="form-head">
-        <div class="form-head-title">Order Intake</div>
-        <div class="form-head-sub">Submitting creates a ClickUp task + Notion record automatically.</div>
+        <div class="form-head-title" id="order-form-title">Order Intake</div>
+        <div class="form-head-sub" id="order-form-sub">Submitting creates a ClickUp task + Notion record automatically.</div>
       </div>
       <div class="form-body">
-        <div style="margin-bottom:20px;">
+        <div style="margin-bottom:20px;" id="order-type-section">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Order Type</div>
           <div class="order-type-toggle">
             <button class="ot-option selected" id="ot-order" onclick="setOrderType('order')">
@@ -3590,6 +3590,30 @@
           <div class="ot-hint" id="ot-hint">Will be placed in the <strong>Inquiry</strong> column.</div>
         </div>
         <div class="form-grid">
+          <input type="hidden" id="f-editing-id">
+          <div class="fg full" id="f-stage-row" style="display:none;">
+            <label>Stage</label>
+            <select id="f-stage">
+              <option value="intake-custom">Custom Intake</option>
+              <option value="intake-repair">Repair Intake</option>
+              <option value="needs-est">Estimate Intake</option>
+              <option value="sketch-needs">Needs Sketch</option>
+              <option value="sketch-wait">Waiting on Sketch Approval</option>
+              <option value="sketch">Sketch Approved</option>
+              <option value="quote">Estimate Sent</option>
+              <option value="est-appr">Estimate Approved</option>
+              <option value="deposit-wait">Waiting on Deposit</option>
+              <option value="deposit-paid">Deposit Paid</option>
+              <option value="order-mat">Order Materials</option>
+              <option value="materials">Waiting on Materials</option>
+              <option value="build">At the Bench</option>
+              <option value="needs-invoice">Needs Invoice / Final Payment</option>
+              <option value="contact-need">Need to Contact Customer</option>
+              <option value="contact-done">Contacted Customer</option>
+              <option value="ready-pick">Ready for Pickup</option>
+              <option value="complete">Completed</option>
+            </select>
+          </div>
           <div class="fg">
             <label>Customer Name *</label>
             <input type="text" id="f-name" placeholder="e.g. Sarah Johnson">
@@ -3684,14 +3708,39 @@
             <label>Internal Notes</label>
             <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:60px;"></textarea>
           </div>
+          <div class="fg" id="f-paid-by-row" style="display:none;">
+            <label>Paid By</label>
+            <select id="f-paid-by">
+              <option value="">— Select —</option>
+              <option value="Square">Square</option>
+              <option value="Venmo">Venmo</option>
+              <option value="Cash">Cash</option>
+              <option value="Check">Check</option>
+              <option value="Zelle">Zelle</option>
+              <option value="PayPal">PayPal</option>
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Sketch Notes</label>
+            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
+          </div>
         </div>
       </div>
       <div class="form-foot">
-        <button class="btn btn-gold" onclick="submitOrder()">✓ Create Order</button>
-        <button class="btn btn-outline" onclick="openGmailPanel()">✉ Pull from Gmail</button>
+        <button class="btn btn-gold" id="order-form-submit" onclick="submitOrder()">✓ Create Order</button>
+        <button class="btn btn-outline" id="order-form-gmail-btn" onclick="openGmailPanel()">✉ Pull from Gmail</button>
         <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
-        <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in ClickUp <strong>Custom Orders</strong> + Notion</span>
+        <button class="btn btn-ghost" id="order-form-back-btn" style="display:none;" onclick="closeEditOrderModal()">← Back</button>
+        <span id="order-form-foot-note" style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in ClickUp <strong>Custom Orders</strong> + Notion</span>
       </div>
+      <div id="order-edit-actions" style="display:none;flex-direction:row;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid rgba(0,0,0,.1);background:rgba(0,0,0,.04);">
+        <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
+        <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
+        <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
+      </div>
+      <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.05);"></div>
     </div>
 
   <!-- Estimate Builder Card -->
@@ -5594,217 +5643,8 @@ function savePrintSetup() {
   </div>
 </div>
 
-<div id="editOrderModalBg" class="eo-bg" onclick="if(event.target===this)closeEditOrderModal()">
-  <div class="eo-modal">
-
-    <div class="eo-head">
-      <div class="eo-head-title">✏️ Edit Order</div>
-      <button class="eo-close" onclick="closeEditOrderModal()">×</button>
-    </div>
-
-    <div class="eo-body">
-      <input type="hidden" id="eo-id">
-
-      <div class="eo-grid">
-        <div class="eo-field full">
-          <label>Customer Name</label>
-          <input type="text" id="eo-name" placeholder="Full name">
-        </div>
-        <div class="eo-field">
-          <label>Email</label>
-          <input type="email" id="eo-email" placeholder="customer@email.com">
-        </div>
-        <div class="eo-field">
-          <label>Phone</label>
-          <input type="tel" id="eo-phone" placeholder="(512) 555-0000">
-        </div>
-        <div id="eo-shipping-wrap" style="display:contents">
-          <div class="eo-field full" style="display:none" data-addr>
-            <label>Street Address</label>
-            <input type="text" id="eo-addr-street" placeholder="142 Palm Avenue">
-          </div>
-          <div class="eo-field full" style="display:none" data-addr>
-            <label>Address Line 2</label>
-            <input type="text" id="eo-addr-street2" placeholder="Apt, Suite, Unit (optional)">
-          </div>
-          <div class="eo-field" style="display:none" data-addr>
-            <label>City</label>
-            <input type="text" id="eo-addr-city" placeholder="Tampa">
-          </div>
-          <div class="eo-field" style="display:none" data-addr>
-            <label>State / Province</label>
-            <input type="text" id="eo-addr-state" placeholder="FL">
-          </div>
-          <div class="eo-field" style="display:none" data-addr>
-            <label>Postal / Zip Code</label>
-            <input type="text" id="eo-addr-zip" placeholder="33619">
-          </div>
-          <div class="eo-field" style="display:none" data-addr>
-            <label>Country</label>
-            <input type="text" id="eo-addr-country" placeholder="United States">
-          </div>
-        </div>
-        <div class="eo-field full">
-          <label>Order Description</label>
-          <textarea id="eo-desc" rows="3" placeholder="Describe the piece…"></textarea>
-        </div>
-        <div class="eo-field">
-          <label>Stage</label>
-          <select id="eo-stage">
-            <option value="intake-custom">Custom Intake</option>
-            <option value="intake-repair">Repair Intake</option>
-            <option value="needs-est">Estimate Intake</option>
-            <option value="sketch-needs">Needs Sketch</option>
-            <option value="sketch-wait">Waiting on Sketch Approval</option>
-            <option value="sketch">Sketch Approved</option>
-            <option value="quote">Estimate Sent</option>
-            <option value="est-appr">Estimate Approved</option>
-            <option value="deposit-wait">Waiting on Deposit</option>
-            <option value="deposit-paid">Deposit Paid</option>
-            <option value="order-mat">Order Materials</option>
-            <option value="materials">Waiting on Materials</option>
-            <option value="build">At the Bench</option>
-            <option value="needs-invoice">Needs Invoice / Final Payment</option>
-            <option value="contact-need">Need to Contact Customer</option>
-            <option value="contact-done">Contacted Customer</option>
-            <option value="ready-pick">Ready for Pickup</option>
-            <option value="complete">Completed</option>
-          </select>
-        </div>
-        <div class="eo-field">
-          <label>Pickup Location</label>
-          <select id="eo-pickup" onchange="toggleEditShippingAddress()">
-            <option value="">— Select location —</option>
-            <option value="Bell Market">Bell Market</option>
-            <option value="Mueller Market">Mueller Market</option>
-            <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
-            <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
-            <option value="Austin Flea">Austin Flea</option>
-            <option value="Studio">Studio</option>
-            <option value="To be Shipped">📦 To be Shipped</option>
-          </select>
-        </div>
-        <div class="eo-field">
-          <label>Quoted Price ($)</label>
-          <input type="number" id="eo-price" placeholder="0.00" step="0.01" min="0">
-        </div>
-        <div class="eo-field">
-          <label>Deadline</label>
-          <input type="date" id="eo-deadline">
-        </div>
-        <div class="eo-field">
-          <label>Contacted Via</label>
-          <select id="eo-source">
-            <option value="">— Select source —</option>
-            <option value="Email">Email</option>
-            <option value="Farmer's Market">Farmer's Market</option>
-            <option value="Shopify Email">Shopify Email</option>
-            <option value="Etsy Message">Etsy Message</option>
-            <option value="Instagram Message">Instagram Message</option>
-            <option value="Text Message">Text Message</option>
-            <option value="Facebook Message">Facebook Message</option>
-          </select>
-        </div>
-        <div class="eo-field">
-          <label>Paid By</label>
-          <select id="eo-paid-by">
-            <option value="">— Select —</option>
-            <option value="Square">Square</option>
-            <option value="Venmo">Venmo</option>
-            <option value="Cash">Cash</option>
-            <option value="Check">Check</option>
-            <option value="Zelle">Zelle</option>
-            <option value="PayPal">PayPal</option>
-          </select>
-        </div>
-        <div class="eo-field">
-          <label>Materials / Metal</label>
-          <input type="text" id="eo-materials" placeholder="e.g. 14k yellow gold">
-        </div>
-        <div class="eo-field">
-          <label>Ring Size</label>
-          <input type="text" id="eo-ring-size" placeholder="e.g. 6.5">
-        </div>
-        <div class="eo-field full">
-          <label>Internal Notes</label>
-          <textarea id="eo-notes" rows="2" placeholder="Sizing, preferences, referral source…"></textarea>
-        </div>
-        <div class="eo-field full">
-          <label>Sketch Notes</label>
-          <textarea id="eo-sketch" rows="2" placeholder="Sketch description or approval notes…"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.1);"></div>
-
-    <div class="eo-foot">
-      <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
-      <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
-      <div style="flex:1"></div>
-      <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
-      <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
-      <button class="btn btn-outline btn-sm" onclick="closeEditOrderModal()">Close</button>
-      <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">Save Changes</button>
-    </div>
-
-  </div>
-</div>
 
 <style>
-/* ── Edit Order Modal ── */
-.eo-bg {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.5); z-index: 800;
-  align-items: center; justify-content: center;
-}
-.eo-bg.open { display: flex; }
-.eo-modal {
-  background: #4a7a96; border: 1px solid #3d6880;
-  border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
-  width: min(620px, 96vw); max-height: 90vh;
-  display: flex; flex-direction: column;
-}
-.eo-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(0,0,0,.15);
-  background: #3d6880;
-  border-radius: 16px 16px 0 0;
-}
-.eo-head-title { font-size: 15px; font-weight: 700; color: #fff; }
-.eo-close {
-  background: none; border: none; font-size: 22px; line-height: 1;
-  color: rgba(255,255,255,.7); cursor: pointer;
-}
-.eo-close:hover { color: #fff; }
-.eo-body { overflow-y: auto; padding: 18px 20px; flex: 1; }
-.eo-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-}
-.eo-field { display: flex; flex-direction: column; gap: 4px; }
-.eo-field.full { grid-column: 1 / -1; }
-.eo-field label {
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.3px; color: rgba(255,255,255,.85);
-}
-.eo-field input, .eo-field select, .eo-field textarea {
-  padding: 8px 10px; border: 1px solid rgba(0,0,0,.15); border-radius: 8px;
-  font-size: 13px; background: #f5f4f0; color: #1a1a1a;
-  font-family: inherit; transition: border-color .15s;
-}
-.eo-field input:focus, .eo-field select:focus, .eo-field textarea:focus {
-  outline: none; border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.25);
-}
-.eo-field textarea { resize: vertical; }
-.eo-foot {
-  display: flex; align-items: center; gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid rgba(0,0,0,.15);
-  background: #3d6880;
-  border-radius: 0 0 16px 16px;
-}
-
 /* ── Print Setup modal ── */
 .ps-bg {
   display: none; position: fixed; inset: 0;

@@ -210,49 +210,57 @@ function openOrderCard(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
 
-  document.getElementById('eo-id').value        = o.id;
-  document.getElementById('eo-name').value      = o.name       || '';
-  document.getElementById('eo-desc').value      = o.desc       || '';
-  document.getElementById('eo-stage').value     = o.stage      || 'intake-custom';
-  document.getElementById('eo-price').value     = o.price      || '';
-  document.getElementById('eo-deadline').value  = o.deadline   || '';
-  document.getElementById('eo-pickup').value    = o.pickup     || '';
-  document.getElementById('eo-email').value     = o.email      || '';
-  document.getElementById('eo-phone').value     = o.phone      || '';
-  document.getElementById('eo-source').value     = o.contactSource || '';
-  document.getElementById('eo-materials').value  = o.materials     || '';
-  document.getElementById('eo-ring-size').value  = o.ringSize      || '';
-  document.getElementById('eo-paid-by').value    = o.paidBy        || '';
-  document.getElementById('eo-notes').value      = o.notes         || '';
-  document.getElementById('eo-sketch').value     = o.sketchDesc    || '';
+  document.getElementById('f-editing-id').value  = o.id;
+  document.getElementById('f-name').value         = o.name          || '';
+  document.getElementById('f-description').value  = o.desc          || '';
+  document.getElementById('f-stage').value         = o.stage         || 'intake-custom';
+  document.getElementById('f-price').value         = o.price         || '';
+  document.getElementById('f-deposit').value       = o.deposit       || '';
+  document.getElementById('f-deadline').value      = o.deadline      || '';
+  document.getElementById('f-takein').value        = o.takeIn        || '';
+  document.getElementById('f-pickup').value        = o.pickup        || '';
+  document.getElementById('f-email').value         = o.email         || '';
+  document.getElementById('f-phone').value         = o.phone         || '';
+  document.getElementById('f-source').value        = o.contactSource || '';
+  document.getElementById('f-materials').value     = o.materials     || '';
+  document.getElementById('f-ring-size').value     = o.ringSize      || '';
+  document.getElementById('f-paid-by').value       = o.paidBy        || '';
+  document.getElementById('f-notes').value         = o.notes         || '';
+  document.getElementById('f-sketch').value        = o.sketchDesc    || '';
   const sa = o.shippingAddress || {};
-  document.getElementById('eo-addr-street').value  = sa.street  || o.address || '';
-  document.getElementById('eo-addr-street2').value = sa.street2 || '';
-  document.getElementById('eo-addr-city').value    = sa.city    || '';
-  document.getElementById('eo-addr-state').value   = sa.state   || '';
-  document.getElementById('eo-addr-zip').value     = sa.zip     || '';
-  document.getElementById('eo-addr-country').value = sa.country || 'United States';
-  toggleEditShippingAddress();
+  document.getElementById('f-addr-street').value   = sa.street  || o.address || '';
+  document.getElementById('f-addr-street2').value  = sa.street2 || '';
+  document.getElementById('f-addr-city').value     = sa.city    || '';
+  document.getElementById('f-addr-state').value    = sa.state   || '';
+  document.getElementById('f-addr-zip').value      = sa.zip     || '';
+  document.getElementById('f-addr-country').value  = sa.country || 'United States';
+  toggleShippingAddress();
 
-  document.getElementById('editOrderModalBg').classList.add('open');
+  _setOrderFormEditMode(true, o.name);
+  switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'));
 }
 
-function toggleEditShippingAddress() {
-  const pickup = document.getElementById('eo-pickup').value;
-  const show   = pickup === 'To be Shipped';
-  const wrap   = document.getElementById('eo-shipping-wrap');
-  if (!wrap) return;
-  wrap.querySelectorAll('[data-addr]').forEach(el => {
-    el.style.display = show ? '' : 'none';
-  });
+function _setOrderFormEditMode(editing, name) {
+  document.getElementById('order-form-title').textContent     = editing ? ('Edit Order' + (name ? ' — ' + name : '')) : 'Order Intake';
+  document.getElementById('order-form-sub').textContent       = editing ? 'Changes are saved to Notion automatically.' : 'Submitting creates a ClickUp task + Notion record automatically.';
+  document.getElementById('order-form-submit').textContent    = editing ? '✓ Save Changes' : '✓ Create Order';
+  document.getElementById('order-form-gmail-btn').style.display = editing ? 'none' : '';
+  document.getElementById('order-form-back-btn').style.display  = editing ? '' : 'none';
+  document.getElementById('order-form-foot-note').style.display = editing ? 'none' : '';
+  document.getElementById('f-stage-row').style.display          = editing ? '' : 'none';
+  document.getElementById('f-paid-by-row').style.display        = editing ? '' : 'none';
+  document.getElementById('order-edit-actions').style.display   = editing ? 'flex' : 'none';
+  const typeSection = document.getElementById('order-type-section');
+  if (typeSection) typeSection.style.display = editing ? 'none' : '';
 }
 
 function closeEditOrderModal() {
-  document.getElementById('editOrderModalBg').classList.remove('open');
+  clearForm();
+  switchTab('dashboard', document.querySelector('[data-tab=dashboard]'));
 }
 
 function markOrderComplete() {
-  const id = document.getElementById('eo-id').value;
+  const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
 
@@ -290,7 +298,7 @@ function markOrderComplete() {
 }
 
 function markOrderCancelled() {
-  const id = document.getElementById('eo-id').value;
+  const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
   if (!confirm('Mark "' + o.name + '" as Cancelled?')) return;
@@ -306,7 +314,7 @@ function markOrderCancelled() {
 }
 
 function deleteOrder() {
-  const id = document.getElementById('eo-id').value;
+  const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
   if (!confirm('Permanently delete "' + o.name + '"? This cannot be undone.')) return;
@@ -327,33 +335,33 @@ function deleteOrder() {
 }
 
 function saveOrderEdit() {
-  const id = document.getElementById('eo-id').value;
+  const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
 
-  const newStage = document.getElementById('eo-stage').value;
-
-  o.name          = document.getElementById('eo-name').value.trim();
-  o.desc          = document.getElementById('eo-desc').value.trim();
-  o.stage         = newStage;
-  o.price         = parseFloat(document.getElementById('eo-price').value) || 0;
-  o.deadline      = document.getElementById('eo-deadline').value || null;
-  o.pickup        = document.getElementById('eo-pickup').value   || null;
-  o.email         = document.getElementById('eo-email').value.trim();
-  o.phone         = document.getElementById('eo-phone').value.trim();
-  o.contactSource = document.getElementById('eo-source').value    || null;
-  o.materials     = document.getElementById('eo-materials').value.trim() || '';
-  o.ringSize      = document.getElementById('eo-ring-size').value.trim() || '';
-  o.paidBy        = document.getElementById('eo-paid-by').value          || '';
-  o.notes         = document.getElementById('eo-notes').value.trim()     || '';
-  o.sketchDesc    = document.getElementById('eo-sketch').value.trim()    || '';
+  o.name          = document.getElementById('f-name').value.trim();
+  o.desc          = document.getElementById('f-description').value.trim();
+  o.stage         = document.getElementById('f-stage').value;
+  o.price         = parseFloat(document.getElementById('f-price').value) || 0;
+  o.deposit       = parseFloat(document.getElementById('f-deposit').value) || 0;
+  o.deadline      = document.getElementById('f-deadline').value || null;
+  o.takeIn        = document.getElementById('f-takein').value   || null;
+  o.pickup        = document.getElementById('f-pickup').value   || null;
+  o.email         = document.getElementById('f-email').value.trim();
+  o.phone         = document.getElementById('f-phone').value.trim();
+  o.contactSource = document.getElementById('f-source').value    || null;
+  o.materials     = document.getElementById('f-materials').value.trim() || '';
+  o.ringSize      = document.getElementById('f-ring-size').value.trim() || '';
+  o.paidBy        = document.getElementById('f-paid-by').value          || '';
+  o.notes         = document.getElementById('f-notes').value.trim()     || '';
+  o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
   o.shippingAddress = o.pickup === 'To be Shipped' ? {
-    street:  document.getElementById('eo-addr-street').value.trim(),
-    street2: document.getElementById('eo-addr-street2').value.trim(),
-    city:    document.getElementById('eo-addr-city').value.trim(),
-    state:   document.getElementById('eo-addr-state').value.trim(),
-    zip:     document.getElementById('eo-addr-zip').value.trim(),
-    country: document.getElementById('eo-addr-country').value.trim() || 'United States',
+    street:  document.getElementById('f-addr-street').value.trim(),
+    street2: document.getElementById('f-addr-street2').value.trim(),
+    city:    document.getElementById('f-addr-city').value.trim(),
+    state:   document.getElementById('f-addr-state').value.trim(),
+    zip:     document.getElementById('f-addr-zip').value.trim(),
+    country: document.getElementById('f-addr-country').value.trim() || 'United States',
   } : null;
 
   updateCompletedToggle();
@@ -437,6 +445,7 @@ function setOrderType(type) {
 //  NEW ORDER FORM
 // ════════════════════════════════════════════
 function submitOrder() {
+  if (document.getElementById('f-editing-id').value) { saveOrderEdit(); return; }
   const name  = document.getElementById('f-name').value.trim();
   const email = document.getElementById('f-email').value.trim();
   const desc  = document.getElementById('f-description').value.trim();
@@ -553,7 +562,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes',
+  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -563,8 +572,13 @@ function clearForm() {
   if (pickup) pickup.value = '';
   const source = document.getElementById('f-source');
   if (source) source.value = '';
+  const editingId = document.getElementById('f-editing-id');
+  if (editingId) editingId.value = '';
+  const compose = document.getElementById('eo-invoice-compose');
+  if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
   toggleShippingAddress();
   setOrderType('order');
+  _setOrderFormEditMode(false);
 }
 
 // ════════════════════════════════════════════
@@ -871,7 +885,7 @@ function printOrder(id) {
 //  INVOICE FROM ORDER CARD
 // ════════════════════════════════════════════
 function eoShowInvoice() {
-  const id = document.getElementById('eo-id').value;
+  const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   const compose = document.getElementById('eo-invoice-compose');
 
@@ -949,8 +963,8 @@ function eoSubmitInvoice() {
   const status  = document.getElementById('eo-inv-status');
   const btn     = document.getElementById('eo-inv-submit-btn');
 
-  const customerEmail = document.getElementById('eo-email').value.trim();
-  const customerName  = document.getElementById('eo-name').value.trim();
+  const customerEmail = document.getElementById('f-email').value.trim();
+  const customerName  = document.getElementById('f-name').value.trim();
 
   if (!customerEmail) { status.textContent = 'No email — add one in the Email field above.'; return; }
   if (!_gtSqLocation()) { status.textContent = 'No Square Location ID — add it in ⚙ Integrations.'; return; }

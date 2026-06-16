@@ -309,7 +309,58 @@ function _invMgrRenderLeft() {
     html += '</div>';
   });
 
+  // ── Hidden / deprecated items section ────────
+  const hiddenIds = _invMgrGetHidden();
+  if (hiddenIds.size && !q) {
+    // Look up names from catalog data
+    const hiddenItems = [];
+    Object.values(_invMgrCatalogData.groups || {}).forEach(g => {
+      g.items.forEach(item => { if (hiddenIds.has(item.id)) hiddenItems.push(item); });
+    });
+    // Also include hidden items not in the unassigned groups (they were from known categories)
+    // We'll show them by ID if name not found
+    const foundIds = new Set(hiddenItems.map(i => i.id));
+    hiddenIds.forEach(id => { if (!foundIds.has(id)) hiddenItems.push({ id, item_data: { name: id } }); });
+
+    if (hiddenItems.length) {
+      html += `
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--bdr);">
+  <div style="font-size:10px;font-weight:700;color:var(--text-dim);letter-spacing:0.5px;margin-bottom:6px;">DEPRECATED (HIDDEN FROM APP)</div>`;
+      hiddenItems.forEach(item => {
+        const name = item.item_data?.name || item.id;
+        html += `
+  <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;font-size:12px;color:var(--text-dim);">
+    <span style="flex:1;text-decoration:line-through;opacity:0.7;">${_invMgrEsc(name)}</span>
+    <button onclick="invMgrRestoreItem('${_invMgrEsc(item.id)}')"
+      style="font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--bdr);background:var(--card-bg);color:var(--text);cursor:pointer;">Restore</button>
+  </div>`;
+      });
+      html += '</div>';
+    }
+  }
+
   el.innerHTML = html || '<div style="padding:28px 12px;text-align:center;color:var(--text-dim);font-size:13px;">No matches</div>';
+}
+
+function _invMgrGetHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem('sts-inv-hidden') || '[]')); } catch { return new Set(); }
+}
+
+function invMgrRestoreItem(itemId) {
+  const hidden = _invMgrGetHidden();
+  hidden.delete(itemId);
+  localStorage.setItem('sts-inv-hidden', JSON.stringify([...hidden]));
+
+  // Clear inventory cache so it re-fetches with this item visible
+  if (typeof _invData !== 'undefined') {
+    Object.keys(_invData).forEach(k => delete _invData[k]);
+  }
+  if (typeof window._invLoaded !== 'undefined')        window._invLoaded        = false;
+  if (typeof window._invRingLoaded !== 'undefined')    window._invRingLoaded    = false;
+  if (typeof window._invPendantLoaded !== 'undefined') window._invPendantLoaded = false;
+
+  toast('Item restored — switch sub-tabs to reload', '↩');
+  _invMgrRenderLeft();
 }
 
 function invMgrFilter(q) {
