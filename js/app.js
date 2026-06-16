@@ -250,7 +250,6 @@ function switchSubTab(id, el, _skipSave) {
   const subEl = el || (parent && document.querySelector('#sub-nav-' + parent + ' .sub-nav-tab[data-tab="' + id + '"]'));
   if (subEl) subEl.classList.add('active');
   _showPanel(id);
-  if (id === 'new-order' && typeof clearForm === 'function') clearForm();
   if (!_skipSave && parent) { _navSave('parent', parent); _navSave('sub-' + parent, id); }
 }
 
