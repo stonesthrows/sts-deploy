@@ -1098,10 +1098,10 @@ function startEditSession(i) { _editingSession = i; renderLog(); }
 function cancelEditSession() { _editingSession = null; renderLog(); }
 
 async function syncShiftsForSession(i) {
-  const s = sessions[i]; if (!s || !s.startTime || !s.stopTime) return;
+  const s = sessions[i]; if (!s || !s.startTime || !s.stopTime) return false;
   const empName = s.employee?.name || '';
   const empId = s.employee?.id || employees.find(e => e.name === empName)?.id || (employees.length === 1 ? employees[0].id : null);
-  if (!empId) { showToast('Could not match employee — select the timer employee first', true); return; }
+  if (!empId) { showToast('Could not match employee — select the timer employee first', true); return false; }
   if (s.employee) s.employee.id = empId; else s.employee = { name: empName, id: empId };
   const btn = $g(`sync-btn-${i}`);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
@@ -1152,32 +1152,39 @@ async function syncShiftsForSession(i) {
     if (pageId) {
       const notes = [s.notes, notionBlock].filter(Boolean).join('\n\n');
       const totalPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
-      await patchNotion(pageId, {
-        notes,
-        totalMin: parseFloat((totalMs/60000).toFixed(2)),
-        dedMin:   parseFloat((clockedOutMs/60000).toFixed(2)),
-        netMin:   parseFloat((netMs/60000).toFixed(2)),
-        ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
+      const nr = await fetch('/api/notion-timesession', {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pageId, notes,
+          totalMin: parseFloat((totalMs/60000).toFixed(2)),
+          dedMin:   parseFloat((clockedOutMs/60000).toFixed(2)),
+          netMin:   parseFloat((netMs/60000).toFixed(2)),
+          ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
+        }),
       });
+      if (!nr.ok) { const nd = await nr.json().catch(()=>({})); showToast('Notion error: ' + (nd.error||nr.status), true); if (btn) { btn.disabled=false; btn.textContent='⟳'; } return false; }
       showToast('Timeline & times synced to Notion ✓');
     } else {
       showToast('Timeline saved locally (no Notion page linked)');
     }
-  } catch(e) { showToast('Shift sync failed: ' + e.message, true); }
-  if (btn) { btn.disabled = false; btn.textContent = '⟳'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⟳'; }
+    return true;
+  } catch(e) { showToast('Shift sync failed: ' + e.message, true); if (btn) { btn.disabled=false; btn.textContent='⟳'; } return false; }
 }
 
 async function syncAllSessions() {
   const btn = $g('sync-all-btn'); if (btn) { btn.disabled = true; btn.textContent = '⟳ Syncing…'; }
   const eligible = sessions.map((s,i) => ({s,i})).filter(({s}) => s.startTime && s.stopTime);
-  let done = 0;
+  let done = 0, tried = 0;
   for (const {i} of eligible) {
-    await syncShiftsForSession(i);
-    done++;
-    if (btn) btn.textContent = `⟳ ${done}/${eligible.length}…`;
+    tried++;
+    const ok = await syncShiftsForSession(i);
+    if (ok) done++;
+    if (btn) btn.textContent = `⟳ ${tried}/${eligible.length}…`;
   }
   if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync All'; }
-  showToast(`Synced ${done} session${done!==1?'s':''} ✓`);
+  const failed = tried - done;
+  if (failed > 0) showToast(`Synced ${done}/${tried} sessions — ${failed} failed`, true);
+  else showToast(`Synced ${done} session${done!==1?'s':''} ✓`);
 }
 
 async function saveEditSession(i) {
