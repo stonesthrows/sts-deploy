@@ -97,9 +97,12 @@ window.StullerSearch = (() => {
 
     try {
       const resp = await fetch(`/api/stuller?sku=${encodeURIComponent(sku)}`);
-      const data = await resp.json();
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { el.innerHTML = `<div class="stl-error">API not reachable yet (HTTP ${resp.status}). If you just deployed, wait ~1 min and try again.<br><small style="opacity:.6">${_esc(text.slice(0,120))}</small></div>`; return; }
       if (!resp.ok || data.error) {
-        el.innerHTML = `<div class="stl-error">${_esc(data.error || 'SKU not found')}</div>`;
+        el.innerHTML = `<div class="stl-error">${_esc(data.error || 'SKU not found')} (HTTP ${resp.status})</div>`;
         return;
       }
       const p = Array.isArray(data) ? data[0] : data;
@@ -136,7 +139,10 @@ window.StullerSearch = (() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const data = await resp.json();
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { el.innerHTML = `<div class="stl-error">API not reachable yet (HTTP ${resp.status}). Wait ~1 min for deploy and try again.<br><small style="opacity:.6">${_esc(text.slice(0,120))}</small></div>`; return; }
       if (!resp.ok || data.error) {
         el.innerHTML = `<div class="stl-error">${_esc(data.error || 'Search failed')}</div>`;
         return;
