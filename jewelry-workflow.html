@@ -2282,6 +2282,85 @@
       transition: border-color 0.15s, color 0.15s; margin-top: 4px;
     }
     .rq-save-note-btn:hover { border-color: var(--accent); color: var(--accent); }
+    /* ── Setup panel (Square search before timer starts) ── */
+    .rq-setup-panel {
+      margin-top: 10px; border-top: 1px solid var(--accent-border);
+      padding-top: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .rq-setup-search-wrap {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid var(--bdr); border-radius: 8px;
+      padding: 5px 10px; background: #fff; transition: border-color 0.2s;
+    }
+    .rq-setup-search-wrap:focus-within { border-color: var(--accent); }
+    .rq-setup-search-icon { font-size: 14px; color: var(--text3); flex-shrink: 0; }
+    .rq-setup-search-input {
+      flex: 1; border: none; outline: none; background: transparent;
+      font-size: 13px; color: var(--text); font-family: inherit;
+    }
+    .rq-setup-spinner {
+      display: none; width: 12px; height: 12px; flex-shrink: 0;
+      border: 2px solid var(--bdr); border-top-color: var(--accent);
+      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
+    }
+    @keyframes rq-spin { to { transform: rotate(360deg); } }
+    .rq-setup-results {
+      display: none; flex-direction: column; border: 1px solid var(--bdr);
+      border-radius: 8px; overflow: hidden; background: var(--card-bg);
+      max-height: 210px; overflow-y: auto;
+    }
+    .rq-result-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; cursor: pointer; transition: background 0.1s;
+      border-bottom: 1px solid var(--bdr-light); gap: 12px;
+    }
+    .rq-result-item:last-child { border-bottom: none; }
+    .rq-result-item:hover { background: var(--hover); }
+    .rq-result-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .rq-result-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
+    .rq-result-price { font-size: 11px; color: var(--text2); flex-shrink: 0; }
+    .rq-result-none { padding: 6px 12px; font-size: 12px; color: var(--text3); }
+    .rq-selected-list { display: flex; flex-direction: column; gap: 4px; }
+    .rq-selected-item {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--hover); border-radius: 7px; padding: 6px 10px;
+      border: 1px solid var(--bdr-light);
+    }
+    .rq-pcs-col { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .rq-pcs-label {
+      font-size: 10px; font-weight: 700; color: var(--text3);
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .rq-pcs-input {
+      width: 44px; padding: 2px 6px; border: 1px solid var(--bdr); border-radius: 5px;
+      font-size: 12px; text-align: center; background: #fff; outline: none;
+      font-family: inherit; color: var(--text);
+    }
+    .rq-pcs-input:focus { border-color: var(--accent); }
+    .rq-item-remove {
+      background: none; border: none; cursor: pointer; color: var(--text3);
+      font-size: 12px; padding: 0 3px; flex-shrink: 0; line-height: 1;
+      transition: color 0.15s;
+    }
+    .rq-item-remove:hover { color: #A0402A; }
+    .rq-setup-footer {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      border-top: 1px solid var(--bdr-light); padding-top: 8px;
+    }
+    .rq-setup-cancel-btn {
+      background: none; border: 1px solid var(--bdr); border-radius: 6px;
+      color: var(--text3); font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; padding: 4px 11px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .rq-setup-cancel-btn:hover { border-color: var(--text3); color: var(--text); }
+    .rq-start-confirm-btn {
+      background: #3A7A4A; border: none; border-radius: 6px; color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 4px 13px; cursor: pointer; transition: background 0.15s; margin-left: auto;
+    }
+    .rq-start-confirm-btn:hover:not(:disabled) { background: #2E6340; }
+    .rq-start-confirm-btn:disabled { background: #B8C9BF; cursor: not-allowed; }
     /* ── Session log bars ── */
     .rq-session-bar {
       background: var(--card-bg); border: 1px solid var(--bdr-light);
@@ -6308,6 +6387,20 @@ function savePrintSetup() {
       <div class="rq-log-empty">No sessions recorded yet</div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════════ SHOPIFY INTAKE TAB ═══════════════════ -->
+<div id="tab-shopify-intake" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">🛍️ Shopify Intake</div>
+      <div class="page-sub">New orders from your Shopify store</div>
+    </div>
+    <button class="btn btn-gold btn-sm" onclick="shopifyIntakeSync()" id="shopify-intake-sync-btn">⟳ Sync Orders</button>
+  </div>
+  <div id="shopify-intake-loading" style="display:none;padding:12px 2px;color:var(--text3);font-size:13px">⏳ Loading Shopify orders…</div>
+  <div id="shopify-intake-list" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;"></div>
+  <div id="shopify-intake-empty" style="display:none;padding:32px;text-align:center;color:var(--text3);font-size:14px;">No new Shopify orders</div>
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->

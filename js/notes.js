@@ -487,9 +487,18 @@ function notesDrop(event, targetKey) {
 
 var _rqMeta       = { order: [], assignees: {} };
 var _rqMetaLoaded = false;
-var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, notes, tickInterval } }
+var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
+var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
+
+// Local items not in Square catalog
+var _RQ_LOCAL_ITEMS = [
+  { id: 'local-chevron-silver-sm', name: 'Chevron Ear Cuff – Double Silver (Sm)', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-silver-lg', name: 'Chevron Ear Cuff – Double Silver (Lg)', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-gf-sm',     name: 'Chevron Ear Cuff – Double GF (Sm)',     category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-gf-lg',     name: 'Chevron Ear Cuff – Double GF (Lg)',     category: 'Ear Cuffs', isParent: false, sku: '' },
+];
 
 // ── Meta persistence ──────────────────────────────────────────────────────────
 
@@ -555,7 +564,7 @@ function _rqSaveTimerState() {
   var state = {};
   Object.keys(_rqTimers).forEach(function(pid) {
     var t = _rqTimers[pid];
-    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText };
+    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText, items: t.items || null };
   });
   localStorage.setItem('sts_rqTimers', JSON.stringify(state));
 }
@@ -566,7 +575,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return; // already active
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch(e) {}
@@ -626,8 +635,9 @@ function restockQueueRender() {
     var assignee = (pid && _rqMeta.assignees[pid]) || '';
     var timer    = pid ? _rqTimers[pid] : null;
     var isRunning = !!timer;
+    var isSetup  = pid ? !!_rqSetups[pid] : false;
     var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
-    var itemCls  = isRunning ? ' rq-active' : '';
+    var itemCls  = (isRunning || isSetup) ? ' rq-active' : '';
     var textCls  = item.done ? ' rq-done' : '';
     var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
     var safePid  = pid.replace(/'/g, '');
@@ -635,7 +645,7 @@ function restockQueueRender() {
     var isLast   = idx === items.length - 1;
 
     // ⏱ button state
-    var startDisabled = !pid || !assignee || isRunning;
+    var startDisabled = !pid || !assignee || isRunning || isSetup;
     var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
     var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
@@ -662,10 +672,12 @@ function restockQueueRender() {
     if (isRunning) {
       var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
       var startLbl = _rqFmtTime(timer.startTime);
+      var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
       timerPanel = '<div class="rq-timer-panel">'
         + '<div class="rq-timer-running-row">'
         + '<span class="rq-timer-dot"></span>'
         + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
+        + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
         + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
@@ -685,31 +697,52 @@ function restockQueueRender() {
         + '</div>';
     }
 
-    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + '</div>';
+    var setupPanel = '';
+    if (isSetup && !isRunning) {
+      var setup = _rqSetups[pid];
+      var startVal = _rqToDateTimeLocal(setup.startTimeMs || Date.now());
+      var canStart = setup.selectedItems.length > 0;
+      setupPanel = '<div class="rq-setup-panel">'
+        + '<div class="rq-setup-search-wrap">'
+        + '<span class="rq-setup-search-icon">⌕</span>'
+        + '<input type="text" class="rq-setup-search-input" id="rq-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
+        + ' oninput="rqSearchInput(\'' + safePid + '\',this.value)">'
+        + '<div class="rq-setup-spinner" id="rq-spinner-' + safePid + '"></div>'
+        + '</div>'
+        + '<div class="rq-setup-results" id="rq-results-' + safePid + '"></div>'
+        + '<div id="rq-selected-' + safePid + '">' + _rqSelectedHTML(pid) + '</div>'
+        + '<div class="rq-setup-footer">'
+        + '<input type="datetime-local" class="rq-adjust-input" id="rq-sstart-' + safePid + '" value="' + startVal + '" onchange="rqSetupStartChange(\'' + safePid + '\',this.value)">'
+        + '<button class="rq-setup-cancel-btn" onclick="rqCancelSetup(\'' + safePid + '\')">Cancel</button>'
+        + '<button class="rq-start-confirm-btn" id="rq-confirm-' + safePid + '" onclick="rqStartTimerConfirm(\'' + safePid + '\')"' + (canStart ? '' : ' disabled') + '>▶ Start Timer</button>'
+        + '</div>'
+        + '</div>';
+    }
+
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + setupPanel + '</div>';
   }).join('');
 
   _rqRestartTicks();
+  // Re-populate any open setup panels (search input + cached results survive re-render)
+  Object.keys(_rqSetups).forEach(function(pid) {
+    var s = _rqSetups[pid];
+    var inp = document.getElementById('rq-srch-' + pid);
+    if (inp && s.query) { inp.value = s.query; }
+    if (s._lastResults && s._lastResults.length) {
+      _rqRenderResults(pid, s._lastResults, s.query);
+    }
+  });
 }
 
 // ── Timer start / stop ────────────────────────────────────────────────────────
 
 function rqStartTimer(pid, itemText, assigneeName) {
   if (!pid || !assigneeName) { toast('Assign first', '⚠'); return; }
-  if (_rqTimers[pid]) return;
-  var startTime = Date.now();
-  _rqTimers[pid] = { startTime: startTime, employee: { name: assigneeName, id: '' }, sessionNotionPageId: null, itemText: itemText, notes: '', tickInterval: null };
-  _rqSaveTimerState();
-  fetch('/api/notion-timesession', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ itemName: itemText, employeeName: assigneeName, date: new Date(startTime).toISOString().slice(0, 10), startTime: new Date(startTime).toISOString(), notes: '' }),
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.notionPageId && _rqTimers[pid]) {
-      _rqTimers[pid].sessionNotionPageId = d.notionPageId;
-      _rqSaveTimerState();
-    }
-  }).catch(function() {});
+  if (_rqTimers[pid] || _rqSetups[pid]) return;
+  _rqSetups[pid] = { selectedItems: [], query: itemText || '', debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
   restockQueueRender();
+  // Auto-search with queue item text after DOM settles
+  setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || ''); }, 80);
 }
 
 function rqStopTimer(pid) {
@@ -725,9 +758,12 @@ function rqStopTimer(pid) {
   // Capture notes before clearing state
   var notesEl  = document.getElementById('rq-notes-' + pid);
   var notes    = notesEl ? notesEl.value.trim() : (t.notes || '');
+  var items    = t.items || [{ name: t.itemText }];
+  var totalPcs = null;
+  items.forEach(function(it) { if (it.pieces != null) { totalPcs = (totalPcs || 0) + it.pieces; } });
   var session  = {
     notionPageId: t.sessionNotionPageId,
-    items: [{ name: t.itemText }],
+    items: items,
     employee: t.employee,
     startTime: new Date(t.startTime).toISOString(),
     stopTime: stopTime,
@@ -743,10 +779,12 @@ function rqStopTimer(pid) {
   rqRenderSessions();
   restockQueueRender();
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
+  var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes };
+  if (totalPcs != null) patchBody.pieces = totalPcs;
   fetch('/api/notion-timesession', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes }),
+    body: JSON.stringify(patchBody),
   }).then(function(r) {
     session.saved = r.ok;
     session.error = r.ok ? null : 'Notion error';
@@ -823,6 +861,235 @@ function rqApplyAdjustStart(pid) {
   var elapsedEl = document.getElementById('rq-elapsed-' + pid);
   if (elapsedEl) elapsedEl.textContent = _rqFmtElapsed(Date.now() - t.startTime);
   toast('Start time updated', '✓');
+}
+
+// ── Setup panel functions (Square search before timer starts) ─────────────────
+
+function rqCancelSetup(pid) {
+  var s = _rqSetups[pid];
+  if (s && s.debounceTimer) clearTimeout(s.debounceTimer);
+  delete _rqSetups[pid];
+  restockQueueRender();
+}
+
+function rqSetupStartChange(pid, value) {
+  var s = _rqSetups[pid]; if (!s) return;
+  var d = new Date(value);
+  if (!isNaN(d.getTime())) s.startTimeMs = d.getTime();
+}
+
+function rqSearchInput(pid, value) {
+  var s = _rqSetups[pid]; if (!s) return;
+  s.query = value;
+  if (s.debounceTimer) clearTimeout(s.debounceTimer);
+  if (!value || value.length < 2) {
+    var box = document.getElementById('rq-results-' + pid);
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+    return;
+  }
+  s.debounceTimer = setTimeout(function() { _rqSearchCatalog(pid, value); }, 350);
+}
+
+function _rqSqCall(path, opts) {
+  opts = opts || {};
+  var token = localStorage.getItem('sts-square-token') || '';
+  var payload = { path: '/v2' + path, method: opts.method || 'GET' };
+  if (opts.body) payload.body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+  if (token) payload.token = token;
+  return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r) { return r.json(); });
+}
+
+function _rqLocalSearch(query) {
+  var q = (query || '').toLowerCase();
+  return _RQ_LOCAL_ITEMS.filter(function(it) {
+    return it.name.toLowerCase().indexOf(q) !== -1 || it.category.toLowerCase().indexOf(q) !== -1;
+  });
+}
+
+function _rqSearchCatalog(pid, query) {
+  var s = _rqSetups[pid]; if (!s) return;
+  var spinner = document.getElementById('rq-spinner-' + pid);
+  if (spinner) { spinner.style.display = 'block'; spinner.classList.add('active'); }
+  var localMatches = _rqLocalSearch(query);
+  _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    if (!_rqSetups[pid]) return;
+    var found = searchData.objects || [];
+    if (!found.length) { _rqRenderResults(pid, localMatches, query); return null; }
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }) },
+    }).then(function(fullData) {
+      if (!_rqSetups[pid]) return;
+      var rows = localMatches.slice();
+      (fullData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
+        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
+        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        if (variations.length <= 1) {
+          var v = variations[0] ? variations[0].item_variation_data : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+        } else {
+          rows.push({
+            id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+            variants: variations.map(function(vv) {
+              var vd = vv.item_variation_data;
+              return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' };
+            }),
+          });
+        }
+      });
+      _rqRenderResults(pid, rows, query);
+    });
+  }).catch(function() {
+    if (_rqSetups[pid]) _rqRenderResults(pid, localMatches, query);
+  }).then(function() {
+    var sp = document.getElementById('rq-spinner-' + pid);
+    if (sp) { sp.style.display = 'none'; sp.classList.remove('active'); }
+  });
+}
+
+function _rqRenderResults(pid, items, query) {
+  var box = document.getElementById('rq-results-' + pid);
+  if (!box) return;
+  var s = _rqSetups[pid];
+  if (s) s._lastResults = items;
+  if (!items || !items.length) {
+    var safeQ = (query || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    var escQ  = (query || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    box.innerHTML = '<div class="rq-result-none">No match for "' + safeQ + '"</div>'
+      + '<div class="rq-result-item" onclick="rqSelectCustomItem(\'' + pid + '\',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+    box.style.display = 'flex';
+    return;
+  }
+  box.innerHTML = items.map(function(item) {
+    var meta = item.isParent
+      ? (item.category || '') + ' · ' + (item.variantCount || '') + ' sizes'
+      : (item.category || '') + (item.sku ? ' · ' + item.sku : '');
+    var price = item.isParent ? 'sizes at stop →' : '—';
+    var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
+    return '<div class="rq-result-item" onclick="rqSelectItemById(\'' + pid + '\',\'' + safeId + '\')">'
+      + '<div><div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
+      + '<div class="rq-result-meta">' + meta.replace(/</g,'&lt;') + '</div></div>'
+      + '<div class="rq-result-price">' + price + '</div>'
+      + '</div>';
+  }).join('');
+  box.style.display = 'flex';
+}
+
+function rqSelectItemById(pid, itemId) {
+  var s = _rqSetups[pid]; if (!s) return;
+  var item = (s._lastResults || []).filter(function(it) { return it.id === itemId; })[0];
+  if (!item) return;
+  _rqSelectSetupItem(pid, item);
+}
+
+function rqSelectCustomItem(pid, name) {
+  _rqSelectSetupItem(pid, { id: 'custom-' + Date.now(), name: name, category: 'Custom', isParent: false, sku: '', isCustom: true });
+}
+
+function _rqSelectSetupItem(pid, item) {
+  var s = _rqSetups[pid]; if (!s) return;
+  var already = s.selectedItems.filter(function(i) { return i.id === item.id; }).length > 0;
+  if (!already) s.selectedItems.push(Object.assign({}, item, { pieces: null }));
+  var box = document.getElementById('rq-results-' + pid);
+  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+  var inp = document.getElementById('rq-srch-' + pid);
+  if (inp) inp.value = '';
+  s.query = '';
+  s._lastResults = null;
+  _rqUpdateSelectedEl(pid);
+  _rqUpdateConfirmBtn(pid);
+}
+
+function rqRemoveSetupItem(pid, itemId) {
+  var s = _rqSetups[pid]; if (!s) return;
+  s.selectedItems = s.selectedItems.filter(function(i) { return i.id !== itemId; });
+  _rqUpdateSelectedEl(pid);
+  _rqUpdateConfirmBtn(pid);
+}
+
+function _rqUpdateSelectedEl(pid) {
+  var el = document.getElementById('rq-selected-' + pid);
+  if (el) el.innerHTML = _rqSelectedHTML(pid);
+}
+
+function _rqUpdateConfirmBtn(pid) {
+  var btn = document.getElementById('rq-confirm-' + pid);
+  if (!btn) return;
+  var s = _rqSetups[pid];
+  btn.disabled = !s || s.selectedItems.length === 0;
+}
+
+function _rqSelectedHTML(pid) {
+  var s = _rqSetups[pid]; if (!s || !s.selectedItems.length) return '';
+  return '<div class="rq-selected-list">'
+    + s.selectedItems.map(function(item, idx) {
+      var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
+      var pcsCol = item.isParent
+        ? '<div class="rq-pcs-col"><span style="font-size:9px;color:var(--text3);">sizes at stop</span></div>'
+        : '<div class="rq-pcs-col"><label class="rq-pcs-label">pcs</label><input type="number" min="0" step="1" class="rq-pcs-input" id="rq-pcs-' + pid + '-' + idx + '" placeholder="0" value="' + (item.pieces != null ? item.pieces : '') + '"></div>';
+      return '<div class="rq-selected-item">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
+        + '<div class="rq-result-meta">' + (item.category || '') + (item.sku ? ' · ' + item.sku : '') + '</div>'
+        + '</div>'
+        + pcsCol
+        + '<button class="rq-item-remove" onclick="rqRemoveSetupItem(\'' + pid + '\',\'' + safeId + '\')">✕</button>'
+        + '</div>';
+    }).join('')
+    + '</div>';
+}
+
+function rqStartTimerConfirm(pid) {
+  var s = _rqSetups[pid]; if (!s || !s.selectedItems.length) return;
+  if (s.debounceTimer) clearTimeout(s.debounceTimer);
+  // Read PCS inputs before destroying the DOM
+  var items = s.selectedItems.map(function(item, idx) {
+    if (item.isParent) return Object.assign({}, item, { pieces: null });
+    var inp = document.getElementById('rq-pcs-' + pid + '-' + idx);
+    var pcs = inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null;
+    return Object.assign({}, item, { pieces: isNaN(pcs) ? null : pcs });
+  });
+  var startTimeMs  = s.startTimeMs || Date.now();
+  var assigneeName = (_rqMeta.assignees[pid]) || '';
+  var primaryItem  = items[0] || {};
+  delete _rqSetups[pid];
+  _rqTimers[pid] = {
+    startTime: startTimeMs,
+    employee: { name: assigneeName, id: '' },
+    sessionNotionPageId: null,
+    itemText: primaryItem.name || '',
+    items: items,
+    notes: '',
+    tickInterval: null,
+  };
+  _rqSaveTimerState();
+  _rqStartTick(pid);
+  // Create Notion session
+  fetch('/api/notion-timesession', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      itemName:     primaryItem.name     || '',
+      sku:          primaryItem.sku      || '',
+      category:     primaryItem.category || '',
+      employeeName: assigneeName,
+      squareItemId: primaryItem.isCustom ? '' : (primaryItem.id || ''),
+      date:         new Date(startTimeMs).toISOString().slice(0, 10),
+      startTime:    new Date(startTimeMs).toISOString(),
+      notes:        '',
+    }),
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.notionPageId && _rqTimers[pid]) {
+      _rqTimers[pid].sessionNotionPageId = d.notionPageId;
+      _rqSaveTimerState();
+    }
+  }).catch(function() {});
+  restockQueueRender();
 }
 
 // ── Session log ───────────────────────────────────────────────────────────────
