@@ -76,8 +76,8 @@
   .setup-title { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--text3); text-transform: uppercase; }
   .setup-section { margin-top: 0.75rem; }
   .setup-section-label { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; color: var(--text3); text-transform: uppercase; margin-bottom: 0.45rem; }
-  .setup-footer { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.875rem; padding-top: 0.75rem; border-top: 1px solid var(--bdr-light); }
-  .setup-footer .start-time-input { flex-shrink: 0; }
+  .setup-footer { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.875rem; padding-top: 0.75rem; border-top: 1px solid var(--bdr-light); flex-wrap: wrap; }
+  .setup-footer .start-time-input { flex-shrink: 0; flex: 1 1 auto; min-width: 0; }
 
   /* ── Active bar ── */
   .active-bar { background: var(--card-bg); border: 2px solid var(--accent); border-radius: 12px; padding: 0.875rem 1.125rem; margin-bottom: 0.75rem; box-shadow: 0 2px 8px rgba(201,152,58,0.15); }
@@ -421,21 +421,19 @@ function toDateTimeLocal(iso) {
 }
 function parseTimeInput(val) {
   if (!val) return null;
-  const [h, m] = val.split(':').map(Number);
-  const d = new Date(); d.setHours(h, m, 0, 0);
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
   return d > Date.now() ? null : d.getTime();
 }
 function initStartTimeInput(tid) {
   const input = $t(tid, 'start-time-input'); if (!input) return;
-  const now = new Date();
-  input.value = [now.getHours(), now.getMinutes()].map(n => String(n).padStart(2,'0')).join(':');
+  input.value = toDateTimeLocal(new Date().toISOString());
 }
 function toggleAdjustStart(tid) {
   const panel = $t(tid, 'adjust-panel');
   const opening = panel.style.display === 'none' || panel.style.display === '';
   if (opening) {
-    const d = new Date(T[tid].startTime);
-    $t(tid, 'adjust-input').value = [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2,'0')).join(':');
+    $t(tid, 'adjust-input').value = toDateTimeLocal(new Date(T[tid].startTime).toISOString());
     panel.style.display = 'flex';
   } else { panel.style.display = 'none'; }
 }
@@ -494,7 +492,7 @@ function buildSetupForm(tid) {
       <div class="clock-status" id="t${tid}-clock-status"></div>
     </div>
     <div class="setup-footer">
-      <input type="time" class="start-time-input" id="t${tid}-start-time-input">
+      <input type="datetime-local" class="start-time-input" id="t${tid}-start-time-input">
       <button class="btn btn-start" id="t${tid}-start-btn" onclick="startTimer(${tid})" disabled>Start Timer</button>
     </div>
     <div class="saving-badge" id="t${tid}-saving-badge">Saving to Notion…</div>
@@ -523,7 +521,7 @@ function buildActiveBar(tid) {
     <div id="t${tid}-adjust-wrap" style="display:none;margin-top:6px;">
       <span class="adjust-start-link" onclick="toggleAdjustStart(${tid})">✎ Adjust start time</span>
       <div id="t${tid}-adjust-panel" style="display:none;align-items:center;gap:0.5rem;margin-top:5px;">
-        <input type="time" class="start-time-input" id="t${tid}-adjust-input">
+        <input type="datetime-local" class="start-time-input" id="t${tid}-adjust-input">
         <button class="btn-save-note" onclick="applyAdjustStart(${tid})">Update</button>
       </div>
     </div>
