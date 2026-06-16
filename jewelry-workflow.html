@@ -213,6 +213,8 @@
     .content { padding: 20px 24px; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
+    .tab-panel.rq-page { display: none; }
+    .tab-panel.active.rq-page { display: flex; }
 
     /* ── Stat Cards ──────────────────────────── */
     .stats-row {
@@ -2320,6 +2322,7 @@
     .rq-result-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
     .rq-result-price { font-size: 11px; color: var(--text2); flex-shrink: 0; }
     .rq-result-none { padding: 6px 12px; font-size: 12px; color: var(--text3); }
+    .rq-result-nomatch { color: #A0402A; font-style: italic; }
     .rq-selected-list { display: flex; flex-direction: column; gap: 4px; }
     .rq-selected-item {
       display: flex; align-items: center; gap: 8px;
@@ -3525,7 +3528,7 @@
     <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
 
     <div class="sb-section">Intake</div>
-    <div class="sb-item" data-sb="shopify-intake" onclick="sbNav('intake','shopify-intake',this)">🛍️ Shopify Intake</div>
+    <div class="sb-item" data-sb="website-intake" onclick="sbNav('intake','website-intake',this)">🛍️ Website Order Intake</div>
 
     <div class="sb-section">More</div>
     <div class="sb-item" data-sb="triplog" onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
@@ -3621,8 +3624,8 @@
 
 <!-- Sub-nav (Intake) -->
 <div class="sub-nav" id="sub-nav-intake" role="tablist" aria-label="Intake">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="shopify-intake" onclick="switchSubTab('shopify-intake',this)">
-    🛍️ Shopify Intake
+  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="website-intake" onclick="switchSubTab('website-intake',this)">
+    🛍️ Website Order Intake
   </div>
 </div>
 
@@ -6390,17 +6393,17 @@ function savePrintSetup() {
 </div>
 
 <!-- ═══════════════════ SHOPIFY INTAKE TAB ═══════════════════ -->
-<div id="tab-shopify-intake" class="tab-panel">
+<div id="tab-website-intake" class="tab-panel">
   <div class="page-bar">
     <div>
-      <div class="page-title">🛍️ Shopify Intake</div>
-      <div class="page-sub">New orders from your Shopify store</div>
+      <div class="page-title">🛍️ Website Order Intake</div>
+      <div class="page-sub">New orders from your website</div>
     </div>
-    <button class="btn btn-gold btn-sm" onclick="shopifyIntakeSync()" id="shopify-intake-sync-btn">⟳ Sync Orders</button>
+    <button class="btn btn-gold btn-sm" onclick="websiteIntakeSync()" id="website-intake-sync-btn">⟳ Sync Orders</button>
   </div>
-  <div id="shopify-intake-loading" style="display:none;padding:12px 2px;color:var(--text3);font-size:13px">⏳ Loading Shopify orders…</div>
-  <div id="shopify-intake-list" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;"></div>
-  <div id="shopify-intake-empty" style="display:none;padding:32px;text-align:center;color:var(--text3);font-size:14px;">No new Shopify orders</div>
+  <div id="website-intake-loading" style="display:none;padding:12px 2px;color:var(--text3);font-size:13px">⏳ Loading website orders…</div>
+  <div id="website-intake-list" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;"></div>
+  <div id="website-intake-empty" style="display:none;padding:32px;text-align:center;color:var(--text3);font-size:14px;">No new website orders</div>
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
@@ -6578,6 +6581,7 @@ function applyStatFilter(key) {
     'calendar':          'Calendar',
     'pj-calc':           'PJ Calc',
     'pj-ref':            'PJ Reference',
+    'website-intake':    'Website Order Intake',
   };
 
   // ── Home dashboard init ──────────────────────────────

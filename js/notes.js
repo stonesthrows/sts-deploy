@@ -742,7 +742,7 @@ function rqStartTimer(pid, itemText, assigneeName) {
   _rqSetups[pid] = { selectedItems: [], query: itemText || '', debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
   restockQueueRender();
   // Auto-search with queue item text after DOM settles
-  setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || ''); }, 80);
+  setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || '', true); }, 80);
 }
 
 function rqStopTimer(pid) {
@@ -887,7 +887,7 @@ function rqSearchInput(pid, value) {
     if (box) { box.innerHTML = ''; box.style.display = 'none'; }
     return;
   }
-  s.debounceTimer = setTimeout(function() { _rqSearchCatalog(pid, value); }, 350);
+  s.debounceTimer = setTimeout(function() { _rqSearchCatalog(pid, value, false); }, 350);
 }
 
 function _rqSqCall(path, opts) {
@@ -906,7 +906,7 @@ function _rqLocalSearch(query) {
   });
 }
 
-function _rqSearchCatalog(pid, query) {
+function _rqSearchCatalog(pid, query, autoSelect) {
   var s = _rqSetups[pid]; if (!s) return;
   var spinner = document.getElementById('rq-spinner-' + pid);
   if (spinner) { spinner.style.display = 'block'; spinner.classList.add('active'); }
@@ -917,7 +917,12 @@ function _rqSearchCatalog(pid, query) {
   }).then(function(searchData) {
     if (!_rqSetups[pid]) return;
     var found = searchData.objects || [];
-    if (!found.length) { _rqRenderResults(pid, localMatches, query); return null; }
+    if (!found.length) {
+      if (autoSelect && !localMatches.length) { _rqShowNoMatch(pid, query); return null; }
+      if (autoSelect && localMatches.length)  { _rqSelectSetupItem(pid, localMatches[0]); return null; }
+      _rqRenderResults(pid, localMatches, query);
+      return null;
+    }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
       body: { object_ids: found.map(function(o) { return o.id; }) },
@@ -942,14 +947,27 @@ function _rqSearchCatalog(pid, query) {
           });
         }
       });
-      _rqRenderResults(pid, rows, query);
+      if (autoSelect) { _rqSelectSetupItem(pid, rows[0]); }
+      else            { _rqRenderResults(pid, rows, query); }
     });
   }).catch(function() {
-    if (_rqSetups[pid]) _rqRenderResults(pid, localMatches, query);
+    if (!_rqSetups[pid]) return;
+    if (autoSelect) { _rqShowNoMatch(pid, query); }
+    else if (localMatches.length) { _rqRenderResults(pid, localMatches, query); }
   }).then(function() {
     var sp = document.getElementById('rq-spinner-' + pid);
     if (sp) { sp.style.display = 'none'; sp.classList.remove('active'); }
   });
+}
+
+function _rqShowNoMatch(pid, query) {
+  var box = document.getElementById('rq-results-' + pid);
+  if (!box) return;
+  var safeQ = (query || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  var escQ  = (query || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  box.innerHTML = '<div class="rq-result-none rq-result-nomatch">No Square match for "' + safeQ + '" — search manually or use as custom item below</div>'
+    + '<div class="rq-result-item" onclick="rqSelectCustomItem(\'' + pid + '\',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+  box.style.display = 'flex';
 }
 
 function _rqRenderResults(pid, items, query) {
