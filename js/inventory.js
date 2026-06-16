@@ -89,6 +89,34 @@ function _invGetHidden() {
   try { return new Set(JSON.parse(localStorage.getItem('sts-inv-hidden') || '[]')); } catch { return new Set(); }
 }
 
+function _invGetHiddenVars() {
+  try { return JSON.parse(localStorage.getItem('sts-inv-hidden-vars') || '[]'); } catch { return []; }
+}
+
+function invHideVar(varId, varName, itemName, sub) {
+  const label = varName ? `"${varName}" (${itemName})` : `"${itemName}"`;
+  if (!confirm(`Remove variation ${label} from the webapp?\n\nThis won't affect Square — restore it anytime via ⚙ Manage Items.`)) return;
+
+  const list = _invGetHiddenVars();
+  if (!list.some(v => v.varId === varId)) {
+    list.push({ varId, varName, itemName });
+    localStorage.setItem('sts-inv-hidden-vars', JSON.stringify(list));
+  }
+
+  // Remove from cached data and re-render immediately
+  if (_invData[sub]) {
+    _invData[sub].items = _invData[sub].items.map(item => {
+      const filtered = (item.item_data?.variations || []).filter(v => v.id !== varId);
+      if (filtered.length !== (item.item_data?.variations || []).length) {
+        return { ...item, item_data: { ...item.item_data, variations: filtered } };
+      }
+      return item;
+    });
+    _invRenderSub(sub);
+    _invUpdateCountLabel();
+  }
+}
+
 function invHideItem(itemId, itemName, sub) {
   if (!confirm(`Remove "${itemName}" from the webapp?\n\nThis won't affect Square — you can restore it anytime via ⚙ Manage Items.`)) return;
 
@@ -230,9 +258,10 @@ function _invRenderSub(sub) {
     return;
   }
 
-  const excludes = (INV_RING_EXCLUDE[sub] || []).map(s => s.toLowerCase());
-  const includes = (INV_RING_INCLUDE[sub] || []).map(s => s.toLowerCase());
-  const hidden   = _invGetHidden();
+  const excludes    = (INV_RING_EXCLUDE[sub] || []).map(s => s.toLowerCase());
+  const includes    = (INV_RING_INCLUDE[sub] || []).map(s => s.toLowerCase());
+  const hidden      = _invGetHidden();
+  const hiddenVars  = new Set(_invGetHiddenVars().map(v => v.varId));
 
   let html = '';
   items.forEach(item => {
@@ -244,26 +273,29 @@ function _invRenderSub(sub) {
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
     const nameSafe = _esc(name).replace(/'/g, '&#39;');
-    const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted);
+    const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id));
+    if (!vars.length) return; // all variations hidden — skip card entirely
+
     html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
       <div class="inv-card-head" style="display:flex;align-items:center;justify-content:space-between;">
         <span>${_esc(name)}</span>
         <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
-          title="Remove from webapp (won't affect Square)"
+          title="Remove entire item from webapp (won't affect Square)"
           style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
           onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
           onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
       </div>`;
 
     vars.forEach(v => {
-      const varName = v.item_variation_data?.name || '';
-      const varId   = v.id;
-      const sqQty   = counts[varId] ?? null;
-      const curQty  = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
-      const badge   = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
-      const badgeTxt= sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
-      const dot     = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
-      const dirty   = _invDirty[varId] !== undefined;
+      const varName  = v.item_variation_data?.name || '';
+      const varId    = v.id;
+      const sqQty    = counts[varId] ?? null;
+      const curQty   = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
+      const badge    = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
+      const badgeTxt = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
+      const dot      = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
+      const dirty    = _invDirty[varId] !== undefined;
+      const varSafe  = _esc(varName).replace(/'/g, '&#39;');
 
       html += `<div class="inv-row" data-var-id="${varId}">
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
@@ -278,6 +310,11 @@ function _invRenderSub(sub) {
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
         <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
+        <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
+          title="Remove this variation from webapp (won't affect Square)"
+          style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"
+          onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
+          onmouseleave="this.style.opacity='0.35';this.style.color='var(--text-dim)'">✕</button>
       </div>`;
     });
 
