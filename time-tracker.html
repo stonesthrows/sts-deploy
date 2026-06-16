@@ -1372,9 +1372,12 @@ async function boot() {
     try {
       const res = await fetch('/api/notion-timesession?active=true');
       if (res.ok) {
-        const active = await res.json(); let slot = 0;
+        const active = await res.json();
+        const runningPageIds = new Set(T.filter(t => t.notionPageId).map(t => t.notionPageId));
+        let slot = 0;
         for (const s of active) {
-          while (slot < NUM_TIMERS && resumed[slot]) slot++;
+          if (s.notionPageId && runningPageIds.has(s.notionPageId)) continue;
+          while (slot < NUM_TIMERS && (resumed[slot] || T[slot].running)) slot++;
           if (slot >= NUM_TIMERS) break;
           if (s.startTime) {
             resumeTimer(slot, { startTime: new Date(s.startTime).getTime(), items:[{ name:s.itemName||'', sku:s.sku||'', category:s.category||'', id:s.squareItemId||'', isParent:false }], employee:{ name:s.employeeName||'', id:'' }, notionPageId:s.notionPageId });
