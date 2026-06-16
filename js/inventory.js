@@ -334,15 +334,17 @@ function _invRenderSub(sub) {
       </div>`;
 
     vars.forEach(v => {
-      const varName  = v.item_variation_data?.name || '';
-      const varId    = v.id;
-      const sqQty    = counts[varId] ?? null;
-      const curQty   = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
-      const badge    = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
-      const badgeTxt = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
-      const dot      = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
-      const dirty    = _invDirty[varId] !== undefined;
-      const varSafe  = _esc(varName).replace(/'/g, '&#39;');
+      const varName   = v.item_variation_data?.name || '';
+      const varId     = v.id;
+      const sqQty     = counts[varId] ?? null;
+      const curQty    = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
+      const badge     = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
+      const badgeTxt  = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
+      const dot       = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
+      const dirty     = _invDirty[varId] !== undefined;
+      const varSafe   = _esc(varName).replace(/'/g, '&#39;');
+      const threshold = _invGetThreshold(varId);
+      const isLow     = sqQty !== null && sqQty < threshold;
 
       html += `<div class="inv-row" data-var-id="${varId}">
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
@@ -357,6 +359,7 @@ function _invRenderSub(sub) {
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
         <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
+        ${isLow ? `<button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue">⚑ Queue</button>` : ''}
         <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
           title="Remove this variation from webapp (won't affect Square)"
           style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"
@@ -640,6 +643,61 @@ function _invUpdatePendantCountLabel() {
   const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
   label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
     (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+// ── Low-stock threshold (per variation, stored in localStorage) ──────────────
+
+function _invGetThresholds() {
+  try { return JSON.parse(localStorage.getItem('sts-inv-thresholds') || '{}'); } catch { return {}; }
+}
+function _invGetThreshold(varId) {
+  return _invGetThresholds()[varId] ?? 6;
+}
+function _invSaveThreshold(varId, val) {
+  const t = _invGetThresholds();
+  t[varId] = val;
+  localStorage.setItem('sts-inv-thresholds', JSON.stringify(t));
+}
+
+// ── Low-stock modal ───────────────────────────────────────────────────────────
+
+let _invLowStockState = {};
+
+function invOpenLowStockModal(varId, itemName, varName, curQty, sub) {
+  _invLowStockState = { varId, itemName, varName, curQty, sub };
+  document.getElementById('inv-ls-item-name').textContent = itemName;
+  document.getElementById('inv-ls-var-name').textContent  = varName || '';
+  document.getElementById('inv-ls-qty').textContent       = curQty;
+  document.getElementById('inv-ls-threshold').value       = _invGetThreshold(varId);
+  document.getElementById('inv-ls-modal-bg').style.display = 'flex';
+}
+
+function invCloseLowStockModal() {
+  document.getElementById('inv-ls-modal-bg').style.display = 'none';
+  _invLowStockState = {};
+}
+
+function invConfirmLowStockAdd() {
+  const { varId, itemName, varName } = _invLowStockState;
+  const threshold = Math.max(1, parseInt(document.getElementById('inv-ls-threshold').value) || 6);
+  _invSaveThreshold(varId, threshold);
+
+  const text = varName ? `${itemName} – ${varName}` : itemName;
+
+  fetch('/api/notion-notes', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ text, block: 'Inventory Restock' }),
+  }).then(r => {
+    if (r.ok) {
+      toast(`Added "${text}" to Restock Queue ✓`, '✓');
+      if (typeof refreshNotes === 'function') refreshNotes();
+    } else {
+      toast('Failed to add to Restock Queue', '⚠');
+    }
+  }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
+
+  invCloseLowStockModal();
 }
 
 function _esc(s) {

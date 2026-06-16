@@ -640,6 +640,41 @@ function rqSetAssignee(selectEl, idx) {
   selectEl.className = 'rq-assignee' + (person ? ' rq-' + person.toLowerCase() : '');
 }
 
+function rqAddItem() {
+  var input = document.getElementById('rq-add-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  var temp = { notionPageId: null, text: text, block: 'Inventory Restock', done: false, _saving: true };
+  NOTES_DATA.push(temp);
+  restockQueueRender();
+
+  fetch('/api/notion-notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text, block: 'Inventory Restock' }),
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) {
+        NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
+        restockQueueRender();
+        toast('Failed to add item', '⚠');
+        return;
+      }
+      temp.notionPageId = res.data.notionPageId;
+      temp._saving = false;
+      restockQueueRender();
+    })
+    .catch(function() {
+      NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
+      restockQueueRender();
+      toast('Failed to add item', '⚠');
+    });
+}
+
 function rqDeleteItem(idx) {
   if (!confirm('Remove this item from the Restock Queue?')) return;
   var items = _rqSortedItems();
