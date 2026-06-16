@@ -1,0 +1,64 @@
+// Cloudflare Pages Function — proxies Stuller API calls
+// Keeps credentials server-side and solves CORS.
+// Env vars required: STULLER_USER, STULLER_PASS
+export async function onRequestGet(context) {
+  const url = new URL(context.request.url);
+  const sku = url.searchParams.get('sku');
+  if (!sku) return jsonResponse({ error: 'Missing ?sku= parameter' }, 400);
+  return proxyToStuller(
+    `https://api.stuller.com/v2/products/${encodeURIComponent(sku)}`,
+    'GET', null, context.env
+  );
+}
+
+export async function onRequestPost(context) {
+  const body = await context.request.text();
+  return proxyToStuller('https://api.stuller.com/v2/products', 'POST', body, context.env);
+}
+
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
+}
+
+async function proxyToStuller(url, method, body, env) {
+  const user = env.STULLER_USER;
+  const pass = env.STULLER_PASS;
+
+  if (!user || !pass) {
+    return jsonResponse({
+      error: 'Stuller credentials not configured — add STULLER_USER and STULLER_PASS in Cloudflare Pages → Settings → Environment Variables.'
+    }, 500);
+  }
+
+  const headers = {
+    'Authorization': 'Basic ' + btoa(`${user}:${pass}`),
+    'Accept': 'application/json',
+  };
+  if (method === 'POST') headers['Content-Type'] = 'application/json';
+
+  try {
+    const resp = await fetch(url, { method, headers, body: body || undefined });
+    const text = await resp.text();
+    return new Response(text, {
+      status: resp.status,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+    });
+  } catch (err) {
+    return jsonResponse({ error: 'Proxy error: ' + err.message }, 502);
+  }
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+  });
+}
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin':  '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}

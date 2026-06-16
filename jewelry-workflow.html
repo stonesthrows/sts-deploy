@@ -1504,14 +1504,14 @@
     .notion-chip:hover { background: #E4D8F4; color: #4A2080; }
 
     /* ── Estimate Builder ───────────────────── */
-    .est-material-row {
+    .est-row {
       display: grid;
-      grid-template-columns: 1fr 110px 30px;
-      gap: 8px;
+      grid-template-columns: 1fr 28px 110px 28px;
+      gap: 6px;
       align-items: center;
       margin-bottom: 7px;
     }
-    .est-material-row input {
+    .est-input {
       border: 1px solid #D8D0C8;
       border-radius: 7px;
       padding: 8px 12px;
@@ -1521,18 +1521,33 @@
       outline: none;
       font-family: inherit;
       width: 100%;
+      box-sizing: border-box;
     }
-    .est-material-row input:focus {
+    .est-input:focus {
       border-color: var(--accent);
       background: #fff;
       box-shadow: 0 0 0 3px rgba(196,144,58,0.12);
     }
+    .est-stuller-btn {
+      width: 28px; height: 34px;
+      border: 1px solid #D8D0C8;
+      background: #FAFAF8;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.12s, border-color 0.12s;
+      font-family: inherit;
+      padding: 0;
+    }
+    .est-stuller-btn:hover { background: #F0EAD8; border-color: var(--accent); }
     .est-remove-btn {
-      width: 28px; height: 28px;
+      width: 28px; height: 34px;
       border: none;
       background: #FEF0EE;
       color: #C43030;
-      border-radius: 6px;
+      border-radius: 7px;
       cursor: pointer;
       font-size: 17px;
       line-height: 1;
@@ -1540,12 +1555,13 @@
       flex-shrink: 0;
       transition: background 0.12s;
       font-family: inherit;
+      padding: 0;
     }
     .est-remove-btn:hover { background: #FCDAD6; }
     .est-col-labels {
       display: grid;
-      grid-template-columns: 1fr 110px 30px;
-      gap: 8px;
+      grid-template-columns: 1fr 28px 110px 28px;
+      gap: 6px;
       margin-bottom: 6px;
     }
     .est-col-label {
@@ -1553,6 +1569,86 @@
       text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text3);
     }
+
+    /* ── Stuller Search Modal ────────────────── */
+    .stl-bg {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 9000;
+      align-items: center; justify-content: center;
+    }
+    .stl-modal {
+      background: #fff;
+      border-radius: 14px;
+      width: 540px; max-width: 95vw;
+      max-height: 80vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+    .stl-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid #E8E0D4;
+      font-size: 15px; font-weight: 700; color: var(--text);
+    }
+    .stl-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--text3); line-height: 1;
+      padding: 2px 6px; border-radius: 5px;
+      transition: background 0.12s;
+    }
+    .stl-close:hover { background: #F0EAD8; }
+    .stl-tabs {
+      display: flex; gap: 0;
+      border-bottom: 1px solid #E8E0D4;
+    }
+    .stl-tab {
+      flex: 1; padding: 10px 0;
+      font-size: 13px; font-weight: 600;
+      background: none; border: none; cursor: pointer;
+      color: var(--text3); border-bottom: 2px solid transparent;
+      margin-bottom: -1px; transition: color 0.12s;
+      font-family: inherit;
+    }
+    .stl-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .stl-tab:hover:not(.active) { color: var(--text); }
+    .stl-pane { padding: 16px 20px; overflow-y: auto; flex: 1; }
+    .stl-search-row {
+      display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+    }
+    .stl-input {
+      flex: 1;
+      border: 1px solid #D8D0C8; border-radius: 8px;
+      padding: 9px 12px; font-size: 13px;
+      font-family: inherit; outline: none;
+      background: #FAFAF8; color: var(--text);
+    }
+    .stl-input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(196,144,58,0.12); }
+    .stl-select {
+      border: 1px solid #D8D0C8; border-radius: 8px;
+      padding: 9px 10px; font-size: 13px;
+      font-family: inherit; background: #FAFAF8;
+      color: var(--text); outline: none; flex: 1;
+    }
+    .stl-result-area { min-height: 60px; }
+    .stl-loading { color: var(--text3); font-size: 13px; padding: 12px 0; text-align: center; }
+    .stl-error   { color: #C43030; font-size: 13px; padding: 12px 0; }
+    .stl-count   { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+    .stl-cards   { display: flex; flex-direction: column; gap: 8px; }
+    .stl-card {
+      border: 1px solid #E8E0D4; border-radius: 9px;
+      padding: 10px 14px; background: #FAFAF8;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .stl-card:hover { border-color: var(--accent); background: #FDF8F0; }
+    .stl-card-body { display: flex; flex-direction: column; gap: 2px; }
+    .stl-card-sku  { font-size: 11px; color: var(--text3); font-weight: 600; }
+    .stl-card-name { font-size: 13px; color: var(--text); font-weight: 500; }
+    .stl-card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .stl-card-price { font-size: 13px; font-weight: 700; color: var(--accent); }
     .mult-toggle {
       display: flex;
       gap: 0;
@@ -3759,6 +3855,7 @@
         </div>
         <div class="est-col-labels">
           <div class="est-col-label">Description</div>
+          <div class="est-col-label"></div>
           <div class="est-col-label">Cost ($)</div>
           <div class="est-col-label"></div>
         </div>
@@ -5976,6 +6073,7 @@ function savePrintSetup() {
 <script src="js/customers.js"></script>
 <script src="js/app.js"></script>
 <script src="js/orders.js"></script>
+<script src="js/stuller.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>

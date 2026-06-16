@@ -784,9 +784,10 @@ function addMaterialRow() {
   div.id        = rowId;
   div.className = 'est-row';
   div.innerHTML =
-    '<div class="fg" style="flex:1"><input type="text" placeholder="e.g. 14k Yellow Gold Sheet" oninput="calcEstimate()"></div>' +
-    '<div class="fg" style="width:110px"><input type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()"></div>' +
-    '<button class="btn btn-ghost btn-sm" style="align-self:flex-end;margin-bottom:1px;" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
+    '<input class="est-input" type="text" placeholder="e.g. 14k Yellow Gold Sheet" oninput="calcEstimate()">' +
+    '<button class="est-stuller-btn" title="Search Stuller catalog" onclick="StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
+    '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()">' +
+    '<button class="est-remove-btn" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
   calcEstimate();
 }
