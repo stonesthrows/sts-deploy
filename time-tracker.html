@@ -151,9 +151,9 @@
 
   /* ── Log section ── */
   .log-section { border-top: 1px solid var(--bdr); padding-top: 1.25rem; margin-top: 0.25rem; }
-  .log-title { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2); text-transform: uppercase; margin-bottom: 0.875rem; display: flex; justify-content: space-between; align-items: center; }
-  .notion-link { font-size: 11px; color: var(--text3); text-decoration: none; border: 1px solid var(--bdr); border-radius: 6px; padding: 3px 9px; transition: border-color 0.15s, color 0.15s; }
-  .notion-link:hover { border-color: var(--accent); color: var(--accent); }
+  .log-title { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.7); text-transform: uppercase; margin-bottom: 0.875rem; display: flex; justify-content: space-between; align-items: center; }
+  .notion-link { font-size: 11px; color: rgba(255,255,255,0.85); text-decoration: none; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 3px 9px; transition: border-color 0.15s, color 0.15s, background 0.15s; }
+  .notion-link:hover { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,0.08); }
   .log-empty { font-size: 13px; color: var(--text-dim); text-align: center; padding: 1.25rem 0; }
 
   /* ── Edit form ── */
@@ -213,7 +213,7 @@
     <div class="log-title">
       <span>Session log</span>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="sync-all-btn" onclick="syncAllSessions()" style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--text3);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;" title="Sync all sessions with Square shifts">⟳ Sync All</button>
+        <button id="sync-all-btn" onclick="syncAllSessions()" style="background:none;border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;transition:border-color 0.15s,color 0.15s;" title="Sync all sessions with Square shifts">⟳ Sync All</button>
         <a class="notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
       </div>
     </div>

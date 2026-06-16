@@ -588,7 +588,7 @@ function restockQueueRender() {
   if (items.length > SHOW_LIMIT) {
     var hidden = items.length - SHOW_LIMIT;
     list.innerHTML += '<div id="rq-show-more" style="padding:6px 0 2px;text-align:center;">'
-      + '<button onclick="_rqExpanded=!_rqExpanded;restockQueueRender()" style="background:none;border:1px solid #C8DFEE;border-radius:6px;color:#6A8898;font-size:11px;font-weight:600;letter-spacing:0.08em;padding:4px 14px;cursor:pointer;">'
+      + '<button onclick="_rqExpanded=!_rqExpanded;restockQueueRender()" style="background:none;border:1px solid #B0CDE0;border-radius:6px;color:#2E5C78;font-size:11px;font-weight:600;letter-spacing:0.08em;padding:4px 14px;cursor:pointer;">'
       + (_rqExpanded ? 'Show less ▲' : 'Show ' + hidden + ' more ▼')
       + '</button></div>';
   }
