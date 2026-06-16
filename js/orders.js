@@ -775,6 +775,7 @@ function removePhoto() {
 // ════════════════════════════════════════════
 let estMultiplier = 2.5;
 let estRowCount   = 0;
+let estSaveTimer  = null;
 
 function addMaterialRow() {
   const container = document.getElementById('est-materials');
@@ -810,6 +811,50 @@ function calcEstimate() {
   if (g('est-labor-display')) g('est-labor-display').textContent = fmt(labor);
   if (g('est-subtotal'))      g('est-subtotal').textContent      = fmt(subtotal);
   if (g('est-final'))         g('est-final').textContent         = fmt(final);
+
+  // Auto-save to Notion when editing an existing order
+  const editingId = document.getElementById('f-editing-id')?.value;
+  if (editingId) {
+    clearTimeout(estSaveTimer);
+    estSaveTimer = setTimeout(saveEstimateToNotion, 1400);
+  }
+}
+
+async function saveEstimateToNotion() {
+  const editingId = document.getElementById('f-editing-id')?.value;
+  if (!editingId) return;
+  const o = ORDERS.find(x => x.id === editingId);
+  if (!o || !o.notionId) return;
+
+  // Build materials text from rows
+  const rows = document.querySelectorAll('#est-materials .est-row');
+  const lines = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc = inputs[0]?.value.trim();
+    const cost = parseFloat(inputs[1]?.value) || 0;
+    if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
+  });
+  const materialsText = lines.join('\n');
+  const finalEl = document.getElementById('est-final');
+  const finalPrice = parseFloat(finalEl?.textContent?.replace('$', '')) || 0;
+
+  o.materials = materialsText;
+  if (finalPrice > 0) o.price = finalPrice;
+  saveToStorage();
+
+  const statusEl = document.getElementById('est-save-status');
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.opacity = '1'; }
+  try {
+    await notionUpdateOrder(o);
+    if (statusEl) {
+      statusEl.textContent = '✓ Saved to Notion';
+      setTimeout(() => { statusEl.style.opacity = '0'; }, 2000);
+    }
+  } catch(e) {
+    console.warn('estimate auto-save failed', e);
+    if (statusEl) { statusEl.textContent = '⚠ Save failed'; }
+  }
 }
 
 function setMultiplier(val) {
