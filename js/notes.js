@@ -1412,8 +1412,6 @@ function rqDeleteItem(idx) {
   var item = items[idx];
   if (!item) return;
   var pid = item.notionPageId;
-  if (_rqExpandedPid === pid) _rqExpandedPid = null;
-  if (_rqCardIndex >= items.length - 1 && _rqCardIndex > 0) _rqCardIndex--;
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);
   if (gi !== -1) NOTES_DATA.splice(gi, 1);
