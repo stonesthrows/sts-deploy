@@ -386,7 +386,7 @@ function _invRenderSub(sub) {
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
         <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
-        ${isLow ? `<button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue">⚑ Queue</button>` : ''}
+        <button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue" style="${isLow ? '' : 'visibility:hidden'}">⚑ Queue</button>
         <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
           title="Remove this variation from webapp (won't affect Square)"
           style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"

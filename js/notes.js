@@ -495,10 +495,22 @@ var _rqEditingSession = null;
 
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
-  { id: 'local-chevron-silver-sm', name: 'Chevron Ear Cuff – Double Silver (Sm)', category: 'Ear Cuffs', isParent: false, sku: '' },
-  { id: 'local-chevron-silver-lg', name: 'Chevron Ear Cuff – Double Silver (Lg)', category: 'Ear Cuffs', isParent: false, sku: '' },
-  { id: 'local-chevron-gf-sm',     name: 'Chevron Ear Cuff – Double GF (Sm)',     category: 'Ear Cuffs', isParent: false, sku: '' },
-  { id: 'local-chevron-gf-lg',     name: 'Chevron Ear Cuff – Double GF (Lg)',     category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-silver-sm-l', name: 'Chevron Ear Cuff – Single Silver (Sm) – Left',  category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-silver-sm-r', name: 'Chevron Ear Cuff – Single Silver (Sm) – Right', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-silver-lg-l', name: 'Chevron Ear Cuff – Single Silver (Lg) – Left',  category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-silver-lg-r', name: 'Chevron Ear Cuff – Single Silver (Lg) – Right', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-gf-sm-l',     name: 'Chevron Ear Cuff – Single GF (Sm) – Left',      category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-gf-sm-r',     name: 'Chevron Ear Cuff – Single GF (Sm) – Right',     category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-gf-lg-l',     name: 'Chevron Ear Cuff – Single GF (Lg) – Left',      category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-single-gf-lg-r',     name: 'Chevron Ear Cuff – Single GF (Lg) – Right',     category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-silver-sm-l', name: 'Chevron Ear Cuff – Double Silver (Sm) – Left',  category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-silver-sm-r', name: 'Chevron Ear Cuff – Double Silver (Sm) – Right', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-silver-lg-l', name: 'Chevron Ear Cuff – Double Silver (Lg) – Left',  category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-silver-lg-r', name: 'Chevron Ear Cuff – Double Silver (Lg) – Right', category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-gf-sm-l',     name: 'Chevron Ear Cuff – Double GF (Sm) – Left',      category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-gf-sm-r',     name: 'Chevron Ear Cuff – Double GF (Sm) – Right',     category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-gf-lg-l',     name: 'Chevron Ear Cuff – Double GF (Lg) – Left',      category: 'Ear Cuffs', isParent: false, sku: '' },
+  { id: 'local-chevron-double-gf-lg-r',     name: 'Chevron Ear Cuff – Double GF (Lg) – Right',     category: 'Ear Cuffs', isParent: false, sku: '' },
 ];
 
 // ── Meta persistence ──────────────────────────────────────────────────────────
