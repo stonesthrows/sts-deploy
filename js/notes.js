@@ -1412,12 +1412,21 @@ function rqDeleteItem(idx) {
   var items = _rqSortedItems();
   var item = items[idx];
   if (!item) return;
-  if (_rqExpandedPid === item.notionPageId) _rqExpandedPid = null;
+  var pid = item.notionPageId;
+  if (_rqExpandedPid === pid) _rqExpandedPid = null;
   if (_rqCardIndex >= items.length - 1 && _rqCardIndex > 0) _rqCardIndex--;
-  var restockItems = itemsFor('restock');
-  var restockIdx = restockItems.indexOf(item);
-  deleteNoteItem('restock', restockIdx);
+  // Remove from NOTES_DATA by object identity
+  var gi = NOTES_DATA.indexOf(item);
+  if (gi !== -1) NOTES_DATA.splice(gi, 1);
   restockQueueRender();
+  if (!pid) return;
+  fetch('/api/notion-notes?pageId=' + encodeURIComponent(pid), { method: 'DELETE' })
+    .catch(function() {
+      // On network failure restore locally and notify
+      NOTES_DATA.splice(gi !== -1 ? gi : NOTES_DATA.length, 0, item);
+      restockQueueRender();
+      toast('Failed to delete item', '⚠');
+    });
 }
 
 function rqSaveText(el, idx) {
