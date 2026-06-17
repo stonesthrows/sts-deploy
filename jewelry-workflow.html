@@ -2193,7 +2193,7 @@
     .rq-arrow:hover:not(:disabled) { color: var(--accent); }
     .rq-arrow:disabled { opacity: .25; cursor: default; }
     .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
-    .rq-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
+    .rq-text { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
     .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
     .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
     .rq-assignee {
@@ -2211,13 +2211,22 @@
       height: 280px; flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
       background: rgba(26,46,56,0.04);
+      transition: height 0.28s cubic-bezier(.4,0,.2,1);
     }
+    .rq-log-section.rq-log-collapsed { height: 42px; }
     .rq-log-title {
       font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2);
       text-transform: uppercase; padding: 10px 20px 9px;
       display: flex; justify-content: space-between; align-items: center;
       flex-shrink: 0; border-bottom: 1px solid var(--bdr-light);
+      cursor: pointer; user-select: none;
     }
+    .rq-log-title:hover { background: rgba(0,0,0,0.03); }
+    .rq-log-chevron {
+      font-size: 11px; color: var(--text3); margin-left: 8px;
+      transition: transform 0.25s; display: inline-block;
+    }
+    .rq-log-collapsed .rq-log-chevron { transform: rotate(180deg); }
     .rq-notion-link {
       font-size: 11px; color: var(--text2); text-decoration: none;
       border: 1px solid var(--bdr); border-radius: 6px; padding: 3px 9px;
@@ -6379,10 +6388,10 @@ function savePrintSetup() {
     <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
   <!-- Session log -->
-  <div class="rq-log-section">
-    <div class="rq-log-title">
-      <span>Session Log</span>
-      <a class="rq-notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
+  <div class="rq-log-section" id="rq-log-section">
+    <div class="rq-log-title" onclick="rqToggleLog()">
+      <span>Session Log <span class="rq-log-chevron">▲</span></span>
+      <a class="rq-notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank" onclick="event.stopPropagation()">Open in Notion ↗</a>
     </div>
     <div id="rq-log-list" class="rq-log-list">
       <div class="rq-log-empty">No sessions recorded yet</div>

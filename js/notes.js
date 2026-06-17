@@ -551,6 +551,11 @@ function _rqPatch(pageId, fields) {
 
 // ── Timer helpers ─────────────────────────────────────────────────────────────
 
+function _rqShortName(text) {
+  var idx = text.indexOf(' – ');  // ' – '
+  return idx === -1 ? text : text.slice(0, idx).trim();
+}
+
 function _rqFmtElapsed(ms) {
   var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
   return h > 0 ? h + 'h ' + (m % 60) + 'm' : m + 'm';
@@ -639,7 +644,8 @@ function restockQueueRender() {
     var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
     var itemCls  = (isRunning || isSetup) ? ' rq-active' : '';
     var textCls  = item.done ? ' rq-done' : '';
-    var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+    var shortText = _rqShortName(item.text);
+    var safeText  = shortText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
     var safePid  = pid.replace(/'/g, '');
     var isFirst  = idx === 0;
     var isLast   = idx === items.length - 1;
@@ -1145,6 +1151,11 @@ function _rqFmtDT(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+function rqToggleLog() {
+  var section = document.getElementById('rq-log-section');
+  if (section) section.classList.toggle('rq-log-collapsed');
+}
+
 function rqRenderSessions() {
   var list = document.getElementById('rq-log-list');
   if (!list) return;
@@ -1263,7 +1274,8 @@ function rqSaveText(el, idx) {
   var newText = el.textContent.trim();
   if (!newText) { el.textContent = ''; return; }
   var item = _rqSortedItems()[idx];
-  if (!item || !item.notionPageId || newText === item.text) return;
+  if (!item || !item.notionPageId) return;
+  if (newText === _rqShortName(item.text) || newText === item.text) return;
   item.text = newText;
   renderNotesList('restock', itemsFor('restock'));
   _rqPatch(item.notionPageId, { text: newText });
