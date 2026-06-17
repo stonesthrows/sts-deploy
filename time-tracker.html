@@ -946,6 +946,19 @@ async function finalizeNotionSession(session) {
     } catch(e) { session.error = 'Network error: ' + e.message; renderLog(); return; }
   }
   const totalPcs = (session.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
+  // Build Session Timeline from shiftEvents (always has start+stop even with no Square shifts)
+  const _fTime = ms => new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  const _fDay  = ms => new Date(ms).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const _byDay = {};
+  (session.shiftEvents||[]).forEach(e => { const d=_fDay(e.time); (_byDay[d]=_byDay[d]||[]).push(e); });
+  const timelineBlock = Object.keys(_byDay).length
+    ? '— Session Timeline —\n' + Object.entries(_byDay).map(([day,es]) =>
+        day+'\n'+es.map(e => {
+          const lbl = e.type==='start'?'▶ Timer Start':e.type==='stop'?'⏹ Timer Stop':e.type==='in'?'  ▶ Clock In':'  ⏸ Clock Out';
+          return `  ${lbl}: ${_fTime(e.time)}`;
+        }).join('\n')
+      ).join('\n')
+    : (session.shiftLog||'');
   try {
     const res = await fetch('/api/notion-timesession', {
       method: 'PATCH', headers: { 'Content-Type':'application/json' },
@@ -954,7 +967,7 @@ async function finalizeNotionSession(session) {
         totalMin: parseFloat((session.totalMs/60000).toFixed(2)),
         dedMin:   parseFloat((session.clockedOutMs/60000).toFixed(2)),
         netMin:   parseFloat((session.netMs/60000).toFixed(2)),
-        notes: [session.notes, session.shiftLog].filter(Boolean).join('\n\n'),
+        notes: [session.notes, timelineBlock].filter(Boolean).join('\n\n'),
         ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
       }),
     });
