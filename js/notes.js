@@ -1205,8 +1205,6 @@ function rqMove(idx, dir) {
   items[toIdx] = tmp;
   _rqMeta.order = items.map(function(i) { return i.notionPageId; });
   _rqSaveMeta();
-  // Keep _rqCardIndex tracking the moved card
-  if (idx === _rqCardIndex) _rqCardIndex = toIdx;
   restockQueueRender();
 }
 
