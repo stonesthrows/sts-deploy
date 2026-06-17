@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v93-active-card-mobile -->
+<!-- deploy-version: v94-designs-tab -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -3647,6 +3647,9 @@
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="notes" onclick="switchTab('notes',this)">
     📝 Notes
   </div>
+  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="designs" onclick="switchTab('designs',this)">
+    🎨 Designs
+  </div>
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
     📊 More
   </div>
@@ -4897,7 +4900,148 @@
   max-width: 95vw;
   box-shadow: 0 12px 40px rgba(0,0,0,.22);
 }
+
+/* ── Designs ─────────────────────────────── */
+.dsn-filter-bar { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px; }
+.dsn-filter-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:background .15s,color .15s; }
+.dsn-filter-btn:hover { background:var(--accent-bg);color:var(--text); }
+.dsn-filter-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.dsn-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px; }
+.dsn-card { background:var(--card-bg);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s; }
+.dsn-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:var(--accent-border); }
+.dsn-card-thumb-wrap { position:relative;height:120px;background:var(--surface); }
+.dsn-card-thumb { width:100%;height:100%;background-size:cover;background-position:center; }
+.dsn-card-thumb-empty { display:flex;align-items:center;justify-content:center;height:100%;background:var(--surface); }
+.dsn-img-badge { position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 7px; }
+.dsn-card-body { padding:11px 13px 13px; }
+.dsn-cat-chip { display:inline-block;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:20px;font-size:10.5px;font-weight:700;padding:2px 8px;margin-bottom:5px; }
+.dsn-card-name { font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.3; }
+.dsn-card-preview { font-size:11.5px;color:var(--text3);line-height:1.4; }
+/* Form */
+.dsn-form-header { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
+.dsn-form-title { font-size:16px;font-weight:800;color:var(--text);flex:1; }
+.dsn-field-label { font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px; }
+.dsn-input { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;transition:border-color .15s; }
+.dsn-input:focus { outline:none;border-color:var(--accent); }
+.dsn-textarea { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;resize:vertical;min-height:110px;line-height:1.5;transition:border-color .15s; }
+.dsn-textarea:focus { outline:none;border-color:var(--accent); }
+.dsn-select { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px; }
+.dsn-upload-row { display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
+.dsn-upload-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
+.dsn-upload-btn:hover { background:var(--accent-bg); }
+.dsn-pdf-status { font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;min-height:18px; }
+.dsn-img-previews { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;min-height:20px;align-items:flex-start; }
+.dsn-thumb-wrap { position:relative; }
+.dsn-thumb { width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--bdr);cursor:pointer;display:block; }
+.dsn-thumb:hover { border-color:var(--accent); }
+.dsn-thumb-del { position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#c0392b;color:#fff;border:none;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0; }
+.dsn-form-actions { display:flex;gap:8px;padding-top:4px;flex-wrap:wrap; }
+/* Lightbox */
+#dsn-img-overlay { position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;align-items:center;justify-content:center; }
+#dsn-img-overlay img { max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain; }
+#dsn-img-overlay-close { position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;line-height:1; }
+@media (max-width:600px) {
+  .dsn-grid { grid-template-columns:1fr 1fr; }
+  .dsn-card-thumb-wrap { height:90px; }
+}
 </style>
+
+<!-- ═══════════════════ DESIGNS ══════════════════ -->
+<div id="tab-designs" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">🎨 Design Library</div>
+      <div class="page-sub">Jewelry design specs, instructions &amp; reference images</div>
+    </div>
+    <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
+  </div>
+
+  <!-- Library view -->
+  <div id="designs-library">
+    <div class="dsn-filter-bar">
+      <button class="dsn-filter-btn active" data-cat="all" onclick="designsSetCatFilter('all')">All</button>
+      <button class="dsn-filter-btn" data-cat="Ear Cuffs" onclick="designsSetCatFilter('Ear Cuffs')">Ear Cuffs</button>
+      <button class="dsn-filter-btn" data-cat="Rings" onclick="designsSetCatFilter('Rings')">Rings</button>
+      <button class="dsn-filter-btn" data-cat="Earrings" onclick="designsSetCatFilter('Earrings')">Earrings</button>
+      <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
+      <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
+    </div>
+    <div class="dsn-grid" id="designs-list"></div>
+  </div>
+
+  <!-- Form view (new or edit) -->
+  <div id="designs-form-wrap" style="display:none">
+    <div class="dsn-form-header">
+      <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
+      <div class="dsn-form-title" id="dsn-form-title">✚ New Design</div>
+      <button id="dsn-delete-btn" class="btn btn-danger btn-sm" style="display:none" onclick="designsDeleteDesign()">Delete</button>
+    </div>
+
+    <!-- PDF import -->
+    <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">📄 Import from PDF</div>
+      <div class="dsn-upload-row">
+        <label class="dsn-upload-btn">
+          Choose PDF
+          <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
+        </label>
+        <span style="font-size:12px;color:var(--text3)">Text will be extracted and pre-filled below — you can edit before saving.</span>
+      </div>
+      <div class="dsn-pdf-status" id="dsn-pdf-status"></div>
+    </div>
+
+    <!-- Name -->
+    <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
+    <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
+
+    <!-- Category -->
+    <label class="dsn-field-label">Category</label>
+    <select id="dsn-cat" class="dsn-select">
+      <option value="">— Select category —</option>
+      <option value="Ear Cuffs">Ear Cuffs</option>
+      <option value="Rings">Rings</option>
+      <option value="Earrings">Earrings</option>
+      <option value="Pendants / Necklaces">Pendants / Necklaces</option>
+      <option value="Other">Other</option>
+    </select>
+
+    <!-- Specs -->
+    <label class="dsn-field-label">Specifications &amp; Materials</label>
+    <textarea id="dsn-specs" class="dsn-textarea" rows="5"
+      placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."></textarea>
+
+    <!-- Instructions -->
+    <label class="dsn-field-label">Step-by-Step Instructions</label>
+    <textarea id="dsn-instructions" class="dsn-textarea" rows="7"
+      placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."></textarea>
+
+    <!-- Images -->
+    <label class="dsn-field-label">Reference Images</label>
+    <div class="dsn-img-previews" id="dsn-img-previews">
+      <span style="color:var(--text3);font-size:12px">No images yet</span>
+    </div>
+    <div class="dsn-upload-row" style="margin-bottom:16px;">
+      <label class="dsn-upload-btn">
+        + Add Images
+        <input type="file" accept="image/*" multiple style="display:none"
+          onchange="designsHandleImages(this.files);this.value=''">
+      </label>
+      <span style="font-size:12px;color:var(--text3)">JPEG, PNG, HEIC — up to 10 images per design</span>
+    </div>
+
+    <!-- Actions -->
+    <div class="dsn-form-actions">
+      <button class="btn btn-gold" style="flex:1" onclick="designsSaveDesign()">💾 Save Design</button>
+      <button class="btn btn-outline" onclick="designsShowLibrary()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Designs image lightbox -->
+<div id="dsn-img-overlay" onclick="if(event.target===this)designsCloseImageOverlay()">
+  <span id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()">×</span>
+  <img id="dsn-img-overlay-img" src="" alt="Design reference image">
+</div>
 
 <!-- ═══════════════════ TRIPLOG ═══════════════════ -->
 <div id="tab-triplog" class="tab-panel">
@@ -6533,6 +6677,13 @@ function savePrintSetup() {
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
+<script src="js/designs.js"></script>
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js?v=2"></script>
 <script src="js/inv-manager.js"></script>
