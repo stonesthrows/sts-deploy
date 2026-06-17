@@ -314,41 +314,57 @@ function designsHandlePDF(file) {
 function _designsPrefillFromText(text, filename) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Pre-fill name from first line (if blank and line is short enough to be a title)
+  // ── 1. Jewelry Design Name ────────────────────────────────────────────
+  // Look for the labeled field first; fall back to first line of the doc
   const nameEl = document.getElementById('dsn-name');
   if (!nameEl.value.trim()) {
-    const firstLine = lines[0] || '';
-    nameEl.value = firstLine.length > 0 && firstLine.length < 120
-      ? firstLine
-      : filename.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    const nameLine = lines.find(l => /Jewelry\s+Design\s+Name\s*:/i.test(l));
+    if (nameLine) {
+      // Grab everything after the colon on that line
+      nameEl.value = nameLine.replace(/.*Jewelry\s+Design\s+Name\s*:\s*/i, '').trim()
+        || lines[0]; // if nothing follows the colon, use the title line
+    } else {
+      const firstLine = lines[0] || '';
+      nameEl.value = firstLine.length < 120
+        ? firstLine
+        : filename.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    }
   }
 
-  // Heuristic split: instruction-like lines vs spec/material lines
-  const instrPattern = /^(•|\*|[-–]|\d+[\.\)])\s*|^(cut|fuse|solder|use|wrap|place|apply|twist|bend|shape|join|don'?t|note:|for\s)/i;
-  const instrLines = [], specLines = [];
-  let pastTitle = false;
-
-  lines.forEach((line, i) => {
-    if (i === 0) { pastTitle = true; return; } // skip title
-    if (/^(SPECIFICATIONS?|Materials?|Tools?):?$/i.test(line)) return; // skip headers
-    if (instrPattern.test(line)) {
-      instrLines.push(line);
-    } else {
-      specLines.push(line);
-    }
-  });
-
-  // Fill specs — if split worked use it, otherwise dump all non-title lines
+  // ── 2. Specifications / Materials ────────────────────────────────────
+  // Everything between SPECIFICATIONS: and the first clear instruction step
   const specsEl = document.getElementById('dsn-specs');
   if (!specsEl.value.trim()) {
-    specsEl.value = specLines.length
-      ? specLines.join('\n')
-      : lines.slice(1).join('\n');
+    const specsIdx = lines.findIndex(l => /^SPECIFICATIONS?\s*[:(]/i.test(l));
+    const instrStart = /^(cut|fuse|solder|use |wrap|place|apply|twist|bend|shape|join|once|for bi|don'?t|\*\s|•\s)/i;
+
+    if (specsIdx !== -1) {
+      // Inline content on the SPECIFICATIONS: line (after the label + parenthetical hint)
+      const specsHeaderRest = lines[specsIdx]
+        .replace(/^SPECIFICATIONS?\s*:\s*(\([^)]*\))?\s*/i, '').trim();
+
+      const specsLines = specsHeaderRest ? [specsHeaderRest] : [];
+
+      for (let i = specsIdx + 1; i < lines.length; i++) {
+        if (instrStart.test(lines[i])) break;         // hit instructions — stop
+        if (/Jewelry\s+Design\s+Name/i.test(lines[i])) continue; // skip name label
+        specsLines.push(lines[i]);
+      }
+      specsEl.value = specsLines.filter(Boolean).join('\n');
+    } else {
+      // No label found — collect non-instruction lines after the title
+      specsEl.value = lines.slice(1)
+        .filter(l => !instrStart.test(l))
+        .join('\n');
+    }
   }
 
-  // Fill instructions — if nothing matched the heuristic, leave blank (specs has everything)
+  // ── 3. Directions / Instructions ─────────────────────────────────────
+  // Lines that look like action steps or notes, anywhere in the doc
   const instrEl = document.getElementById('dsn-instructions');
-  if (!instrEl.value.trim() && instrLines.length) {
+  if (!instrEl.value.trim()) {
+    const instrPattern = /^(cut|fuse|solder|use |wrap|place|apply|twist|bend|shape|join|once|for bi|don'?t|\*\s*[A-Za-z]|•|[-–]\s*[A-Za-z]|\d+[\.\)]\s)/i;
+    const instrLines = lines.filter(l => instrPattern.test(l));
     instrEl.value = instrLines.join('\n');
   }
 
