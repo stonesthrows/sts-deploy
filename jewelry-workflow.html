@@ -470,6 +470,13 @@
     .k-sub-wrap.s-intake-website .k-sub-head { background:#E0F4EE; color:#1A6B4A; }
     .k-sub-wrap.s-intake-website .k-body     { background:#EBF8F3; }
     .k-sub-wrap.s-intake-website .o-card     { border-left-color:#2A9D6A; }
+    .k-sync-btn {
+      margin-left: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+      background: rgba(0,0,0,.12); border: none; border-radius: 4px;
+      color: inherit; cursor: pointer; vertical-align: middle;
+    }
+    .k-sync-btn:hover { background: rgba(0,0,0,.22); }
+    .k-sync-btn:disabled { opacity: .5; cursor: default; }
 
     /* Sub-section stage colors — Contact Customer group */
     .k-sub-wrap.s-contact-need .k-sub-head  { background:#FFF3CD; color:#7A5A00; }
@@ -2156,149 +2163,119 @@
       padding: 16px 20px 14px; border-bottom: 1px solid var(--bdr-light);
       flex-shrink: 0; background: var(--card-bg);
     }
-    /* Card stack wrap replaces scroll-area */
+    /* ── Card pager (full-screen swipeable card per item) ── */
     .rq-card-stack-wrap {
-      flex: 1; overflow-y: auto; overflow-x: hidden;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 20px 16px 32px;
-    }
-    .rq-card-stack-wrap::-webkit-scrollbar { width: 4px; }
-    .rq-card-stack-wrap::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 2px; }
-    /* Card stack container */
-    .rq-card-stack {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: column;
       position: relative;
-      width: 100%; max-width: 480px;
-      padding-bottom: 56px; /* room for 3 behind cards to peek */
     }
-    /* Navigation bar above the stack */
-    .rq-card-nav-bar {
+    /* Position dots strip */
+    .rq-dots-strip {
       display: flex; align-items: center; justify-content: center;
-      gap: 14px; margin-bottom: 14px;
+      gap: 6px; padding: 10px 16px 8px; flex-shrink: 0;
     }
-    .rq-card-nav-btn {
-      background: none; border: 1px solid var(--bdr); border-radius: 7px;
-      color: var(--text2); font-size: 11px; font-weight: 700;
-      letter-spacing: 0.05em; padding: 4px 12px; cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
+    .rq-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #D8D0C8; cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+      flex-shrink: 0;
     }
-    .rq-card-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-    .rq-card-nav-btn:disabled { opacity: 0.28; cursor: default; }
-    .rq-card-nav-pos { font-size: 12px; color: var(--text3); min-width: 52px; text-align: center; }
-    /* Base card styles */
+    .rq-dot.active { background: var(--accent); transform: scale(1.5); }
+    .rq-pos-label {
+      font-size: 11px; color: var(--text3); margin-left: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    /* The swipeable card area */
+    .rq-card-area {
+      flex: 1; position: relative; overflow: hidden;
+      padding: 4px 14px 14px;
+    }
+    /* On wider screens, constrain card width */
+    @media (min-width: 640px) {
+      .rq-card-area { padding: 4px calc(50% - 240px) 14px; }
+    }
+    /* The card itself — fills the card area, scrolls internally */
     .rq-card {
-      background: var(--card-bg); border: 1px solid var(--bdr);
-      border-radius: 14px; padding: 14px 16px;
-      box-shadow: 0 3px 14px rgba(0,0,0,0.07);
-      transition: transform 0.28s cubic-bezier(.25,.46,.45,.94),
-                  opacity 0.28s ease, box-shadow 0.28s ease;
-      user-select: none;
+      position: absolute;
+      top: 4px; left: 14px; right: 14px; bottom: 0;
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+      overflow-y: auto;
+      padding: 16px 18px 20px;
+      display: flex; flex-direction: column; gap: 0;
     }
-    /* Top card — normal flow, sets stack height */
-    .rq-card[data-offset="0"] {
-      position: relative; z-index: 10;
-      box-shadow: 0 6px 28px rgba(0,0,0,0.11);
-      cursor: default;
+    @media (min-width: 640px) {
+      .rq-card { left: calc(50% - 240px); right: calc(50% - 240px); }
     }
-    /* Behind cards — absolute, anchored to bottom of stack */
-    .rq-card.rq-card-behind {
-      position: absolute; left: 0; right: 0; bottom: 0;
-      cursor: pointer;
+    /* Slide animations */
+    @keyframes rq-slide-up {
+      from { transform: translateY(48px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
     }
-    .rq-card[data-offset="1"] {
-      z-index: 9;
-      transform: translateY(18px) scaleX(0.965);
-      opacity: 0.88;
+    @keyframes rq-slide-down {
+      from { transform: translateY(-48px); opacity: 0; }
+      to   { transform: translateY(0);     opacity: 1; }
     }
-    .rq-card[data-offset="2"] {
-      z-index: 8;
-      transform: translateY(32px) scaleX(0.93);
-      opacity: 0.72;
+    .rq-card.rq-anim-up   { animation: rq-slide-up   0.24s cubic-bezier(.25,.46,.45,.94); }
+    .rq-card.rq-anim-down { animation: rq-slide-down  0.24s cubic-bezier(.25,.46,.45,.94); }
+    /* Swipe handle bar at top of card */
+    .rq-swipe-handle {
+      width: 36px; height: 4px; background: var(--bdr);
+      border-radius: 2px; margin: 0 auto 14px; flex-shrink: 0;
     }
-    .rq-card[data-offset="3"] {
-      z-index: 7;
-      transform: translateY(44px) scaleX(0.895);
-      opacity: 0.48;
-      pointer-events: none;
+    /* Card position + title row */
+    .rq-card-pos-row {
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;
     }
-    .rq-card[data-offset="prev"] {
-      position: absolute; left: 0; right: 0; bottom: 0;
-      z-index: 11; opacity: 0; pointer-events: none;
-      transform: translateY(-24px);
-    }
-    /* Assignee color accents on cards */
-    .rq-card.rq-card-vanessa[data-offset="0"] { border-color: #A0BBEE; }
-    .rq-card.rq-card-stevie[data-offset="0"]  { border-color: #B4A0EE; }
-    .rq-card.rq-card-kyle[data-offset="0"]    { border-color: #8EC8A8; }
-    /* Running timer accent */
-    .rq-card.rq-card-running[data-offset="0"] {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(201,152,58,0.15), 0 6px 28px rgba(0,0,0,0.11);
-    }
-    /* Card header row */
-    .rq-card-header {
-      display: flex; align-items: center; gap: 8px; min-height: 28px;
-    }
-    .rq-card-rank {
+    .rq-card-pos-num {
       font-size: 11px; font-weight: 700; color: #B0A898;
-      flex-shrink: 0; width: 18px; text-align: center;
+      background: #F0EDE8; border-radius: 10px; padding: 1px 7px;
     }
-    .rq-card-name {
-      flex: 1; font-size: 14px; font-weight: 600; color: var(--text);
-      line-height: 1.35; border-radius: 5px; padding: 2px 4px;
-      outline: none;
+    /* Card title */
+    .rq-card-title {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      line-height: 1.3; outline: none; border-radius: 6px;
+      padding: 2px 5px; margin: 0 -5px 14px; width: calc(100% + 10px);
     }
-    .rq-card[data-offset="0"] .rq-card-name { cursor: text; }
-    .rq-card[data-offset="0"] .rq-card-name:focus {
+    .rq-card-title:focus {
       background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3);
     }
-    .rq-card.rq-card-behind .rq-card-name { cursor: pointer; }
-    /* Assignee pill */
-    .rq-card-pill {
-      font-size: 10px; font-weight: 700; padding: 2px 9px;
-      border-radius: 20px; flex-shrink: 0; letter-spacing: 0.04em;
-    }
-    .rq-pill-none    { background: #F0EDE8; color: #B0A898; }
-    .rq-pill-vanessa { background: #EEF4FF; color: #2B5CC8; }
-    .rq-pill-stevie  { background: #F4F0FF; color: #5C2BC8; }
-    .rq-pill-kyle    { background: #F0FFF4; color: #1E7040; }
-    /* Expanded card body */
-    .rq-card-body {
-      margin-top: 12px; border-top: 1px solid var(--bdr-light);
-      padding-top: 12px; display: flex; flex-direction: column; gap: 10px;
-    }
-    /* Controls row in expanded (non-running) card */
+    /* Controls section */
     .rq-card-controls {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      display: flex; align-items: center; gap: 8px;
+      border-top: 1px solid var(--bdr-light); padding-top: 12px;
+      flex-wrap: wrap;
     }
     .rq-card-action-btns {
       display: flex; align-items: center; gap: 5px; margin-left: auto;
     }
-    /* Shared control buttons */
-    .rq-start-btn {
-      background: none; border: 1px solid var(--accent); border-radius: 7px;
-      color: var(--accent); font-size: 13px; padding: 5px 12px; cursor: pointer;
-      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
-    }
-    .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
-    .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
-    .rq-arrow {
-      background: none; border: 1px solid var(--bdr); border-radius: 5px;
-      padding: 3px 7px; font-size: 11px; line-height: 1.2;
-      color: #C8C0B8; cursor: pointer; transition: border-color 0.15s, color 0.15s;
-    }
-    .rq-arrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-    .rq-arrow:disabled { opacity: .25; cursor: default; }
-    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
-    .rq-del:hover { color: #C43030; }
     .rq-assignee {
-      padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
-      font-size: 12px; font-family: inherit; color: var(--text); background: #FDFAF6;
+      padding: 5px 8px; border: 1px solid #D8D0C8; border-radius: 8px;
+      font-size: 13px; font-family: inherit; color: var(--text); background: #FDFAF6;
       cursor: pointer; outline: none; flex-shrink: 0;
     }
     .rq-assignee:focus { border-color: var(--accent); }
     .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
     .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
     .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
+    .rq-start-btn {
+      background: none; border: 1px solid var(--accent); border-radius: 8px;
+      color: var(--accent); font-size: 13px; padding: 5px 14px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4; transition: background 0.15s; font-weight: 600;
+    }
+    .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
+    .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
+    .rq-arrow {
+      background: none; border: 1px solid var(--bdr); border-radius: 6px;
+      padding: 4px 9px; font-size: 12px; line-height: 1.2;
+      color: #C8C0B8; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    }
+    .rq-arrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .rq-arrow:disabled { opacity: .25; cursor: default; }
+    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 20px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+    .rq-del:hover { color: #C43030; }
     .rq-log-section {
       height: 280px; flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
@@ -4083,6 +4060,7 @@
               <option value="Email">Email</option>
               <option value="Farmer's Market">Farmer's Market</option>
               <option value="Shopify Email">Shopify Email</option>
+              <option value="Website Order">Website Order</option>
               <option value="Etsy Message">Etsy Message</option>
               <option value="Instagram Message">Instagram Message</option>
               <option value="Text Message">Text Message</option>
@@ -6463,11 +6441,15 @@ function savePrintSetup() {
     </div>
   </div>
   <!-- Queue list -->
-  <div class="rq-card-stack-wrap">
-    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
+  <div class="rq-card-stack-wrap"
+       ontouchstart="rqTouchStart(event)"
+       ontouchmove="rqTouchMove(event)"
+       ontouchend="rqTouchEnd(event)">
+    <div id="rq-dots-strip" class="rq-dots-strip"></div>
+    <div id="restock-queue-empty" style="display:none;flex:1;align-items:center;justify-content:center;text-align:center;color:#B0A898;font-size:14px;">
       No items in the Inventory Restock list yet.
     </div>
-    <div id="restock-queue-list" style="display:none;width:100%;max-width:480px;"></div>
+    <div id="restock-queue-list" class="rq-card-area" style="display:none;"></div>
   </div>
   <!-- Session log -->
   <div class="rq-log-section">
@@ -6488,11 +6470,12 @@ function savePrintSetup() {
 <script src="js/app.js"></script>
 <script src="js/orders.js?v=20260616a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
+<script src="js/shopify.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=4"></script>
+<script src="js/notes.js?v=5"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
