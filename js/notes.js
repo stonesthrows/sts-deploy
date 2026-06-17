@@ -54,7 +54,7 @@ function refreshNotes() {
       ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
-      var queuePanel = document.getElementById('tab-inv-restock-queue');
+      var queuePanel = document.getElementById('tab-to-restock');
       if (queuePanel && queuePanel.classList.contains('active')) restockQueueRender();
     })
     .catch(function() {});
