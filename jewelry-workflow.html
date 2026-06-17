@@ -2163,119 +2163,50 @@
       padding: 16px 20px 14px; border-bottom: 1px solid var(--bdr-light);
       flex-shrink: 0; background: var(--card-bg);
     }
-    /* ── Card pager (full-screen swipeable card per item) ── */
-    .rq-card-stack-wrap {
-      flex: 1; overflow: hidden;
-      display: flex; flex-direction: column;
-      position: relative;
+    .rq-scroll-area {
+      flex: 1; overflow-y: auto; padding: 16px 20px 24px;
     }
-    /* Position dots strip */
-    .rq-dots-strip {
-      display: flex; align-items: center; justify-content: center;
-      gap: 6px; padding: 10px 16px 8px; flex-shrink: 0;
+    .rq-scroll-area::-webkit-scrollbar { width: 5px; }
+    .rq-scroll-area::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+    .rq-item {
+      background: #fff; border: 1px solid #E4DDD4; border-radius: 10px;
+      display: flex; flex-direction: column; padding: 10px 14px;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .rq-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #D8D0C8; cursor: pointer;
-      transition: background 0.2s, transform 0.2s;
-      flex-shrink: 0;
+    .rq-item-row { display: flex; align-items: center; gap: 10px; }
+    .rq-item.rq-active {
+      border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,0.18);
+      background: #FFFBF3;
     }
-    .rq-dot.active { background: var(--accent); transform: scale(1.5); }
-    .rq-pos-label {
-      font-size: 11px; color: var(--text3); margin-left: 8px;
-      font-variant-numeric: tabular-nums;
-    }
-    /* The swipeable card area */
-    .rq-card-area {
-      flex: 1; position: relative; overflow: hidden;
-      padding: 4px 14px 14px;
-    }
-    /* On wider screens, constrain card width */
-    @media (min-width: 640px) {
-      .rq-card-area { padding: 4px calc(50% - 240px) 14px; }
-    }
-    /* The card itself — fills the card area, scrolls internally */
-    .rq-card {
-      position: absolute;
-      top: 4px; left: 14px; right: 14px; bottom: 0;
-      background: var(--card-bg);
-      border: 1px solid var(--bdr);
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.09);
-      overflow-y: auto;
-      padding: 16px 18px 20px;
-      display: flex; flex-direction: column; gap: 0;
-    }
-    @media (min-width: 640px) {
-      .rq-card { left: calc(50% - 240px); right: calc(50% - 240px); }
-    }
-    /* Slide animations */
-    @keyframes rq-slide-up {
-      from { transform: translateY(48px); opacity: 0; }
-      to   { transform: translateY(0);    opacity: 1; }
-    }
-    @keyframes rq-slide-down {
-      from { transform: translateY(-48px); opacity: 0; }
-      to   { transform: translateY(0);     opacity: 1; }
-    }
-    .rq-card.rq-anim-up   { animation: rq-slide-up   0.24s cubic-bezier(.25,.46,.45,.94); }
-    .rq-card.rq-anim-down { animation: rq-slide-down  0.24s cubic-bezier(.25,.46,.45,.94); }
-    /* Swipe handle bar at top of card */
-    .rq-swipe-handle {
-      width: 36px; height: 4px; background: var(--bdr);
-      border-radius: 2px; margin: 0 auto 14px; flex-shrink: 0;
-    }
-    /* Card position + title row */
-    .rq-card-pos-row {
-      display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;
-    }
-    .rq-card-pos-num {
-      font-size: 11px; font-weight: 700; color: #B0A898;
-      background: #F0EDE8; border-radius: 10px; padding: 1px 7px;
-    }
-    /* Card title */
-    .rq-card-title {
-      font-size: 18px; font-weight: 700; color: var(--text);
-      line-height: 1.3; outline: none; border-radius: 6px;
-      padding: 2px 5px; margin: 0 -5px 14px; width: calc(100% + 10px);
-    }
-    .rq-card-title:focus {
-      background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3);
-    }
-    /* Controls section */
-    .rq-card-controls {
-      display: flex; align-items: center; gap: 8px;
-      border-top: 1px solid var(--bdr-light); padding-top: 12px;
-      flex-wrap: wrap;
-    }
-    .rq-card-action-btns {
-      display: flex; align-items: center; gap: 5px; margin-left: auto;
-    }
-    .rq-assignee {
-      padding: 5px 8px; border: 1px solid #D8D0C8; border-radius: 8px;
-      font-size: 13px; font-family: inherit; color: var(--text); background: #FDFAF6;
-      cursor: pointer; outline: none; flex-shrink: 0;
-    }
-    .rq-assignee:focus { border-color: var(--accent); }
-    .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
-    .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
-    .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .rq-start-btn {
-      background: none; border: 1px solid var(--accent); border-radius: 8px;
-      color: var(--accent); font-size: 13px; padding: 5px 14px; cursor: pointer;
-      flex-shrink: 0; line-height: 1.4; transition: background 0.15s; font-weight: 600;
+      background: none; border: 1px solid var(--accent); border-radius: 7px;
+      color: var(--accent); font-size: 15px; padding: 5px 12px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
     }
     .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
     .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
+    .rq-arrows { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
     .rq-arrow {
-      background: none; border: 1px solid var(--bdr); border-radius: 6px;
-      padding: 4px 9px; font-size: 12px; line-height: 1.2;
-      color: #C8C0B8; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+      background: none; border: none; padding: 0 3px; font-size: 11px; line-height: 1.2;
+      color: #C8C0B8; cursor: pointer;
     }
-    .rq-arrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .rq-arrow:hover:not(:disabled) { color: var(--accent); }
     .rq-arrow:disabled { opacity: .25; cursor: default; }
-    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 20px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+    .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
+    .rq-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
+    .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
+    .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
+    .rq-assignee {
+      padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 12px; font-family: inherit; color: var(--text); background: #FDFAF6;
+      cursor: pointer; outline: none; flex-shrink: 0;
+    }
+    .rq-assignee:focus { border-color: var(--accent); }
+    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
     .rq-del:hover { color: #C43030; }
+    .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
+    .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
+    .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .rq-log-section {
       height: 280px; flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
@@ -6441,15 +6372,11 @@ function savePrintSetup() {
     </div>
   </div>
   <!-- Queue list -->
-  <div class="rq-card-stack-wrap"
-       ontouchstart="rqTouchStart(event)"
-       ontouchmove="rqTouchMove(event)"
-       ontouchend="rqTouchEnd(event)">
-    <div id="rq-dots-strip" class="rq-dots-strip"></div>
-    <div id="restock-queue-empty" style="display:none;flex:1;align-items:center;justify-content:center;text-align:center;color:#B0A898;font-size:14px;">
+  <div class="rq-scroll-area">
+    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
       No items in the Inventory Restock list yet.
     </div>
-    <div id="restock-queue-list" class="rq-card-area" style="display:none;"></div>
+    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
   <!-- Session log -->
   <div class="rq-log-section">

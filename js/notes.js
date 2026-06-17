@@ -492,12 +492,6 @@ var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceT
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 
-// Card pager UI state
-var _rqCardIndex   = 0;     // index into _rqSortedItems() of the visible card
-var _rqNavDir      = 0;     // animation direction: 1 = next (slide up), -1 = prev (slide down)
-var _rqTouchState  = null;  // active touch gesture tracking
-var _rqSwipeFired  = false; // suppresses tap after swipe
-
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
   { id: 'local-chevron-silver-sm', name: 'Chevron Ear Cuff – Double Silver (Sm)', category: 'Ear Cuffs', isParent: false, sku: '' },
@@ -613,224 +607,127 @@ function _rqRestartTicks() {
 // ── Queue render ──────────────────────────────────────────────────────────────
 
 function restockQueueRender() {
-  var container  = document.getElementById('restock-queue-list');
-  var dotsStrip  = document.getElementById('rq-dots-strip');
-  var empty      = document.getElementById('restock-queue-empty');
-  if (!container) return;
+  var list  = document.getElementById('restock-queue-list');
+  var empty = document.getElementById('restock-queue-empty');
+  if (!list) return;
 
   if (!_rqMetaLoaded) {
-    if (empty) { empty.style.display = 'flex'; empty.textContent = 'Loading…'; }
-    container.style.display = 'none';
-    if (dotsStrip) dotsStrip.innerHTML = '';
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+    list.style.display = 'flex';
+    if (empty) empty.style.display = 'none';
     _rqLoadMeta(restockQueueRender);
     return;
   }
 
   var items = _rqSortedItems();
   if (items.length === 0) {
-    container.style.display = 'none';
-    if (dotsStrip) dotsStrip.innerHTML = '';
-    if (empty) { empty.style.display = 'flex'; empty.textContent = 'No items in the Inventory Restock list yet.'; }
+    list.style.display = 'none';
+    if (empty) empty.style.display = '';
     return;
   }
   if (empty) empty.style.display = 'none';
+  list.style.display = 'flex';
 
-  // Clamp card index
-  if (_rqCardIndex >= items.length) _rqCardIndex = items.length - 1;
-  if (_rqCardIndex < 0) _rqCardIndex = 0;
+  var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
 
-  var item     = items[_rqCardIndex];
-  var pid      = item.notionPageId || '';
-  var safePid  = pid.replace(/'/g,'');
-  var assignee = (pid && _rqMeta.assignees[pid]) || '';
-  var timer    = pid ? _rqTimers[pid] : null;
-  var isRunning = !!timer;
-  var isSetup  = !!(pid && _rqSetups[pid]);
-  var isFirst  = _rqCardIndex === 0;
-  var isLast   = _rqCardIndex === items.length - 1;
-  var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
-  var PEOPLE   = ['', 'Vanessa', 'Stevie', 'Kyle'];
+  list.innerHTML = items.map(function(item, idx) {
+    var pid      = item.notionPageId || '';
+    var assignee = (pid && _rqMeta.assignees[pid]) || '';
+    var timer    = pid ? _rqTimers[pid] : null;
+    var isRunning = !!timer;
+    var isSetup  = pid ? !!_rqSetups[pid] : false;
+    var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
+    var itemCls  = (isRunning || isSetup) ? ' rq-active' : '';
+    var textCls  = item.done ? ' rq-done' : '';
+    var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+    var safePid  = pid.replace(/'/g, '');
+    var isFirst  = idx === 0;
+    var isLast   = idx === items.length - 1;
 
-  // ── Dots strip ────────────────────────────────────────────────────────────
-  if (dotsStrip) {
-    var dotsHtml = '';
-    items.forEach(function(_, i) {
-      dotsHtml += '<span class="rq-dot' + (i === _rqCardIndex ? ' active' : '') + '" onclick="rqCardNav(' + (i - _rqCardIndex) + ')"></span>';
-    });
-    dotsHtml += '<span class="rq-pos-label">' + (_rqCardIndex + 1) + ' / ' + items.length + '</span>';
-    dotsStrip.innerHTML = dotsHtml;
-  }
+    var startDisabled = !pid || !assignee || isRunning || isSetup;
+    var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
+    var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
-  // ── Card content ──────────────────────────────────────────────────────────
-  var animCls = _rqNavDir > 0 ? ' rq-anim-up' : _rqNavDir < 0 ? ' rq-anim-down' : '';
-  _rqNavDir = 0;
-
-  var startDisabled = !pid || !assignee || isRunning || isSetup;
-  var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
-
-  var html = '<div class="rq-card' + animCls + '">';
-
-  // Drag handle
-  html += '<div class="rq-swipe-handle"></div>';
-
-  // Position badge + title
-  html += '<div class="rq-card-pos-row">'
-    + '<span class="rq-card-pos-num">' + (_rqCardIndex + 1) + ' of ' + items.length + '</span>'
-    + (isRunning ? '<span class="rq-timer-dot" style="margin-left:4px;flex-shrink:0;"></span>' : '')
-    + '</div>';
-
-  html += '<div class="rq-card-title" contenteditable="true" spellcheck="false"'
-    + ' onblur="rqSaveText(this,' + _rqCardIndex + ')"'
-    + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-    + '>' + safeText + '</div>';
-
-  // ── Controls row ────────────────────────────────────────
-  html += '<div class="rq-card-controls">';
-  html += '<select class="rq-assignee' + (assignee ? ' rq-' + assignee.toLowerCase() : '') + '" onchange="rqSetAssignee(this,' + _rqCardIndex + ')">'
-    + PEOPLE.map(function(p) {
-        return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
-      }).join('')
-    + '</select>';
-
-  html += '<div class="rq-card-action-btns">'
-    + '<button class="rq-arrow" onclick="rqMove(' + _rqCardIndex + ',-1)"' + (isFirst ? ' disabled' : '') + ' title="Move up">▲</button>'
-    + '<button class="rq-arrow" onclick="rqMove(' + _rqCardIndex + ',1)"' + (isLast ? ' disabled' : '') + ' title="Move down">▼</button>'
-    + '<button class="rq-start-btn"'
-    + (startDisabled
-        ? ' disabled title="' + startTitle + '"'
-        : ' title="' + startTitle + '" onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g,"\\'") + '\',\'' + assignee + '\')"')
-    + '>⏱ Start</button>'
-    + '<span class="rq-del" onclick="rqDeleteItem(' + _rqCardIndex + ')" title="Remove">×</span>'
-    + '</div>';
-  html += '</div>'; // end rq-card-controls
-
-  // ── Timer panel ──────────────────────────────────────────
-  if (isRunning) {
-    var elapsed  = _rqFmtElapsed(Date.now() - timer.startTime);
-    var startLbl = _rqFmtTime(timer.startTime);
-    var itemLbl  = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
-    html += '<div class="rq-timer-panel">'
-      + '<div class="rq-timer-running-row">'
-      + '<span class="rq-timer-dot"></span>'
-      + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
-      + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
-      + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
-      + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
-      + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
-      + '</div>'
-      + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
-      + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
-      + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
-      + '</div>'
-      + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
-      + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
-      + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
-      + '</div>'
-      + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
-      + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
-      + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
-      + '</div>'
+    var mainRow = '<div class="rq-item-row">'
+      + '<span class="rq-arrows">'
+      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
+      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
+      + '</span>'
+      + '<span class="rq-rank">' + (idx + 1) + '</span>'
+      + '<span class="rq-text' + textCls + '" contenteditable="true" spellcheck="false"'
+      + ' onblur="rqSaveText(this,' + idx + ')"'
+      + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+      + '>' + safeText + '</span>'
+      + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
+      + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
+      + PEOPLE.map(function(p) {
+          return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
+        }).join('')
+      + '</select>'
+      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
       + '</div>';
-  }
 
-  // ── Setup panel ──────────────────────────────────────────
-  if (isSetup && !isRunning) {
-    var setup    = _rqSetups[pid];
-    var startVal = _rqToDateTimeLocal(setup.startTimeMs || Date.now());
-    var canStart = setup.selectedItems.length > 0;
-    html += '<div class="rq-setup-panel">'
-      + '<div class="rq-setup-search-wrap">'
-      + '<span class="rq-setup-search-icon">⌕</span>'
-      + '<input type="text" class="rq-setup-search-input" id="rq-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
-      + ' oninput="rqSearchInput(\'' + safePid + '\',this.value)">'
-      + '<div class="rq-setup-spinner" id="rq-spinner-' + safePid + '"></div>'
-      + '</div>'
-      + '<div class="rq-setup-results" id="rq-results-' + safePid + '"></div>'
-      + '<div id="rq-selected-' + safePid + '">' + _rqSelectedHTML(pid) + '</div>'
-      + '<div class="rq-setup-footer">'
-      + '<input type="datetime-local" class="rq-adjust-input" id="rq-sstart-' + safePid + '" value="' + startVal + '" onchange="rqSetupStartChange(\'' + safePid + '\',this.value)">'
-      + '<button class="rq-setup-cancel-btn" onclick="rqCancelSetup(\'' + safePid + '\')">Cancel</button>'
-      + '<button class="rq-start-confirm-btn" id="rq-confirm-' + safePid + '" onclick="rqStartTimerConfirm(\'' + safePid + '\')"' + (canStart ? '' : ' disabled') + '>▶ Start Timer</button>'
-      + '</div>'
-      + '</div>';
-  }
+    var timerPanel = '';
+    if (isRunning) {
+      var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
+      var startLbl = _rqFmtTime(timer.startTime);
+      var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
+      timerPanel = '<div class="rq-timer-panel">'
+        + '<div class="rq-timer-running-row">'
+        + '<span class="rq-timer-dot"></span>'
+        + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
+        + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
+        + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
+        + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+        + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
+        + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
+        + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
+        + '</div>'
+        + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
+        + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
+        + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
+        + '</div>'
+        + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
+        + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
+        + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
+        + '</div>'
+        + '</div>';
+    }
 
-  html += '</div>'; // end rq-card
+    var setupPanel = '';
+    if (isSetup && !isRunning) {
+      var setup = _rqSetups[pid];
+      var startVal = _rqToDateTimeLocal(setup.startTimeMs || Date.now());
+      var canStart = setup.selectedItems.length > 0;
+      setupPanel = '<div class="rq-setup-panel">'
+        + '<div class="rq-setup-search-wrap">'
+        + '<span class="rq-setup-search-icon">⌕</span>'
+        + '<input type="text" class="rq-setup-search-input" id="rq-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
+        + ' oninput="rqSearchInput(\'' + safePid + '\',this.value)">'
+        + '<div class="rq-setup-spinner" id="rq-spinner-' + safePid + '"></div>'
+        + '</div>'
+        + '<div class="rq-setup-results" id="rq-results-' + safePid + '"></div>'
+        + '<div id="rq-selected-' + safePid + '">' + _rqSelectedHTML(pid) + '</div>'
+        + '<div class="rq-setup-footer">'
+        + '<input type="datetime-local" class="rq-adjust-input" id="rq-sstart-' + safePid + '" value="' + startVal + '" onchange="rqSetupStartChange(\'' + safePid + '\',this.value)">'
+        + '<button class="rq-setup-cancel-btn" onclick="rqCancelSetup(\'' + safePid + '\')">Cancel</button>'
+        + '<button class="rq-start-confirm-btn" id="rq-confirm-' + safePid + '" onclick="rqStartTimerConfirm(\'' + safePid + '\')"' + (canStart ? '' : ' disabled') + '>▶ Start Timer</button>'
+        + '</div>'
+        + '</div>';
+    }
 
-  container.style.display = 'block';
-  container.innerHTML = html;
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + setupPanel + '</div>';
+  }).join('');
+
   _rqRestartTicks();
-
-  // Re-populate open setup panel inputs after re-render
-  if (isSetup && !isRunning) {
+  Object.keys(_rqSetups).forEach(function(pid) {
     var s = _rqSetups[pid];
     var inp = document.getElementById('rq-srch-' + pid);
-    if (inp && s.query) inp.value = s.query;
+    if (inp && s.query) { inp.value = s.query; }
     if (s._lastResults && s._lastResults.length) _rqRenderResults(pid, s._lastResults, s.query);
-  }
-}
-
-// ── Card navigation ───────────────────────────────────────────────────────────
-
-function rqCardNav(dir) {
-  var items  = _rqSortedItems();
-  var newIdx = Math.max(0, Math.min(items.length - 1, _rqCardIndex + dir));
-  if (newIdx === _rqCardIndex) return;
-  _rqNavDir    = dir > 0 ? 1 : -1;
-  _rqCardIndex = newIdx;
-  restockQueueRender();
-}
-
-// ── Touch gesture handlers (attached to .rq-card-stack-wrap) ─────────────────
-
-function rqTouchStart(event) {
-  var touch = event.touches[0];
-  var card  = document.querySelector('.rq-card');
-  _rqTouchState = {
-    startY:      touch.clientY,
-    startX:      touch.clientX,
-    cardScrollTop: card ? card.scrollTop : 0,
-    cardScrollH:   card ? card.scrollHeight : 0,
-    cardClientH:   card ? card.clientHeight : 0,
-    navMode: false,
-  };
-}
-
-function rqTouchMove(event) {
-  if (!_rqTouchState) return;
-  var tag = event.target.tagName;
-  if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
-
-  var touch  = event.touches[0];
-  var dy     = touch.clientY - _rqTouchState.startY;
-  var dx     = touch.clientX - _rqTouchState.startX;
-  var absDy  = Math.abs(dy), absDx = Math.abs(dx);
-
-  if (absDy < 12 || absDx > absDy * 0.7) return; // not a clear vertical swipe yet
-
-  var card     = document.querySelector('.rq-card');
-  var atTop    = !card || card.scrollTop <= 1;
-  var atBottom = !card || card.scrollTop >= card.scrollHeight - card.clientHeight - 1;
-  var goingNext = dy < 0; // swipe up → next
-  var goingPrev = dy > 0; // swipe down → prev
-
-  if ((goingNext && atBottom) || (goingPrev && atTop)) {
-    // Card is at its scroll limit — this is a navigation swipe
-    _rqTouchState.navMode = true;
-    event.preventDefault();
-  }
-}
-
-function rqTouchEnd(event) {
-  if (!_rqTouchState) return;
-  var ts    = _rqTouchState;
-  _rqTouchState = null;
-
-  if (!ts.navMode) return;
-  var touch = event.changedTouches[0];
-  var dy    = touch.clientY - ts.startY;
-  if (Math.abs(dy) < 40) return;
-  rqCardNav(dy < 0 ? 1 : -1);
+  });
 }
 
 // ── Timer start / stop ────────────────────────────────────────────────────────
