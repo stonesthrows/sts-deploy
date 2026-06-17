@@ -385,29 +385,44 @@ function buildCustomerExpandHtml(idx) {
     return `<div class="ct-info-row"><span class="ct-info-label">${label}</span>${valHtml}</div>`;
   };
 
-  // ── Previous orders ──────────────────────────
-  const orders = ORDERS.filter(o => o.name === c.name);
-  const stageLabel = id => { const s = (typeof STAGES !== 'undefined' ? STAGES : []).find(x => x.id === id); return s ? s.label : id; };
-  const ordersHtml = orders.length
-    ? orders.map(o => {
-        const isActive = !['complete','delivered'].includes(o.stage);
-        const stageBg  = isActive ? '#EAF0FB' : '#F2EDE6';
-        const stageClr = isActive ? '#2A5A9A' : '#7A7268';
-        const dl       = typeof deadlineInfo === 'function' ? deadlineInfo(o.deadline) : { text: o.deadline||'', cls: '' };
-        return `<div class="ct-prev-order">
-          <div class="ct-prev-order-top">
-            <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
-            <button class="ct-prev-edit-btn" onclick="openOrderCard('${o.id}');event.stopPropagation()">✏ Edit</button>
-          </div>
-          <div class="ct-prev-meta">
-            <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
-            ${o.price ? `<span class="ct-prev-price">${typeof fmtPrice==='function'?fmtPrice(o.price):'$'+o.price}</span>` : ''}
-            ${o.deadline ? `<span class="ct-prev-dl ${dl.cls}">${dl.text}</span>` : ''}
-            ${o.takeIn ? `<span class="ct-prev-takein">Taken in ${typeof fmtDate==='function'?fmtDate(o.takeIn):o.takeIn}</span>` : ''}
-          </div>
-        </div>`;
-      }).join('')
-    : '<div class="ct-exp-gmail-msg">No orders on record.</div>';
+  // ── Orders ───────────────────────────────────
+  const orders       = ORDERS.filter(o => o.name === c.name);
+  const activeOrders = orders.filter(o => !['complete','delivered'].includes(o.stage));
+  const prevOrders   = orders.filter(o =>  ['complete','delivered'].includes(o.stage));
+  const stageLabel   = id => { const s = (typeof STAGES !== 'undefined' ? STAGES : []).find(x => x.id === id); return s ? s.label : id; };
+
+  const renderOrderRow = (o, isCurrent) => {
+    const isActive = !['complete','delivered'].includes(o.stage);
+    const stageBg  = isActive ? '#EAF0FB' : '#F2EDE6';
+    const stageClr = isActive ? '#2A5A9A' : '#7A7268';
+    const dl       = typeof deadlineInfo === 'function' ? deadlineInfo(o.deadline) : { text: o.deadline||'', cls: '' };
+    if (isCurrent) {
+      return `<div class="ct-prev-order ct-current-order" onclick="prefillFromOrder('${o.id}');event.stopPropagation()" title="Click to open in New Order form">
+        <div class="ct-prev-order-top">
+          <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
+          <span class="ct-open-order-hint">Open in New Order →</span>
+        </div>
+        <div class="ct-prev-meta">
+          <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
+          ${o.price ? `<span class="ct-prev-price">${typeof fmtPrice==='function'?fmtPrice(o.price):'$'+o.price}</span>` : ''}
+          ${o.deadline ? `<span class="ct-prev-dl ${dl.cls}">${dl.text}</span>` : ''}
+          ${o.takeIn ? `<span class="ct-prev-takein">Taken in ${typeof fmtDate==='function'?fmtDate(o.takeIn):o.takeIn}</span>` : ''}
+        </div>
+      </div>`;
+    }
+    return `<div class="ct-prev-order">
+      <div class="ct-prev-order-top">
+        <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
+        <button class="ct-prev-edit-btn" onclick="openOrderCard('${o.id}');event.stopPropagation()">✏ Edit</button>
+      </div>
+      <div class="ct-prev-meta">
+        <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
+        ${o.price ? `<span class="ct-prev-price">${typeof fmtPrice==='function'?fmtPrice(o.price):'$'+o.price}</span>` : ''}
+        ${o.deadline ? `<span class="ct-prev-dl ${dl.cls}">${dl.text}</span>` : ''}
+        ${o.takeIn ? `<span class="ct-prev-takein">Taken in ${typeof fmtDate==='function'?fmtDate(o.takeIn):o.takeIn}</span>` : ''}
+      </div>
+    </div>`;
+  };
 
   return `
     <div class="ct-exp-body">
@@ -462,10 +477,17 @@ function buildCustomerExpandHtml(idx) {
         <button class="btn btn-outline btn-sm" onclick="prefillFromCustomer('${safeName}','${safeEmail}','repair');event.stopPropagation()">🔧 New Repair</button>
       </div>
 
+      <!-- Current orders -->
+      ${activeOrders.length ? `
+      <div class="ct-exp-section">
+        <div class="ct-exp-section-title">Current Orders (${activeOrders.length})</div>
+        ${activeOrders.map(o => renderOrderRow(o, true)).join('')}
+      </div>` : ''}
+
       <!-- Previous orders -->
       <div class="ct-exp-section">
-        <div class="ct-exp-section-title">Previous Orders (${orders.length})</div>
-        ${ordersHtml}
+        <div class="ct-exp-section-title">Previous Orders (${prevOrders.length})</div>
+        ${prevOrders.length ? prevOrders.map(o => renderOrderRow(o, false)).join('') : '<div class="ct-exp-gmail-msg">No previous orders on record.</div>'}
       </div>
 
       <!-- Gmail -->
@@ -634,6 +656,35 @@ function loadCustomerGmail(email, idx) {
     .catch(() => {
       container.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
     });
+}
+
+// Pre-fill New Order form from an existing order (used by Current Orders click)
+function prefillFromOrder(orderId) {
+  const o = ORDERS.find(x => x.id === orderId);
+  if (!o) return;
+  const parentEl = document.querySelector('[data-parent="custom-orders"]');
+  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
+  const subEl = document.querySelector('.sub-nav-tab[data-tab="new-order"]');
+  if (typeof switchSubTab === 'function') switchSubTab('new-order', subEl);
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  set('f-name',        o.name);
+  set('f-email',       o.email);
+  set('f-phone',       fmtPhone(o.phone));
+  set('f-description', o.desc);
+  set('f-price',       o.price || '');
+  set('f-deposit',     o.deposit || '');
+  set('f-deadline',    o.deadline || '');
+  set('f-takein',      o.takeIn || '');
+  set('f-ring-size',   o.ringSize || '');
+  set('f-materials',   o.materials || '');
+  set('f-notes',       o.notes || '');
+  set('f-pickup',      o.pickup || '');
+  if (typeof setOrderType === 'function') setOrderType(o.type || 'order');
+  if (typeof toggleShippingAddress === 'function') toggleShippingAddress();
+  const panel = document.getElementById('tab-new-order');
+  if (panel) panel.scrollTop = 0;
+  if (typeof toast === 'function') toast(`Form pre-filled for ${o.name} — review and submit`, '✓');
 }
 
 // Pre-fill New Order form with a past customer's info

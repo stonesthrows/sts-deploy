@@ -873,6 +873,15 @@ function sotEsc(s) {
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
+function sotGetUnit(desc) {
+  var d = (desc||'').toLowerCase();
+  if (d.indexOf('by the ozt') >= 0) return 'OZT';
+  if (d.indexOf('by the dwt') >= 0) return 'DWT';
+  if (d.indexOf('by the foot') >= 0) return 'ft';
+  if (d.indexOf('by the inch') >= 0) return 'in';
+  if (d.indexOf('per lb') >= 0) return 'lb';
+  return null;
+}
 function sotWeekRange() {
   var now = new Date();
   var day = now.getDay();
@@ -901,7 +910,17 @@ function sotLoad() {
            || localStorage.getItem('supplier_tracker_v5')
            || localStorage.getItem('supplier_tracker_v4')
            || localStorage.getItem('supplier_tracker_v3');
-    if (raw) { var d = JSON.parse(raw); sotOrder = d.order || {}; }
+    if (raw) {
+      var d = JSON.parse(raw); sotOrder = d.order || {};
+      Object.keys(sotOrder).forEach(function(id) {
+        if (typeof sotOrder[id] !== 'object' || sotOrder[id] === null) {
+          sotOrder[id] = {qty: Number(sotOrder[id]) || 1, amount: ''};
+        } else {
+          if (!('qty' in sotOrder[id])) sotOrder[id].qty = 1;
+          if (!('amount' in sotOrder[id])) sotOrder[id].amount = '';
+        }
+      });
+    }
     var rawC = localStorage.getItem('sot_custom_v1');
     if (rawC) {
       var dc = JSON.parse(rawC);
@@ -1148,17 +1167,27 @@ function sotRenderOrder() {
       html += '<div class="sot-ord-cat-label">' + sotEsc(cat) + '</div>';
       catMap[cat].forEach(function(id){
         var it = sotGetItem(id); if (!it) return;
-        var qty = sotOrder[id] || 1;
+        var entry = sotOrder[id];
+        if (typeof entry !== 'object' || entry === null) entry = {qty:Number(entry)||1, amount:''};
+        var qty = entry.qty || 1;
+        var unit = sotGetUnit(it.desc);
         html += '<div class="sot-ord-item">';
         html += '<div class="sot-ord-item-info">';
         if (it.sku) html += '<div class="sot-ord-item-sku">' + sotEsc(it.sku) + '</div>';
         html += '<div class="sot-ord-item-name">' + sotEsc(it.name) + '</div>';
         html += '</div>';
-        html += '<div class="sot-qty-wrap">';
-        html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',-1)">&#8722;</button>';
-        html += '<span class="sot-qty-val" id="sotq-' + sotEsc(id) + '">' + qty + '</span>';
-        html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',1)">+</button>';
-        html += '</div>';
+        if (unit) {
+          html += '<div class="sot-amt-wrap">';
+          html += '<input class="sot-amt-input" type="number" min="0" step="0.1" value="' + sotEsc(entry.amount||'') + '" placeholder="0" oninput="sotSetAmount(\'' + sotEsc(id) + '\',this.value)">';
+          html += '<span class="sot-amt-unit">' + sotEsc(unit) + '</span>';
+          html += '</div>';
+        } else {
+          html += '<div class="sot-qty-wrap">';
+          html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',-1)">&#8722;</button>';
+          html += '<span class="sot-qty-val" id="sotq-' + sotEsc(id) + '">' + qty + '</span>';
+          html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',1)">+</button>';
+          html += '</div>';
+        }
         html += '<button class="sot-ord-remove" onclick="sotRemove(\'' + sotEsc(id) + '\')" title="Remove">&#215;</button>';
         html += '</div>';
       });
@@ -1172,18 +1201,28 @@ function sotRenderOrder() {
 
 // ── Interactions ─────────────────────────────────────────────
 function sotToggleItem(id, checked) {
-  if (checked) { if (sotOrder[id]===undefined) sotOrder[id]=1; }
+  if (checked) { if (sotOrder[id]===undefined) sotOrder[id]={qty:1,amount:''}; }
   else { delete sotOrder[id]; }
   sotSave(); sotRenderOrder();
   var badge = document.getElementById('sotOrderBadge');
   if (badge) badge.textContent = Object.keys(sotOrder).length;
 }
 function sotQty(id, delta) {
-  var q = ((sotOrder[id]||1) + delta);
+  var entry = sotOrder[id];
+  if (typeof entry !== 'object' || entry === null) entry = {qty: Number(entry)||1, amount:''};
+  var q = ((entry.qty||1) + delta);
   if (q < 1) q = 1;
-  sotOrder[id] = q;
+  entry.qty = q;
+  sotOrder[id] = entry;
   var el = document.getElementById('sotq-'+id);
   if (el) el.textContent = q;
+  sotSave();
+}
+function sotSetAmount(id, val) {
+  var entry = sotOrder[id];
+  if (typeof entry !== 'object' || entry === null) entry = {qty:1, amount:''};
+  entry.amount = String(val||'').trim();
+  sotOrder[id] = entry;
   sotSave();
 }
 function sotRemove(id) {
@@ -1201,6 +1240,30 @@ function sotClearOrder() {
   sotSave();
   sotRenderCatalog();
   sotRenderOrder();
+}
+function sotSendToRG() {
+  var items = [];
+  Object.keys(sotOrder).forEach(function(id) {
+    var it = sotGetItem(id);
+    if (!it || it.sup !== 'rg') return;
+    var entry = sotOrder[id];
+    if (typeof entry !== 'object' || entry === null) entry = {qty:Number(entry)||1, amount:''};
+    var unit = sotGetUnit(it.desc);
+    var code = id.replace(/^rg_/, '');
+    items.push({code:code, name:it.name, amount: unit ? (entry.amount||'') : String(entry.qty||1), unit: unit||'qty'});
+  });
+  if (!items.length) { alert('No Rio Grande items in your order.'); return; }
+  var missing = items.filter(function(it){ return it.unit !== 'qty' && !it.amount; });
+  if (missing.length) {
+    alert('Enter amounts for:\n' + missing.map(function(i){ return '  • ' + i.name.split(',')[0]; }).join('\n'));
+    return;
+  }
+  var lines = items.map(function(it){ return it.code + ': ' + it.name + ' — ' + it.amount + ' ' + it.unit; });
+  var text = 'RG Cart Order:\n' + lines.join('\n');
+  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(items))));
+  try { navigator.clipboard.writeText(text); } catch(e) {}
+  window.open('https://www.riogrande.com/#sts-order=' + encodeURIComponent(encoded), '_blank');
+  if (typeof toast === 'function') toast('Order copied + RG opened in new tab', '🛒');
 }
 
 // ── Collapse ─────────────────────────────────────────────────
@@ -1358,8 +1421,11 @@ function sotPrint() {
     lines.push('== ' + sup.name.toUpperCase() + ' ==');
     supIds.forEach(function(id){
       var it = sotGetItem(id);
-      var qty = sotOrder[id]||1;
-      if (it) lines.push('  ['+qty+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      var entry = sotOrder[id]||{qty:1,amount:''};
+      if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
+      var unit = sotGetUnit(it&&it.desc);
+      var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
+      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
     });
     lines.push('');
   });
@@ -1380,8 +1446,12 @@ function sotCopy() {
     if (!supIds.length) return;
     lines.push('== ' + sup.name.toUpperCase() + ' ==');
     supIds.forEach(function(id){
-      var it = sotGetItem(id); var qty = sotOrder[id]||1;
-      if (it) lines.push('  ['+qty+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      var it = sotGetItem(id);
+      var entry = sotOrder[id]||{qty:1,amount:''};
+      if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
+      var unit = sotGetUnit(it&&it.desc);
+      var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
+      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
     });
     lines.push('');
   });

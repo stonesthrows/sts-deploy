@@ -44,6 +44,7 @@ const NAV_GROUPS = {
   'inventory':     ['to-restock','inv-adjust'],
   'supplies':      ['supplier','order-history'],
   'more':          ['sales','calendar','pj-calc','pj-ref'],
+  'intake':        ['website-intake'],
 };
 
 // Reverse lookup: sub-tab id -> parent group id

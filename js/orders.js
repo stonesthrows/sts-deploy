@@ -3,14 +3,14 @@
 //  Kanban board, new order form, estimate builder, drag-drop, camera
 // ════════════════════════════════════════════
 
-function fmtPhoneInput(el) {
-  const digits = el.value.replace(/\D/g, '').slice(0, 10);
-  let out = '';
-  if (digits.length > 6)      out = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
-  else if (digits.length > 3) out = '(' + digits.slice(0,3) + ') ' + digits.slice(3);
-  else if (digits.length)     out = '(' + digits;
-  el.value = out;
+function fmtPhone(val) {
+  const digits = (val || '').replace(/\D/g, '').slice(0, 10);
+  if (digits.length > 6) return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+  if (digits.length > 3) return '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+  if (digits.length)     return '(' + digits;
+  return '';
 }
+function fmtPhoneInput(el) { el.value = fmtPhone(el.value); }
 
 // ════════════════════════════════════════════
 function renderKanban() {
@@ -229,7 +229,7 @@ function openOrderCard(id) {
   document.getElementById('f-takein').value        = o.takeIn        || '';
   document.getElementById('f-pickup').value        = o.pickup        || '';
   document.getElementById('f-email').value         = o.email         || '';
-  document.getElementById('f-phone').value         = o.phone         || '';
+  document.getElementById('f-phone').value         = fmtPhone(o.phone);
   document.getElementById('f-source').value        = o.contactSource || '';
   document.getElementById('f-materials').value     = o.materials     || '';
   document.getElementById('f-ring-size').value     = o.ringSize      || '';

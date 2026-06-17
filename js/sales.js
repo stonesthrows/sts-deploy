@@ -141,27 +141,21 @@ async function syncSquareSales() {
   }
 }
 
-// ── Auto-sync on weekend evenings ────────────────────────────────────────────
-// Called once when the Sales tab is first shown. If it's Saturday or Sunday
-// after 6 PM local time and we haven't already auto-synced today, run silently.
+// ── Auto-sync once per day ───────────────────────────────────────────────────
+// Called once when the Sales tab is first shown. Silently syncs at most once
+// per calendar day so data stays current without manual intervention.
 
 function salesAutoSync() {
   var token = localStorage.getItem('sts-square-token');
-  if (!token) return; // no token = nothing to do
+  if (!token) return;
 
-  var now   = new Date();
-  var day   = now.getDay();   // 0=Sun, 6=Sat
-  var hour  = now.getHours(); // 0-23
-
-  if ((day !== 0 && day !== 6) || hour < 18) return; // not Sat/Sun evening
-
-  // Throttle: only auto-sync once per calendar day
+  var now      = new Date();
   var todayKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
   var lastKey  = localStorage.getItem('sts-square-autosync-date');
   if (lastKey === todayKey) return;
 
   localStorage.setItem('sts-square-autosync-date', todayKey);
-  syncSquareSales(); // runs in background; updates page when done
+  syncSquareSales();
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
