@@ -167,8 +167,10 @@
   .log-sync-btn { background: none; border: 1px solid var(--bdr-light); border-radius: 5px; cursor: pointer; color: var(--text-dim); font-size: 11px; padding: 2px 6px; line-height: 1; transition: border-color 0.15s, color 0.15s, background 0.15s; flex-shrink: 0; }
   .log-sync-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
   .log-sync-btn:disabled { opacity: 0.5; cursor: default; }
-  .log-edit-btn { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 11px; padding: 2px 5px; border-radius: 4px; transition: color 0.15s, background 0.15s; line-height: 1; }
-  .log-edit-btn:hover { color: var(--accent); background: var(--accent-bg); }
+  .log-edit-btn { background: none; border: 1px solid var(--bdr-light); border-radius: 5px; cursor: pointer; color: var(--text-dim); font-size: 11px; padding: 2px 6px; line-height: 1; transition: border-color 0.15s, color 0.15s, background 0.15s; flex-shrink: 0; }
+  .log-edit-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+  .sbar-time-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text3); margin-bottom: 6px; flex-wrap: wrap; }
+  .sbar-time-val { color: var(--text2); font-weight: 500; }
   @keyframes pulse-gold { 0%,100% { box-shadow: 0 0 0 0 rgba(201,152,58,0); } 50% { box-shadow: 0 0 0 6px rgba(201,152,58,0.35); } }
   .btn-pulse { animation: pulse-gold 0.9s ease 4; }
 
@@ -1116,12 +1118,9 @@ function resetTimer(tid) {
 
 // ── Session log ────────────────────────────────────────────────────────────────
 function buildSessionTimeline(s) {
-  const evts = s.shiftEvents && s.shiftEvents.length
-    ? s.shiftEvents
-    : [
-        ...(s.startTime ? [{ time: new Date(s.startTime).getTime(), type: 'start' }] : []),
-        ...(s.stopTime  ? [{ time: new Date(s.stopTime).getTime(),  type: 'stop'  }] : []),
-      ];
+  // Only show clock-in/out events — start/stop are shown in the time row
+  const allEvts = s.shiftEvents && s.shiftEvents.length ? s.shiftEvents : [];
+  const evts = allEvts.filter(e => e.type === 'in' || e.type === 'out');
   if (!evts.length) return '';
   const fT = ms => new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   const fD = ms => new Date(ms).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
@@ -1163,6 +1162,13 @@ function renderLog() {
         <button class="btn-save-note" onclick="cancelEditSession()">Cancel</button>
       </div>
     </div>` : '';
+    const timeRow = `<div class="sbar-time-row">
+      <span class="sbar-time-val">▶ ${fmtDT(s.startTime)}</span>
+      <span style="color:var(--bdr-light)">·</span>
+      <span class="sbar-time-val">⏹ ${fmtDT(s.stopTime)}</span>
+      <button class="log-edit-btn" onclick="startEditSession(${i})">✎ Edit</button>
+      ${s.startTime && s.stopTime ? `<button class="log-sync-btn" id="sync-btn-${i}" onclick="syncShiftsForSession(${i})" title="Pull Square clock in/out times">⟳ Sync</button>` : ''}
+    </div>`;
     return `<div class="session-bar">
       <div class="sbar-header">
         <div style="flex:1;min-width:0;">
@@ -1170,11 +1176,10 @@ function renderLog() {
           <div class="sbar-emp">${s.employee?.name||''}</div>
         </div>
         <div class="sbar-actions">
-          ${s.startTime && s.stopTime ? `<button class="log-sync-btn" id="sync-btn-${i}" onclick="syncShiftsForSession(${i})" title="Sync Square shifts">⟳</button>` : ''}
-          <button class="log-edit-btn" onclick="startEditSession(${i})" title="Edit times">✎</button>
           <button class="log-del-btn" onclick="deleteSession(${i})" title="Delete">✕</button>
         </div>
       </div>
+      ${timeRow}
       ${buildSessionTimeline(s)}
       <div class="sbar-summary">
         <span class="sbar-net">Net: ${fmtDur(s.netMs)}</span>
