@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v92-log-fullpage -->
+<!-- deploy-version: v93-active-card-mobile -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -16,6 +16,20 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /*
+     * ── Design Token Palette ─────────────────────────────────────────────────
+     * ALL colour usage must reference one of these tokens. Never use a raw hex
+     * inside a component rule — add the token here first.
+     *
+     * Backgrounds:  --bg  --hdr  --nav  --subnav  --hdr-pill
+     *               --card-bg  --card-head-bg
+     *               --surface  --surface2  --surface3  (aliases → card-head-bg)
+     * Borders:      --bdr  --bdr-light  --hdr-bdr  --border1  (alias → bdr)
+     * Accent:       --accent  --accent-mid  --accent-light
+     *               --accent-bg  --accent-border
+     * Text:         --text  --text2  --text3  --text-dim
+     *               --text1  (alias → text)
+     * ─────────────────────────────────────────────────────────────────────── */
     :root {
       --bg: #4E7A94;
       --hdr: #1E3D50;
@@ -36,6 +50,13 @@
       --text2: #4A6878;
       --text3: #6A8898;
       --text-dim: #7A9AAA;
+      /* Aliases — map legacy/inconsistent names to canonical tokens above */
+      --text1: var(--text);
+      --border1: var(--bdr);
+      --card: var(--card-bg);
+      --surface: var(--card-head-bg);
+      --surface2: var(--card-head-bg);
+      --surface3: #D8EBF5;
     }
 
     body {
@@ -2181,11 +2202,13 @@
       background: #FDF0D0;
       padding-left: 11px;
     }
+    .rq-item.rq-active .rq-arrows { display: none !important; }
     @media (max-width: 640px) {
       .rq-item.rq-active {
-        background: #F5D870;
-        border-top: 3px solid var(--accent);
-        box-shadow: 0 4px 16px rgba(201,152,58,0.35);
+        background: #EFBF0A;
+        border-left: 5px solid #8B6400;
+        border-top: 4px solid #8B6400;
+        box-shadow: 0 4px 18px rgba(140,100,0,0.45);
       }
     }
     .rq-start-btn {
@@ -3047,6 +3070,7 @@
       --card-bg: #242428; --card-head-bg: #2A2A2E;
       --bdr: #38383C; --bdr-light: #2E2E32;
       --text: #E8E0D4; --text2: #9A9298; --text3: #7A7278; --text-dim: #6A6868;
+      --surface3: #343438;
     }
     /* Midnight: key card backgrounds */
     body.theme-midnight .stat-card,
