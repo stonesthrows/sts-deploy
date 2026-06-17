@@ -121,6 +121,7 @@ function designsRenderForm() {
 
   // Clear PDF status
   document.getElementById('dsn-pdf-status').textContent = '';
+  designsRefreshApiKeyUI();
 
   setTimeout(dsnAutoResizeAll, 0);
 }
@@ -236,139 +237,124 @@ function designsHandleImages(files) {
   });
 }
 
-// ── PDF upload & text extraction ──────────────
-function designsHandlePDF(file) {
+// ── PDF upload → Claude vision ────────────────
+async function designsHandlePDF(file) {
   if (!file || file.type !== 'application/pdf') {
     toast('Please upload a PDF file', '⚠');
     return;
   }
   const status = document.getElementById('dsn-pdf-status');
+  const apiKey = localStorage.getItem('sts-anthropic-key');
+  if (!apiKey) {
+    status.style.color = '#c0392b';
+    status.textContent = '⚠ Enter your Anthropic API key below first';
+    document.getElementById('dsn-api-key-row').style.display = '';
+    document.getElementById('dsn-api-key-input').focus();
+    return;
+  }
+
   status.style.color = 'var(--accent)';
-  status.textContent = '⏳ Reading PDF…';
+  status.textContent = '⏳ Rendering PDF pages…';
 
-  const reader = new FileReader();
-  reader.onload = async e => {
-    try {
-      const lib = window.pdfjsLib;
-      if (!lib) { status.textContent = '❌ PDF reader not loaded'; return; }
+  const buf = await file.arrayBuffer();
+  try {
+    const lib = window.pdfjsLib;
+    if (!lib) { status.textContent = '❌ PDF reader not loaded'; return; }
 
-      const pdf = await lib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+    const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
 
-      // Build lines by grouping items that share approximately the same Y position.
-      // Adobe Scan puts each word as a separate item; Y values on the same visual
-      // line can differ by a few points due to font metrics, so we use a tolerance.
-      let allLines = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-
-        // Collect items with position
-        const items = content.items
-          .filter(it => it.str && it.str.trim())
-          .map(it => ({
-            str: it.str,
-            x: it.transform ? it.transform[4] : 0,
-            y: it.transform ? it.transform[5] : 0,
-          }));
-
-        if (!items.length) continue;
-
-        // Group into lines using Y tolerance (~4 pts ≈ same visual line)
-        const YTOL = 4;
-        const buckets = []; // [{y, items:[]}]
-        items.forEach(it => {
-          const b = buckets.find(bk => Math.abs(bk.y - it.y) <= YTOL);
-          if (b) { b.items.push(it); }
-          else    { buckets.push({ y: it.y, items: [it] }); }
-        });
-
-        // Sort buckets top→bottom (PDF Y is bottom-up, so descending)
-        buckets.sort((a, b) => b.y - a.y);
-
-        buckets.forEach(bk => {
-          // Sort words left→right within each line
-          bk.items.sort((a, b) => a.x - b.x);
-          const line = bk.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
-          if (line) allLines.push(line);
-        });
-      }
-
-      const extracted = allLines.join('\n').trim();
-
-      if (!extracted) {
-        status.textContent = '⚠ No text found in this PDF — it may be a plain image scan. Type the details manually below.';
-        status.style.color = '#c0392b';
-        return;
-      }
-
-      _designsPrefillFromText(extracted, file.name);
-      status.textContent = `✓ Extracted ${extracted.length} characters from ${pdf.numPages} page${pdf.numPages > 1 ? 's' : ''} — review and edit below`;
-    } catch(err) {
-      status.textContent = '❌ Could not read PDF: ' + (err.message || err);
-      status.style.color = '#c0392b';
+    const pageImages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      pageImages.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
     }
-  };
-  reader.readAsArrayBuffer(file);
+
+    status.textContent = '⏳ Asking Claude to read the form…';
+
+    const content = [
+      ...pageImages.map(img => ({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/jpeg', data: img }
+      })),
+      {
+        type: 'text',
+        text: 'This is a scanned jewelry design instruction form. Extract exactly three fields:\n1. Jewelry Design Name (the value written after the "Jewelry Design Name:" label)\n2. Specifications & Materials (everything in the SPECIFICATIONS section — wire gauges, sizes, tools, quantities, wire colors)\n3. Step-by-step Instructions (all numbered or bulleted steps, notes, and directions in order)\n\nReturn ONLY valid JSON with no other text:\n{"name": "...", "specs": "...", "instructions": "..."}'
+      }
+    ];
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-8',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    const raw = (data.content?.[0]?.text || '').trim();
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    const nameEl = document.getElementById('dsn-name');
+    const specsEl = document.getElementById('dsn-specs');
+    const instrEl = document.getElementById('dsn-instructions');
+    if (!nameEl.value.trim() && parsed.name) nameEl.value = parsed.name;
+    if (!specsEl.value.trim() && parsed.specs) specsEl.value = parsed.specs;
+    if (!instrEl.value.trim() && parsed.instructions) instrEl.value = parsed.instructions;
+
+    setTimeout(dsnAutoResizeAll, 0);
+    status.style.color = 'var(--text)';
+    status.textContent = '✓ Fields filled by Claude — review and edit below';
+  } catch(err) {
+    status.style.color = '#c0392b';
+    status.textContent = '❌ ' + (err.message || err);
+  }
 }
 
-function _designsPrefillFromText(text, filename) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+// ── API key management ────────────────────────
+function designsSaveApiKey() {
+  const val = (document.getElementById('dsn-api-key-input').value || '').trim();
+  if (!val) { toast('Please enter an API key', '⚠'); return; }
+  localStorage.setItem('sts-anthropic-key', val);
+  document.getElementById('dsn-api-key-input').value = '';
+  designsRefreshApiKeyUI();
+  toast('API key saved', '✓');
+}
 
-  // ── 1. Jewelry Design Name ────────────────────────────────────────────
-  // Look for the labeled field first; fall back to first line of the doc
-  const nameEl = document.getElementById('dsn-name');
-  if (!nameEl.value.trim()) {
-    const nameLine = lines.find(l => /Jewelry\s+Design\s+Name\s*:/i.test(l));
-    if (nameLine) {
-      // Grab everything after the colon on that line
-      nameEl.value = nameLine.replace(/.*Jewelry\s+Design\s+Name\s*:\s*/i, '').trim()
-        || lines[0]; // if nothing follows the colon, use the title line
-    } else {
-      const firstLine = lines[0] || '';
-      nameEl.value = firstLine.length < 120
-        ? firstLine
-        : filename.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
-    }
+function designsClearApiKey() {
+  localStorage.removeItem('sts-anthropic-key');
+  designsRefreshApiKeyUI();
+}
+
+function designsRefreshApiKeyUI() {
+  const key = localStorage.getItem('sts-anthropic-key');
+  const row   = document.getElementById('dsn-api-key-row');
+  const saved = document.getElementById('dsn-api-key-saved');
+  if (!row || !saved) return;
+  if (key) {
+    row.style.display = 'none';
+    saved.style.display = '';
+  } else {
+    row.style.display = '';
+    saved.style.display = 'none';
   }
-
-  // ── 2. Specifications / Materials ────────────────────────────────────
-  // Everything between SPECIFICATIONS: and the first clear instruction step
-  const specsEl = document.getElementById('dsn-specs');
-  if (!specsEl.value.trim()) {
-    const specsIdx = lines.findIndex(l => /^SPECIFICATIONS?\s*[:(]/i.test(l));
-    const instrStart = /^(cut|fuse|solder|use |wrap|place|apply|twist|bend|shape|join|once|for bi|don'?t|\*\s|•\s)/i;
-
-    if (specsIdx !== -1) {
-      // Inline content on the SPECIFICATIONS: line (after the label + parenthetical hint)
-      const specsHeaderRest = lines[specsIdx]
-        .replace(/^SPECIFICATIONS?\s*:\s*(\([^)]*\))?\s*/i, '').trim();
-
-      const specsLines = specsHeaderRest ? [specsHeaderRest] : [];
-
-      for (let i = specsIdx + 1; i < lines.length; i++) {
-        if (instrStart.test(lines[i])) break;         // hit instructions — stop
-        if (/Jewelry\s+Design\s+Name/i.test(lines[i])) continue; // skip name label
-        specsLines.push(lines[i]);
-      }
-      specsEl.value = specsLines.filter(Boolean).join('\n');
-    } else {
-      // No label found — collect non-instruction lines after the title
-      specsEl.value = lines.slice(1)
-        .filter(l => !instrStart.test(l))
-        .join('\n');
-    }
-  }
-
-  // ── 3. Directions / Instructions ─────────────────────────────────────
-  // Lines that look like action steps or notes, anywhere in the doc
-  const instrEl = document.getElementById('dsn-instructions');
-  if (!instrEl.value.trim()) {
-    const instrPattern = /^(cut|fuse|solder|use |wrap|place|apply|twist|bend|shape|join|once|for bi|don'?t|\*\s*[A-Za-z]|•|[-–]\s*[A-Za-z]|\d+[\.\)]\s)/i;
-    const instrLines = lines.filter(l => instrPattern.test(l));
-    instrEl.value = instrLines.join('\n');
-  }
-
-  setTimeout(dsnAutoResizeAll, 0);
 }
 
 // ── Auto-resize textareas ─────────────────────
