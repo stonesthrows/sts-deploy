@@ -1408,7 +1408,6 @@ function rqAddItem() {
 }
 
 function rqDeleteItem(idx) {
-  if (!confirm('Remove this item from the Restock Queue?')) return;
   var items = _rqSortedItems();
   var item = items[idx];
   if (!item) return;
