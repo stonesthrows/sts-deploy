@@ -52,11 +52,17 @@
       --text-dim: #7A9AAA;
       /* Aliases — map legacy/inconsistent names to canonical tokens above */
       --text1: var(--text);
+      --text-muted: var(--text3);
       --border1: var(--bdr);
       --card: var(--card-bg);
       --surface: var(--card-head-bg);
       --surface2: var(--card-head-bg);
       --surface3: #D8EBF5;
+      --gold: var(--accent);
+      --hover: var(--card-head-bg);
+      --hover-bg: rgba(0, 0, 0, 0.04);
+      --input-bg: var(--card-bg);
+      --bg2: var(--hdr-pill);
     }
 
     body {
@@ -164,7 +170,7 @@
       border: 1px solid var(--hdr-bdr);
       border-radius: 20px;
       padding: 5px 14px;
-      color: var(--text2);
+      color: var(--bdr-light);
       font-size: 12px;
       display: flex; align-items: center; gap: 6px;
     }
@@ -174,8 +180,8 @@
       border-radius: 50%;
       transition: background 0.3s;
     }
-    .header-pill.conn-bad .dot { background: #E05C5C; }
-    .header-pill.conn-bad .conn-label { color: #E05C5C; }
+    .header-pill.conn-bad .dot { background: #FF9090; }
+    .header-pill.conn-bad .conn-label { color: #FF9090; }
 
     /* ── Nav ─────────────────────────────────── */
     .nav {
@@ -186,7 +192,7 @@
     }
     .nav-tab {
       padding: 13px 18px;
-      color: #7A7268;
+      color: rgba(255,255,255,0.6);
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -218,7 +224,7 @@
     .sub-nav.active { display: flex; }
     .sub-nav-tab {
       padding: 10px 16px;
-      color: #7A7268;
+      color: rgba(255,255,255,0.6);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
@@ -2244,7 +2250,7 @@
     .rq-log-section {
       height: calc(100vh - 150px); flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
-      background: rgba(26,46,56,0.04);
+      background: var(--card-head-bg);
       transition: height 0.28s cubic-bezier(.4,0,.2,1);
     }
     .rq-log-section.rq-log-collapsed { height: 52px; }
@@ -3071,6 +3077,8 @@
       --bdr: #38383C; --bdr-light: #2E2E32;
       --text: #E8E0D4; --text2: #9A9298; --text3: #7A7278; --text-dim: #6A6868;
       --surface3: #343438;
+      --hover: #343438;
+      --input-bg: #1A1A1E;
     }
     /* Midnight: key card backgrounds */
     body.theme-midnight .stat-card,
