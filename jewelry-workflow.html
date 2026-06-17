@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v91-restock-queue-polish -->
+<!-- deploy-version: v92-log-fullpage -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2160,8 +2160,7 @@
       height: calc(100vh - 100px); overflow: hidden;
     }
     .rq-header-bar {
-      padding: 12px 20px; border-bottom: 1px solid var(--bdr-light);
-      flex-shrink: 0; background: var(--card-bg);
+      padding: 12px 20px 8px; flex-shrink: 0;
     }
     .rq-header-title { font-size: 17px; font-weight: 700; color: var(--text); margin: 0; }
     .rq-scroll-area {
@@ -2181,6 +2180,13 @@
       box-shadow: 0 3px 14px rgba(201,152,58,0.22);
       background: #FDF0D0;
       padding-left: 11px;
+    }
+    @media (max-width: 640px) {
+      .rq-item.rq-active {
+        background: #F5D870;
+        border-top: 3px solid var(--accent);
+        box-shadow: 0 4px 16px rgba(201,152,58,0.35);
+      }
     }
     .rq-start-btn {
       background: none; border: 1px solid var(--accent); border-radius: 7px;
@@ -2213,12 +2219,14 @@
     .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
     .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .rq-log-section {
-      height: 280px; flex-shrink: 0; border-top: 2px solid var(--bdr);
+      height: calc(100vh - 150px); flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
       background: rgba(26,46,56,0.04);
       transition: height 0.28s cubic-bezier(.4,0,.2,1);
     }
     .rq-log-section.rq-log-collapsed { height: 52px; }
+    .rq-page.rq-log-open .rq-header-bar { display: none; }
+    .rq-page.rq-log-open .rq-scroll-area { display: none; }
     .rq-log-title {
       font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2);
       text-transform: uppercase; padding: 8px 14px 8px 20px;
@@ -2229,10 +2237,10 @@
     .rq-log-label { cursor: pointer; white-space: nowrap; flex-shrink: 0; }
     .rq-log-label:hover { color: var(--accent); }
     .rq-log-add {
-      display: flex; gap: 6px; flex: 1; min-width: 0;
+      display: flex; gap: 6px; flex: 0 0 auto;
     }
     .rq-log-add input {
-      flex: 1; min-width: 0; padding: 5px 10px; border: 1px solid var(--bdr);
+      width: 120px; padding: 5px 10px; border: 1px solid var(--bdr);
       border-radius: 7px; font-size: 12px; background: var(--card-bg);
       color: var(--text); font-family: inherit; outline: none;
     }

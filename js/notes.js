@@ -655,10 +655,12 @@ function restockQueueRender() {
     var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
     var mainRow = '<div class="rq-item-row">'
-      + '<span class="rq-arrows">'
-      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
-      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
-      + '</span>'
+      + (isRunning || isSetup ? '' :
+          '<span class="rq-arrows">'
+          + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
+          + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
+          + '</span>'
+        )
       + '<span class="rq-rank">' + (idx + 1) + '</span>'
       + '<span class="rq-text' + textCls + '" contenteditable="true" spellcheck="false"'
       + ' onblur="rqSaveText(this,' + idx + ')"'
@@ -1153,7 +1155,10 @@ function _rqFmtDT(iso) {
 
 function rqToggleLog() {
   var section = document.getElementById('rq-log-section');
-  if (section) section.classList.toggle('rq-log-collapsed');
+  if (!section) return;
+  section.classList.toggle('rq-log-collapsed');
+  var page = document.getElementById('tab-to-restock');
+  if (page) page.classList.toggle('rq-log-open', !section.classList.contains('rq-log-collapsed'));
 }
 
 function rqRenderSessions() {
