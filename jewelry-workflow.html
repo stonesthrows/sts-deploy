@@ -2156,11 +2156,149 @@
       padding: 16px 20px 14px; border-bottom: 1px solid var(--bdr-light);
       flex-shrink: 0; background: var(--card-bg);
     }
-    .rq-scroll-area {
-      flex: 1; overflow-y: auto; padding: 16px 20px 24px;
+    /* Card stack wrap replaces scroll-area */
+    .rq-card-stack-wrap {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 20px 16px 32px;
     }
-    .rq-scroll-area::-webkit-scrollbar { width: 5px; }
-    .rq-scroll-area::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+    .rq-card-stack-wrap::-webkit-scrollbar { width: 4px; }
+    .rq-card-stack-wrap::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 2px; }
+    /* Card stack container */
+    .rq-card-stack {
+      position: relative;
+      width: 100%; max-width: 480px;
+      padding-bottom: 56px; /* room for 3 behind cards to peek */
+    }
+    /* Navigation bar above the stack */
+    .rq-card-nav-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 14px; margin-bottom: 14px;
+    }
+    .rq-card-nav-btn {
+      background: none; border: 1px solid var(--bdr); border-radius: 7px;
+      color: var(--text2); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em; padding: 4px 12px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .rq-card-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .rq-card-nav-btn:disabled { opacity: 0.28; cursor: default; }
+    .rq-card-nav-pos { font-size: 12px; color: var(--text3); min-width: 52px; text-align: center; }
+    /* Base card styles */
+    .rq-card {
+      background: var(--card-bg); border: 1px solid var(--bdr);
+      border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.07);
+      transition: transform 0.28s cubic-bezier(.25,.46,.45,.94),
+                  opacity 0.28s ease, box-shadow 0.28s ease;
+      user-select: none;
+    }
+    /* Top card — normal flow, sets stack height */
+    .rq-card[data-offset="0"] {
+      position: relative; z-index: 10;
+      box-shadow: 0 6px 28px rgba(0,0,0,0.11);
+      cursor: default;
+    }
+    /* Behind cards — absolute, anchored to bottom of stack */
+    .rq-card.rq-card-behind {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      cursor: pointer;
+    }
+    .rq-card[data-offset="1"] {
+      z-index: 9;
+      transform: translateY(18px) scaleX(0.965);
+      opacity: 0.88;
+    }
+    .rq-card[data-offset="2"] {
+      z-index: 8;
+      transform: translateY(32px) scaleX(0.93);
+      opacity: 0.72;
+    }
+    .rq-card[data-offset="3"] {
+      z-index: 7;
+      transform: translateY(44px) scaleX(0.895);
+      opacity: 0.48;
+      pointer-events: none;
+    }
+    .rq-card[data-offset="prev"] {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      z-index: 11; opacity: 0; pointer-events: none;
+      transform: translateY(-24px);
+    }
+    /* Assignee color accents on cards */
+    .rq-card.rq-card-vanessa[data-offset="0"] { border-color: #A0BBEE; }
+    .rq-card.rq-card-stevie[data-offset="0"]  { border-color: #B4A0EE; }
+    .rq-card.rq-card-kyle[data-offset="0"]    { border-color: #8EC8A8; }
+    /* Running timer accent */
+    .rq-card.rq-card-running[data-offset="0"] {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(201,152,58,0.15), 0 6px 28px rgba(0,0,0,0.11);
+    }
+    /* Card header row */
+    .rq-card-header {
+      display: flex; align-items: center; gap: 8px; min-height: 28px;
+    }
+    .rq-card-rank {
+      font-size: 11px; font-weight: 700; color: #B0A898;
+      flex-shrink: 0; width: 18px; text-align: center;
+    }
+    .rq-card-name {
+      flex: 1; font-size: 14px; font-weight: 600; color: var(--text);
+      line-height: 1.35; border-radius: 5px; padding: 2px 4px;
+      outline: none;
+    }
+    .rq-card[data-offset="0"] .rq-card-name { cursor: text; }
+    .rq-card[data-offset="0"] .rq-card-name:focus {
+      background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3);
+    }
+    .rq-card.rq-card-behind .rq-card-name { cursor: pointer; }
+    /* Assignee pill */
+    .rq-card-pill {
+      font-size: 10px; font-weight: 700; padding: 2px 9px;
+      border-radius: 20px; flex-shrink: 0; letter-spacing: 0.04em;
+    }
+    .rq-pill-none    { background: #F0EDE8; color: #B0A898; }
+    .rq-pill-vanessa { background: #EEF4FF; color: #2B5CC8; }
+    .rq-pill-stevie  { background: #F4F0FF; color: #5C2BC8; }
+    .rq-pill-kyle    { background: #F0FFF4; color: #1E7040; }
+    /* Expanded card body */
+    .rq-card-body {
+      margin-top: 12px; border-top: 1px solid var(--bdr-light);
+      padding-top: 12px; display: flex; flex-direction: column; gap: 10px;
+    }
+    /* Controls row in expanded (non-running) card */
+    .rq-card-controls {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .rq-card-action-btns {
+      display: flex; align-items: center; gap: 5px; margin-left: auto;
+    }
+    /* Shared control buttons */
+    .rq-start-btn {
+      background: none; border: 1px solid var(--accent); border-radius: 7px;
+      color: var(--accent); font-size: 13px; padding: 5px 12px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
+    }
+    .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
+    .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
+    .rq-arrow {
+      background: none; border: 1px solid var(--bdr); border-radius: 5px;
+      padding: 3px 7px; font-size: 11px; line-height: 1.2;
+      color: #C8C0B8; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    }
+    .rq-arrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .rq-arrow:disabled { opacity: .25; cursor: default; }
+    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+    .rq-del:hover { color: #C43030; }
+    .rq-assignee {
+      padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 12px; font-family: inherit; color: var(--text); background: #FDFAF6;
+      cursor: pointer; outline: none; flex-shrink: 0;
+    }
+    .rq-assignee:focus { border-color: var(--accent); }
+    .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
+    .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
+    .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .rq-log-section {
       height: 280px; flex-shrink: 0; border-top: 2px solid var(--bdr);
       display: flex; flex-direction: column; overflow: hidden;
@@ -2185,45 +2323,6 @@
     .rq-log-list::-webkit-scrollbar { width: 4px; }
     .rq-log-list::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 2px; }
     .rq-log-empty { font-size: 13px; color: var(--text-dim); text-align: center; padding: 20px 0; }
-    .rq-item {
-      background: #fff; border: 1px solid #E4DDD4; border-radius: 10px;
-      display: flex; flex-direction: column; padding: 10px 14px;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .rq-item-row { display: flex; align-items: center; gap: 10px; }
-    .rq-item.rq-active {
-      border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,0.18);
-      background: #FFFBF3;
-    }
-    .rq-start-btn {
-      background: none; border: 1px solid var(--accent); border-radius: 7px;
-      color: var(--accent); font-size: 15px; padding: 5px 12px; cursor: pointer;
-      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
-    }
-    .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
-    .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
-    .rq-arrows { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
-    .rq-arrow {
-      background: none; border: none; padding: 0 3px; font-size: 11px; line-height: 1.2;
-      color: #C8C0B8; cursor: pointer;
-    }
-    .rq-arrow:hover:not(:disabled) { color: var(--accent); }
-    .rq-arrow:disabled { opacity: .25; cursor: default; }
-    .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
-    .rq-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
-    .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
-    .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
-    .rq-assignee {
-      padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
-      font-size: 12px; font-family: inherit; color: var(--text); background: #FDFAF6;
-      cursor: pointer; outline: none; flex-shrink: 0;
-    }
-    .rq-assignee:focus { border-color: var(--accent); }
-    .rq-del { color: #C4A0A0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; flex-shrink: 0; }
-    .rq-del:hover { color: #C43030; }
-    .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
-    .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
-    .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
     .notes-save-dot {
       width: 7px; height: 7px; background: #6AB87A; border-radius: 50;
       display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
@@ -6364,11 +6463,11 @@ function savePrintSetup() {
     </div>
   </div>
   <!-- Queue list -->
-  <div class="rq-scroll-area">
+  <div class="rq-card-stack-wrap">
     <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
       No items in the Inventory Restock list yet.
     </div>
-    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div id="restock-queue-list" style="display:none;width:100%;max-width:480px;"></div>
   </div>
   <!-- Session log -->
   <div class="rq-log-section">
@@ -6393,7 +6492,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=3"></script>
+<script src="js/notes.js?v=4"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

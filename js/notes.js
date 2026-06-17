@@ -492,6 +492,12 @@ var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceT
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 
+// Card stack UI state
+var _rqCardIndex      = 0;    // index into _rqSortedItems() of the top card
+var _rqExpandedPid    = null; // notionPageId of expanded card (null = none)
+var _rqTouchState     = null; // active touch gesture tracking
+var _rqSwipeFired     = false; // prevents click firing after a swipe
+
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
   { id: 'local-chevron-silver-sm', name: 'Chevron Ear Cuff – Double Silver (Sm)', category: 'Ear Cuffs', isParent: false, sku: '' },
@@ -607,13 +613,13 @@ function _rqRestartTicks() {
 // ── Queue render ──────────────────────────────────────────────────────────────
 
 function restockQueueRender() {
-  var list  = document.getElementById('restock-queue-list');
+  var container = document.getElementById('restock-queue-list');
   var empty = document.getElementById('restock-queue-empty');
-  if (!list) return;
+  if (!container) return;
 
   if (!_rqMetaLoaded) {
-    list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
-    list.style.display = 'flex';
+    container.style.display = 'block';
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
     if (empty) empty.style.display = 'none';
     _rqLoadMeta(restockQueueRender);
     return;
@@ -621,117 +627,260 @@ function restockQueueRender() {
 
   var items = _rqSortedItems();
   if (items.length === 0) {
-    list.style.display = 'none';
+    container.style.display = 'none';
     if (empty) empty.style.display = '';
+    _rqExpandedPid = null;
     return;
   }
   if (empty) empty.style.display = 'none';
-  list.style.display = 'flex';
+
+  // Clamp card index to valid range
+  if (_rqCardIndex >= items.length) _rqCardIndex = items.length - 1;
+  if (_rqCardIndex < 0) _rqCardIndex = 0;
+
+  // Auto-expand if top card has a running timer or active setup
+  var topPid = (items[_rqCardIndex] || {}).notionPageId;
+  if (topPid && (_rqTimers[topPid] || _rqSetups[topPid])) {
+    _rqExpandedPid = topPid;
+  }
 
   var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
 
-  list.innerHTML = items.map(function(item, idx) {
-    var pid      = item.notionPageId || '';
-    var assignee = (pid && _rqMeta.assignees[pid]) || '';
-    var timer    = pid ? _rqTimers[pid] : null;
+  var html = '<div class="rq-card-stack">';
+
+  // Navigation bar
+  html += '<div class="rq-card-nav-bar">'
+    + '<button class="rq-card-nav-btn" onclick="rqCardNav(-1)"' + (_rqCardIndex === 0 ? ' disabled' : '') + '>◀ Prev</button>'
+    + '<span class="rq-card-nav-pos">' + (_rqCardIndex + 1) + ' / ' + items.length + '</span>'
+    + '<button class="rq-card-nav-btn" onclick="rqCardNav(1)"' + (_rqCardIndex === items.length - 1 ? ' disabled' : '') + '>Next ▶</button>'
+    + '</div>';
+
+  items.forEach(function(item, idx) {
+    var offset   = idx - _rqCardIndex;
+    // Only render cards within visible range
+    if (offset < -1 || offset > 3) return;
+
+    var pid       = item.notionPageId || '';
+    var assignee  = (pid && _rqMeta.assignees[pid]) || '';
+    var timer     = pid ? _rqTimers[pid] : null;
     var isRunning = !!timer;
-    var isSetup  = pid ? !!_rqSetups[pid] : false;
-    var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
-    var itemCls  = (isRunning || isSetup) ? ' rq-active' : '';
-    var textCls  = item.done ? ' rq-done' : '';
-    var safeText = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
-    var safePid  = pid.replace(/'/g, '');
-    var isFirst  = idx === 0;
-    var isLast   = idx === items.length - 1;
+    var isSetup   = !!(pid && _rqSetups[pid]);
+    var isTop     = offset === 0;
+    var isExpanded = isTop && (!!(_rqExpandedPid === pid && pid) || isRunning || isSetup);
+    var safeText  = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+    var safePid   = pid.replace(/'/g,'');
+    var isFirst   = idx === 0;
+    var isLast    = idx === items.length - 1;
+    var offsetAttr = offset === -1 ? 'prev' : String(Math.min(offset, 3));
 
-    // ⏱ button state
-    var startDisabled = !pid || !assignee || isRunning || isSetup;
-    var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
-    var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
+    var cardCls = 'rq-card';
+    if (offset > 0) cardCls += ' rq-card-behind';
+    if (assignee) cardCls += ' rq-card-' + assignee.toLowerCase();
+    if (isRunning && isTop) cardCls += ' rq-card-running';
 
-    var mainRow = '<div class="rq-item-row">'
-      + '<span class="rq-arrows">'
-      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
-      + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
-      + '</span>'
-      + '<span class="rq-rank">' + (idx + 1) + '</span>'
-      + '<span class="rq-text' + textCls + '" contenteditable="true" spellcheck="false"'
-      + ' onblur="rqSaveText(this,' + idx + ')"'
-      + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-      + '>' + safeText + '</span>'
-      + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
-      + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
-      + PEOPLE.map(function(p) {
-          return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
-        }).join('')
-      + '</select>'
-      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
-      + '</div>';
+    // Touch events only on top card; click on behind cards navigates to them
+    var cardEvents = isTop
+      ? ' ontouchstart="rqTouchStart(event,\'' + safePid + '\')"'
+        + ' ontouchmove="rqTouchMove(event)"'
+        + ' ontouchend="rqTouchEnd(event,\'' + safePid + '\')"'
+        + ' onclick="rqCardClickHandler(event,\'' + safePid + '\')"'
+      : ' onclick="rqCardNav(' + offset + ')"';
 
-    var timerPanel = '';
-    if (isRunning) {
-      var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
-      var startLbl = _rqFmtTime(timer.startTime);
-      var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
-      timerPanel = '<div class="rq-timer-panel">'
-        + '<div class="rq-timer-running-row">'
-        + '<span class="rq-timer-dot"></span>'
-        + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
-        + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
-        + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
-        + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
-        + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
-        + '</div>'
-        + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
-        + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
-        + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
-        + '</div>'
-        + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
-        + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
-        + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
-        + '</div>'
-        + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
-        + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
-        + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
-        + '</div>'
-        + '</div>';
+    html += '<div class="' + cardCls + '" data-offset="' + offsetAttr + '"' + cardEvents + '>';
+
+    // ── Card header (always visible) ──────────────────────────────
+    html += '<div class="rq-card-header">';
+    html += '<span class="rq-card-rank">' + (idx + 1) + '</span>';
+    // Name: editable only on top card
+    if (isTop) {
+      html += '<span class="rq-card-name" contenteditable="true" spellcheck="false"'
+        + ' onblur="rqSaveText(this,' + idx + ')"'
+        + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+        + ' onclick="event.stopPropagation()">' + safeText + '</span>';
+    } else {
+      html += '<span class="rq-card-name">' + safeText + '</span>';
+    }
+    // Assignee pill
+    if (assignee) {
+      html += '<span class="rq-card-pill rq-pill-' + assignee.toLowerCase() + '">' + assignee + '</span>';
+    } else if (isTop) {
+      html += '<span class="rq-card-pill rq-pill-none">Unassigned</span>';
+    }
+    // Running indicator dot
+    if (isRunning && isTop) {
+      html += '<span class="rq-timer-dot" style="flex-shrink:0;margin-left:2px;"></span>';
+    }
+    html += '</div>'; // end rq-card-header
+
+    // ── Expanded body (top card only) ──────────────────────────────
+    if (isExpanded) {
+      html += '<div class="rq-card-body" onclick="event.stopPropagation()">';
+
+      if (!isRunning && !isSetup) {
+        // Controls: assignee + reorder + start + delete
+        var startDisabled = !pid || !assignee;
+        var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : 'Start timer';
+        html += '<div class="rq-card-controls">'
+          + '<select class="rq-assignee' + (assignee ? ' rq-' + assignee.toLowerCase() : '') + '" onchange="rqSetAssignee(this,' + idx + ')">'
+          + PEOPLE.map(function(p) {
+              return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
+            }).join('')
+          + '</select>'
+          + '<div class="rq-card-action-btns">'
+          + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)"' + (isFirst ? ' disabled' : '') + ' title="Move up">▲</button>'
+          + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"' + (isLast ? ' disabled' : '') + ' title="Move down">▼</button>'
+          + '<button class="rq-start-btn"'
+          + (startDisabled ? ' disabled title="' + startTitle + '"' : ' title="' + startTitle + '" onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g,"\\'") + '\',\'' + assignee + '\')"')
+          + '>⏱ Start</button>'
+          + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
+          + '</div>'
+          + '</div>';
+      }
+
+      // Timer panel
+      if (isRunning) {
+        var elapsed  = _rqFmtElapsed(Date.now() - timer.startTime);
+        var startLbl = _rqFmtTime(timer.startTime);
+        var itemLbl  = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
+        html += '<div class="rq-timer-panel">'
+          + '<div class="rq-timer-running-row">'
+          + '<span class="rq-timer-dot"></span>'
+          + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
+          + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
+          + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
+          + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+          + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
+          + '</div>'
+          + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
+          + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
+          + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
+          + '</div>'
+          + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
+          + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
+          + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
+          + '</div>'
+          + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
+          + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
+          + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
+          + '</div>'
+          + '</div>';
+      }
+
+      // Setup panel
+      if (isSetup && !isRunning) {
+        var setup    = _rqSetups[pid];
+        var startVal = _rqToDateTimeLocal(setup.startTimeMs || Date.now());
+        var canStart = setup.selectedItems.length > 0;
+        html += '<div class="rq-setup-panel">'
+          + '<div class="rq-setup-search-wrap">'
+          + '<span class="rq-setup-search-icon">⌕</span>'
+          + '<input type="text" class="rq-setup-search-input" id="rq-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
+          + ' oninput="rqSearchInput(\'' + safePid + '\',this.value)">'
+          + '<div class="rq-setup-spinner" id="rq-spinner-' + safePid + '"></div>'
+          + '</div>'
+          + '<div class="rq-setup-results" id="rq-results-' + safePid + '"></div>'
+          + '<div id="rq-selected-' + safePid + '">' + _rqSelectedHTML(pid) + '</div>'
+          + '<div class="rq-setup-footer">'
+          + '<input type="datetime-local" class="rq-adjust-input" id="rq-sstart-' + safePid + '" value="' + startVal + '" onchange="rqSetupStartChange(\'' + safePid + '\',this.value)">'
+          + '<button class="rq-setup-cancel-btn" onclick="rqCancelSetup(\'' + safePid + '\')">Cancel</button>'
+          + '<button class="rq-start-confirm-btn" id="rq-confirm-' + safePid + '" onclick="rqStartTimerConfirm(\'' + safePid + '\')"' + (canStart ? '' : ' disabled') + '>▶ Start Timer</button>'
+          + '</div>'
+          + '</div>';
+      }
+
+      html += '</div>'; // end rq-card-body
     }
 
-    var setupPanel = '';
-    if (isSetup && !isRunning) {
-      var setup = _rqSetups[pid];
-      var startVal = _rqToDateTimeLocal(setup.startTimeMs || Date.now());
-      var canStart = setup.selectedItems.length > 0;
-      setupPanel = '<div class="rq-setup-panel">'
-        + '<div class="rq-setup-search-wrap">'
-        + '<span class="rq-setup-search-icon">⌕</span>'
-        + '<input type="text" class="rq-setup-search-input" id="rq-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
-        + ' oninput="rqSearchInput(\'' + safePid + '\',this.value)">'
-        + '<div class="rq-setup-spinner" id="rq-spinner-' + safePid + '"></div>'
-        + '</div>'
-        + '<div class="rq-setup-results" id="rq-results-' + safePid + '"></div>'
-        + '<div id="rq-selected-' + safePid + '">' + _rqSelectedHTML(pid) + '</div>'
-        + '<div class="rq-setup-footer">'
-        + '<input type="datetime-local" class="rq-adjust-input" id="rq-sstart-' + safePid + '" value="' + startVal + '" onchange="rqSetupStartChange(\'' + safePid + '\',this.value)">'
-        + '<button class="rq-setup-cancel-btn" onclick="rqCancelSetup(\'' + safePid + '\')">Cancel</button>'
-        + '<button class="rq-start-confirm-btn" id="rq-confirm-' + safePid + '" onclick="rqStartTimerConfirm(\'' + safePid + '\')"' + (canStart ? '' : ' disabled') + '>▶ Start Timer</button>'
-        + '</div>'
-        + '</div>';
-    }
+    html += '</div>'; // end rq-card
+  });
 
-    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + setupPanel + '</div>';
-  }).join('');
+  html += '</div>'; // end rq-card-stack
 
+  container.style.display = 'block';
+  container.innerHTML = html;
   _rqRestartTicks();
-  // Re-populate any open setup panels (search input + cached results survive re-render)
+
+  // Re-populate open setup panel inputs after re-render
   Object.keys(_rqSetups).forEach(function(pid) {
     var s = _rqSetups[pid];
     var inp = document.getElementById('rq-srch-' + pid);
-    if (inp && s.query) { inp.value = s.query; }
+    if (inp && s.query) inp.value = s.query;
     if (s._lastResults && s._lastResults.length) {
       _rqRenderResults(pid, s._lastResults, s.query);
     }
   });
+}
+
+// ── Card navigation & interaction ─────────────────────────────────────────────
+
+function rqCardNav(dir) {
+  var items = _rqSortedItems();
+  var newIdx = Math.max(0, Math.min(items.length - 1, _rqCardIndex + dir));
+  if (newIdx === _rqCardIndex) return;
+  _rqCardIndex = newIdx;
+  var newPid = (items[newIdx] || {}).notionPageId;
+  // Auto-expand if new top card has active timer/setup; otherwise collapse
+  _rqExpandedPid = (newPid && (_rqTimers[newPid] || _rqSetups[newPid])) ? newPid : null;
+  restockQueueRender();
+}
+
+function rqCardTap(pid) {
+  if (_rqExpandedPid === pid) {
+    _rqExpandedPid = null;
+  } else {
+    _rqExpandedPid = pid;
+  }
+  restockQueueRender();
+}
+
+function rqCardClickHandler(event, pid) {
+  if (_rqSwipeFired) { _rqSwipeFired = false; return; }
+  rqCardTap(pid);
+}
+
+// ── Touch gesture handlers ────────────────────────────────────────────────────
+
+function rqTouchStart(event, pid) {
+  var touch = event.touches[0];
+  _rqTouchState = {
+    startY: touch.clientY,
+    startX: touch.clientX,
+    startT: Date.now(),
+    pid:    pid,
+    moved:  false,
+  };
+}
+
+function rqTouchMove(event) {
+  if (!_rqTouchState) return;
+  var tag = event.target.tagName;
+  if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
+  var touch = event.touches[0];
+  var dy = touch.clientY - _rqTouchState.startY;
+  var dx = touch.clientX - _rqTouchState.startX;
+  if (Math.abs(dy) > 8 || Math.abs(dx) > 8) _rqTouchState.moved = true;
+  if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
+    event.preventDefault(); // prevent page scroll while swiping cards
+  }
+}
+
+function rqTouchEnd(event, pid) {
+  if (!_rqTouchState) return;
+  var ts = _rqTouchState;
+  _rqTouchState = null;
+  var touch = event.changedTouches[0];
+  var dy = touch.clientY - ts.startY;
+  var dx = touch.clientX - ts.startX;
+  var absDy = Math.abs(dy), absDx = Math.abs(dx);
+
+  if (absDy > 50 && absDy > absDx) {
+    // Swipe up → next card (dy < 0), swipe down → prev card (dy > 0)
+    _rqSwipeFired = true;
+    rqCardNav(dy < 0 ? 1 : -1);
+    event.preventDefault(); // suppress the click that would follow
+    return;
+  }
+  // Tap handled by onclick (rqCardClickHandler); no special action needed here
 }
 
 // ── Timer start / stop ────────────────────────────────────────────────────────
@@ -1198,6 +1347,8 @@ function rqMove(idx, dir) {
   items[toIdx] = tmp;
   _rqMeta.order = items.map(function(i) { return i.notionPageId; });
   _rqSaveMeta();
+  // Keep _rqCardIndex tracking the moved card
+  if (idx === _rqCardIndex) _rqCardIndex = toIdx;
   restockQueueRender();
 }
 
@@ -1211,7 +1362,7 @@ function rqSetAssignee(selectEl, idx) {
     delete _rqMeta.assignees[item.notionPageId];
   }
   _rqSaveMeta();
-  selectEl.className = 'rq-assignee' + (person ? ' rq-' + person.toLowerCase() : '');
+  setTimeout(function() { restockQueueRender(); }, 0);
 }
 
 function rqAddItem() {
@@ -1254,6 +1405,8 @@ function rqDeleteItem(idx) {
   var items = _rqSortedItems();
   var item = items[idx];
   if (!item) return;
+  if (_rqExpandedPid === item.notionPageId) _rqExpandedPid = null;
+  if (_rqCardIndex >= items.length - 1 && _rqCardIndex > 0) _rqCardIndex--;
   var restockItems = itemsFor('restock');
   var restockIdx = restockItems.indexOf(item);
   deleteNoteItem('restock', restockIdx);
