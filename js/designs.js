@@ -287,15 +287,11 @@ async function designsHandlePDF(file) {
       }
     ];
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('/api/claude-proxy', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-calls': 'true'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        apiKey,
         model: 'claude-opus-4-8',
         max_tokens: 1500,
         messages: [{ role: 'user', content }]
