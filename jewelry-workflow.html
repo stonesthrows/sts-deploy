@@ -2456,6 +2456,16 @@
       line-height: 1; transition: border-color 0.15s, color 0.15s; margin-left: auto;
     }
     .rq-sbar-del:hover { border-color: #A0402A; color: #A0402A; }
+    .rq-sbar-time-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); margin:4px 0 6px; flex-wrap:wrap; }
+    .rq-sbar-time-val { color:var(--text2); font-weight:500; }
+    .rq-sbar-act-btn { background:none; border:1px solid var(--bdr-light); border-radius:5px; cursor:pointer; color:var(--text-dim); font-size:11px; padding:2px 7px; line-height:1; transition:border-color 0.15s,color 0.15s,background 0.15s; flex-shrink:0; }
+    .rq-sbar-act-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(150,110,60,0.06); }
+    .rq-sbar-act-btn:disabled { opacity:0.5; cursor:default; }
+    .rq-edit-row { background:#F5F0EB; border:1px solid var(--bdr); border-radius:8px; padding:10px 12px; margin-top:6px; display:flex; flex-direction:column; gap:8px; }
+    .rq-edit-field { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
+    .rq-edit-field label { width:52px; font-weight:600; color:var(--text3); flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+    .rq-edit-input { background:#fff; border:1px solid var(--bdr); border-radius:6px; color:var(--text); font-size:12px; padding:4px 7px; outline:none; transition:border-color 0.2s; }
+    .rq-edit-input:focus { border-color:var(--accent); }
 
     /* ── Supplier Order Tracker ─────────────────── */
     #tab-supplier { padding: 0; }

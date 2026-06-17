@@ -491,6 +491,7 @@ var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNot
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
+var _rqEditingSession = null;
 
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
@@ -1161,6 +1162,129 @@ function rqToggleLog() {
   if (page) page.classList.toggle('rq-log-open', !section.classList.contains('rq-log-collapsed'));
 }
 
+function _rqToDateTimeLocal(iso) {
+  if (!iso) return '';
+  var d = new Date(iso), p = function(n) { return String(n).padStart(2,'0'); };
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+function rqStartEditSession(i)  { _rqEditingSession = i;    rqRenderSessions(); }
+function rqCancelEditSession()   { _rqEditingSession = null; rqRenderSessions(); }
+
+function rqSaveEditSession(i) {
+  var s = _rqSessions[i]; if (!s) return;
+  var startEl = document.getElementById('rq-edit-start-' + i);
+  var stopEl  = document.getElementById('rq-edit-stop-'  + i);
+  var newStart = startEl && startEl.value ? new Date(startEl.value).toISOString() : s.startTime;
+  var newStop  = stopEl  && stopEl.value  ? new Date(stopEl.value).toISOString()  : s.stopTime;
+  if (newStart && newStop && new Date(newStop) <= new Date(newStart)) {
+    toast('Stop time must be after start time', '⚠'); return;
+  }
+  s.startTime = newStart; s.stopTime = newStop;
+  if (newStart && newStop) {
+    s.totalMs = new Date(newStop) - new Date(newStart);
+    s.netMs   = Math.max(0, s.totalMs - 15 * 60000);
+  }
+  _rqEditingSession = null;
+  rqRenderSessions();
+  if (!s.notionPageId) return;
+  var patch = { pageId: s.notionPageId };
+  if (newStart) patch.startTime = newStart;
+  if (newStop)  patch.stopTime  = newStop;
+  if (newStart && newStop) {
+    patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
+    patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
+  }
+  fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+    .then(function(r) { toast(r.ok ? 'Session updated ✓' : 'Notion update failed', r.ok ? '✓' : '⚠'); })
+    .catch(function() { toast('Network error', '⚠'); });
+}
+
+function rqSyncShiftsForSession(i) {
+  var s = _rqSessions[i]; if (!s || !s.startTime || !s.stopTime) return;
+  var btn = document.getElementById('rq-sync-btn-' + i);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  var empName = (s.employee && s.employee.name) || '';
+  var KNOWN = { 'Vanessa': 'TMAMWG-ZS9lqZWKm', 'Vanessa Bigley': 'TMAMWG-ZS9lqZWKm',
+                'Stevie': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana Schafer': 'Q5gZGbDStWUysIE3CKhJ' };
+  var empId = (s.employee && s.employee.id) || KNOWN[empName] || '';
+
+  function doSync(empId) {
+    if (!empId) {
+      toast('Unknown employee: ' + (empName || '?'), '⚠');
+      if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync'; }
+      return;
+    }
+    var pStartMs = new Date(s.startTime).getTime();
+    var pStopMs  = new Date(s.stopTime).getTime();
+    var sqLoc    = localStorage.getItem('sts_sqLocation') || 'D7EZ98V48F79A';
+    _rqSqCall('/labor/shifts/search', {
+      method: 'POST',
+      body: { query: { filter: { team_member_ids: [empId], location_ids: [sqLoc] } }, limit: 100 },
+    }).then(function(data) {
+      var shifts = (data.shifts || []).filter(function(sh) {
+        var cin = new Date(sh.start_at).getTime(), cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
+        return cin < pStopMs && cout > pStartMs;
+      });
+      var fTime = function(ms) { return new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); };
+      var fDay  = function(ms) { return new Date(ms).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}); };
+      var events = [{ time: pStartMs, type: 'start' }];
+      shifts.sort(function(a,b){ return new Date(a.start_at)-new Date(b.start_at); }).forEach(function(sh) {
+        var cin = new Date(sh.start_at).getTime(), cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
+        if (cin  > pStartMs && cin  < pStopMs) events.push({ time: cin,  type: 'in'  });
+        if (cout > pStartMs && cout < pStopMs) events.push({ time: cout, type: 'out' });
+      });
+      events.push({ time: pStopMs, type: 'stop' });
+      var byDay = {};
+      events.forEach(function(e) { var d = fDay(e.time); (byDay[d]=byDay[d]||[]).push(e); });
+      var block = '— Session Timeline —\n' + Object.keys(byDay).map(function(day) {
+        return day + '\n' + byDay[day].map(function(e) {
+          var lbl = e.type==='start'?'▶ Timer Start':e.type==='stop'?'⏹ Timer Stop':e.type==='in'?'  ▶ Clock In':'  ⏸ Clock Out';
+          return '  ' + lbl + ': ' + fTime(e.time);
+        }).join('\n');
+      }).join('\n');
+      var workedMs = 0;
+      shifts.forEach(function(sh) {
+        var cin = Math.max(new Date(sh.start_at).getTime(), pStartMs);
+        var cout = Math.min(sh.end_at ? new Date(sh.end_at).getTime() : pStopMs, pStopMs);
+        if (cout > cin) workedMs += (cout - cin);
+      });
+      var totalMs = pStopMs - pStartMs;
+      var dedMs   = Math.max(0, totalMs - workedMs) + 15 * 60000;
+      s.totalMs = totalMs; s.netMs = Math.max(0, totalMs - dedMs);
+      var baseNotes = (s.notes || '').replace(/— Session Timeline —[\s\S]*$/, '').trim();
+      s.notes = [baseNotes, block].filter(Boolean).join('\n\n');
+      rqRenderSessions();
+      if (!s.notionPageId) { toast('Timeline saved locally', '✓'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } return; }
+      fetch('/api/notion-timesession', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: s.notionPageId, notes: s.notes,
+          totalMin: parseFloat((totalMs/60000).toFixed(2)),
+          dedMin:   parseFloat((dedMs/60000).toFixed(2)),
+          netMin:   parseFloat((s.netMs/60000).toFixed(2)) }),
+      }).then(function(r) {
+        toast(r.ok ? 'Timeline & times synced ✓' : 'Notion sync failed', r.ok ? '✓' : '⚠');
+        if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
+      }).catch(function() { toast('Network error', '⚠'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } });
+    }).catch(function(e) {
+      toast('Square sync failed: ' + (e.message||e), '⚠');
+      if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
+    });
+  }
+
+  if (empId) { doSync(empId); return; }
+  _rqSqCall('/team-members?location_ids=' + (localStorage.getItem('sts_sqLocation') || 'D7EZ98V48F79A'))
+    .then(function(data) {
+      var members = (data.team_members || []).filter(function(m) { return m.status === 'ACTIVE'; });
+      var match = members.find(function(m) {
+        var fn = m.display_name || [m.given_name, m.family_name].filter(Boolean).join(' ');
+        return fn === empName || fn.split(' ')[0] === empName;
+      });
+      doSync(match ? match.id : '');
+    })
+    .catch(function() { doSync(''); });
+}
+
 function rqRenderSessions() {
   var list = document.getElementById('rq-log-list');
   if (!list) return;
@@ -1171,19 +1295,41 @@ function rqRenderSessions() {
   list.innerHTML = _rqSessions.map(function(s, i) {
     var name   = (s.items && s.items[0] && s.items[0].name) || '—';
     var emp    = s.employee ? s.employee.name : '';
-    var meta   = [emp, s.startTime ? _rqFmtDT(s.startTime) : null].filter(Boolean).join(' · ');
     var status = s.error
       ? '<span class="rq-sbar-err">⚠ ' + s.error + '</span>'
       : s.saved ? '<span class="rq-sbar-saved">✓ Saved</span>' : '<span style="color:var(--text-dim)">Saving…</span>';
+    var timeRow = '<div class="rq-sbar-time-row">'
+      + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
+      + '<span style="color:#ccc">·</span>'
+      + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
+      + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(' + i + ')">✎ Edit</button>'
+      + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-' + i + '" onclick="rqSyncShiftsForSession(' + i + ')">⟳ Sync</button>' : '')
+      + '</div>';
+    var isEditing = _rqEditingSession === i;
+    var editRow = isEditing
+      ? '<div class="rq-edit-row">'
+        + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
+        + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
+        + '<div style="display:flex;gap:8px;margin-top:2px;">'
+        + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(' + i + ')">Save</button>'
+        + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession()">Cancel</button>'
+        + '</div></div>'
+      : '';
     return '<div class="rq-session-bar">'
+      + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
+      + '<div style="flex:1;min-width:0;">'
       + '<div class="rq-sbar-name">' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>'
-      + (meta ? '<div class="rq-sbar-meta">' + meta + '</div>' : '')
+      + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
+      + '</div>'
+      + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ')" title="Delete">✕</button>'
+      + '</div>'
+      + timeRow
       + '<div class="rq-sbar-footer">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
       + (s.notes ? '<span style="color:var(--text3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + s.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '')
       + status
-      + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ')" title="Delete">✕</button>'
       + '</div>'
+      + editRow
       + '</div>';
   }).join('');
 }
