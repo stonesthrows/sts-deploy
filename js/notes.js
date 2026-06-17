@@ -1417,6 +1417,7 @@ function rqDeleteItem(idx) {
   var restockItems = itemsFor('restock');
   var restockIdx = restockItems.indexOf(item);
   deleteNoteItem('restock', restockIdx);
+  restockQueueRender();
 }
 
 function rqSaveText(el, idx) {
