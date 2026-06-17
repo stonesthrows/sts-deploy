@@ -467,6 +467,9 @@
     .k-sub-wrap.s-needs-est .k-sub-head     { background:#FEE8E0; color:#B04018; }
     .k-sub-wrap.s-needs-est .k-body         { background:#FEF3EE; }
     .k-sub-wrap.s-needs-est .o-card         { border-left-color:#E05828; }
+    .k-sub-wrap.s-intake-website .k-sub-head { background:#E0F4EE; color:#1A6B4A; }
+    .k-sub-wrap.s-intake-website .k-body     { background:#EBF8F3; }
+    .k-sub-wrap.s-intake-website .o-card     { border-left-color:#2A9D6A; }
 
     /* Sub-section stage colors — Contact Customer group */
     .k-sub-wrap.s-contact-need .k-sub-head  { background:#FFF3CD; color:#7A5A00; }
@@ -3527,9 +3530,6 @@
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
     <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
 
-    <div class="sb-section">Intake</div>
-    <div class="sb-item" data-sb="website-intake" onclick="sbNav('intake','website-intake',this)">🛍️ Website Order Intake</div>
-
     <div class="sb-section">More</div>
     <div class="sb-item" data-sb="triplog" onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
     <div class="sb-item" data-sb="notes"   onclick="sbNavDirect('notes',this)">📝 Notes</div>
@@ -3578,9 +3578,6 @@
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
     📊 More
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="intake" onclick="switchParent('intake',this)">
-    🛍️ Intake
-  </div>
 </div>
 
 <!-- Sub-nav (Orders) -->
@@ -3619,13 +3616,6 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="order-history" onclick="switchSubTab('order-history',this)">
     📋 Order History
-  </div>
-</div>
-
-<!-- Sub-nav (Intake) -->
-<div class="sub-nav" id="sub-nav-intake" role="tablist" aria-label="Intake">
-  <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="website-intake" onclick="switchSubTab('website-intake',this)">
-    🛍️ Website Order Intake
   </div>
 </div>
 
@@ -6392,20 +6382,6 @@ function savePrintSetup() {
   </div>
 </div>
 
-<!-- ═══════════════════ SHOPIFY INTAKE TAB ═══════════════════ -->
-<div id="tab-website-intake" class="tab-panel">
-  <div class="page-bar">
-    <div>
-      <div class="page-title">🛍️ Website Order Intake</div>
-      <div class="page-sub">New orders from your website</div>
-    </div>
-    <button class="btn btn-gold btn-sm" onclick="websiteIntakeSync()" id="website-intake-sync-btn">⟳ Sync Orders</button>
-  </div>
-  <div id="website-intake-loading" style="display:none;padding:12px 2px;color:var(--text3);font-size:13px">⏳ Loading website orders…</div>
-  <div id="website-intake-list" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;"></div>
-  <div id="website-intake-empty" style="display:none;padding:32px;text-align:center;color:var(--text3);font-size:14px;">No new website orders</div>
-</div>
-
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js"></script>
 <script src="js/notion.js"></script>
@@ -6581,7 +6557,6 @@ function applyStatFilter(key) {
     'calendar':          'Calendar',
     'pj-calc':           'PJ Calc',
     'pj-ref':            'PJ Reference',
-    'website-intake':    'Website Order Intake',
   };
 
   // ── Home dashboard init ──────────────────────────────

@@ -6,9 +6,10 @@
 const TODAY = new Date('2026-05-20');
 
 const STAGES = [
-  { id:'intake-custom',  label:'Custom Intake',                cls:'s-intake-custom'  },
-  { id:'intake-repair',  label:'Repair Intake',                cls:'s-intake-repair'  },
-  { id:'needs-est',      label:'Estimate Intake',              cls:'s-needs-est'      },
+  { id:'intake-custom',   label:'Custom Intake',                cls:'s-intake-custom'   },
+  { id:'intake-repair',   label:'Repair Intake',                cls:'s-intake-repair'   },
+  { id:'needs-est',       label:'Estimate Intake',              cls:'s-needs-est'       },
+  { id:'intake-website',  label:'Website Order Intake',         cls:'s-intake-website'  },
   { id:'repair',         label:'Repairs',                      cls:'s-repair'         },
   { id:'sketch-needs',   label:'Needs Sketch',                 cls:'s-sketch-needs'   },
   { id:'sketch-wait',    label:'Waiting on Sketch Approval',   cls:'s-sketch-wait'    },
@@ -36,9 +37,10 @@ const PICKUP_LOCATIONS = ['Studio', 'Bell Market', 'Mueller Market', 'Chaparral 
 // Column layout — groups stages into shared columns
 const COLUMN_GROUPS = [
   { label:'Intake',       cls:'s-intake-group',    stages:[
-    { id:'intake-custom', cls:'s-intake-custom', label:'Custom Intake'   },
-    { id:'intake-repair', cls:'s-intake-repair', label:'Repair Intake'   },
-    { id:'needs-est',     cls:'s-needs-est',     label:'Estimate Intake' },
+    { id:'intake-custom',  cls:'s-intake-custom',  label:'Custom Intake'         },
+    { id:'intake-repair',  cls:'s-intake-repair',  label:'Repair Intake'         },
+    { id:'needs-est',      cls:'s-needs-est',      label:'Estimate Intake'       },
+    { id:'intake-website', cls:'s-intake-website', label:'Website Order Intake'  },
   ]},
   { label:'Sketch',       cls:'s-sketch-group',    stages:[
     { id:'sketch-needs', cls:'s-sketch-needs', label:'Needs Sketch'                },
