@@ -4931,7 +4931,7 @@
 .dsn-field-label { font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px; }
 .dsn-input { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;transition:border-color .15s; }
 .dsn-input:focus { outline:none;border-color:var(--accent); }
-.dsn-textarea { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;resize:vertical;min-height:110px;line-height:1.5;transition:border-color .15s; }
+.dsn-textarea { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;resize:none;min-height:110px;line-height:1.5;transition:border-color .15s;overflow:hidden; }
 .dsn-textarea:focus { outline:none;border-color:var(--accent); }
 .dsn-select { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px; }
 .dsn-upload-row { display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
@@ -5016,12 +5016,14 @@
     <!-- Specs -->
     <label class="dsn-field-label">Specifications &amp; Materials</label>
     <textarea id="dsn-specs" class="dsn-textarea" rows="5"
-      placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."></textarea>
+      placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."
+      oninput="dsnAutoResize(this)"></textarea>
 
     <!-- Instructions -->
     <label class="dsn-field-label">Step-by-Step Instructions</label>
     <textarea id="dsn-instructions" class="dsn-textarea" rows="7"
-      placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."></textarea>
+      placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."
+      oninput="dsnAutoResize(this)"></textarea>
 
     <!-- Images -->
     <label class="dsn-field-label">Reference Images</label>

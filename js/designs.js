@@ -121,6 +121,8 @@ function designsRenderForm() {
 
   // Clear PDF status
   document.getElementById('dsn-pdf-status').textContent = '';
+
+  setTimeout(dsnAutoResizeAll, 0);
 }
 
 function designsRenderImagePreviews() {
@@ -252,25 +254,41 @@ function designsHandlePDF(file) {
 
       const pdf = await lib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
 
-      // Build lines by grouping items that share the same Y position
+      // Build lines by grouping items that share approximately the same Y position.
+      // Adobe Scan puts each word as a separate item; Y values on the same visual
+      // line can differ by a few points due to font metrics, so we use a tolerance.
       let allLines = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
 
-        // Group text items by their Y coordinate (rounded to 1dp) to reconstruct lines
-        const byY = {};
-        content.items.forEach(item => {
-          if (!item.str) return;
-          const y = item.transform ? Math.round(item.transform[5] * 10) / 10 : 0;
-          if (!byY[y]) byY[y] = [];
-          byY[y].push(item.str);
+        // Collect items with position
+        const items = content.items
+          .filter(it => it.str && it.str.trim())
+          .map(it => ({
+            str: it.str,
+            x: it.transform ? it.transform[4] : 0,
+            y: it.transform ? it.transform[5] : 0,
+          }));
+
+        if (!items.length) continue;
+
+        // Group into lines using Y tolerance (~4 pts ≈ same visual line)
+        const YTOL = 4;
+        const buckets = []; // [{y, items:[]}]
+        items.forEach(it => {
+          const b = buckets.find(bk => Math.abs(bk.y - it.y) <= YTOL);
+          if (b) { b.items.push(it); }
+          else    { buckets.push({ y: it.y, items: [it] }); }
         });
 
-        // Sort Y descending (PDF Y axis is bottom-up) and join each row
-        const sortedYs = Object.keys(byY).map(Number).sort((a, b) => b - a);
-        sortedYs.forEach(y => {
-          const line = byY[y].join('').trim();
+        // Sort buckets top→bottom (PDF Y is bottom-up, so descending)
+        buckets.sort((a, b) => b.y - a.y);
+
+        buckets.forEach(bk => {
+          // Sort words left→right within each line
+          bk.items.sort((a, b) => a.x - b.x);
+          const line = bk.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
           if (line) allLines.push(line);
         });
       }
@@ -333,6 +351,17 @@ function _designsPrefillFromText(text, filename) {
   if (!instrEl.value.trim() && instrLines.length) {
     instrEl.value = instrLines.join('\n');
   }
+
+  setTimeout(dsnAutoResizeAll, 0);
+}
+
+// ── Auto-resize textareas ─────────────────────
+function dsnAutoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = (el.scrollHeight + 2) + 'px';
+}
+function dsnAutoResizeAll() {
+  document.querySelectorAll('#designs-form-wrap .dsn-textarea').forEach(dsnAutoResize);
 }
 
 // ── Utility ───────────────────────────────────
