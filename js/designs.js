@@ -241,6 +241,7 @@ function designsHandlePDF(file) {
     return;
   }
   const status = document.getElementById('dsn-pdf-status');
+  status.style.color = 'var(--accent)';
   status.textContent = '⏳ Reading PDF…';
 
   const reader = new FileReader();
@@ -250,16 +251,40 @@ function designsHandlePDF(file) {
       if (!lib) { status.textContent = '❌ PDF reader not loaded'; return; }
 
       const pdf = await lib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
-      let fullText = '';
+
+      // Build lines by grouping items that share the same Y position
+      let allLines = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        fullText += content.items.map(item => item.str).join(' ') + '\n\n';
+
+        // Group text items by their Y coordinate (rounded to 1dp) to reconstruct lines
+        const byY = {};
+        content.items.forEach(item => {
+          if (!item.str) return;
+          const y = item.transform ? Math.round(item.transform[5] * 10) / 10 : 0;
+          if (!byY[y]) byY[y] = [];
+          byY[y].push(item.str);
+        });
+
+        // Sort Y descending (PDF Y axis is bottom-up) and join each row
+        const sortedYs = Object.keys(byY).map(Number).sort((a, b) => b - a);
+        sortedYs.forEach(y => {
+          const line = byY[y].join('').trim();
+          if (line) allLines.push(line);
+        });
       }
 
-      _designsPrefillFromText(fullText, file.name);
-      status.textContent = `✓ Extracted text from ${pdf.numPages} page${pdf.numPages > 1 ? 's' : ''} — review and edit below`;
-      status.style.color = 'var(--accent)';
+      const extracted = allLines.join('\n').trim();
+
+      if (!extracted) {
+        status.textContent = '⚠ No text found in this PDF — it may be a plain image scan. Type the details manually below.';
+        status.style.color = '#c0392b';
+        return;
+      }
+
+      _designsPrefillFromText(extracted, file.name);
+      status.textContent = `✓ Extracted ${extracted.length} characters from ${pdf.numPages} page${pdf.numPages > 1 ? 's' : ''} — review and edit below`;
     } catch(err) {
       status.textContent = '❌ Could not read PDF: ' + (err.message || err);
       status.style.color = '#c0392b';
@@ -269,51 +294,43 @@ function designsHandlePDF(file) {
 }
 
 function _designsPrefillFromText(text, filename) {
-  // Try to extract a title from the first line or filename
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const titleLine = lines[0] || '';
 
-  // Only pre-fill name if currently blank
+  // Pre-fill name from first line (if blank and line is short enough to be a title)
   const nameEl = document.getElementById('dsn-name');
   if (!nameEl.value.trim()) {
-    const guessedName = titleLine.length < 80 ? titleLine
-      : filename.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ');
-    nameEl.value = guessedName;
+    const firstLine = lines[0] || '';
+    nameEl.value = firstLine.length > 0 && firstLine.length < 120
+      ? firstLine
+      : filename.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
   }
 
-  // Split text into specs vs instructions heuristically:
-  // Lines that look like bullet points / numbered steps → instructions
-  // Short spec-like lines (gauges, mm sizes, materials) → specs
-  const specKeywords = /\d+\s*(ga|gauge|mm|gram|g\b|inch|")/i;
-  const instrKeywords = /^(\d+[\.\)]\s|•|-|fuse|solder|cut|wrap|use|place|apply|twist|bend|shape|join)/i;
-
-  const specsLines = [], instrLines = [], remainLines = [];
-  let seenSpecHeader = false;
+  // Heuristic split: instruction-like lines vs spec/material lines
+  const instrPattern = /^(•|\*|[-–]|\d+[\.\)])\s*|^(cut|fuse|solder|use|wrap|place|apply|twist|bend|shape|join|don'?t|note:|for\s)/i;
+  const instrLines = [], specLines = [];
+  let pastTitle = false;
 
   lines.forEach((line, i) => {
-    if (i === 0) return; // skip title line
-    if (/SPECIFICATIONS?/i.test(line)) { seenSpecHeader = true; return; }
-    if (instrKeywords.test(line)) {
+    if (i === 0) { pastTitle = true; return; } // skip title
+    if (/^(SPECIFICATIONS?|Materials?|Tools?):?$/i.test(line)) return; // skip headers
+    if (instrPattern.test(line)) {
       instrLines.push(line);
-    } else if (seenSpecHeader && i < 8) {
-      specsLines.push(line);
-    } else if (specKeywords.test(line)) {
-      specsLines.push(line);
     } else {
-      remainLines.push(line);
+      specLines.push(line);
     }
   });
 
-  // Dump everything into specs if we couldn't separate it
+  // Fill specs — if split worked use it, otherwise dump all non-title lines
   const specsEl = document.getElementById('dsn-specs');
   if (!specsEl.value.trim()) {
-    specsEl.value = specsLines.length
-      ? specsLines.join('\n')
-      : remainLines.slice(0, 10).join('\n');
+    specsEl.value = specLines.length
+      ? specLines.join('\n')
+      : lines.slice(1).join('\n');
   }
 
+  // Fill instructions — if nothing matched the heuristic, leave blank (specs has everything)
   const instrEl = document.getElementById('dsn-instructions');
-  if (!instrEl.value.trim()) {
+  if (!instrEl.value.trim() && instrLines.length) {
     instrEl.value = instrLines.join('\n');
   }
 }
