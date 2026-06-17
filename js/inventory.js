@@ -197,6 +197,10 @@ async function invLoad() {
   if (_invData[_invCurSub]) return; // already loaded
   await _invLoadSub(_invCurSub);
   window._invLoaded = true;
+  if (!window._invLastAddedWarmed) {
+    window._invLastAddedWarmed = true;
+    _invWarmLastAdded();
+  }
 }
 
 async function _invLoadSub(sub) {
@@ -310,6 +314,7 @@ function _invRenderSub(sub) {
   const hidden      = _invGetHidden();
   const hiddenVars  = new Set(_invGetHiddenVars().map(v => v.varId));
 
+  const lastAddedCache = _invGetLastAdded();
   let html = '';
   items.forEach(item => {
     const name = item.item_data?.name || 'Unnamed';
@@ -319,7 +324,11 @@ function _invRenderSub(sub) {
     if (excludes.some(ex => nameLower.includes(ex))) return;
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
-    const nameSafe = _esc(name).replace(/'/g, '&#39;');
+    const nameSafe   = _esc(name).replace(/'/g, '&#39;');
+    const lastAdded  = lastAddedCache[item.id];
+    const lastDateHtml = lastAdded
+      ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
+      : '';
     const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
@@ -365,6 +374,7 @@ function _invRenderSub(sub) {
 
       html += `<div class="inv-row" data-var-id="${varId}">
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
+        ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
         <div class="inv-dot ${dot}"></div>
         <div class="inv-stepper">
@@ -444,6 +454,13 @@ async function invUpdateAll() {
 
 async function _invSaveCount(qtyMap, sub) {
   sub = sub || _invCurSub;
+
+  // Capture counts before the Square write so we can compute deltas afterward
+  const prevCounts = {};
+  Object.keys(qtyMap).forEach(varId => {
+    prevCounts[varId] = _invData[sub]?.counts[varId] ?? 0;
+  });
+
   const changes = Object.entries(qtyMap).map(([varId, qty]) => ({
     type: 'PHYSICAL_COUNT',
     physical_count: {
@@ -469,6 +486,7 @@ async function _invSaveCount(qtyMap, sub) {
     delete _invDirty[varId];
   });
 
+  _invLogChanges(qtyMap, prevCounts, sub);
   _invRenderSub(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
@@ -796,4 +814,75 @@ function invConfirmQueueAllLow() {
 
 function _esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Last-Added audit trail ────────────────────────────────────────────────────
+
+function _invGetLastAdded() {
+  try { return JSON.parse(localStorage.getItem('sts-inv-last-added') || '{}'); } catch { return {}; }
+}
+
+function _invFmtDelta(delta) {
+  return (delta >= 0 ? '+' : '') + delta;
+}
+
+function _invFmtDate(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function _invFindItemForVar(varId, sub) {
+  const data = _invData[sub];
+  if (!data) return null;
+  for (const item of data.items) {
+    if ((item.item_data?.variations || []).some(v => v.id === varId)) return item;
+  }
+  return null;
+}
+
+function _invLogChanges(qtyMap, prevCounts, sub) {
+  const cache = _invGetLastAdded();
+  let changed = false;
+  Object.entries(qtyMap).forEach(([varId, newQty]) => {
+    const prevQty  = prevCounts[varId] ?? 0;
+    const delta    = parseInt(newQty) - prevQty;
+    const item     = _invFindItemForVar(varId, sub);
+    if (!item) return;
+    const itemId   = item.id;
+    const itemName = item.item_data?.name || '';
+    const varObj   = (item.item_data?.variations || []).find(v => v.id === varId);
+    const varName  = varObj?.item_variation_data?.name || '';
+    const isoDate  = new Date().toISOString().split('T')[0];
+    cache[itemId] = { delta, isoDate, varName };
+    changed = true;
+    fetch('/api/notion-inv-history', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ itemId, itemName, varName, prevQty, newQty: parseInt(newQty), delta, category: sub }),
+    }).catch(() => {});
+  });
+  if (changed) localStorage.setItem('sts-inv-last-added', JSON.stringify(cache));
+}
+
+async function _invWarmLastAdded() {
+  try {
+    const r = await fetch('/api/notion-inv-history');
+    if (!r.ok) return;
+    const data = await r.json();
+    const cache = _invGetLastAdded();
+    let changed = false;
+    Object.entries(data).forEach(([itemId, entry]) => {
+      if (!cache[itemId] || entry.isoDate > cache[itemId].isoDate) {
+        cache[itemId] = entry;
+        changed = true;
+      }
+    });
+    if (!changed) return;
+    localStorage.setItem('sts-inv-last-added', JSON.stringify(cache));
+    if (_invData[_invCurSub])     _invRenderSub(_invCurSub);
+    if (_invData[_invRingCurSub]) _invRenderSub(_invRingCurSub);
+    if (_invData[_invPendantCurSub]) _invRenderSub(_invPendantCurSub);
+  } catch (e) {
+    console.warn('[inv] could not warm last-added cache:', e.message);
+  }
 }

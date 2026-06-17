@@ -1,0 +1,104 @@
+// ════════════════════════════════════════════
+//  Inventory History Proxy  —  /api/notion-inv-history
+//  POST: log an inventory adjustment
+//  GET:  return last entry per item ID (for cache warming)
+//  Requires env var: NOTION_TOKEN
+// ════════════════════════════════════════════
+
+const NOTION_API = 'https://api.notion.com/v1';
+const NOTION_VER = '2022-06-28';
+const DB_ID      = '0061bb3fc1994aa8a8008c69d6b2170a';
+
+const CORS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
+function hdrs(token) {
+  return {
+    'Authorization':  'Bearer ' + token,
+    'Notion-Version': NOTION_VER,
+    'Content-Type':   'application/json',
+  };
+}
+
+export async function onRequest({ request, env }) {
+  if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+  const token = env.NOTION_TOKEN;
+  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
+  const h = hdrs(token);
+
+  // ── POST — log an inventory change ──────────────────────────────────────────
+  if (request.method === 'POST') {
+    const { itemId, itemName, varName, prevQty, newQty, delta, category } = await request.json();
+    if (!itemId || !itemName) return json({ error: 'itemId and itemName required' }, 400);
+
+    const r = await fetch(`${NOTION_API}/pages`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        parent: { database_id: DB_ID },
+        properties: {
+          'Item Name':    { title:     [{ text: { content: String(itemName).slice(0, 2000) } }] },
+          'Item ID':      { rich_text: [{ text: { content: String(itemId) } }] },
+          'Variation':    { rich_text: [{ text: { content: String(varName || '') } }] },
+          'Delta':        { number: delta },
+          'Previous Qty': { number: prevQty },
+          'New Qty':      { number: newQty },
+          'Date':         { date: { start: new Date().toISOString().split('T')[0] } },
+          'Category':     { rich_text: [{ text: { content: String(category || '') } }] },
+        },
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
+    return json({ ok: true });
+  }
+
+  // ── GET — return last entry per item ID ─────────────────────────────────────
+  if (request.method === 'GET') {
+    const lastByItem = {};
+    let cursor;
+    let pages = 0;
+    do {
+      const body = {
+        page_size: 100,
+        sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      };
+      if (cursor) body.start_cursor = cursor;
+      const r = await fetch(`${NOTION_API}/databases/${DB_ID}/query`, {
+        method: 'POST', headers: h, body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) return json({ error: d.message || 'query failed' }, r.status);
+      for (const page of (d.results || [])) {
+        if (page.archived) continue;
+        const p   = page.properties;
+        const iid = p['Item ID']?.rich_text?.[0]?.plain_text || '';
+        if (!iid || lastByItem[iid]) continue;
+        lastByItem[iid] = {
+          varName:  p['Variation']?.rich_text?.[0]?.plain_text || '',
+          delta:    p['Delta']?.number ?? 0,
+          prevQty:  p['Previous Qty']?.number ?? 0,
+          newQty:   p['New Qty']?.number ?? 0,
+          isoDate:  p['Date']?.date?.start || page.created_time.split('T')[0],
+          category: p['Category']?.rich_text?.[0]?.plain_text || '',
+        };
+      }
+      cursor = d.has_more ? d.next_cursor : null;
+      pages++;
+    } while (cursor && pages < 10);
+    return json(lastByItem);
+  }
+
+  return new Response('Method not allowed', { status: 405, headers: CORS });
+}
