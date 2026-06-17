@@ -44,7 +44,14 @@ function pageToNote(page) {
 
 export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  try {
+    return await _handle({ request, env });
+  } catch (err) {
+    return json({ error: String(err) }, 500);
+  }
+}
 
+async function _handle({ request, env }) {
   const token = env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const h = hdrs(token);
