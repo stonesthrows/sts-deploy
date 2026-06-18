@@ -12,6 +12,20 @@ function fmtPhone(val) {
 }
 function fmtPhoneInput(el) { el.value = fmtPhone(el.value); }
 
+function getFullName() {
+  const first = document.getElementById('f-firstname')?.value.trim() || '';
+  const last  = document.getElementById('f-lastname')?.value.trim()  || '';
+  return [first, last].filter(Boolean).join(' ');
+}
+
+function setNameFields(fullName) {
+  const parts = (fullName || '').trim().split(/\s+/);
+  const first = document.getElementById('f-firstname');
+  const last  = document.getElementById('f-lastname');
+  if (first) first.value = parts[0] || '';
+  if (last)  last.value  = parts.slice(1).join(' ') || '';
+}
+
 // ════════════════════════════════════════════
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
@@ -220,7 +234,7 @@ function openOrderCard(id) {
   if (!o) return;
 
   document.getElementById('f-editing-id').value  = o.id;
-  document.getElementById('f-name').value         = o.name          || '';
+  setNameFields(o.name);
   document.getElementById('f-description').value  = o.desc          || '';
   document.getElementById('f-stage').value         = o.stage         || 'intake-custom';
   document.getElementById('f-price').value         = o.price         || '';
@@ -350,7 +364,7 @@ function saveOrderEdit() {
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
 
-  o.name          = document.getElementById('f-name').value.trim();
+  o.name          = getFullName();
   o.desc          = document.getElementById('f-description').value.trim();
   o.stage         = document.getElementById('f-stage').value;
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
@@ -412,7 +426,7 @@ function closeGmailPanel() {
 
 function fillFromThread(i) {
   const t = GMAIL_THREADS[i];
-  if (t.name) document.getElementById('f-name').value  = t.name;
+  if (t.name) setNameFields(t.name);
   if (t.email) document.getElementById('f-email').value = t.email;
   closeGmailPanel();
   switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'));
@@ -451,15 +465,14 @@ function setOrderType(type) {
 // ════════════════════════════════════════════
 function submitOrder() {
   if (document.getElementById('f-editing-id').value) { saveOrderEdit(); return; }
-  const name  = document.getElementById('f-name').value.trim();
+  const name  = getFullName();
   const email = document.getElementById('f-email').value.trim();
   const desc  = document.getElementById('f-description').value.trim();
   if (!name || !desc) {
     toast('Please fill in Name and Description', '⚠');
-    // Highlight missing fields
-    ['f-name','f-description'].forEach(id => {
+    ['f-firstname', 'f-description'].forEach(id => {
       const el = document.getElementById(id);
-      if (!el.value.trim()) {
+      if (el && !el.value.trim()) {
         el.style.borderColor = '#E05050';
         el.addEventListener('input', () => el.style.borderColor = '', { once: true });
       }
@@ -569,7 +582,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-name','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-sketch',
+  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -963,7 +976,7 @@ function setMultiplier(val) {
 
 function approveEstimate() {
   const customerEmail = document.getElementById('f-email')?.value.trim() || '';
-  const customerName  = document.getElementById('f-name')?.value.trim()  || 'Customer';
+  const customerName  = getFullName() || 'Customer';
 
   if (!customerEmail) { toast('Add a customer email first.', '⚠️'); return; }
   if (!_gtSqLocation()) { toast('No Square Location ID — add it in ⚙ Integrations.', '⚠️'); return; }
@@ -1195,7 +1208,7 @@ function eoSubmitInvoice() {
   const btn     = document.getElementById('eo-inv-submit-btn');
 
   const customerEmail = document.getElementById('f-email').value.trim();
-  const customerName  = document.getElementById('f-name').value.trim();
+  const customerName  = getFullName();
 
   if (!customerEmail) { status.textContent = 'No email — add one in the Email field above.'; return; }
   if (!_gtSqLocation()) { status.textContent = 'No Square Location ID — add it in ⚙ Integrations.'; return; }

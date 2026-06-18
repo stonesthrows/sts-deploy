@@ -668,7 +668,7 @@ function prefillFromOrder(orderId) {
   if (typeof switchSubTab === 'function') switchSubTab('new-order', subEl);
 
   const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
-  set('f-name',        o.name);
+  if (typeof setNameFields === 'function') setNameFields(o.name); else set('f-name', o.name);
   set('f-email',       o.email);
   set('f-phone',       fmtPhone(o.phone));
   set('f-description', o.desc);
