@@ -286,6 +286,21 @@ async function _invLoadSub(sub) {
   }
 }
 
+// ── Variant row tint (by material/style keywords) ────────────────────────────
+
+function _invVarTint(varName) {
+  const n = varName.toLowerCase();
+  const isSingle = n.includes('single');
+  const isDouble = n.includes('double');
+  const isGF     = n.includes(' gf') || n.includes('gold fill');
+  const isSilver = n.includes('silver');
+  if (isSingle && isSilver) return '#EFF4FB';
+  if (isSingle && isGF)     return '#FDF8EC';
+  if (isDouble && isSilver) return '#E6EDF7';
+  if (isDouble && isGF)     return '#FBF0DC';
+  return '';
+}
+
 // ── Render ───────────────────────────────────
 
 function _invRenderSub(sub) {
@@ -371,8 +386,9 @@ function _invRenderSub(sub) {
       const varSafe   = _esc(varName).replace(/'/g, '&#39;');
       const threshold = _invGetThreshold(varId);
       const isLow     = sqQty !== null && sqQty < threshold;
+      const rowTint   = _invVarTint(varName);
 
-      html += `<div class="inv-row" data-var-id="${varId}">
+      html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
         ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
