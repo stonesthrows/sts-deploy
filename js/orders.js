@@ -789,6 +789,16 @@ function toggleEstimateBuilder() {
   const visible = card.style.display !== 'none';
   card.style.display = visible ? 'none' : '';
   if (btn) btn.textContent = visible ? '💰 Add Estimate' : '✕ Hide Estimate';
+
+  // Persist open state so re-opening the order restores it
+  const editingId = document.getElementById('f-editing-id')?.value;
+  if (editingId) {
+    try {
+      const estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}');
+      estState[editingId] = Object.assign(estState[editingId] || {}, { open: !visible });
+      localStorage.setItem('sts-est-state', JSON.stringify(estState));
+    } catch(e) {}
+  }
 }
 
 //  ESTIMATE BUILDER
@@ -844,6 +854,15 @@ function populateEstimateFromOrder(o) {
   const taxToggle = document.getElementById('est-tax-toggle');
   if (taxToggle) taxToggle.checked = saved.taxOn || false;
   setMultiplier(saved.multiplier || 2.5);
+
+  // Auto-show/hide the builder based on whether it was open when last editing this order
+  const card = document.getElementById('estimateBuilderCard');
+  const btn  = document.getElementById('add-estimate-btn');
+  if (card) {
+    const shouldOpen = !!saved.open;
+    card.style.display = shouldOpen ? '' : 'none';
+    if (btn) btn.textContent = shouldOpen ? '✕ Hide Estimate' : '💰 Add Estimate';
+  }
 }
 
 function removeMaterialRow(id) {
