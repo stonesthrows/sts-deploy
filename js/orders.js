@@ -977,6 +977,8 @@ function setMultiplier(val) {
 function approveEstimate() {
   const customerEmail = document.getElementById('f-email')?.value.trim() || '';
   const customerName  = getFullName() || 'Customer';
+  const jobDesc = document.getElementById('f-description')?.value.trim() || '';
+  const notes   = document.getElementById('f-notes')?.value.trim() || '';
 
   if (!customerEmail) { toast('Add a customer email first.', '⚠️'); return; }
   if (!_gtSqLocation()) { toast('No Square Location ID — add it in ⚙ Integrations.', '⚠️'); return; }
@@ -1036,21 +1038,20 @@ function approveEstimate() {
     });
   })
   .then(ids => {
+    const title   = jobDesc ? jobDesc : 'Custom Order Estimate — ' + customerName;
+    const invoice = {
+      location_id:       _gtSqLocation(),
+      order_id:          ids.orderId,
+      primary_recipient: { customer_id: ids.customerId },
+      delivery_method:   'SHARE_MANUALLY',
+      invoice_type:      'ESTIMATE',
+      title:             title,
+      accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false },
+    };
+    if (notes) invoice.description = notes;
     return _gtSqCall('/v2/invoices', 'POST', {
       idempotency_key: 'sts-inv-est-' + Date.now(),
-      invoice: {
-        location_id:       _gtSqLocation(),
-        order_id:          ids.orderId,
-        primary_recipient: { customer_id: ids.customerId },
-        delivery_method:   'SHARE_MANUALLY',
-        title:             'Custom Order Estimate — ' + customerName,
-        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false },
-        payment_requests: [{
-          request_type:             'BALANCE',
-          due_date:                 new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-          automatic_payment_source: 'NONE'
-        }]
-      }
+      invoice
     });
   })
   .then(d4 => {
