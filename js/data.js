@@ -62,7 +62,10 @@ const COLUMN_GROUPS = [
     { id:'materials',  cls:'s-materials',  label:'Waiting on Materials' },
   ]},
   { label:'At the Bench', cls:'s-build',           stages:[{id:'build',      cls:'s-build',      label:'At the Bench'}] },
-  { label:'Needs Invoicing',      cls:'s-needs-invoice', stages:[{id:'needs-invoice', cls:'s-needs-invoice', label:'Needs Invoice / Final Payment'}] },
+  { label:'Invoicing', cls:'s-needs-invoice', stages:[
+    { id:'needs-invoice',  cls:'s-needs-invoice',  label:'Needs Invoicing' },
+    { id:'invoice-sent',   cls:'s-invoice-sent',   label:'Invoice Sent'    },
+  ]},
   { label:'Contact Customer', cls:'s-contact-group', stages:[
     { id:'contact-need', cls:'s-contact-need', label:'Need to Contact Customer' },
     { id:'contact-done', cls:'s-contact-done', label:'Contacted Customer'       },

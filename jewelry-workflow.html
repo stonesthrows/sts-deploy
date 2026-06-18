@@ -448,6 +448,12 @@
     .s-needs-invoice .k-head   { background:#F4EAF8; color:#6A1B9A; }
     .s-needs-invoice .k-body   { background:#FAF4FC; }
     .s-needs-invoice .o-card   { border-left-color:#9C27B0; }
+    .k-sub-wrap.s-needs-invoice .k-sub-head { background:#F4EAF8; color:#6A1B9A; }
+    .k-sub-wrap.s-needs-invoice .k-body     { background:#FAF4FC; }
+    .k-sub-wrap.s-needs-invoice .o-card     { border-left-color:#9C27B0; }
+    .k-sub-wrap.s-invoice-sent  .k-sub-head { background:#E8D0F4; color:#4A0E72; }
+    .k-sub-wrap.s-invoice-sent  .k-body     { background:#F0E4FA; }
+    .k-sub-wrap.s-invoice-sent  .o-card     { border-left-color:#7B1FA2; }
 
     .s-contact-need .o-card    { border-left-color:#D4A020; }
     .s-contact-done .k-head    { background:#E2F4EA; color:#1A6038; }
@@ -4033,7 +4039,8 @@
               <option value="order-mat">Order Materials</option>
               <option value="materials">Waiting on Materials</option>
               <option value="build">At the Bench</option>
-              <option value="needs-invoice">Needs Invoice / Final Payment</option>
+              <option value="needs-invoice">Needs Invoicing</option>
+              <option value="invoice-sent">Invoice Sent</option>
               <option value="contact-need">Need to Contact Customer</option>
               <option value="contact-done">Contacted Customer</option>
               <option value="ready-pick">Ready for Pickup</option>
@@ -6700,7 +6707,7 @@ function savePrintSetup() {
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/data.js"></script>
+<script src="js/data.js?v=2"></script>
 <script src="js/notion.js"></script>
 <script src="js/customers.js"></script>
 <script src="js/app.js"></script>
