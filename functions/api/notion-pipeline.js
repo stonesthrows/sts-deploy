@@ -20,6 +20,7 @@ const STAGE_TO_NOTION = {
   'intake-custom':  'Custom Intake',
   'intake-repair':  'Repair Intake',
   'needs-est':      'Estimate Intake',
+  'intake-website': 'Website Order Intake',
   'sketch-needs':   'Needs Sketch',
   'sketch-wait':    'Waiting on Sketch Approval',
   'sketch':         'Sketch Approved',
@@ -98,6 +99,24 @@ function orderToProps(o) {
   if (o.cancelledAt)  props['Cancelled At']    = { date: { start: o.cancelledAt.slice(0, 10) } };
   if (o.pdfUrl)       props['PDF URL']         = { url: o.pdfUrl };
 
+  // Address fields
+  if (o.addrStreet  != null) props['Street Address'] = { rich_text: [{ text: { content: (o.addrStreet  || '').slice(0, 2000) } }] };
+  if (o.addrStreet2 != null) props['Address Line 2'] = { rich_text: [{ text: { content: (o.addrStreet2 || '').slice(0, 2000) } }] };
+  if (o.addrCity    != null) props['City']           = { rich_text: [{ text: { content: (o.addrCity    || '').slice(0, 2000) } }] };
+  if (o.addrState   != null) props['State']          = { rich_text: [{ text: { content: (o.addrState   || '').slice(0, 2000) } }] };
+  if (o.addrZip     != null) props['Zip']            = { rich_text: [{ text: { content: (o.addrZip     || '').slice(0, 2000) } }] };
+  if (o.addrCountry != null) props['Country']        = { rich_text: [{ text: { content: (o.addrCountry || '').slice(0, 2000) } }] };
+
+  // Estimate / job fields
+  if (o.jobDesc        != null) props['Job Description']    = { rich_text: [{ text: { content: (o.jobDesc        || '').slice(0, 2000) } }] };
+  if (o.customerNotes  != null) props['Notes for Customer'] = { rich_text: [{ text: { content: (o.customerNotes  || '').slice(0, 2000) } }] };
+
+  // Order detail fields
+  if (o.ringSize   != null) props['Ring Size']    = { rich_text: [{ text: { content: (o.ringSize || '').slice(0, 2000) } }] };
+  if (o.deposit    != null) props['Deposit']      = { number: o.deposit || null };
+  if (o.takeIn)             props['Take-In Date'] = { date: { start: o.takeIn } };
+  if (o.sketchDesc != null) props['Sketch Notes'] = { rich_text: [{ text: { content: (o.sketchDesc || '').slice(0, 2000) } }] };
+
   return props;
 }
 
@@ -137,6 +156,21 @@ function pageToOrder(page) {
     deliveredAt:   dt(p['Delivered At'])  || null,
     cancelledAt:   dt(p['Cancelled At'])  || null,
     pdfUrl:        p['PDF URL']?.url      || null,
+    // Address fields
+    addrStreet:    txt(p['Street Address']),
+    addrStreet2:   txt(p['Address Line 2']),
+    addrCity:      txt(p['City']),
+    addrState:     txt(p['State']),
+    addrZip:       txt(p['Zip']),
+    addrCountry:   txt(p['Country']),
+    // Estimate / job fields
+    jobDesc:       txt(p['Job Description']),
+    customerNotes: txt(p['Notes for Customer']),
+    // Order detail fields
+    ringSize:      txt(p['Ring Size']),
+    deposit:       num(p['Deposit']),
+    takeIn:        dt(p['Take-In Date']),
+    sketchDesc:    txt(p['Sketch Notes']),
   };
 }
 

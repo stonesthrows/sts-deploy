@@ -254,12 +254,12 @@ function openOrderCard(id) {
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
   setOrderType(o.orderType || 'order');
   const sa = o.shippingAddress || {};
-  document.getElementById('f-addr-street').value   = sa.street  || o.address || '';
-  document.getElementById('f-addr-street2').value  = sa.street2 || '';
-  document.getElementById('f-addr-city').value     = sa.city    || '';
-  document.getElementById('f-addr-state').value    = sa.state   || '';
-  document.getElementById('f-addr-zip').value      = sa.zip     || '';
-  document.getElementById('f-addr-country').value  = sa.country || 'United States';
+  document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
+  document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
+  document.getElementById('f-addr-city').value     = sa.city    || o.addrCity    || '';
+  document.getElementById('f-addr-state').value    = sa.state   || o.addrState   || '';
+  document.getElementById('f-addr-zip').value      = sa.zip     || o.addrZip     || '';
+  document.getElementById('f-addr-country').value  = sa.country || o.addrCountry || 'United States';
   toggleShippingAddress();
 
   _setOrderFormEditMode(true, o.name);
@@ -385,14 +385,20 @@ function saveOrderEdit() {
   o.customerNotes = document.getElementById('f-customer-notes').value.trim() || '';
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
-  o.shippingAddress = o.pickup === 'To be Shipped' ? {
-    street:  document.getElementById('f-addr-street').value.trim(),
-    street2: document.getElementById('f-addr-street2').value.trim(),
-    city:    document.getElementById('f-addr-city').value.trim(),
-    state:   document.getElementById('f-addr-state').value.trim(),
-    zip:     document.getElementById('f-addr-zip').value.trim(),
-    country: document.getElementById('f-addr-country').value.trim() || 'United States',
-  } : null;
+  o.addrStreet  = document.getElementById('f-addr-street').value.trim();
+  o.addrStreet2 = document.getElementById('f-addr-street2').value.trim();
+  o.addrCity    = document.getElementById('f-addr-city').value.trim();
+  o.addrState   = document.getElementById('f-addr-state').value.trim();
+  o.addrZip     = document.getElementById('f-addr-zip').value.trim();
+  o.addrCountry = document.getElementById('f-addr-country').value.trim() || 'United States';
+  o.shippingAddress = {
+    street:  o.addrStreet,
+    street2: o.addrStreet2,
+    city:    o.addrCity,
+    state:   o.addrState,
+    zip:     o.addrZip,
+    country: o.addrCountry,
+  };
 
   updateCompletedToggle();
   renderKanban();
@@ -490,14 +496,13 @@ function submitOrder() {
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
-  const shippingAddress = pickup === 'To be Shipped' ? {
-    street:  document.getElementById('f-addr-street').value.trim(),
-    street2: document.getElementById('f-addr-street2').value.trim(),
-    city:    document.getElementById('f-addr-city').value.trim(),
-    state:   document.getElementById('f-addr-state').value.trim(),
-    zip:     document.getElementById('f-addr-zip').value.trim(),
-    country: document.getElementById('f-addr-country').value.trim() || 'United States',
-  } : null;
+  const addrStreet  = document.getElementById('f-addr-street').value.trim();
+  const addrStreet2 = document.getElementById('f-addr-street2').value.trim();
+  const addrCity    = document.getElementById('f-addr-city').value.trim();
+  const addrState   = document.getElementById('f-addr-state').value.trim();
+  const addrZip     = document.getElementById('f-addr-zip').value.trim();
+  const addrCountry = document.getElementById('f-addr-country').value.trim() || 'United States';
+  const shippingAddress = { street: addrStreet, street2: addrStreet2, city: addrCity, state: addrState, zip: addrZip, country: addrCountry };
   const contactSource = document.getElementById('f-source').value || null;
   const newId      = 'u' + Date.now();
   const typeVal    = (document.getElementById('f-order-type') || {}).value || 'order';
@@ -521,6 +526,7 @@ function submitOrder() {
     takeIn:        takeIn,
     pickup:        pickup,
     shippingAddress: shippingAddress,
+    addrStreet, addrStreet2, addrCity, addrState, addrZip, addrCountry,
     contactSource: contactSource,
     orderType:     typeVal,
   });
@@ -575,23 +581,18 @@ function submitOrder() {
 
 
 function toggleShippingAddress() {
-  const pickup = document.getElementById('f-pickup');
-  const show = pickup && pickup.value === 'To be Shipped';
-  ['shipping-address-row','shipping-address-row-2','shipping-address-row-3',
-   'shipping-address-row-4','shipping-address-row-5','shipping-address-row-6']
-    .forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = show ? '' : 'none';
-    });
+  // Address fields are always visible — no-op
 }
 
 function clearForm() {
   ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-customer-notes','f-sketch',
-   'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
+   'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
     });
+  const countryEl = document.getElementById('f-addr-country');
+  if (countryEl) countryEl.value = 'United States';
   const pickup = document.getElementById('f-pickup');
   if (pickup) pickup.value = '';
   const source = document.getElementById('f-source');
