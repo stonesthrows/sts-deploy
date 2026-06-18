@@ -586,6 +586,10 @@ function clearForm() {
   if (editingId) editingId.value = '';
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
+  const estCard = document.getElementById('estimateBuilderCard');
+  if (estCard) estCard.style.display = 'none';
+  const estBtn = document.getElementById('add-estimate-btn');
+  if (estBtn) estBtn.textContent = '💰 Add Estimate';
   toggleShippingAddress();
   setOrderType('order');
   _setOrderFormEditMode(false);
@@ -781,6 +785,15 @@ function removePhoto() {
 
 // ════════════════════════════════════════════
 
+function toggleEstimateBuilder() {
+  const card = document.getElementById('estimateBuilderCard');
+  const btn  = document.getElementById('add-estimate-btn');
+  if (!card) return;
+  const visible = card.style.display !== 'none';
+  card.style.display = visible ? 'none' : '';
+  if (btn) btn.textContent = visible ? '💰 Add Estimate' : '✕ Hide Estimate';
+}
+
 //  ESTIMATE BUILDER
 // ════════════════════════════════════════════
 let estMultiplier = 2.5;
@@ -823,12 +836,16 @@ function populateEstimateFromOrder(o) {
     addMaterialRow();
   }
 
-  // Restore labor + multiplier from localStorage (not synced to Notion)
+  // Restore labor, shipping, tax + multiplier from localStorage (not synced to Notion)
   let estState = {};
   try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
   const saved = estState[o.id] || {};
   const laborEl = document.getElementById('est-labor');
   if (laborEl) laborEl.value = saved.labor != null ? saved.labor : '';
+  const shippingEl = document.getElementById('est-shipping');
+  if (shippingEl) shippingEl.value = saved.shipping != null ? saved.shipping : '';
+  const taxToggle = document.getElementById('est-tax-toggle');
+  if (taxToggle) taxToggle.checked = saved.taxOn || false;
   setMultiplier(saved.multiplier || 2.5);
 }
 
@@ -842,14 +859,24 @@ function calcEstimate() {
   let matTotal = 0;
   rows.forEach(row => { matTotal += parseFloat(row.querySelectorAll('input')[1]?.value) || 0; });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
+  const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
   const subtotal = matTotal + labor;
-  const final    = subtotal * estMultiplier;
+  const marked   = subtotal * estMultiplier;
+  const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
+  const tax      = taxOn ? marked * 0.0825 : 0;
+  const final    = marked + shipping + tax;
   const fmt = n => '$' + n.toFixed(2);
   const g = id => document.getElementById(id);
   if (g('est-mat-total'))     g('est-mat-total').textContent     = fmt(matTotal);
   if (g('est-labor-display')) g('est-labor-display').textContent = fmt(labor);
   if (g('est-subtotal'))      g('est-subtotal').textContent      = fmt(subtotal);
   if (g('est-final'))         g('est-final').textContent         = fmt(final);
+  const shippingRow = g('est-shipping-row');
+  if (shippingRow) shippingRow.style.display = shipping > 0 ? '' : 'none';
+  if (g('est-shipping-display')) g('est-shipping-display').textContent = fmt(shipping);
+  const taxRow = g('est-tax-row');
+  if (taxRow) taxRow.style.display = taxOn ? '' : 'none';
+  if (g('est-tax-display')) g('est-tax-display').textContent = fmt(tax);
 
   // Auto-save to Notion when editing an existing order
   const editingId = document.getElementById('f-editing-id')?.value;
@@ -882,11 +909,13 @@ async function saveEstimateToNotion() {
   if (finalPrice > 0) o.price = finalPrice;
   saveToStorage();
 
-  // Persist labor + multiplier locally so they survive a page refresh
+  // Persist labor, shipping, tax + multiplier locally so they survive a page refresh
   try {
     const estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}');
     estState[editingId] = {
       labor:      parseFloat(document.getElementById('est-labor')?.value) || 0,
+      shipping:   parseFloat(document.getElementById('est-shipping')?.value) || 0,
+      taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
       multiplier: estMultiplier,
     };
     localStorage.setItem('sts-est-state', JSON.stringify(estState));
@@ -929,6 +958,10 @@ function clearEstimate() {
   estRowCount = 0;
   const laborEl = document.getElementById('est-labor');
   if (laborEl) laborEl.value = '';
+  const shippingEl = document.getElementById('est-shipping');
+  if (shippingEl) shippingEl.value = '';
+  const taxToggle = document.getElementById('est-tax-toggle');
+  if (taxToggle) taxToggle.checked = false;
   calcEstimate();
   addMaterialRow();
 }

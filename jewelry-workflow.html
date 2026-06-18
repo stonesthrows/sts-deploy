@@ -3661,9 +3661,6 @@
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="designs" onclick="switchTab('designs',this)">
     🎨 Designs
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="bgab" onclick="switchTab('bgab',this)">
-    ⛺ Blue Genie
-  </div>
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
     📊 More
   </div>
@@ -4126,6 +4123,7 @@
         <button class="btn btn-gold" id="order-form-submit" onclick="submitOrder()">✓ Create Order</button>
         <button class="btn btn-outline" id="order-form-gmail-btn" onclick="openGmailPanel()">✉ Pull from Gmail</button>
         <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
+        <button class="btn btn-outline" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
         <button class="btn btn-ghost" id="order-form-back-btn" style="display:none;" onclick="closeEditOrderModal()">← Back</button>
         <span id="order-form-foot-note" style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in ClickUp <strong>Custom Orders</strong> + Notion</span>
       </div>
@@ -4140,7 +4138,7 @@
     </div>
 
   <!-- Estimate Builder Card -->
-  <div class="form-card" id="estimateBuilderCard">
+  <div class="form-card" id="estimateBuilderCard" style="display:none;">
     <div class="form-head">
       <div class="form-head-title">💰 Estimate Builder</div>
       <div class="form-head-sub">Add materials + labor, choose your markup, then approve and send a draft to Square.</div>
@@ -4172,16 +4170,36 @@
         </div>
       </div>
 
+      <!-- Shipping -->
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Shipping</div>
+        <div style="max-width:220px;">
+          <div class="fg">
+            <input type="number" id="est-shipping" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
+          </div>
+        </div>
+      </div>
+
       <!-- Multiplier -->
       <div style="margin-bottom:22px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Markup Multiplier</div>
         <div class="mult-toggle">
-          <button class="mult-btn selected" id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
-          <button class="mult-btn"          id="mult-3"   onclick="setMultiplier(3)">3×</button>
+          <button class="mult-btn"           id="mult-1"   onclick="setMultiplier(1)">None</button>
+          <button class="mult-btn selected"  id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
+          <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
         </div>
         <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
           (Materials + Labor) × 2.5
         </div>
+      </div>
+
+      <!-- Sales Tax -->
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Sales Tax</div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
+          <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+          Apply 8.25% sales tax
+        </label>
       </div>
 
       <!-- Total breakdown -->
@@ -4202,6 +4220,14 @@
         <div class="est-total-row" style="margin-top:2px;">
           <span id="est-mult-label">× 2.5 markup</span>
           <span></span>
+        </div>
+        <div class="est-total-row" id="est-shipping-row" style="display:none;">
+          <span>Shipping</span>
+          <span id="est-shipping-display">$0.00</span>
+        </div>
+        <div class="est-total-row" id="est-tax-row" style="display:none;">
+          <span>Sales Tax (8.25%)</span>
+          <span id="est-tax-display">$0.00</span>
         </div>
         <div class="est-total-final">
           <span>Final Estimate</span>
@@ -4923,14 +4949,6 @@
 }
 
 /* ── Designs ─────────────────────────────── */
-/* ── Blue Genie ─────────────────────────────────── */
-.bgab-event-card { display:flex;align-items:center;justify-content:space-between;background:var(--card-bg);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,border-color .15s; }
-.bgab-event-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:var(--accent-border); }
-.bgab-event-name { font-size:15px;font-weight:600;color:var(--text); }
-.bgab-imp-sub-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:background .15s,color .15s; }
-.bgab-imp-sub-btn:hover { background:var(--accent-bg);color:var(--text); }
-.bgab-imp-sub-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
-/* ── /Blue Genie ─────────────────────────────────── */
 .dsn-filter-bar { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px; }
 .dsn-filter-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:background .15s,color .15s; }
 .dsn-filter-btn:hover { background:var(--accent-bg);color:var(--text); }
@@ -5084,124 +5102,6 @@
 <div id="dsn-img-overlay" onclick="if(event.target===this)designsCloseImageOverlay()">
   <span id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()">×</span>
   <img id="dsn-img-overlay-img" src="" alt="Design reference image">
-</div>
-
-<!-- ═══════════════════ BLUE GENIE ═══════════════════ -->
-<div id="tab-bgab" class="tab-panel">
-
-  <!-- Page bar -->
-  <div class="page-bar">
-    <div>
-      <div class="page-title">⛺ Blue Genie</div>
-      <div class="page-sub" id="bgab-sub">Art Bazaar &amp; May Market inventory</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <button id="bgab-back-btn" class="btn btn-sm" onclick="bgabBackToList()" style="display:none;">← Events</button>
-      <button id="bgab-add-items-btn" class="btn btn-sm" onclick="bgabOpenImport()" style="display:none;">＋ Add Items</button>
-      <button id="bgab-save-all-btn" class="btn btn-gold btn-sm" onclick="bgabSaveAll()" style="display:none;">Save All</button>
-      <button id="bgab-delete-btn" class="btn btn-sm" onclick="bgabSoftDeleteCurrent()" style="display:none;color:#dc2626;">🗑 Delete</button>
-      <button id="bgab-new-btn" class="btn btn-gold btn-sm" onclick="bgabShowNewEventModal()">＋ New Event</button>
-    </div>
-  </div>
-
-  <!-- ── Event list ────────────────────── -->
-  <div id="bgab-list-view" style="padding:16px 20px;max-width:680px;">
-    <div id="bgab-event-list"></div>
-  </div>
-
-  <!-- ── Event detail ─────────────────── -->
-  <div id="bgab-detail-view" style="display:none;">
-    <!-- Toolbar: view toggle + zero toggle -->
-    <div style="display:flex;align-items:center;gap:6px;padding:10px 20px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
-      <button id="bgab-view-packing" class="sub-nav-tab active" style="border-radius:7px;padding:7px 14px;font-size:12px;" onclick="bgabSwitchView('packing')">📦 Packing</button>
-      <button id="bgab-view-results" class="sub-nav-tab" style="border-radius:7px;padding:7px 14px;font-size:12px;" onclick="bgabSwitchView('results')">📊 Results</button>
-      <div style="flex:1;"></div>
-      <button id="bgab-show-zero-btn" onclick="bgabToggleZero()"
-        style="background:none;border:1px solid var(--bdr);border-radius:6px;padding:5px 12px;font-size:11px;color:var(--text-dim);cursor:pointer;">Show Zero-Brought</button>
-    </div>
-    <div id="bgab-items-container" style="padding:16px 20px;"></div>
-  </div>
-
-  <!-- ── Import panel ─────────────────── -->
-  <div id="bgab-import-panel" style="display:none;padding:0;">
-
-    <!-- Import header -->
-    <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bdr);">
-      <button class="btn btn-sm" onclick="bgabCloseImport()">← Back</button>
-      <span style="font-size:15px;font-weight:700;color:var(--text);">Add Items from Square</span>
-      <div style="flex:1;"></div>
-      <button id="bgab-imp-confirm-btn" class="btn btn-gold btn-sm" onclick="bgabImpConfirm()">Add Selected</button>
-    </div>
-
-    <!-- Main type tabs -->
-    <div style="display:flex;gap:4px;padding:12px 20px 0;">
-      <button id="bgab-imp-main-earrings" class="sub-nav-tab active" style="border-radius:7px;padding:7px 14px;font-size:12px;" onclick="bgabImpSwitchMain('earrings')">Earrings</button>
-      <button id="bgab-imp-main-rings"    class="sub-nav-tab" style="border-radius:7px;padding:7px 14px;font-size:12px;" onclick="bgabImpSwitchMain('rings')">Rings</button>
-      <button id="bgab-imp-main-pendants" class="sub-nav-tab" style="border-radius:7px;padding:7px 14px;font-size:12px;" onclick="bgabImpSwitchMain('pendants')">Pendants</button>
-    </div>
-
-    <!-- Earring sub-tabs -->
-    <div id="bgab-imp-subs-earrings" class="bgab-imp-sub-group" style="display:flex;gap:4px;padding:8px 20px;flex-wrap:wrap;">
-      <button class="bgab-imp-sub-btn active" data-sub="ear-cuffs"  onclick="bgabImpSwitchSub('ear-cuffs',this)">Ear Cuffs</button>
-      <button class="bgab-imp-sub-btn"        data-sub="dangle"     onclick="bgabImpSwitchSub('dangle',this)">Dangle</button>
-      <button class="bgab-imp-sub-btn"        data-sub="studs"      onclick="bgabImpSwitchSub('studs',this)">Studs</button>
-      <button class="bgab-imp-sub-btn"        data-sub="hoops"      onclick="bgabImpSwitchSub('hoops',this)">Hoops</button>
-      <button class="bgab-imp-sub-btn"        data-sub="spirit"     onclick="bgabImpSwitchSub('spirit',this)">Spirit</button>
-    </div>
-    <!-- Ring sub-tabs -->
-    <div id="bgab-imp-subs-rings" class="bgab-imp-sub-group" style="display:none;gap:4px;padding:8px 20px;flex-wrap:wrap;">
-      <button class="bgab-imp-sub-btn active" data-sub="stackable"   onclick="bgabImpSwitchSub('stackable',this)">Stackable</button>
-      <button class="bgab-imp-sub-btn"        data-sub="ring-spirit" onclick="bgabImpSwitchSub('ring-spirit',this)">Spirit</button>
-      <button class="bgab-imp-sub-btn"        data-sub="geometric"   onclick="bgabImpSwitchSub('geometric',this)">Geometric</button>
-      <button class="bgab-imp-sub-btn"        data-sub="symbolic"    onclick="bgabImpSwitchSub('symbolic',this)">Symbolic</button>
-      <button class="bgab-imp-sub-btn"        data-sub="meditation"  onclick="bgabImpSwitchSub('meditation',this)">Meditation</button>
-    </div>
-    <!-- Pendant sub-tabs -->
-    <div id="bgab-imp-subs-pendants" class="bgab-imp-sub-group" style="display:none;gap:4px;padding:8px 20px;flex-wrap:wrap;">
-      <button class="bgab-imp-sub-btn active" data-sub="p-spirit"    onclick="bgabImpSwitchSub('p-spirit',this)">Spirit</button>
-      <button class="bgab-imp-sub-btn"        data-sub="p-geometric" onclick="bgabImpSwitchSub('p-geometric',this)">Geometric</button>
-      <button class="bgab-imp-sub-btn"        data-sub="p-symbolic"  onclick="bgabImpSwitchSub('p-symbolic',this)">Symbolic</button>
-    </div>
-
-    <!-- Item list -->
-    <div id="bgab-imp-items"
-      style="margin:0 20px 20px;border:1px solid var(--bdr);border-radius:10px;overflow-y:auto;max-height:calc(100vh - 320px);">
-    </div>
-  </div>
-
-  <!-- ── New event modal ───────────────── -->
-  <div id="bgab-new-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9000;align-items:center;justify-content:center;">
-    <div style="background:var(--card-bg);border-radius:14px;padding:28px 28px 24px;width:min(420px,92vw);box-shadow:0 8px 40px rgba(0,0,0,0.25);">
-      <div style="font-size:16px;font-weight:700;margin-bottom:20px;">New Blue Genie Event</div>
-
-      <label style="display:block;margin-bottom:14px;">
-        <span style="font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:5px;">EVENT TYPE</span>
-        <select id="bgab-new-type" style="width:100%;padding:9px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:14px;background:var(--card-bg);color:var(--text);">
-          <option value="">— Select —</option>
-          <option value="May Market">May Market</option>
-          <option value="Art Bazaar">Art Bazaar</option>
-        </select>
-      </label>
-
-      <label style="display:block;margin-bottom:14px;">
-        <span style="font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:5px;">YEAR</span>
-        <input id="bgab-new-year" type="number" min="2020" max="2050" style="width:100%;padding:9px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:14px;background:var(--card-bg);color:var(--text);box-sizing:border-box;">
-      </label>
-
-      <label style="display:block;margin-bottom:22px;">
-        <span style="font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:5px;">COPY INVENTORY FROM</span>
-        <select id="bgab-clone-sel" style="width:100%;padding:9px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:14px;background:var(--card-bg);color:var(--text);">
-          <option value="">— Start fresh —</option>
-        </select>
-      </label>
-
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn btn-sm" onclick="bgabCloseNewEventModal()">Cancel</button>
-        <button id="bgab-create-btn" class="btn btn-gold btn-sm" onclick="bgabCreateEvent()">Create Event</button>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <!-- ═══════════════════ TRIPLOG ═══════════════════ -->
@@ -6845,7 +6745,6 @@ function savePrintSetup() {
   }
 </script>
 <script src="js/designs.js"></script>
-<script src="js/bgab.js"></script>
 <script src="js/triplog.js"></script>
 <script src="js/inventory.js?v=2"></script>
 <script src="js/inv-manager.js"></script>
@@ -6929,7 +6828,6 @@ function applyStatFilter(key) {
     'new-order':         'New Order',
     'customers':         'Customers',
     'print-bag':         'Print Order Bag',
-    'bgab':              'Blue Genie',
     'inv-adjust':        'Adjust Inventory',
     'to-restock':        'To Restock',
     'supplier':          'Order Materials',
