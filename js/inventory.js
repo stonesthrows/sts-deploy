@@ -278,6 +278,7 @@ async function _invLoadSub(sub) {
     _invData[sub] = { items, counts };
     _invRenderSub(sub);
     _invUpdateCountLabel();
+    _invLoadSplit(sub);
   } catch (e) {
     _invSetPanelHtml(sub,
       '<div style="padding:32px;text-align:center;color:#dc2626;font-size:13px;">' +
@@ -392,6 +393,8 @@ function _invRenderSub(sub) {
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
         ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
+        <span class="inv-split-you" id="inv-sy-${varId}">You –</span>
+        <span class="inv-split-georgina" id="inv-sg-${varId}">G –</span>
         <div class="inv-dot ${dot}"></div>
         <div class="inv-stepper">
           <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
@@ -900,5 +903,29 @@ async function _invWarmLastAdded() {
     if (_invData[_invPendantCurSub]) _invRenderSub(_invPendantCurSub);
   } catch (e) {
     console.warn('[inv] could not warm last-added cache:', e.message);
+  }
+}
+
+// ── Split inventory (Notion per-device stock) ─────────────────────────────────
+
+async function _invLoadSplit(sub) {
+  const data = _invData[sub];
+  if (!data) return;
+  try {
+    const res = await fetch('/api/notion-split-inv');
+    if (!res.ok) return;
+    const split = await res.json();
+    for (const item of data.items) {
+      for (const v of (item.item_data?.variations || [])) {
+        const s = split[v.id];
+        if (!s) continue;
+        const youEl = document.getElementById('inv-sy-' + v.id);
+        const gEl   = document.getElementById('inv-sg-' + v.id);
+        if (youEl) youEl.textContent = 'You ' + s.you;
+        if (gEl)   gEl.textContent   = 'G '   + s.georgina;
+      }
+    }
+  } catch (e) {
+    console.warn('[inv] split stock fetch failed:', e.message);
   }
 }

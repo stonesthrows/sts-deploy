@@ -2275,14 +2275,28 @@
     .rq-log-label { cursor: pointer; white-space: nowrap; flex-shrink: 0; }
     .rq-log-label:hover { color: var(--accent); }
     .rq-log-add {
-      display: flex; gap: 6px; flex: 0 0 auto;
+      display: flex; gap: 6px; flex: 0 0 auto; align-items: center;
     }
+    .rq-add-input-wrap { position: relative; }
     .rq-log-add input {
-      width: 120px; padding: 5px 10px; border: 1px solid var(--bdr);
+      width: 160px; padding: 5px 10px; border: 1px solid var(--bdr);
       border-radius: 7px; font-size: 12px; background: var(--card-bg);
       color: var(--text); font-family: inherit; outline: none;
     }
     .rq-log-add input:focus { border-color: var(--accent); }
+    .rq-add-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
+      min-width: 240px; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
+    }
+    .rq-add-chip {
+      display: flex; align-items: center; gap: 5px; font-size: 11px;
+      color: var(--accent); font-weight: 600; background: var(--accent-bg);
+      border: 1px solid var(--accent); border-radius: 5px; padding: 3px 8px;
+      white-space: nowrap; max-width: 160px; overflow: hidden;
+    }
+    .rq-add-chip span:first-child { overflow: hidden; text-overflow: ellipsis; }
+    .rq-add-chip-x { cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1; flex-shrink: 0; }
+    .rq-add-chip-x:hover { color: var(--text); }
     @media (max-width: 640px) { .rq-log-add { display: none; } }
     .rq-log-chevron {
       font-size: 11px; color: var(--text3); margin-left: 8px;
@@ -4996,6 +5010,17 @@
   flex-shrink: 0;
 }
 
+.inv-split-you, .inv-split-georgina {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.inv-split-you      { background: var(--accent-bg); color: var(--accent, #C9983A); }
+.inv-split-georgina { background: #f0ebff; color: #7c3aed; }
+
 /* Low-stock modal */
 #inv-ls-modal-bg {
   display: none;
@@ -6711,8 +6736,13 @@ function savePrintSetup() {
     <div class="rq-log-title">
       <span class="rq-log-label" onclick="rqToggleLog()">Session Log <span class="rq-log-chevron">▲</span></span>
       <div class="rq-log-add">
-        <input id="rq-add-input" type="text" placeholder="Add to restock queue…"
-          onkeydown="if(event.key==='Enter')rqAddItem()">
+        <div class="rq-add-input-wrap">
+          <input id="rq-add-input" type="text" placeholder="Add to restock queue…" autocomplete="off"
+            oninput="rqAddInputChange(this.value)"
+            onkeydown="if(event.key==='Enter')rqAddItem()">
+          <div id="rq-add-results" class="rq-setup-results rq-add-dropdown"></div>
+        </div>
+        <div id="rq-add-chip" class="rq-add-chip" style="display:none"></div>
         <button class="btn btn-gold btn-sm" onclick="rqAddItem()">＋ Add</button>
       </div>
       <a class="rq-notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
@@ -6735,7 +6765,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=11"></script>
+<script src="js/notes.js?v=12"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
