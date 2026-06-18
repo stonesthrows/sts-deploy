@@ -525,12 +525,15 @@
     .k-sub-wrap.s-sketch       .o-card     { border-left-color:#D4A020; }
 
     /* Sub-section stage colors — Estimating group */
-    .k-sub-wrap.s-quote     .k-sub-head { background:#FEF0E6; color:#A84C10; }
-    .k-sub-wrap.s-quote     .k-body     { background:#FDF5EE; }
-    .k-sub-wrap.s-quote     .o-card     { border-left-color:#DC6B28; }
-    .k-sub-wrap.s-est-appr  .k-sub-head { background:#EBF7E0; color:#306818; }
-    .k-sub-wrap.s-est-appr  .k-body     { background:#F3FAE8; }
-    .k-sub-wrap.s-est-appr  .o-card     { border-left-color:#50901E; }
+    .k-sub-wrap.s-quote         .k-sub-head { background:#FEF0E6; color:#A84C10; }
+    .k-sub-wrap.s-quote         .k-body     { background:#FDF5EE; }
+    .k-sub-wrap.s-quote         .o-card     { border-left-color:#DC6B28; }
+    .k-sub-wrap.s-est-wait-appr .k-sub-head { background:#FEF8E0; color:#8A6010; }
+    .k-sub-wrap.s-est-wait-appr .k-body     { background:#FFFCF0; }
+    .k-sub-wrap.s-est-wait-appr .o-card     { border-left-color:#C89010; }
+    .k-sub-wrap.s-est-appr      .k-sub-head { background:#EBF7E0; color:#306818; }
+    .k-sub-wrap.s-est-appr      .k-body     { background:#F3FAE8; }
+    .k-sub-wrap.s-est-appr      .o-card     { border-left-color:#50901E; }
 
     /* Sub-section stage colors — Materials group */
     .k-sub-wrap.s-order-mat  .k-sub-head { background:#F5ECE0; color:#7C4A18; }
@@ -3968,18 +3971,14 @@
       <div class="form-body">
         <div style="margin-bottom:20px;" id="order-type-section">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Order Type</div>
-          <div class="order-type-toggle">
-            <button class="ot-option selected" id="ot-order" onclick="setOrderType('order')">
-              💍 Custom Order
-            </button>
-            <button class="ot-option estimate" id="ot-estimate" onclick="setOrderType('estimate')">
-              📋 Estimate Request
-            </button>
-            <button class="ot-option repair" id="ot-repair" onclick="setOrderType('repair')">
-              🔧 Repair
-            </button>
-          </div>
-          <div class="ot-hint" id="ot-hint">Will be placed in the <strong>Inquiry</strong> column.</div>
+          <select id="f-order-type" onchange="onOrderTypeChange()" class="fg-select" style="width:100%;">
+            <option value="order">💍 Custom Order</option>
+            <option value="repair">🔧 Repair</option>
+            <option value="resize">💎 Resize</option>
+            <option value="etsy-order">🛍 Etsy Order</option>
+            <option value="website-order">🌐 Website Order</option>
+          </select>
+          <div class="ot-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
         </div>
         <div class="form-grid">
           <input type="hidden" id="f-editing-id">
@@ -3993,6 +3992,7 @@
               <option value="sketch-wait">Waiting on Sketch Approval</option>
               <option value="sketch">Sketch Approved</option>
               <option value="quote">Estimate Sent</option>
+              <option value="est-wait-appr">Waiting on Approval</option>
               <option value="est-appr">Estimate Approved</option>
               <option value="deposit-wait">Waiting on Deposit</option>
               <option value="deposit-paid">Deposit Paid</option>
@@ -4105,12 +4105,9 @@
             <label>Paid By</label>
             <select id="f-paid-by">
               <option value="">— Select —</option>
-              <option value="Square">Square</option>
-              <option value="Venmo">Venmo</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Square Invoice">Square Invoice</option>
               <option value="Cash">Cash</option>
-              <option value="Check">Check</option>
-              <option value="Zelle">Zelle</option>
-              <option value="PayPal">PayPal</option>
             </select>
           </div>
           <div class="fg full">

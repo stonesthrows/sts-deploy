@@ -15,6 +15,7 @@ const STAGES = [
   { id:'sketch-wait',    label:'Waiting on Sketch Approval',   cls:'s-sketch-wait'    },
   { id:'sketch',         label:'Sketch Approved',              cls:'s-sketch'         },
   { id:'quote',          label:'Estimate Sent',                cls:'s-quote'          },
+  { id:'est-wait-appr',  label:'Waiting on Approval',          cls:'s-est-wait-appr'  },
   { id:'est-appr',       label:'Estimate Approved',            cls:'s-est-appr'       },
   { id:'deposit-wait',   label:'Waiting on Deposit',           cls:'s-deposit-wait'   },
   { id:'deposit-paid',   label:'Deposit Paid',                 cls:'s-deposit-paid'   },
@@ -48,8 +49,9 @@ const COLUMN_GROUPS = [
     { id:'sketch',       cls:'s-sketch',       label:'Sketch Approved'             },
   ]},
   { label:'Estimating',   cls:'s-estimate-group',  stages:[
-    { id:'quote',      cls:'s-quote',      label:'Estimate Sent'       },
-    { id:'est-appr',   cls:'s-est-appr',   label:'Estimate Approved'   },
+    { id:'quote',         cls:'s-quote',         label:'Estimate Sent'        },
+    { id:'est-wait-appr', cls:'s-est-wait-appr', label:'Waiting on Approval'  },
+    { id:'est-appr',      cls:'s-est-appr',      label:'Estimate Approved'    },
   ]},
   { label:'Deposit',      cls:'s-deposit-group',   stages:[
     { id:'deposit-wait', cls:'s-deposit-wait', label:'Waiting on Deposit' },

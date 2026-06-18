@@ -236,6 +236,7 @@ function openOrderCard(id) {
   document.getElementById('f-paid-by').value       = o.paidBy        || '';
   document.getElementById('f-notes').value         = o.notes         || '';
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
+  setOrderType(o.orderType || 'order');
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || '';
@@ -260,8 +261,8 @@ function _setOrderFormEditMode(editing, name) {
   document.getElementById('f-stage-row').style.display          = editing ? '' : 'none';
   document.getElementById('f-paid-by-row').style.display        = editing ? '' : 'none';
   document.getElementById('order-edit-actions').style.display   = editing ? 'flex' : 'none';
-  const typeSection = document.getElementById('order-type-section');
-  if (typeSection) typeSection.style.display = editing ? 'none' : '';
+  const hint = document.getElementById('ot-hint');
+  if (hint) hint.style.display = editing ? 'none' : '';
 }
 
 function closeEditOrderModal() {
@@ -365,6 +366,7 @@ function saveOrderEdit() {
   o.paidBy        = document.getElementById('f-paid-by').value          || '';
   o.notes         = document.getElementById('f-notes').value.trim()     || '';
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
+  o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
   o.shippingAddress = o.pickup === 'To be Shipped' ? {
     street:  document.getElementById('f-addr-street').value.trim(),
     street2: document.getElementById('f-addr-street2').value.trim(),
@@ -419,35 +421,28 @@ function fillFromThread(i) {
 
 // ════════════════════════════════════════════
 
-//  ORDER TYPE TOGGLE
+//  ORDER TYPE DROPDOWN
 // ════════════════════════════════════════════
-let orderType = 'order'; // 'order' | 'estimate' | 'repair'
+const ORDER_TYPE_STAGES = {
+  order:           { stage: 'intake-custom',  label: 'Custom Intake'        },
+  repair:          { stage: 'intake-repair',  label: 'Repair Intake'        },
+  resize:          { stage: 'intake-repair',  label: 'Repair Intake'        },
+  'etsy-order':    { stage: 'intake-custom',  label: 'Custom Intake'        },
+  'website-order': { stage: 'intake-website', label: 'Website Order Intake' },
+  estimate:        { stage: 'needs-est',      label: 'Estimate Intake'      },
+};
+
+function onOrderTypeChange() {
+  const sel  = document.getElementById('f-order-type');
+  const hint = document.getElementById('ot-hint');
+  if (!sel || !hint) return;
+  const map = ORDER_TYPE_STAGES[sel.value] || ORDER_TYPE_STAGES.order;
+  hint.innerHTML = `Will be placed in <strong>${map.label}</strong>.`;
+}
 
 function setOrderType(type) {
-  orderType = type;
-  const btnOrder    = document.getElementById('ot-order');
-  const btnEstimate = document.getElementById('ot-estimate');
-  const btnRepair   = document.getElementById('ot-repair');
-  const hint        = document.getElementById('ot-hint');
-
-  // Clear all selections
-  btnOrder.classList.remove('selected');
-  btnEstimate.classList.remove('selected');
-  btnRepair.classList.remove('selected');
-
-  if (type === 'estimate') {
-    btnEstimate.classList.add('selected');
-    hint.innerHTML = 'Will be placed in <strong>Estimate Intake</strong>.';
-    hint.className = 'ot-hint estimate';
-  } else if (type === 'repair') {
-    btnRepair.classList.add('selected');
-    hint.innerHTML = 'Will be placed in <strong>Repair Intake</strong>.';
-    hint.className = 'ot-hint repair';
-  } else {
-    btnOrder.classList.add('selected');
-    hint.innerHTML = 'Will be placed in <strong>Custom Intake</strong>.';
-    hint.className = 'ot-hint';
-  }
+  const sel = document.getElementById('f-order-type');
+  if (sel) { sel.value = type; onOrderTypeChange(); }
 }
 
 // ════════════════════════════════════════════
@@ -488,8 +483,10 @@ function submitOrder() {
   } : null;
   const contactSource = document.getElementById('f-source').value || null;
   const newId      = 'u' + Date.now();
-  const stage      = orderType === 'estimate' ? 'needs-est' : orderType === 'repair' ? 'intake-repair' : 'intake-custom';
-  const stageLabel = orderType === 'estimate' ? 'Estimate Intake' : orderType === 'repair' ? 'Repair Intake' : 'Custom Intake';
+  const typeVal    = (document.getElementById('f-order-type') || {}).value || 'order';
+  const typeMap    = ORDER_TYPE_STAGES[typeVal] || ORDER_TYPE_STAGES.order;
+  const stage      = typeMap.stage;
+  const stageLabel = typeMap.label;
 
   // ── Add to local ORDERS ──────────────────
   ORDERS.push({
@@ -508,7 +505,7 @@ function submitOrder() {
     pickup:        pickup,
     shippingAddress: shippingAddress,
     contactSource: contactSource,
-    orderType:     orderType,
+    orderType:     typeVal,
   });
 
   // ── Add or update CUSTOMERS ──────────────
@@ -946,10 +943,93 @@ function setMultiplier(val) {
 }
 
 function approveEstimate() {
-  const name  = document.getElementById('f-name')?.value.trim() || 'Customer';
-  const final = document.getElementById('est-final')?.textContent || '$0.00';
-  safeSendPrompt('create Square estimate draft for ' + name + ': ' + final + ' — send for review');
-  toast('Sending estimate to Square…', '💰');
+  const customerEmail = document.getElementById('f-email')?.value.trim() || '';
+  const customerName  = document.getElementById('f-name')?.value.trim()  || 'Customer';
+
+  if (!customerEmail) { toast('Add a customer email first.', '⚠️'); return; }
+  if (!_gtSqLocation()) { toast('No Square Location ID — add it in ⚙ Integrations.', '⚠️'); return; }
+
+  // Collect line items from the estimate builder
+  const items = [];
+  document.querySelectorAll('#est-materials .est-row').forEach(row => {
+    const descEl  = row.querySelector('.est-desc');
+    const costEl  = row.querySelector('.est-cost');
+    const desc    = descEl  ? descEl.value.trim() : '';
+    const cost    = costEl  ? parseFloat(costEl.value) || 0 : 0;
+    if (desc && cost > 0) items.push({ name: desc, price: cost });
+  });
+
+  const labor    = parseFloat(document.getElementById('est-labor')?.value)    || 0;
+  const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
+  if (labor    > 0) items.push({ name: 'Labor',    price: labor });
+  if (shipping > 0) items.push({ name: 'Shipping', price: shipping });
+
+  if (!items.length) { toast('Add at least one material or labor cost.', '⚠️'); return; }
+
+  const btn = document.querySelector('#estimateBuilderCard .btn-green');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+
+  const reset = () => { if (btn) { btn.textContent = '✓ Approve & Send to Square'; btn.disabled = false; } };
+
+  _gtSqCall('/v2/customers/search', 'POST', {
+    query: { filter: { email_address: { exact: customerEmail } } }
+  })
+  .then(d => {
+    if (d.customers && d.customers.length) return d.customers[0].id;
+    const parts = customerName.split(' ');
+    return _gtSqCall('/v2/customers', 'POST', {
+      idempotency_key: 'sts-cust-' + customerEmail.replace(/\W/g, '') + Date.now(),
+      given_name:    parts[0] || customerName,
+      family_name:   parts.slice(1).join(' ') || '',
+      email_address: customerEmail
+    }).then(d2 => {
+      if (d2.customer) return d2.customer.id;
+      throw new Error(((d2.errors || [])[0] || {}).detail || 'Could not create customer');
+    });
+  })
+  .then(customerId => {
+    return _gtSqCall('/v2/orders', 'POST', {
+      idempotency_key: 'sts-ord-est-' + Date.now(),
+      order: {
+        location_id: _gtSqLocation(),
+        customer_id: customerId,
+        line_items:  items.map(item => ({
+          name: item.name,
+          quantity: '1',
+          base_price_money: { amount: Math.round(item.price * 100), currency: 'USD' }
+        }))
+      }
+    }).then(d3 => {
+      if (d3.order) return { customerId, orderId: d3.order.id };
+      throw new Error(((d3.errors || [])[0] || {}).detail || 'Could not create order');
+    });
+  })
+  .then(ids => {
+    return _gtSqCall('/v2/invoices', 'POST', {
+      idempotency_key: 'sts-inv-est-' + Date.now(),
+      invoice: {
+        location_id:       _gtSqLocation(),
+        order_id:          ids.orderId,
+        primary_recipient: { customer_id: ids.customerId },
+        delivery_method:   'EMAIL',
+        title:             'Custom Order Estimate — ' + customerName,
+        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
+      }
+    });
+  })
+  .then(d4 => {
+    reset();
+    if (d4.invoice) {
+      const url = 'https://squareup.com/dashboard/invoices/' + d4.invoice.id;
+      toast('Estimate draft created! <a href="' + url + '" target="_blank" style="color:inherit;text-decoration:underline;">Review in Square →</a>', '✅', 8000);
+    } else {
+      throw new Error(((d4.errors || [])[0] || {}).detail || 'Estimate creation failed');
+    }
+  })
+  .catch(e => {
+    reset();
+    toast('Square error: ' + (e.message || 'Unknown error'), '⚠️', 6000);
+  });
 }
 
 function clearEstimate() {
