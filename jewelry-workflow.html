@@ -2492,6 +2492,23 @@
     .rq-match-x { color: #A0402A; font-size: 10px; flex-shrink: 0; }
     .rq-match-link { text-decoration: underline; text-underline-offset: 2px; }
     .rq-match-panel { padding: 6px 0 2px; }
+    /* ── Variant picker ── */
+    .rq-variant-picker { padding: 6px 0 2px; }
+    .rq-variant-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
+    .rq-variant-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+    .rq-variant-chip {
+      border: 1px solid var(--bdr); border-radius: 5px; padding: 3px 9px;
+      font-size: 11px; color: var(--text2); background: #fff; cursor: pointer;
+      user-select: none; transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+    .rq-variant-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .rq-variant-chip-on { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--accent) !important; font-weight: 700; }
+    .rq-variant-done {
+      background: var(--accent); border: none; border-radius: 5px; color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 4px 13px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .rq-variant-done:hover { background: #8A6020; }
     .rq-sbar-err { color: #A0402A; }
     .rq-sbar-del {
       background: none; border: 1px solid var(--bdr-light); border-radius: 5px;
@@ -6718,7 +6735,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=10"></script>
+<script src="js/notes.js?v=11"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

@@ -492,9 +492,10 @@ var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceT
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 var _rqEditingSession = null;
-var _rqAutoMatches = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
-var _rqMatchEdits  = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
-var _rqAmLoaded    = false;
+var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
+var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
+var _rqVariantPickers = {}; // { [notionPageId]: { selectedIds: [] } }
+var _rqAmLoaded      = false;
 
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
@@ -576,6 +577,7 @@ function _rqMatchRowInner(pid) {
   var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
   var match = _rqAutoMatches[pid];
 
+  // ── Search panel (change item) ──
   if (_rqMatchEdits[pid]) {
     return '<div class="rq-match-panel">'
       + '<div class="rq-setup-search-wrap" style="margin-bottom:4px;">'
@@ -589,6 +591,30 @@ function _rqMatchRowInner(pid) {
       + '</div>';
   }
 
+  // ── Variant picker ──
+  if (_rqVariantPickers[pid] && match && typeof match === 'object' && match.isParent) {
+    var picker = _rqVariantPickers[pid];
+    var variants = match.variants || [];
+    return '<div class="rq-variant-picker">'
+      + '<div class="rq-variant-label">Choose size(s) for <strong>' + (match.name||'').replace(/</g,'&lt;') + '</strong></div>'
+      + '<div class="rq-variant-grid">'
+      + variants.map(function(v) {
+          var isSel = picker.selectedIds.indexOf(v.id) !== -1;
+          var safeVId = (v.id||'').replace(/'/g,'').replace(/\\/g,'\\\\');
+          return '<div class="rq-variant-chip' + (isSel ? ' rq-variant-chip-on' : '') + '"'
+            + ' onclick="rqToggleVariant(\'' + safePid + '\',\'' + safeVId + '\')">'
+            + (v.name||'').replace(/</g,'&lt;')
+            + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
+      + '<button class="rq-variant-done" onclick="rqConfirmVariants(\'' + safePid + '\')">Done</button>'
+      + '<button class="rq-setup-cancel-btn" onclick="rqCloseVariantPicker(\'' + safePid + '\')">Skip</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // ── Loading / no match ──
   if (!match || match === '_loading_') {
     return '<div class="rq-match-loading"><span class="rq-match-spinner"></span>finding Square item…</div>';
   }
@@ -597,7 +623,31 @@ function _rqMatchRowInner(pid) {
       + '<span class="rq-match-x">✕</span><span class="rq-match-link">No Square match · click to search</span>'
       + '</div>';
   }
+
   var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // ── Parent item: variants not yet chosen ──
+  if (match.isParent && (!match.selectedVariants || !match.selectedVariants.length)) {
+    return '<div class="rq-match-found">'
+      + '<span class="rq-match-check">✓</span>'
+      + '<span class="rq-match-name">' + safeName + '</span>'
+      + '<button class="rq-match-change" onclick="rqOpenVariantPicker(\'' + safePid + '\')">Pick sizes ▾</button>'
+      + '</div>';
+  }
+
+  // ── Parent item: variants chosen ──
+  if (match.isParent && match.selectedVariants && match.selectedVariants.length) {
+    var variantLabel = match.selectedVariants.map(function(v) { return v.name; }).join(', ');
+    var safeVLabel = variantLabel.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="rq-match-found">'
+      + '<span class="rq-match-check">✓</span>'
+      + '<span class="rq-match-name">' + safeName + ' · ' + safeVLabel + '</span>'
+      + '<button class="rq-match-change" onclick="rqOpenVariantPicker(\'' + safePid + '\')">✎ sizes</button>'
+      + '<button class="rq-match-change" style="margin-left:2px;" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ item</button>'
+      + '</div>';
+  }
+
+  // ── Single-variation item ──
   return '<div class="rq-match-found">'
     + '<span class="rq-match-check">✓</span>'
     + '<span class="rq-match-name">' + safeName + '</span>'
@@ -647,8 +697,11 @@ function _rqAutoMatchSingle(pid, rawText) {
             variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
         }
       });
-      if (rows.length) { _rqAmSet(pid, rows[0]); }
-      else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
+      if (rows.length) {
+        var best = rows[0];
+        if (best.isParent) best = Object.assign({}, best, { selectedVariants: [] });
+        _rqAmSet(pid, best);
+      } else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
     });
   }).catch(function() {
     if (_rqAutoMatches[pid] === '_loading_') {
@@ -762,7 +815,9 @@ function rqMatchEditSelectId(pid, itemId) {
   if (!item) return;
   if (e.debounceTimer) clearTimeout(e.debounceTimer);
   delete _rqMatchEdits[pid];
+  if (item.isParent) item = Object.assign({}, item, { selectedVariants: [] });
   _rqAmSet(pid, item);
+  if (item.isParent) rqOpenVariantPicker(pid);
 }
 
 function rqMatchEditCustom(pid, name) {
@@ -770,6 +825,40 @@ function rqMatchEditCustom(pid, name) {
   if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
   delete _rqMatchEdits[pid];
   _rqAmSet(pid, { id: 'custom-' + Date.now(), name: name, category: 'Custom', isParent: false, sku: '', isCustom: true });
+}
+
+// ── Variant picker ────────────────────────────────────────────────────────────
+
+function rqOpenVariantPicker(pid) {
+  var match = _rqAutoMatches[pid];
+  if (!match || typeof match !== 'object' || !match.isParent) return;
+  var alreadySelected = (match.selectedVariants || []).map(function(v) { return v.id; });
+  _rqVariantPickers[pid] = { selectedIds: alreadySelected.slice() };
+  _rqUpdateMatchRow(pid);
+}
+
+function rqCloseVariantPicker(pid) {
+  delete _rqVariantPickers[pid];
+  _rqUpdateMatchRow(pid);
+}
+
+function rqToggleVariant(pid, variantId) {
+  var picker = _rqVariantPickers[pid]; if (!picker) return;
+  var idx = picker.selectedIds.indexOf(variantId);
+  if (idx === -1) picker.selectedIds.push(variantId);
+  else picker.selectedIds.splice(idx, 1);
+  _rqUpdateMatchRow(pid);
+}
+
+function rqConfirmVariants(pid) {
+  var picker = _rqVariantPickers[pid]; if (!picker) return;
+  var match = _rqAutoMatches[pid];
+  if (!match || typeof match !== 'object') return;
+  var selectedVariants = (match.variants || []).filter(function(v) {
+    return picker.selectedIds.indexOf(v.id) !== -1;
+  });
+  delete _rqVariantPickers[pid];
+  _rqAmSet(pid, Object.assign({}, match, { selectedVariants: selectedVariants }));
 }
 
 // ── Sorted items ──────────────────────────────────────────────────────────────
@@ -886,6 +975,12 @@ function restockQueueRender() {
 
   var PEOPLE = ['', 'Vanessa', 'Stevie', 'Kyle'];
 
+  var firstUnassignedIdx = -1;
+  for (var fi = 0; fi < items.length; fi++) {
+    var fPid = items[fi].notionPageId || '';
+    if (!(_rqMeta.assignees[fPid])) { firstUnassignedIdx = fi; break; }
+  }
+
   list.innerHTML = items.map(function(item, idx) {
     var pid      = item.notionPageId || '';
     var assignee = (pid && _rqMeta.assignees[pid]) || '';
@@ -900,6 +995,7 @@ function restockQueueRender() {
     var safePid  = pid.replace(/'/g, '');
     var isFirst  = idx === 0;
     var isLast   = idx === items.length - 1;
+    var isFirstUnassigned = !assignee && idx === firstUnassignedIdx;
 
     var startDisabled = !pid || !assignee || isRunning || isSetup;
     var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
@@ -908,6 +1004,7 @@ function restockQueueRender() {
     var mainRow = '<div class="rq-item-row">'
       + (isRunning || isSetup ? '' :
           '<span class="rq-arrows">'
+          + (!assignee ? '<button class="rq-arrow" onclick="rqMoveToTop(' + idx + ')" ' + (isFirstUnassigned ? 'disabled' : '') + ' title="Move to top">⇈</button>' : '')
           + '<button class="rq-arrow" onclick="rqMove(' + idx + ',-1)" ' + (isFirst ? 'disabled' : '') + ' title="Move up">▲</button>'
           + '<button class="rq-arrow" onclick="rqMove(' + idx + ',1)"  ' + (isLast  ? 'disabled' : '') + ' title="Move down">▼</button>'
           + '</span>'
@@ -1010,7 +1107,15 @@ function rqStartTimer(pid, itemText, assigneeName) {
   if (!pid || !assigneeName) { toast('Assign first', '⚠'); return; }
   if (_rqTimers[pid] || _rqSetups[pid]) return;
   var cached = _rqAutoMatches[pid];
-  var preSelected = (cached && typeof cached === 'object') ? [Object.assign({}, cached, { pieces: null })] : [];
+  var preSelected = [];
+  if (cached && typeof cached === 'object') {
+    if (cached.isParent && cached.selectedVariants && cached.selectedVariants.length) {
+      var variantLabel = cached.selectedVariants.map(function(v) { return v.name; }).join(', ');
+      preSelected = [{ id: cached.id, name: cached.name + ' · ' + variantLabel, category: cached.category, isParent: false, sku: '', pieces: null }];
+    } else {
+      preSelected = [Object.assign({}, cached, { pieces: null })];
+    }
+  }
   _rqSetups[pid] = { selectedItems: preSelected, query: preSelected.length ? '' : (itemText || ''), debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
   restockQueueRender();
   // Auto-search only if no pre-match
@@ -1634,6 +1739,18 @@ function rqMove(idx, dir) {
   restockQueueRender();
 }
 
+function rqMoveToTop(idx) {
+  var items = _rqSortedItems();
+  var item = items[idx];
+  if (!item || !item.notionPageId) return;
+  var pid = item.notionPageId;
+  var order = _rqMeta.order.filter(function(id) { return id !== pid; });
+  order.unshift(pid);
+  _rqMeta.order = order;
+  _rqSaveMeta();
+  restockQueueRender();
+}
+
 function rqSetAssignee(selectEl, idx) {
   var item = _rqSortedItems()[idx];
   if (!item || !item.notionPageId) return;
@@ -1692,6 +1809,7 @@ function rqDeleteItem(idx) {
     var me = _rqMatchEdits[pid];
     if (me && me.debounceTimer) clearTimeout(me.debounceTimer);
     delete _rqMatchEdits[pid];
+    delete _rqVariantPickers[pid];
     delete _rqAutoMatches[pid];
     _rqAmSave();
   }
