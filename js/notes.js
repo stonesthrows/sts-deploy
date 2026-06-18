@@ -492,6 +492,9 @@ var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceT
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 var _rqEditingSession = null;
+var _rqAutoMatches = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
+var _rqMatchEdits  = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
+var _rqAmLoaded    = false;
 
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
@@ -534,6 +537,239 @@ function _rqSaveMeta() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(_rqMeta),
   }).catch(function() { toast('Failed to save queue state', '⚠'); });
+}
+
+// ── Auto-match localStorage helpers ──────────────────────────────────────────
+
+function _rqAmLoad() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('sts_rqAutoMatch') || '{}');
+    Object.keys(saved).forEach(function(pid) {
+      var v = saved[pid];
+      if (v && typeof v === 'object') _rqAutoMatches[pid] = v;
+    });
+  } catch(e) {}
+}
+
+function _rqAmSave() {
+  var out = {};
+  Object.keys(_rqAutoMatches).forEach(function(pid) {
+    var v = _rqAutoMatches[pid];
+    if (v && typeof v === 'object') out[pid] = v;
+  });
+  localStorage.setItem('sts_rqAutoMatch', JSON.stringify(out));
+}
+
+function _rqAmSet(pid, item) {
+  _rqAutoMatches[pid] = item;
+  _rqAmSave();
+  _rqUpdateMatchRow(pid);
+}
+
+function _rqUpdateMatchRow(pid) {
+  var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
+  var el = document.getElementById('rq-match-row-' + safePid);
+  if (el) el.innerHTML = _rqMatchRowInner(pid);
+}
+
+function _rqMatchRowInner(pid) {
+  var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
+  var match = _rqAutoMatches[pid];
+
+  if (_rqMatchEdits[pid]) {
+    return '<div class="rq-match-panel">'
+      + '<div class="rq-setup-search-wrap" style="margin-bottom:4px;">'
+      + '<span class="rq-setup-search-icon">⌕</span>'
+      + '<input type="text" class="rq-setup-search-input" id="rq-me-srch-' + safePid + '" placeholder="Search Square catalog…" autocomplete="off"'
+      + ' oninput="rqMatchEditInput(\'' + safePid + '\',this.value)">'
+      + '<div class="rq-setup-spinner" id="rq-me-spinner-' + safePid + '"></div>'
+      + '</div>'
+      + '<div class="rq-setup-results" id="rq-me-results-' + safePid + '"></div>'
+      + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqCloseMatchEdit(\'' + safePid + '\')">Cancel</button>'
+      + '</div>';
+  }
+
+  if (!match || match === '_loading_') {
+    return '<div class="rq-match-loading"><span class="rq-match-spinner"></span>finding Square item…</div>';
+  }
+  if (match === '_none_') {
+    return '<div class="rq-match-none" onclick="rqOpenMatchEdit(\'' + safePid + '\')">'
+      + '<span class="rq-match-x">✕</span><span class="rq-match-link">No Square match · click to search</span>'
+      + '</div>';
+  }
+  var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<div class="rq-match-found">'
+    + '<span class="rq-match-check">✓</span>'
+    + '<span class="rq-match-name">' + safeName + '</span>'
+    + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change</button>'
+    + '</div>';
+}
+
+function _rqAutoMatchSingle(pid, rawText) {
+  if (!pid) return;
+  var query = _rqShortName(rawText || '');
+  if (!query) { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); return; }
+  _rqAutoMatches[pid] = '_loading_';
+  _rqUpdateMatchRow(pid);
+  var localMatches = _rqLocalSearch(query);
+  var token = localStorage.getItem('sts-square-token') || '';
+  if (!token) {
+    if (localMatches.length) { _rqAmSet(pid, localMatches[0]); }
+    else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
+    return;
+  }
+  _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    if (_rqAutoMatches[pid] !== '_loading_') return;
+    var found = searchData.objects || [];
+    if (!found.length) {
+      if (localMatches.length) { _rqAmSet(pid, localMatches[0]); return; }
+      _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); return;
+    }
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }) },
+    }).then(function(fullData) {
+      if (_rqAutoMatches[pid] !== '_loading_') return;
+      var rows = localMatches.slice();
+      (fullData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
+        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
+        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        if (variations.length <= 1) {
+          var v = variations[0] ? variations[0].item_variation_data : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+        } else {
+          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
+        }
+      });
+      if (rows.length) { _rqAmSet(pid, rows[0]); }
+      else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
+    });
+  }).catch(function() {
+    if (_rqAutoMatches[pid] === '_loading_') {
+      _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid);
+    }
+  });
+}
+
+// ── Match edit panel (click-to-change on the bar) ────────────────────────────
+
+function rqOpenMatchEdit(pid) {
+  _rqMatchEdits[pid] = { query: '', _lastResults: null, debounceTimer: null };
+  _rqUpdateMatchRow(pid);
+  setTimeout(function() {
+    var inp = document.getElementById('rq-me-srch-' + pid.replace(/[^a-zA-Z0-9_-]/g, ''));
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function rqCloseMatchEdit(pid) {
+  var e = _rqMatchEdits[pid];
+  if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
+  delete _rqMatchEdits[pid];
+  _rqUpdateMatchRow(pid);
+}
+
+function rqMatchEditInput(pid, value) {
+  var e = _rqMatchEdits[pid]; if (!e) return;
+  e.query = value;
+  if (e.debounceTimer) clearTimeout(e.debounceTimer);
+  if (!value || value.length < 2) {
+    var box = document.getElementById('rq-me-results-' + pid.replace(/[^a-zA-Z0-9_-]/g, ''));
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+    return;
+  }
+  e.debounceTimer = setTimeout(function() { _rqMatchEditSearch(pid, value); }, 350);
+}
+
+function _rqMatchEditSearch(pid, query) {
+  var e = _rqMatchEdits[pid]; if (!e) return;
+  var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
+  var spinner = document.getElementById('rq-me-spinner-' + safePid);
+  if (spinner) spinner.style.display = 'block';
+  var localMatches = _rqLocalSearch(query);
+  _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    if (!_rqMatchEdits[pid]) return;
+    var found = searchData.objects || [];
+    if (!found.length) { _rqMatchEditRenderResults(pid, localMatches, query); return; }
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }) },
+    }).then(function(fullData) {
+      if (!_rqMatchEdits[pid]) return;
+      var rows = localMatches.slice();
+      (fullData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
+        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
+        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        if (variations.length <= 1) {
+          var v = variations[0] ? variations[0].item_variation_data : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku||'') : '', category: catName, isParent: false });
+        } else {
+          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
+        }
+      });
+      _rqMatchEditRenderResults(pid, rows, query);
+    });
+  }).catch(function() {
+    if (_rqMatchEdits[pid]) _rqMatchEditRenderResults(pid, localMatches, query);
+  }).then(function() {
+    var sp = document.getElementById('rq-me-spinner-' + safePid);
+    if (sp) sp.style.display = 'none';
+  });
+}
+
+function _rqMatchEditRenderResults(pid, items, query) {
+  var e = _rqMatchEdits[pid]; if (!e) return;
+  e._lastResults = items;
+  var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
+  var box = document.getElementById('rq-me-results-' + safePid);
+  if (!box) return;
+  if (!items || !items.length) {
+    var safeQ = (query||'').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    var escQ  = (query||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    box.innerHTML = '<div class="rq-result-none">No match for "' + safeQ + '"</div>'
+      + '<div class="rq-result-item" onclick="rqMatchEditCustom(\'' + safePid + '\',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+    box.style.display = 'flex';
+    return;
+  }
+  box.innerHTML = items.map(function(item) {
+    var meta = item.isParent
+      ? (item.category||'') + ' · ' + (item.variantCount||'') + ' sizes'
+      : (item.category||'') + (item.sku ? ' · ' + item.sku : '');
+    var safeId = (item.id||'').replace(/'/g,'').replace(/\\/g,'\\\\');
+    return '<div class="rq-result-item" onclick="rqMatchEditSelectId(\'' + safePid + '\',\'' + safeId + '\')">'
+      + '<div><div class="rq-result-name">' + (item.name||'').replace(/</g,'&lt;') + '</div>'
+      + '<div class="rq-result-meta">' + meta.replace(/</g,'&lt;') + '</div></div>'
+      + '</div>';
+  }).join('');
+  box.style.display = 'flex';
+}
+
+function rqMatchEditSelectId(pid, itemId) {
+  var e = _rqMatchEdits[pid]; if (!e) return;
+  var item = (e._lastResults||[]).filter(function(it) { return it.id === itemId; })[0];
+  if (!item) return;
+  if (e.debounceTimer) clearTimeout(e.debounceTimer);
+  delete _rqMatchEdits[pid];
+  _rqAmSet(pid, item);
+}
+
+function rqMatchEditCustom(pid, name) {
+  var e = _rqMatchEdits[pid];
+  if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
+  delete _rqMatchEdits[pid];
+  _rqAmSet(pid, { id: 'custom-' + Date.now(), name: name, category: 'Custom', isParent: false, sku: '', isCustom: true });
 }
 
 // ── Sorted items ──────────────────────────────────────────────────────────────
@@ -629,6 +865,8 @@ function restockQueueRender() {
   var empty = document.getElementById('restock-queue-empty');
   if (!list) return;
 
+  if (!_rqAmLoaded) { _rqAmLoad(); _rqAmLoaded = true; }
+
   if (!_rqMetaLoaded) {
     list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
     list.style.display = 'flex';
@@ -688,6 +926,13 @@ function restockQueueRender() {
       + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
       + '</div>';
 
+    var matchRow = '';
+    if (pid && !isRunning && !isSetup) {
+      matchRow = '<div class="rq-match-row" id="rq-match-row-' + safePid + '">'
+        + _rqMatchRowInner(pid)
+        + '</div>';
+    }
+
     var timerPanel = '';
     if (isRunning) {
       var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
@@ -739,8 +984,16 @@ function restockQueueRender() {
         + '</div>';
     }
 
-    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + timerPanel + setupPanel + '</div>';
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + setupPanel + '</div>';
   }).join('');
+
+  // Trigger auto-match for items not yet cached
+  items.forEach(function(item, i) {
+    var pid = item.notionPageId;
+    if (!pid || _rqTimers[pid] || _rqSetups[pid]) return;
+    if (_rqAutoMatches[pid] !== undefined) return;
+    setTimeout(function() { _rqAutoMatchSingle(pid, item.text); }, i * 200);
+  });
 
   _rqRestartTicks();
   Object.keys(_rqSetups).forEach(function(pid) {
@@ -756,10 +1009,14 @@ function restockQueueRender() {
 function rqStartTimer(pid, itemText, assigneeName) {
   if (!pid || !assigneeName) { toast('Assign first', '⚠'); return; }
   if (_rqTimers[pid] || _rqSetups[pid]) return;
-  _rqSetups[pid] = { selectedItems: [], query: itemText || '', debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
+  var cached = _rqAutoMatches[pid];
+  var preSelected = (cached && typeof cached === 'object') ? [Object.assign({}, cached, { pieces: null })] : [];
+  _rqSetups[pid] = { selectedItems: preSelected, query: preSelected.length ? '' : (itemText || ''), debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
   restockQueueRender();
-  // Auto-search with queue item text after DOM settles
-  setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || '', true); }, 80);
+  // Auto-search only if no pre-match
+  if (!preSelected.length) {
+    setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || '', true); }, 80);
+  }
 }
 
 function rqStopTimer(pid) {
@@ -1093,6 +1350,12 @@ function rqStartTimerConfirm(pid) {
   var assigneeName = (_rqMeta.assignees[pid]) || '';
   var primaryItem  = items[0] || {};
   delete _rqSetups[pid];
+  // Write confirmed item back to bar match cache (strip pieces)
+  if (items.length && primaryItem.id) {
+    var matchItem = Object.assign({}, primaryItem);
+    delete matchItem.pieces;
+    _rqAmSet(pid, matchItem);
+  }
   _rqTimers[pid] = {
     startTime: startTimeMs,
     employee: { name: assigneeName, id: '' },
@@ -1424,6 +1687,14 @@ function rqDeleteItem(idx) {
   var item = items[idx];
   if (!item) return;
   var pid = item.notionPageId;
+  // Clean up match state
+  if (pid) {
+    var me = _rqMatchEdits[pid];
+    if (me && me.debounceTimer) clearTimeout(me.debounceTimer);
+    delete _rqMatchEdits[pid];
+    delete _rqAutoMatches[pid];
+    _rqAmSave();
+  }
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);
   if (gi !== -1) NOTES_DATA.splice(gi, 1);
@@ -1444,7 +1715,12 @@ function rqSaveText(el, idx) {
   var item = _rqSortedItems()[idx];
   if (!item || !item.notionPageId) return;
   if (newText === _rqShortName(item.text) || newText === item.text) return;
+  var pid = item.notionPageId;
+  // Clear cached match since text changed, re-trigger after save
+  delete _rqAutoMatches[pid];
+  _rqAmSave();
   item.text = newText;
   renderNotesList('restock', itemsFor('restock'));
-  _rqPatch(item.notionPageId, { text: newText });
+  _rqPatch(pid, { text: newText });
+  setTimeout(function() { _rqAutoMatchSingle(pid, newText); }, 150);
 }

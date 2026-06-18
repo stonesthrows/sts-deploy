@@ -2452,6 +2452,40 @@
     }
     .rq-sbar-net { font-weight: 700; color: var(--text); }
     .rq-sbar-saved { color: #3A7A4A; font-weight: 600; }
+    /* ── Auto-match sub-row ── */
+    .rq-match-row { padding: 2px 0 0 0; }
+    .rq-match-loading {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text3); font-style: italic; padding: 2px 4px;
+    }
+    .rq-match-spinner {
+      display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
+      border: 2px solid var(--bdr); border-top-color: var(--accent);
+      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
+    }
+    .rq-match-found {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; padding: 2px 4px;
+    }
+    .rq-match-check { color: var(--accent); font-size: 10px; flex-shrink: 0; }
+    .rq-match-name {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: var(--accent); font-weight: 600;
+    }
+    .rq-match-change {
+      background: none; border: 1px solid var(--bdr); border-radius: 5px;
+      color: var(--text3); font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+      padding: 2px 7px; cursor: pointer; transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
+    }
+    .rq-match-change:hover { border-color: var(--accent); color: var(--accent); }
+    .rq-match-none {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text3); cursor: pointer; padding: 2px 4px;
+    }
+    .rq-match-none:hover .rq-match-link { color: var(--accent); }
+    .rq-match-x { color: #A0402A; font-size: 10px; flex-shrink: 0; }
+    .rq-match-link { text-decoration: underline; text-underline-offset: 2px; }
+    .rq-match-panel { padding: 6px 0 2px; }
     .rq-sbar-err { color: #A0402A; }
     .rq-sbar-del {
       background: none; border: 1px solid var(--bdr-light); border-radius: 5px;
@@ -6677,7 +6711,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=9"></script>
+<script src="js/notes.js?v=10"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
