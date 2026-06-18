@@ -51,7 +51,26 @@ A Sat–Sun market event identified by its Saturday date key (e.g. `2026-05-30`)
 
 ## Inventory
 
-*(terms to be defined as the session progresses)*
+**Square Inventory**
+Inventory tracked in Square for the main retail location (`D7EZ98V48F79A`). Quantities live in Square and are read/written via the Square API. Managed in the `Adjust Inventory` sub-tab under the Inventory parent tab.
+
+**Blue Genie Art Bazaar (BGAB)**
+A twice-yearly event at which STS sells jewelry in a booth setting. Occurs as two recurring types: May Market (May) and Art Bazaar (November/December). BGAB inventory is tracked entirely independently of Square — no Square reads or writes ever occur.
+
+**BGAB Event**
+A named record of inventory brought to a single BGAB occurrence. Identified by Type + Year (e.g. "May Market 2026"). Contains a list of BGAB Items. Source of truth is a dedicated Notion database, with full item data serialized as JSON on the Notion page. Displayed in the standalone "Blue Genie" tab.
+
+**BGAB Item**
+A Square catalog item selected for inclusion in a BGAB Event. Name and variations are imported from Square at event-creation time (read-only reference — no Square quantities are touched). Each variation tracks Brought and Sold quantities independently.
+
+**Brought**
+The quantity of a specific variation packed for a BGAB Event. Set before the event using a +/− stepper. Saved explicitly via a "Set" or "Save All" action.
+
+**Sold** (BGAB context)
+The quantity of a specific variation sold at a BGAB Event. Updated during or after the event using a +/− stepper. Never written to Square.
+
+**Remaining** (BGAB context)
+Brought − Sold for a variation. Computed in the UI; never stored.
 
 ---
 

@@ -36,7 +36,7 @@ function toast(msg, icon='✓') {
 //  TAB SWITCHING
 // ════════════════════════════════════════════
 // Top-level tabs that have NO sub-nav (direct panels)
-const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs']);
+const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs','bgab']);
 
 // Each parent group and the ordered sub-tabs it contains
 const NAV_GROUPS = {
@@ -72,6 +72,7 @@ const TAB_HOOKS = {
   calendar:   function() { if (typeof calInit === 'function') calInit(); },
   'to-restock': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); if (typeof timerTabInit === 'function') timerTabInit(); },
   'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
+  bgab:       function() { if (typeof bgabInit === 'function') bgabInit(); },
 };
 function runTabHook(id) { const h = TAB_HOOKS[id]; if (h) { try { h(); } catch(e) {} } }
 
