@@ -1044,13 +1044,14 @@ function approveEstimate() {
   })
   .then(ids => {
     const title   = jobDesc ? jobDesc : 'Custom Order Estimate — ' + customerName;
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const invoice = {
       location_id:       _gtSqLocation(),
       order_id:          ids.orderId,
       primary_recipient: { customer_id: ids.customerId },
       delivery_method:   'SHARE_MANUALLY',
-      invoice_type:      'QUOTE',
       title:             title,
+      payment_requests:  [{ request_type: 'BALANCE', due_date: dueDate, automatic_payment_source: 'NONE' }],
       accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false },
     };
     if (notes) invoice.description = notes;
