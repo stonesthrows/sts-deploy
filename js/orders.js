@@ -1012,6 +1012,7 @@ function approveEstimate() {
         order_id:          ids.orderId,
         primary_recipient: { customer_id: ids.customerId },
         delivery_method:   'EMAIL',
+        invoice_type:      'ESTIMATE',
         title:             'Custom Order Estimate — ' + customerName,
         accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
       }
