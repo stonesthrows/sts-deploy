@@ -9,7 +9,7 @@ const NOTION_VER = '2022-06-28';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -35,6 +35,25 @@ export async function onRequest({ request, env }) {
   const dbId  = env.NOTION_INVENTORY_DB_ID;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   if (!dbId)  return json({ error: 'NOTION_INVENTORY_DB_ID not set' }, 500);
+  // ── PATCH — update a single row's split counts ───────────────────────────────
+  if (request.method === 'PATCH') {
+    const { pageId, you, georgina } = await request.json();
+    if (!pageId) return json({ error: 'pageId required' }, 400);
+    const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
+      method: 'PATCH',
+      headers: h,
+      body: JSON.stringify({
+        properties: {
+          'Current Stock: You':      { number: Math.max(0, you      ?? 0) },
+          'Current Stock: Georgina': { number: Math.max(0, georgina ?? 0) },
+        },
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) return json({ error: d.message || 'update failed' }, r.status);
+    return json({ ok: true });
+  }
+
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: CORS });
 
   const h = hdrs(token);

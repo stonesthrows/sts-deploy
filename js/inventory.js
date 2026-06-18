@@ -65,6 +65,9 @@ let _invRingLoaded    = false;
 let _invPendantCurSub = 'p-spirit';
 let _invPendantLoaded = false;
 
+let _invSplitCache     = {};  // { varId: { you, georgina, pageId } }
+let _invSplitActiveVar = null;
+
 // ── Category name fallback search ────────────────────────────────────────────
 
 async function _invFallbackCatSearch(sub) {
@@ -393,8 +396,8 @@ function _invRenderSub(sub) {
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
         ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
-        <span class="inv-split-you" id="inv-sy-${varId}">You –</span>
-        <span class="inv-split-georgina" id="inv-sg-${varId}">G –</span>
+        <span class="inv-split-you" id="inv-sy-${varId}" onclick="invEditSplit('${varId}',event)" title="Click to set split stock">You –</span>
+        <span class="inv-split-georgina" id="inv-sg-${varId}" onclick="invEditSplit('${varId}',event)" title="Click to set split stock">G –</span>
         <div class="inv-dot ${dot}"></div>
         <div class="inv-stepper">
           <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
@@ -915,6 +918,7 @@ async function _invLoadSplit(sub) {
     const res = await fetch('/api/notion-split-inv');
     if (!res.ok) return;
     const split = await res.json();
+    Object.assign(_invSplitCache, split);
     for (const item of data.items) {
       for (const v of (item.item_data?.variations || [])) {
         const s = split[v.id];
@@ -928,4 +932,98 @@ async function _invLoadSplit(sub) {
   } catch (e) {
     console.warn('[inv] split stock fetch failed:', e.message);
   }
+}
+
+function invEditSplit(varId, e) {
+  e.stopPropagation();
+  _invSplitActiveVar = varId;
+  const cached = _invSplitCache[varId] || { you: 0, georgina: 0, pageId: null };
+
+  let pop = document.getElementById('inv-split-popover');
+  if (!pop) {
+    pop = document.createElement('div');
+    pop.id = 'inv-split-popover';
+    pop.innerHTML = `
+      <div class="inv-sp-title">Set Split Stock</div>
+      <div class="inv-sp-row">
+        <span class="inv-split-you inv-sp-label">You</span>
+        <input id="inv-sp-you" type="number" min="0" class="inv-sp-inp"
+          onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+      </div>
+      <div class="inv-sp-row">
+        <span class="inv-split-georgina inv-sp-label">G</span>
+        <input id="inv-sp-g" type="number" min="0" class="inv-sp-inp"
+          onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+      </div>
+      <div class="inv-sp-btns">
+        <button class="inv-set-btn" id="inv-sp-save" onclick="invSaveSplit()">Save</button>
+        <button class="inv-sp-cancel" onclick="invCloseSplitPopover()">Cancel</button>
+      </div>`;
+    document.body.appendChild(pop);
+    document.addEventListener('click', e => {
+      if (!pop.contains(e.target)) invCloseSplitPopover();
+    });
+  }
+
+  document.getElementById('inv-sp-you').value = cached.you;
+  document.getElementById('inv-sp-g').value   = cached.georgina;
+  const saveBtn = document.getElementById('inv-sp-save');
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+
+  pop.style.display = 'block';
+  const rect = e.target.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
+  pop.style.left = (rect.left  + window.scrollX) + 'px';
+
+  requestAnimationFrame(() => {
+    const pr = pop.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8)
+      pop.style.left = Math.max(8, window.innerWidth - pr.width - 8) + 'px';
+  });
+
+  document.getElementById('inv-sp-you').focus();
+  document.getElementById('inv-sp-you').select();
+}
+
+async function invSaveSplit() {
+  const varId  = _invSplitActiveVar;
+  const cached = _invSplitCache[varId];
+  if (!varId || !cached?.pageId) {
+    toast('Item not found in Notion split DB', '⚠');
+    invCloseSplitPopover();
+    return;
+  }
+
+  const you      = Math.max(0, parseInt(document.getElementById('inv-sp-you').value) || 0);
+  const georgina = Math.max(0, parseInt(document.getElementById('inv-sp-g').value)   || 0);
+
+  const btn = document.getElementById('inv-sp-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch('/api/notion-split-inv', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pageId: cached.pageId, you, georgina }),
+    });
+    if (!res.ok) throw new Error('save failed');
+
+    _invSplitCache[varId] = { ...cached, you, georgina };
+    const youEl = document.getElementById('inv-sy-' + varId);
+    const gEl   = document.getElementById('inv-sg-' + varId);
+    if (youEl) youEl.textContent = 'You ' + you;
+    if (gEl)   gEl.textContent   = 'G '   + georgina;
+
+    invCloseSplitPopover();
+    toast('Split stock updated ✓', '✓');
+  } catch {
+    toast('Failed to save split stock', '⚠');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
+function invCloseSplitPopover() {
+  const pop = document.getElementById('inv-split-popover');
+  if (pop) pop.style.display = 'none';
+  _invSplitActiveVar = null;
 }
