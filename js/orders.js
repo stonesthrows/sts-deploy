@@ -971,10 +971,9 @@ function approveEstimate() {
   // Collect line items from the estimate builder
   const items = [];
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
-    const descEl  = row.querySelector('.est-desc');
-    const costEl  = row.querySelector('.est-cost');
-    const desc    = descEl  ? descEl.value.trim() : '';
-    const cost    = costEl  ? parseFloat(costEl.value) || 0 : 0;
+    const inputs = row.querySelectorAll('input');
+    const desc   = inputs[0]?.value.trim() || '';
+    const cost   = parseFloat(inputs[1]?.value) || 0;
     if (desc && cost > 0) items.push({ name: desc, price: cost });
   });
 
