@@ -1013,7 +1013,12 @@ function approveEstimate() {
         primary_recipient: { customer_id: ids.customerId },
         delivery_method:   'SHARE_MANUALLY',
         title:             'Custom Order Estimate — ' + customerName,
-        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false }
+        accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false },
+        payment_requests: [{
+          request_type:             'BALANCE',
+          due_date:                 new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+          automatic_payment_source: 'NONE'
+        }]
       }
     });
   })
