@@ -1049,7 +1049,7 @@ function approveEstimate() {
       order_id:          ids.orderId,
       primary_recipient: { customer_id: ids.customerId },
       delivery_method:   'SHARE_MANUALLY',
-      invoice_type:      'ESTIMATE',
+      invoice_type:      'QUOTE',
       title:             title,
       accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false },
     };
