@@ -235,6 +235,7 @@ function openOrderCard(id) {
 
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
+  document.getElementById('f-job-desc').value      = o.jobDesc        || '';
   document.getElementById('f-description').value  = o.desc          || '';
   document.getElementById('f-stage').value         = o.stage         || 'intake-custom';
   document.getElementById('f-price').value         = o.price         || '';
@@ -249,6 +250,7 @@ function openOrderCard(id) {
   document.getElementById('f-ring-size').value     = o.ringSize      || '';
   document.getElementById('f-paid-by').value       = o.paidBy        || '';
   document.getElementById('f-notes').value         = o.notes         || '';
+  document.getElementById('f-customer-notes').value = o.customerNotes || '';
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
   setOrderType(o.orderType || 'order');
   const sa = o.shippingAddress || {};
@@ -365,6 +367,7 @@ function saveOrderEdit() {
   if (!o) return;
 
   o.name          = getFullName();
+  o.jobDesc       = document.getElementById('f-job-desc').value.trim()       || '';
   o.desc          = document.getElementById('f-description').value.trim();
   o.stage         = document.getElementById('f-stage').value;
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
@@ -378,7 +381,8 @@ function saveOrderEdit() {
   o.materials     = document.getElementById('f-materials').value.trim() || '';
   o.ringSize      = document.getElementById('f-ring-size').value.trim() || '';
   o.paidBy        = document.getElementById('f-paid-by').value          || '';
-  o.notes         = document.getElementById('f-notes').value.trim()     || '';
+  o.notes         = document.getElementById('f-notes').value.trim()         || '';
+  o.customerNotes = document.getElementById('f-customer-notes').value.trim() || '';
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
   o.shippingAddress = o.pickup === 'To be Shipped' ? {
@@ -582,7 +586,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-sketch',
+  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-customer-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -977,8 +981,8 @@ function setMultiplier(val) {
 function approveEstimate() {
   const customerEmail = document.getElementById('f-email')?.value.trim() || '';
   const customerName  = getFullName() || 'Customer';
-  const jobDesc = document.getElementById('f-description')?.value.trim() || '';
-  const notes   = document.getElementById('f-notes')?.value.trim() || '';
+  const jobDesc = document.getElementById('f-job-desc')?.value.trim() || '';
+  const notes   = document.getElementById('f-customer-notes')?.value.trim() || '';
 
   if (!customerEmail) { toast('Add a customer email first.', '⚠️'); return; }
   if (!_gtSqLocation()) { toast('No Square Location ID — add it in ⚙ Integrations.', '⚠️'); return; }

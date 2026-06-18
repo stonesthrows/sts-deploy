@@ -4084,7 +4084,11 @@
             </select>
           </div>
           <div class="fg full">
-            <label>Order Description *</label>
+            <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
+            <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+          </div>
+          <div class="fg full">
+            <label>Order Description</label>
             <textarea id="f-description" placeholder="Describe the piece — type, style, size, stone, any inspiration or reference images…"></textarea>
           </div>
           <div class="fg">
@@ -4106,6 +4110,10 @@
           <div class="fg full">
             <label>Internal Notes</label>
             <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:60px;"></textarea>
+          </div>
+          <div class="fg full">
+            <label>Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent with estimate</span></label>
+            <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
           </div>
           <div class="fg" id="f-paid-by-row" style="display:none;">
             <label>Paid By</label>
