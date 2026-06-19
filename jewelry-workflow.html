@@ -5230,20 +5230,24 @@
     <div class="dsn-form-layout">
       <!-- LEFT: form fields -->
       <div class="dsn-form-left">
-        <!-- Name -->
-        <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
-        <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
-
-        <!-- Category -->
-        <label class="dsn-field-label">Category</label>
-        <select id="dsn-cat" class="dsn-select">
+        <!-- Name + Category inline -->
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
+          <div>
+            <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
+            <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
+          </div>
+          <div>
+            <label class="dsn-field-label">Category</label>
+            <select id="dsn-cat" class="dsn-select">
           <option value="">— Select category —</option>
           <option value="Ear Cuffs">Ear Cuffs</option>
           <option value="Rings">Rings</option>
           <option value="Earrings">Earrings</option>
           <option value="Pendants / Necklaces">Pendants / Necklaces</option>
           <option value="Other">Other</option>
-        </select>
+            </select>
+          </div>
+        </div>
 
         <!-- Specs -->
         <label class="dsn-field-label">Specifications &amp; Materials</label>
