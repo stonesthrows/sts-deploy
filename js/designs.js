@@ -100,6 +100,8 @@ function designsShowLibrary() {
   _designsImgEditMode = false;
   document.getElementById('designs-library').style.display  = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
+  const newBtn = document.getElementById('dsn-new-btn');
+  if (newBtn) newBtn.style.display = '';
   designsRenderLibrary();
 }
 
@@ -111,6 +113,8 @@ async function designsShowForm(id) {
   _designsImgEditMode = false;
   document.getElementById('designs-library').style.display   = 'none';
   document.getElementById('designs-form-wrap').style.display = '';
+  const newBtn = document.getElementById('dsn-new-btn');
+  if (newBtn) newBtn.style.display = 'none';
 
   if (id) {
     // Show brief skeleton while fetching full design from KV
