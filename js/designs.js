@@ -221,7 +221,7 @@ function designsToggleImageEdit() {
   _designsImgEditMode = !_designsImgEditMode;
   const btn = document.getElementById('dsn-img-edit-btn');
   if (btn) {
-    btn.textContent = _designsImgEditMode ? '✓ Done' : '✏ Edit';
+    btn.textContent = _designsImgEditMode ? '✓ Done' : '🖼 Manage Images';
     btn.classList.toggle('active', _designsImgEditMode);
   }
   const wrap = document.getElementById('dsn-img-previews');
@@ -351,9 +351,10 @@ async function designsHandlePDF(file) {
   const apiKey = localStorage.getItem('sts-anthropic-key');
   if (!apiKey) {
     status.style.color = '#c0392b';
-    status.textContent = '⚠ Enter your Anthropic API key below first';
-    document.getElementById('dsn-api-key-row').style.display = '';
-    document.getElementById('dsn-api-key-input').focus();
+    status.textContent = '⚠ Enter your Anthropic API key — click ⚙ to add it';
+    const panel = document.getElementById('dsn-api-key-panel');
+    if (panel) { panel.style.display = ''; designsRefreshApiKeyUI(); }
+    setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
     return;
   }
 
@@ -434,7 +435,8 @@ function designsSaveApiKey() {
   if (!val) { toast('Please enter an API key', '⚠'); return; }
   localStorage.setItem('sts-anthropic-key', val);
   document.getElementById('dsn-api-key-input').value = '';
-  designsRefreshApiKeyUI();
+  const panel = document.getElementById('dsn-api-key-panel');
+  if (panel) panel.style.display = 'none';
   toast('API key saved', '✓');
 }
 
@@ -450,6 +452,18 @@ function designsRefreshApiKeyUI() {
   if (!row || !saved) return;
   if (key) { row.style.display = 'none'; saved.style.display = ''; }
   else     { row.style.display = '';     saved.style.display = 'none'; }
+}
+
+function designsToggleApiKeyPanel() {
+  const panel = document.getElementById('dsn-api-key-panel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? '' : 'none';
+  if (opening) {
+    designsRefreshApiKeyUI();
+    const key = localStorage.getItem('sts-anthropic-key');
+    if (!key) setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
+  }
 }
 
 // ── Auto-resize textareas ─────────────────────

@@ -5166,7 +5166,6 @@
       <div class="page-title">🎨 Design Library</div>
       <div class="page-sub">Jewelry design specs, instructions &amp; reference images</div>
     </div>
-    <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
   </div>
 
   <!-- Library view -->
@@ -5191,22 +5190,26 @@
         📄 Import PDF
         <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
       </label>
+      <button class="btn btn-outline btn-sm" onclick="designsToggleApiKeyPanel()" title="API key settings">⚙</button>
       <button class="btn btn-gold btn-sm" onclick="designsSaveDesign()">💾 Save Design</button>
       <button id="dsn-delete-btn" class="btn btn-danger btn-sm" style="display:none" onclick="designsDeleteDesign()">Delete</button>
+      <button class="dsn-img-edit-btn" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
     </div>
 
-    <!-- PDF status + API key (slim area, only visible when active) -->
-    <div style="margin-bottom:10px;">
-      <div class="dsn-pdf-status" id="dsn-pdf-status"></div>
-      <div id="dsn-api-key-row" style="display:none;margin-top:4px;">
+    <!-- PDF import status (always visible when active) -->
+    <div id="dsn-pdf-status" class="dsn-pdf-status"></div>
+
+    <!-- API key panel (toggled by ⚙ gear button) -->
+    <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
+      <div id="dsn-api-key-row">
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
           <button onclick="designsSaveApiKey()" class="dsn-upload-btn" style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:#fff;border-color:var(--accent)">Save</button>
         </div>
       </div>
-      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);margin-top:4px;">
-        🔑 API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';document.getElementById('dsn-api-key-input').focus()">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
+      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);">
+        🔑 API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
       </div>
     </div>
 
@@ -5244,10 +5247,7 @@
 
       <!-- RIGHT: reference images -->
       <div class="dsn-form-right">
-        <div class="dsn-img-col-header">
-          <label class="dsn-field-label" style="margin:0">Reference Images</label>
-          <button class="dsn-img-edit-btn" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">✏ Edit</button>
-        </div>
+        <label class="dsn-field-label" style="margin-bottom:8px;display:block">Reference Images</label>
         <div class="dsn-img-col" id="dsn-img-previews">
           <span style="color:var(--text3);font-size:12px">No images yet</span>
         </div>
