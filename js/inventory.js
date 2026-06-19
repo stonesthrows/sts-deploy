@@ -965,6 +965,7 @@ function invEditSplit(varId, e) {
       </div>
       <div class="inv-sp-btns">
         <button class="inv-set-btn" id="inv-sp-save" onclick="invSaveSplit()">Save</button>
+        <button class="inv-sp-cancel" onclick="invSplitEven()">Split evenly</button>
         <button class="inv-sp-cancel" onclick="invCloseSplitPopover()">Cancel</button>
       </div>`;
     document.body.appendChild(pop);
@@ -998,6 +999,15 @@ function invSplitStep(field, delta) {
   const input = document.getElementById(id);
   if (!input) return;
   input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
+}
+
+function invSplitEven() {
+  const youInp = document.getElementById('inv-sp-you');
+  const gInp   = document.getElementById('inv-sp-g');
+  if (!youInp || !gInp) return;
+  const total  = (parseInt(youInp.value) || 0) + (parseInt(gInp.value) || 0);
+  youInp.value = Math.ceil(total / 2);
+  gInp.value   = Math.floor(total / 2);
 }
 
 async function invSaveSplit() {
