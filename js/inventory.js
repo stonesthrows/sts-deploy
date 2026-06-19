@@ -947,13 +947,21 @@ function invEditSplit(varId, e) {
       <div class="inv-sp-title">Set Split Stock</div>
       <div class="inv-sp-row">
         <span class="inv-split-you inv-sp-label">You</span>
-        <input id="inv-sp-you" type="number" min="0" class="inv-sp-inp"
-          onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+        <div class="inv-stepper">
+          <button class="inv-step-btn" onclick="invSplitStep('you',-1)">−</button>
+          <input id="inv-sp-you" type="number" min="0" class="inv-step-input"
+            onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+          <button class="inv-step-btn" onclick="invSplitStep('you',1)">＋</button>
+        </div>
       </div>
       <div class="inv-sp-row">
         <span class="inv-split-georgina inv-sp-label">G</span>
-        <input id="inv-sp-g" type="number" min="0" class="inv-sp-inp"
-          onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+        <div class="inv-stepper">
+          <button class="inv-step-btn" onclick="invSplitStep('g',-1)">−</button>
+          <input id="inv-sp-g" type="number" min="0" class="inv-step-input"
+            onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
+          <button class="inv-step-btn" onclick="invSplitStep('g',1)">＋</button>
+        </div>
       </div>
       <div class="inv-sp-btns">
         <button class="inv-set-btn" id="inv-sp-save" onclick="invSaveSplit()">Save</button>
@@ -983,6 +991,13 @@ function invEditSplit(varId, e) {
 
   document.getElementById('inv-sp-you').focus();
   document.getElementById('inv-sp-you').select();
+}
+
+function invSplitStep(field, delta) {
+  const id = field === 'you' ? 'inv-sp-you' : 'inv-sp-g';
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
 }
 
 async function invSaveSplit() {

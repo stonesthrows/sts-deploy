@@ -496,6 +496,9 @@ var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_n
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqVariantPickers = {}; // { [notionPageId]: { selectedIds: [] } }
 var _rqAmLoaded      = false;
+var _rqAddPendingMatch = null;  // Square item selected in add panel before save
+var _rqAddDebounce   = null;
+var _rqAddLastResults = [];
 
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
@@ -1771,6 +1774,14 @@ function rqAddItem() {
   if (!text) return;
   input.value = '';
 
+  var pendingMatch = _rqAddPendingMatch;
+  _rqAddPendingMatch = null;
+  _rqAddLastResults = [];
+  if (_rqAddDebounce) { clearTimeout(_rqAddDebounce); _rqAddDebounce = null; }
+  _rqAddHideDropdown();
+  var chip = document.getElementById('rq-add-chip');
+  if (chip) chip.style.display = 'none';
+
   var temp = { notionPageId: null, text: text, block: 'Inventory Restock', done: false, _saving: true };
   NOTES_DATA.push(temp);
   restockQueueRender();
@@ -1790,13 +1801,131 @@ function rqAddItem() {
       }
       temp.notionPageId = res.data.notionPageId;
       temp._saving = false;
-      restockQueueRender();
+      if (pendingMatch) {
+        _rqAmSet(res.data.notionPageId, pendingMatch);
+        restockQueueRender();
+        if (pendingMatch.isParent) {
+          setTimeout(function() { rqOpenVariantPicker(res.data.notionPageId); }, 50);
+        }
+      } else {
+        restockQueueRender();
+      }
     })
     .catch(function() {
       NOTES_DATA.splice(NOTES_DATA.indexOf(temp), 1);
       restockQueueRender();
       toast('Failed to add item', '⚠');
     });
+}
+
+function rqAddInputChange(value) {
+  var v = (value || '').trim();
+  if (!v) { _rqAddClearPending(); _rqAddHideDropdown(); return; }
+  if (_rqAddDebounce) clearTimeout(_rqAddDebounce);
+  _rqAddDebounce = setTimeout(function() { _rqAddSearch(v); }, 350);
+}
+
+function _rqAddSearch(query) {
+  var box = document.getElementById('rq-add-results');
+  if (!box) return;
+  box.innerHTML = '<div class="rq-match-loading"><span class="rq-match-spinner"></span>Searching…</div>';
+  box.style.display = 'flex';
+  var localMatches = _rqLocalSearch(query);
+  _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    var found = searchData.objects || [];
+    if (!found.length) { _rqAddRenderResults(localMatches, query); return; }
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }) },
+    }).then(function(batchData) {
+      var rows = [];
+      (batchData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var d = obj.item_data || {};
+        var vars = d.variations || [];
+        if (vars.length > 1) {
+          rows.push({ id: obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: true, variantCount: vars.length, variants: vars.map(function(v) { return { id: v.id, name: (v.item_variation_data || {}).name || '' }; }) });
+        } else {
+          var vd = vars[0] ? (vars[0].item_variation_data || {}) : {};
+          rows.push({ id: vars[0] ? vars[0].id : obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: false, sku: vd.sku || '' });
+        }
+      });
+      if (!rows.length) rows = localMatches;
+      _rqAddRenderResults(rows, query);
+    });
+  }).catch(function() {
+    _rqAddRenderResults(localMatches, query);
+  });
+}
+
+function _rqAddRenderResults(items, query) {
+  _rqAddLastResults = items || [];
+  var box = document.getElementById('rq-add-results');
+  if (!box) return;
+  if (!items || !items.length) {
+    var safeQ = (query || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    var escQ  = (query || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    box.innerHTML = '<div class="rq-result-none">No match for "' + safeQ + '"</div>'
+      + '<div class="rq-result-item" onclick="rqAddSelectCustom(\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+    box.style.display = 'flex';
+    return;
+  }
+  box.innerHTML = items.map(function(item) {
+    var meta = item.isParent
+      ? (item.category || '') + ' · ' + (item.variantCount || '') + ' sizes'
+      : (item.category || '') + (item.sku ? ' · ' + item.sku : '');
+    var safeId = (item.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+    return '<div class="rq-result-item" onclick="rqAddSelectItem(\'' + safeId + '\')">'
+      + '<div><div class="rq-result-name">' + (item.name || '').replace(/</g, '&lt;') + '</div>'
+      + '<div class="rq-result-meta">' + meta.replace(/</g, '&lt;') + '</div></div>'
+      + '</div>';
+  }).join('');
+  box.style.display = 'flex';
+}
+
+function rqAddSelectItem(itemId) {
+  var item = _rqAddLastResults.filter(function(it) { return it.id === itemId; })[0];
+  if (!item) return;
+  if (item.isParent) item = Object.assign({}, item, { selectedVariants: [] });
+  _rqAddPendingMatch = item;
+  _rqAddHideDropdown();
+  _rqAddShowChip(item);
+}
+
+function rqAddSelectCustom(name) {
+  _rqAddPendingMatch = { id: 'custom-' + Date.now(), name: name, category: 'Custom', isParent: false, sku: '', isCustom: true };
+  _rqAddHideDropdown();
+  _rqAddShowChip(_rqAddPendingMatch);
+}
+
+function rqAddClearItem() {
+  _rqAddClearPending();
+  _rqAddHideDropdown();
+}
+
+function _rqAddClearPending() {
+  _rqAddPendingMatch = null;
+  _rqAddLastResults = [];
+  var chip = document.getElementById('rq-add-chip');
+  if (chip) chip.style.display = 'none';
+}
+
+function _rqAddHideDropdown() {
+  var box = document.getElementById('rq-add-results');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function _rqAddShowChip(item) {
+  var chip = document.getElementById('rq-add-chip');
+  if (!chip) return;
+  var label = (item.name || '');
+  if (item.isParent) label += ' (pick sizes after)';
+  chip.innerHTML = '<span>✓ ' + label.replace(/</g, '&lt;') + '</span>'
+    + '<span class="rq-add-chip-x" onclick="rqAddClearItem()">×</span>';
+  chip.style.display = 'flex';
 }
 
 function rqDeleteItem(idx) {
