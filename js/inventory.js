@@ -532,6 +532,7 @@ async function _invSaveCount(qtyMap, sub) {
 
   _invLogChanges(qtyMap, prevCounts, sub);
   _invRenderSub(sub);
+  _invApplySplitCache(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
   else _invUpdateCountLabel();
@@ -933,6 +934,21 @@ async function _invWarmLastAdded() {
 
 // ── Split inventory (Notion per-device stock) ─────────────────────────────────
 
+function _invApplySplitCache(sub) {
+  const data = _invData[sub];
+  if (!data) return;
+  for (const item of data.items) {
+    for (const v of (item.item_data?.variations || [])) {
+      const s = _invSplitCache[v.id];
+      if (!s) continue;
+      const youEl = document.getElementById('inv-sy-' + v.id);
+      const gEl   = document.getElementById('inv-sg-' + v.id);
+      if (youEl) youEl.textContent = 'You ' + s.you;
+      if (gEl)   gEl.textContent   = 'G '   + s.georgina;
+    }
+  }
+}
+
 async function _invLoadSplit(sub) {
   const data = _invData[sub];
   if (!data) return;
@@ -941,16 +957,7 @@ async function _invLoadSplit(sub) {
     if (!res.ok) return;
     const split = await res.json();
     Object.assign(_invSplitCache, split);
-    for (const item of data.items) {
-      for (const v of (item.item_data?.variations || [])) {
-        const s = split[v.id];
-        if (!s) continue;
-        const youEl = document.getElementById('inv-sy-' + v.id);
-        const gEl   = document.getElementById('inv-sg-' + v.id);
-        if (youEl) youEl.textContent = 'You ' + s.you;
-        if (gEl)   gEl.textContent   = 'G '   + s.georgina;
-      }
-    }
+    _invApplySplitCache(sub);
   } catch (e) {
     console.warn('[inv] split stock fetch failed:', e.message);
   }
