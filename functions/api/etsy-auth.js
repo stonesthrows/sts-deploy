@@ -135,9 +135,15 @@ export async function onRequestGet(context) {
       }
     } catch (_) { /* non-fatal */ }
 
+    // Fall back to ETSY_SHOP_ID env var if API auto-detect failed
+    if (!shopId && env.ETSY_SHOP_ID) {
+      shopId = env.ETSY_SHOP_ID;
+      await kv.put('etsy:shop_id', String(shopId));
+    }
+
     const shopLine = shopId
-      ? `<p class="ok">🏪 Shop: <strong>${shopName || shopId}</strong> (ID: ${shopId})</p>`
-      : `<p class="err">⚠ Could not auto-detect shop ID. Add <code>ETSY_SHOP_ID</code> env var in Cloudflare Pages.</p>`;
+      ? `<p class="ok">🏪 Shop ID: <strong>${shopName || shopId}</strong></p>`
+      : `<p class="err">⚠ Could not auto-detect shop ID. Add <code>ETSY_SHOP_ID</code> = <code>5206148</code> as an env var in Cloudflare Pages.</p>`;
 
     return html(`
       <h2 class="ok">✅ Etsy Connected!</h2>
