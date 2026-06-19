@@ -309,7 +309,7 @@ function _designsMakeThumb(src) {
     const img = new Image();
     img.onload = () => {
       const c = document.createElement('canvas');
-      const SIZE  = 300;
+      const SIZE  = 600;
       // scale so the shorter side fills SIZE (cover behavior)
       const scale = SIZE / Math.min(img.width, img.height);
       const sw = Math.round(img.width  * scale);
