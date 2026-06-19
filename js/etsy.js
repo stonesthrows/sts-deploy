@@ -53,7 +53,7 @@ async function etsySync() {
         price:         eo.price,
         desc:          eo.desc,
         notes:         eo.notes,
-        stage:         'intake-website',
+        stage:         'etsy-bench',
         orderType:     'order',
         contactSource: 'Etsy Message',
         takeInDate:    eo.createdAt ? eo.createdAt.slice(0, 10) : '',

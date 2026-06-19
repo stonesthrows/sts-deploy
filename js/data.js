@@ -22,6 +22,7 @@ const STAGES = [
   { id:'order-mat',      label:'Order Materials',              cls:'s-order-mat'      },
   { id:'materials',      label:'Waiting on Materials',         cls:'s-materials'      },
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
+  { id:'etsy-bench',    label:'Etsy Order',                   cls:'s-etsy-bench'     },
   { id:'contact-need',   label:'Need to Contact Customer',     cls:'s-contact-need'   },
   { id:'contact-done',   label:'Contacted Customer',           cls:'s-contact-done'   },
   { id:'ready-pick',     label:'Ready to Pickup/Ship',         cls:'s-ready-pick'     },
@@ -61,7 +62,10 @@ const COLUMN_GROUPS = [
     { id:'order-mat',  cls:'s-order-mat',  label:'Order Materials'      },
     { id:'materials',  cls:'s-materials',  label:'Waiting on Materials' },
   ]},
-  { label:'At the Bench', cls:'s-build',           stages:[{id:'build',      cls:'s-build',      label:'At the Bench'}] },
+  { label:'At the Bench', cls:'s-build',           stages:[
+    {id:'build',      cls:'s-build',      label:'At the Bench'},
+    {id:'etsy-bench', cls:'s-etsy-bench', label:'Etsy Order'},
+  ]},
   { label:'Invoicing', cls:'s-needs-invoice', stages:[
     { id:'needs-invoice',  cls:'s-needs-invoice',  label:'Needs Invoicing' },
     { id:'invoice-sent',   cls:'s-invoice-sent',   label:'Invoice Sent'    },
