@@ -6516,18 +6516,18 @@ function savePrintSetup() {
       margin-top: 3px;
     }
     .dm-group:first-child .dm-group-label { border-top: none; margin-top: 0; }
-    .dm-row { display: flex; align-items: center; gap: 5px; padding: 1.5px 0; font-size: 11px; }
+    .dm-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 6px; padding: 4px 0; border-bottom: 1px solid var(--bdr-light); }
+    .dm-row:last-child { border-bottom: none; }
     .dm-key {
+      grid-column: 1; grid-row: 1;
       font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 10px; background: var(--accent-bg);
-      color: var(--text); padding: 1px 4px;
-      border-radius: 3px; border: 1px solid var(--accent-border);
-      white-space: nowrap; flex-shrink: 0;
+      font-size: 10.5px; color: var(--text); font-weight: 600;
     }
-    .dm-desc { color: var(--text2); font-size: 10.5px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dm-desc { grid-column: 1; grid-row: 2; color: var(--text3); font-size: 10px; margin-top: 1px; }
     .dm-tag {
+      grid-column: 2; grid-row: 1; align-self: center;
       font-size: 8.5px; padding: 1px 4px; border-radius: 3px;
-      font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+      font-weight: 700; text-transform: uppercase; white-space: nowrap;
     }
     .dm-tag-cred { background: #FEF3C7; color: #92400E; }
     .dm-tag-kv   { background: #D1FAE5; color: #065F46; }
