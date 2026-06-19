@@ -1002,10 +1002,14 @@ function invSplitStep(field, delta) {
 }
 
 function invSplitEven() {
+  const varId  = _invSplitActiveVar;
   const youInp = document.getElementById('inv-sp-you');
   const gInp   = document.getElementById('inv-sp-g');
   if (!youInp || !gInp) return;
-  const total  = (parseInt(youInp.value) || 0) + (parseInt(gInp.value) || 0);
+  const invInput = document.getElementById('inv-inp-' + varId);
+  const total = invInput
+    ? (parseInt(invInput.value) || 0)
+    : (_invData[_invCurSub]?.counts?.[varId] || 0);
   youInp.value = Math.ceil(total / 2);
   gInp.value   = Math.floor(total / 2);
 }
