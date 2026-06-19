@@ -1014,14 +1014,24 @@ function invSplitEven() {
   gInp.value   = Math.floor(total / 2);
 }
 
+function _invGetVarName(varId) {
+  for (const sub of Object.keys(_invData)) {
+    for (const item of (_invData[sub]?.items || [])) {
+      for (const v of (item.item_data?.variations || [])) {
+        if (v.id === varId) {
+          const itemName = item.item_data?.name || '';
+          const varName  = v.item_variation_data?.name || '';
+          return (varName && varName !== 'Regular') ? itemName + ' – ' + varName : itemName;
+        }
+      }
+    }
+  }
+  return varId;
+}
+
 async function invSaveSplit() {
   const varId  = _invSplitActiveVar;
-  const cached = _invSplitCache[varId];
-  if (!varId || !cached?.pageId) {
-    toast('Item not found in Notion split DB', '⚠');
-    invCloseSplitPopover();
-    return;
-  }
+  if (!varId) return;
 
   const you      = Math.max(0, parseInt(document.getElementById('inv-sp-you').value) || 0);
   const georgina = Math.max(0, parseInt(document.getElementById('inv-sp-g').value)   || 0);
@@ -1030,14 +1040,31 @@ async function invSaveSplit() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
   try {
-    const res = await fetch('/api/notion-split-inv', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ pageId: cached.pageId, you, georgina }),
-    });
-    if (!res.ok) throw new Error('save failed');
+    const cached = _invSplitCache[varId];
+    let pageId = cached?.pageId;
 
-    _invSplitCache[varId] = { ...cached, you, georgina };
+    if (!pageId) {
+      // First time this item is being split — create a new Notion row
+      const name = _invGetVarName(varId);
+      const res = await fetch('/api/notion-split-inv', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ varId, name, you, georgina }),
+      });
+      if (!res.ok) throw new Error('create failed');
+      const data = await res.json();
+      pageId = data.pageId;
+      _invSplitCache[varId] = { you, georgina, pageId };
+    } else {
+      const res = await fetch('/api/notion-split-inv', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pageId, you, georgina }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      _invSplitCache[varId] = { ...cached, you, georgina };
+    }
+
     const youEl = document.getElementById('inv-sy-' + varId);
     const gEl   = document.getElementById('inv-sg-' + varId);
     if (youEl) youEl.textContent = 'You ' + you;

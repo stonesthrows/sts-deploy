@@ -1,6 +1,8 @@
 // ════════════════════════════════════════════
 //  Split Inventory Proxy  —  /api/notion-split-inv
-//  GET: return { [varId]: { you, georgina, pageId } } for all rows
+//  GET:   return { [varId]: { you, georgina, pageId } } for all rows
+//  POST:  create a new row { varId, name, you, georgina } → { ok, pageId }
+//  PATCH: update an existing row { pageId, you, georgina } → { ok }
 //  Requires env vars: NOTION_TOKEN, NOTION_INVENTORY_DB_ID
 // ════════════════════════════════════════════
 
@@ -9,7 +11,7 @@ const NOTION_VER = '2022-06-28';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -35,7 +37,10 @@ export async function onRequest({ request, env }) {
   const dbId  = env.NOTION_INVENTORY_DB_ID;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   if (!dbId)  return json({ error: 'NOTION_INVENTORY_DB_ID not set' }, 500);
-  // ── PATCH — update a single row's split counts ───────────────────────────────
+
+  const h = hdrs(token);
+
+  // ── PATCH — update an existing row ──────────────────────────────────────────
   if (request.method === 'PATCH') {
     const { pageId, you, georgina } = await request.json();
     if (!pageId) return json({ error: 'pageId required' }, 400);
@@ -54,9 +59,31 @@ export async function onRequest({ request, env }) {
     return json({ ok: true });
   }
 
+  // ── POST — create a new row ──────────────────────────────────────────────────
+  if (request.method === 'POST') {
+    const { varId, name, you, georgina } = await request.json();
+    if (!varId) return json({ error: 'varId required' }, 400);
+    const r = await fetch(`${NOTION_API}/pages`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        parent: { database_id: dbId },
+        properties: {
+          'Name': { title: [{ text: { content: name || varId } }] },
+          'SKU':  { rich_text: [{ text: { content: varId } }] },
+          'Current Stock: You':      { number: Math.max(0, you      ?? 0) },
+          'Current Stock: Georgina': { number: Math.max(0, georgina ?? 0) },
+        },
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
+    return json({ ok: true, pageId: d.id });
+  }
+
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: CORS });
 
-  const h = hdrs(token);
+  // ── GET — return all split rows keyed by SKU (= Square varId) ───────────────
   const result = {};
   let cursor;
   let pages = 0;

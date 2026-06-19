@@ -4017,6 +4017,7 @@
           <button onclick="openPrintSetup();toggleKbOverflow()">⚙ Print Setup</button>
           <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" onclick="toggleKbOverflow()">📓 Notion DB</a>
           <button id="notionSyncBtn" onclick="notionSyncFromNotion();toggleKbOverflow()" title="Pull latest orders from Notion">↻ Sync Notion</button>
+          <button id="etsySyncBtn" onclick="etsySync();toggleKbOverflow()" title="Import new paid Etsy orders">🛍 Sync Etsy</button>
           <button onclick="syncGmail();toggleKbOverflow()">⟳ Sync Gmail</button>
           <button onclick="checkDriveScans(this);toggleKbOverflow()" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
           <button onclick="openIntegrationsModal();toggleKbOverflow()" title="Configure API keys and integrations">⚙ Integrations</button>
@@ -6853,6 +6854,7 @@ function savePrintSetup() {
 <script src="js/orders.js?v=20260616a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
+<script src="js/etsy.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
@@ -6935,7 +6937,7 @@ function savePrintSetup() {
 </script>
 <script src="js/designs.js"></script>
 <script src="js/triplog.js"></script>
-<script src="js/inventory.js?v=5"></script>
+<script src="js/inventory.js?v=6"></script>
 <script src="js/inv-manager.js"></script>
 <script src="js/calendar.js"></script>
 <script>
