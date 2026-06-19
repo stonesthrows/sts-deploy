@@ -76,9 +76,10 @@ export async function onRequestGet(context) {
     ? Math.floor(new Date(sinceParam).getTime() / 1000)
     : Math.floor(Date.now() / 1000) - 86400 * 365;
 
+  const apiKey = env.ETSY_CLIENT_SECRET ? `${ETSY_CLIENT_ID}:${env.ETSY_CLIENT_SECRET}` : ETSY_CLIENT_ID;
   const hdrs = {
     'Authorization': `Bearer ${accessToken}`,
-    'x-api-key':     ETSY_CLIENT_ID,
+    'x-api-key':     apiKey,
   };
 
   const receipts = [];

@@ -113,16 +113,17 @@ export async function onRequestGet(context) {
     await kv.put('etsy:expires_at',    String(expiresAt));
 
     // Discover shop_id via users/me
+    const apiKey = clientSecret ? `${ETSY_CLIENT_ID}:${clientSecret}` : ETSY_CLIENT_ID;
     let shopId   = null;
     let shopName = null;
     try {
       const meRes = await fetch(`${ETSY_API_BASE}/application/users/me`, {
-        headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'x-api-key': ETSY_CLIENT_ID },
+        headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'x-api-key': apiKey },
       });
       if (meRes.ok) {
         const me = await meRes.json();
         const shopsRes = await fetch(`${ETSY_API_BASE}/application/users/${me.user_id}/shops`, {
-          headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'x-api-key': ETSY_CLIENT_ID },
+          headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'x-api-key': apiKey },
         });
         if (shopsRes.ok) {
           const shopsData = await shopsRes.json();
