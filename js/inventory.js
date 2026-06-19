@@ -1044,24 +1044,24 @@ async function invSaveSplit() {
     let pageId = cached?.pageId;
 
     if (!pageId) {
-      // First time this item is being split — create a new Notion row
       const name = _invGetVarName(varId);
-      const res = await fetch('/api/notion-split-inv', {
+      const res  = await fetch('/api/notion-split-inv', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ varId, name, you, georgina }),
       });
-      if (!res.ok) throw new Error('create failed');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'create failed');
       pageId = data.pageId;
       _invSplitCache[varId] = { you, georgina, pageId };
     } else {
-      const res = await fetch('/api/notion-split-inv', {
+      const res  = await fetch('/api/notion-split-inv', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ pageId, you, georgina }),
       });
-      if (!res.ok) throw new Error('save failed');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'update failed');
       _invSplitCache[varId] = { ...cached, you, georgina };
     }
 
@@ -1072,8 +1072,9 @@ async function invSaveSplit() {
 
     invCloseSplitPopover();
     toast('Split stock updated ✓', '✓');
-  } catch {
-    toast('Failed to save split stock', '⚠');
+  } catch (err) {
+    console.error('[inv] split save failed:', err.message);
+    toast('Failed to save: ' + err.message, '⚠');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 }
