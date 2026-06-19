@@ -5135,6 +5135,12 @@
 .dsn-upload-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
 .dsn-upload-btn:hover { background:var(--accent-bg); }
 .dsn-pdf-status { font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;min-height:18px; }
+.dsn-gear-menu { position:absolute;right:0;top:calc(100% + 6px);background:var(--card-bg);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;min-width:190px;padding:5px; }
+.dsn-gear-item { display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border:none;background:none;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;border-radius:7px;text-align:left;white-space:nowrap; }
+.dsn-gear-item:hover { background:var(--surface); }
+.dsn-gear-item.danger { color:#c0392b; }
+.dsn-gear-item.active { background:var(--accent);color:#fff; }
+.dsn-gear-sep { height:1px;background:var(--bdr);margin:4px 0; }
 .dsn-form-layout { display:grid;grid-template-columns:1fr 250px;gap:24px;align-items:start; }
 .dsn-form-right { position:sticky;top:10px; }
 .dsn-img-col-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
@@ -5187,14 +5193,21 @@
     <div class="dsn-form-header">
       <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
       <div style="flex:1"></div>
-      <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
-        📄 Import PDF
-        <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
-      </label>
-      <button class="btn btn-outline btn-sm" onclick="designsToggleApiKeyPanel()" title="API key settings">⚙</button>
-      <button class="btn btn-gold btn-sm" onclick="designsSaveDesign()">💾 Save Design</button>
-      <button id="dsn-delete-btn" class="btn btn-danger btn-sm" style="display:none" onclick="designsDeleteDesign()">Delete</button>
-      <button class="dsn-img-edit-btn" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
+      <div style="position:relative">
+        <button class="btn btn-outline btn-sm" id="dsn-gear-btn" onclick="designsToggleGearMenu()">⚙ Actions</button>
+        <div id="dsn-gear-menu" class="dsn-gear-menu" style="display:none">
+          <label class="dsn-gear-item">
+            📄 Import PDF
+            <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value='';designsCloseGearMenu()">
+          </label>
+          <button class="dsn-gear-item" onclick="designsSaveDesign()">💾 Save Design</button>
+          <button class="dsn-gear-item" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
+          <div class="dsn-gear-sep"></div>
+          <button class="dsn-gear-item danger" id="dsn-delete-btn" style="display:none" onclick="designsDeleteDesign()">🗑 Delete Design</button>
+          <div class="dsn-gear-sep"></div>
+          <button class="dsn-gear-item" onclick="designsToggleApiKeyPanel()">🔑 API Key Settings</button>
+        </div>
+      </div>
     </div>
 
     <!-- PDF import status (always visible when active) -->

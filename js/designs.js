@@ -102,6 +102,7 @@ function designsShowLibrary() {
   document.getElementById('designs-form-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = '';
+  designsCloseGearMenu();
   designsRenderLibrary();
 }
 
@@ -225,7 +226,7 @@ function designsToggleImageEdit() {
   _designsImgEditMode = !_designsImgEditMode;
   const btn = document.getElementById('dsn-img-edit-btn');
   if (btn) {
-    btn.textContent = _designsImgEditMode ? '✓ Done' : '🖼 Manage Images';
+    btn.textContent = _designsImgEditMode ? '✓ Done Managing' : '🖼 Manage Images';
     btn.classList.toggle('active', _designsImgEditMode);
   }
   const wrap = document.getElementById('dsn-img-previews');
@@ -456,6 +457,27 @@ function designsRefreshApiKeyUI() {
   if (!row || !saved) return;
   if (key) { row.style.display = 'none'; saved.style.display = ''; }
   else     { row.style.display = '';     saved.style.display = 'none'; }
+}
+
+function designsToggleGearMenu() {
+  const menu = document.getElementById('dsn-gear-menu');
+  if (!menu) return;
+  const opening = menu.style.display === 'none';
+  menu.style.display = opening ? '' : 'none';
+  if (opening) {
+    const close = (e) => {
+      if (!menu.contains(e.target) && e.target.id !== 'dsn-gear-btn') {
+        menu.style.display = 'none';
+        document.removeEventListener('click', close, true);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close, true), 0);
+  }
+}
+
+function designsCloseGearMenu() {
+  const menu = document.getElementById('dsn-gear-menu');
+  if (menu) menu.style.display = 'none';
 }
 
 function designsToggleApiKeyPanel() {
