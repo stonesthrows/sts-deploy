@@ -307,6 +307,18 @@ function _invVarTint(varName) {
 
 // ── Render ───────────────────────────────────
 
+const _INV_SIZE_ORDER = ['xs','x-small','xsmall','extra small','s','sm','small','m','md','med','medium','l','lg','large','xl','x-large','xlarge','extra large','xxl','2xl'];
+
+function _invSortVars(vars) {
+  const idx = v => {
+    const name = (v.item_variation_data?.name || '').toLowerCase().trim();
+    const i = _INV_SIZE_ORDER.indexOf(name);
+    return i === -1 ? _INV_SIZE_ORDER.length : i;
+  };
+  const hasMatch = vars.some(v => idx(v) < _INV_SIZE_ORDER.length);
+  return hasMatch ? vars.slice().sort((a, b) => idx(a) - idx(b)) : vars;
+}
+
 function _invRenderSub(sub) {
   const data = _invData[sub];
   if (!data) return;
@@ -348,7 +360,7 @@ function _invRenderSub(sub) {
     const lastDateHtml = lastAdded
       ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
       : '';
-    const vars = (item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id));
+    const vars = _invSortVars((item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id)));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
     // Pre-pass: collect low-stock variations for this item
