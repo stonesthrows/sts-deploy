@@ -16,7 +16,7 @@ async function etsySync() {
   toast('Syncing Etsy orders…', '🛍');
 
   try {
-    const since = localStorage.getItem(ETSY_SYNC_KEY) || '2020-01-01';
+    const since = localStorage.getItem(ETSY_SYNC_KEY) || new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
     const r     = await fetch(ETSY_PROXY + '?since=' + encodeURIComponent(since));
 
     if (r.status === 401) {
