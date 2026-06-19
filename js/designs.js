@@ -502,7 +502,7 @@ function designsToggleApiKeyPanel() {
 
 // ── Auto-resize textareas ─────────────────────
 function dsnAutoResize(el) {
-  el.style.height = 'auto';
+  el.style.height = '0';
   el.style.height = (el.scrollHeight + 2) + 'px';
 }
 function dsnAutoResizeAll() {
