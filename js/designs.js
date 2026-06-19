@@ -103,6 +103,8 @@ function designsShowLibrary() {
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = '';
   designsCloseGearMenu();
+  const addRow = document.getElementById('dsn-img-add-row');
+  if (addRow) addRow.style.display = 'none';
   designsRenderLibrary();
 }
 
@@ -233,6 +235,8 @@ function designsToggleImageEdit() {
   if (wrap && _designsImgQueue.length > 0) {
     wrap.classList.toggle('edit-mode', _designsImgEditMode);
   }
+  const addRow = document.getElementById('dsn-img-add-row');
+  if (addRow) addRow.style.display = _designsImgEditMode ? '' : 'none';
 }
 
 function designsRemoveImage(idx) {
