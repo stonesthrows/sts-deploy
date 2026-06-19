@@ -376,9 +376,6 @@ function importAllDriveOrders() {
   if (!toImport.length) { toast('No orders selected', 'ℹ'); return; }
 
   const googleToken  = getGoogleToken();
-  const clickupToken = localStorage.getItem('sts-clickup-token');
-  const clickupList  = localStorage.getItem('sts-clickup-list-id');
-
   const stageMap = { order: 'intake-custom', estimate: 'needs-est', repair: 'intake-repair' };
   let seen = [];
   try { seen = JSON.parse(localStorage.getItem(DRIVE_SEEN_KEY) || '[]'); } catch {}
@@ -394,7 +391,6 @@ function importAllDriveOrders() {
       stage:         stageMap[orderType] || 'intake-custom',
       deadline:      d.deadline        || null,
       price:         d.price           || 0,
-      clickup:       'pending',
       email:         d.email           || '',
       phone:         d.phone           || '',
       takeIn:        d.take_in_date    || null,
@@ -430,7 +426,6 @@ function importAllDriveOrders() {
     seen.push(d.drive_file_id);
 
     // Fire-and-forget integrations
-    if (clickupToken && clickupList) createClickUpTask(d, clickupToken, clickupList);
     if (googleToken) createGoogleContact(d, googleToken);
   });
 
@@ -447,39 +442,6 @@ function importAllDriveOrders() {
       : n + ' orders imported to board ✓',
     '✓'
   );
-}
-
-// ── ClickUp integration ──────────────────────
-// Tasks created in the "Custom Orders" list with full contact + order details
-
-async function createClickUpTask(d, token, listId) {
-  const typeMap = { order: 'Custom Order', estimate: 'Estimate Request', repair: 'Repair' };
-  const name    = (d.customer_name || 'Unknown Customer') + ' — ' + (typeMap[d.order_type] || 'Custom Order');
-
-  const lines = [
-    d.email           && 'Email: '       + d.email,
-    d.phone           && 'Phone: '       + d.phone,
-    d.pickup_location && 'Pickup: '      + d.pickup_location,
-    d.contacted_via   && 'Via: '         + d.contacted_via,
-    d.take_in_date    && 'Take-In: '     + d.take_in_date,
-    d.deadline        && 'Deadline: '    + d.deadline,
-    d.price != null   && 'Price: $'      + d.price,
-    '',
-    d.description     && 'Description: ' + d.description,
-    d.materials       && 'Materials: '   + d.materials,
-    d.notes           && 'Notes: '       + d.notes,
-  ].filter(Boolean);
-
-  try {
-    const resp = await fetch('https://api.clickup.com/api/v2/list/' + listId + '/task', {
-      method:  'POST',
-      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name: name, description: lines.join('\n') }),
-    });
-    if (!resp.ok) console.warn('ClickUp task creation failed:', resp.status, await resp.text());
-  } catch (err) {
-    console.warn('ClickUp error:', err);
-  }
 }
 
 // ── Google Contacts integration ──────────────
@@ -564,56 +526,3 @@ function saveIntegrations() {
   toast('Integrations saved ✓', '✓');
 }
 
-// Searches ClickUp workspace for the "Custom Orders" list and fills in the ID automatically
-async function findClickUpListId() {
-  const btn   = document.querySelector('[onclick="findClickUpListId()"]');
-  const token = document.getElementById('int-clickup-token').value.trim() || localStorage.getItem('sts-clickup-token');
-  if (!token) { toast('Enter your ClickUp API token first', '⚠'); return; }
-
-  if (btn) { btn.disabled = true; btn.textContent = '🔍 Searching…'; }
-
-  async function cuFetch(url) {
-    const r = await fetch(url, { headers: { 'Authorization': token } });
-    const j = await r.json();
-    if (!r.ok) throw new Error('ClickUp ' + r.status + ': ' + (j.err || j.error || JSON.stringify(j)));
-    return j;
-  }
-
-  try {
-    const teamsData = await cuFetch('https://api.clickup.com/api/v2/team');
-    if (!teamsData.teams?.length) { toast('No ClickUp workspaces found — check your token', '⚠'); return; }
-
-    const teamId     = teamsData.teams[0].id;
-    const spacesData = await cuFetch('https://api.clickup.com/api/v2/team/' + teamId + '/space?archived=false');
-
-    for (const space of (spacesData.spaces || [])) {
-      // Check space-level lists (lists not in a folder)
-      const spListsData = await cuFetch('https://api.clickup.com/api/v2/space/' + space.id + '/list?archived=false');
-      for (const list of (spListsData.lists || [])) {
-        if (list.name.toLowerCase().includes('custom order')) {
-          document.getElementById('int-clickup-list-id').value = list.id;
-          toast('Found "' + list.name + '" — ID filled in ✓', '✓');
-          return;
-        }
-      }
-      // Check folder lists
-      const foldersData = await cuFetch('https://api.clickup.com/api/v2/space/' + space.id + '/folder?archived=false');
-      for (const folder of (foldersData.folders || [])) {
-        const fListsData = await cuFetch('https://api.clickup.com/api/v2/folder/' + folder.id + '/list?archived=false');
-        for (const list of (fListsData.lists || [])) {
-          if (list.name.toLowerCase().includes('custom order')) {
-            document.getElementById('int-clickup-list-id').value = list.id;
-            toast('Found "' + list.name + '" — ID filled in ✓', '✓');
-            return;
-          }
-        }
-      }
-    }
-    toast('Couldn\'t find "Custom Orders" — paste the List ID manually from the ClickUp URL', 'ℹ');
-  } catch (err) {
-    toast('ClickUp error: ' + err.message, '⚠');
-    console.error('ClickUp search error:', err);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Find my List ID automatically'; }
-  }
-}

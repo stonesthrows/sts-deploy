@@ -1359,11 +1359,13 @@ async function deleteSession(i) {
 function toggleConfig() { $g('config-body').classList.toggle('open'); }
 function saveConfig() {
   CFG.sqToken = $g('sq-token').value.trim(); CFG.sqLocation = $g('sq-location').value.trim()||'D7EZ98V48F79A'; CFG.notionToken = $g('notion-token').value.trim();
-  localStorage.setItem('sts-square-token',CFG.sqToken); localStorage.setItem('sts_sqLocation',CFG.sqLocation); localStorage.setItem('sts_notionToken',CFG.notionToken);
+  localStorage.setItem('sts-square-token',CFG.sqToken); localStorage.setItem('sts-square-location',CFG.sqLocation); localStorage.setItem('sts_notionToken',CFG.notionToken);
   showToast('Config saved'); loadEmployees();
 }
 function loadConfig() {
-  CFG.sqToken = localStorage.getItem('sts-square-token')||''; CFG.sqLocation = localStorage.getItem('sts_sqLocation')||CFG.sqLocation; CFG.notionToken = localStorage.getItem('sts_notionToken')||'';
+  const _legacySqLoc = localStorage.getItem('sts_sqLocation');
+  if (_legacySqLoc && !localStorage.getItem('sts-square-location')) { localStorage.setItem('sts-square-location', _legacySqLoc); localStorage.removeItem('sts_sqLocation'); }
+  CFG.sqToken = localStorage.getItem('sts-square-token')||''; CFG.sqLocation = localStorage.getItem('sts-square-location')||CFG.sqLocation; CFG.notionToken = localStorage.getItem('sts_notionToken')||'';
   $g('sq-token').value=CFG.sqToken; $g('sq-location').value=CFG.sqLocation; $g('notion-token').value=CFG.notionToken;
 }
 

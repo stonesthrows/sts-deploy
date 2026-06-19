@@ -1600,7 +1600,7 @@ function rqSyncShiftsForSession(i) {
     }
     var pStartMs = new Date(s.startTime).getTime();
     var pStopMs  = new Date(s.stopTime).getTime();
-    var sqLoc    = localStorage.getItem('sts_sqLocation') || 'D7EZ98V48F79A';
+    var sqLoc    = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
     _rqSqCall('/labor/shifts/search', {
       method: 'POST',
       body: { query: { filter: { team_member_ids: [empId], location_ids: [sqLoc] } }, limit: 100 },
@@ -1656,7 +1656,7 @@ function rqSyncShiftsForSession(i) {
   }
 
   if (empId) { doSync(empId); return; }
-  _rqSqCall('/team-members?location_ids=' + (localStorage.getItem('sts_sqLocation') || 'D7EZ98V48F79A'))
+  _rqSqCall('/team-members?location_ids=' + (localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A'))
     .then(function(data) {
       var members = (data.team_members || []).filter(function(m) { return m.status === 'ACTIVE'; });
       var match = members.find(function(m) {
