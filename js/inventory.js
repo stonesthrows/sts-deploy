@@ -307,16 +307,26 @@ function _invVarTint(varName) {
 
 // ── Render ───────────────────────────────────
 
-const _INV_SIZE_ORDER = ['xs','x-small','xsmall','extra small','s','sm','small','m','md','med','medium','l','lg','large','xl','x-large','xlarge','extra large','xxl','2xl'];
+const _INV_SIZE_RANK = { 'xs':0,'x-small':0,'xsmall':0,'extra small':0,'s':1,'sm':1,'small':1,'m':2,'md':2,'med':2,'medium':2,'l':3,'lg':3,'large':3,'xl':4,'x-large':4,'xlarge':4,'extra large':4,'xxl':5,'2xl':5 };
 
 function _invSortVars(vars) {
-  const idx = v => {
-    const name = (v.item_variation_data?.name || '').toLowerCase().trim();
-    const i = _INV_SIZE_ORDER.indexOf(name);
-    return i === -1 ? _INV_SIZE_ORDER.length : i;
-  };
-  const hasMatch = vars.some(v => idx(v) < _INV_SIZE_ORDER.length);
-  return hasMatch ? vars.slice().sort((a, b) => idx(a) - idx(b)) : vars;
+  function score(v) {
+    const name = (v.item_variation_data?.name || '').toLowerCase();
+    const gauge = parseFloat(name.match(/(\d+(?:\.\d+)?)g/)?.[1] ?? '999');
+    const words = name.split(/[\s,/]+/);
+    const sizeRank = words.reduce((best, w) => {
+      const r = _INV_SIZE_RANK[w.trim()];
+      return r !== undefined && r < best ? r : best;
+    }, 99);
+    return [gauge, sizeRank, name];
+  }
+  const scored = vars.map(v => ({ v, s: score(v) }));
+  const hasSize = scored.some(x => x.s[1] < 99);
+  const hasGauge = scored.some(x => x.s[0] < 999);
+  if (!hasSize && !hasGauge) return vars;
+  return scored.sort((a, b) =>
+    a.s[0] - b.s[0] || a.s[1] - b.s[1] || a.s[2].localeCompare(b.s[2])
+  ).map(x => x.v);
 }
 
 function _invRenderSub(sub) {
