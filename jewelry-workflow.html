@@ -5135,12 +5135,20 @@
 .dsn-upload-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
 .dsn-upload-btn:hover { background:var(--accent-bg); }
 .dsn-pdf-status { font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;min-height:18px; }
-.dsn-img-previews { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;min-height:20px;align-items:flex-start; }
+.dsn-form-layout { display:grid;grid-template-columns:1fr 250px;gap:24px;align-items:start; }
+.dsn-form-right { position:sticky;top:10px; }
+.dsn-img-col-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
+.dsn-img-edit-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
+.dsn-img-edit-btn:hover { background:var(--accent-bg); }
+.dsn-img-edit-btn.active { background:#c0392b;color:#fff;border-color:#c0392b; }
+.dsn-img-col { display:flex;flex-direction:column;gap:10px;min-height:40px; }
 .dsn-thumb-wrap { position:relative; }
-.dsn-thumb { width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--bdr);cursor:pointer;display:block; }
+.dsn-thumb { width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;border:1px solid var(--bdr);cursor:pointer;display:block; }
 .dsn-thumb:hover { border-color:var(--accent); }
-.dsn-thumb-del { position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#c0392b;color:#fff;border:none;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0; }
+.dsn-thumb-del { position:absolute;top:7px;right:7px;width:28px;height:28px;border-radius:50%;background:rgba(192,57,43,.9);color:#fff;border:2px solid rgba(255,255,255,.7);cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .15s; }
+.dsn-img-col.edit-mode .dsn-thumb-del { opacity:1;pointer-events:auto; }
 .dsn-form-actions { display:flex;gap:8px;padding-top:4px;flex-wrap:wrap; }
+@media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
 /* Lightbox */
 #dsn-img-overlay { position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;align-items:center;justify-content:center; }
 #dsn-img-overlay img { max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain; }
@@ -5179,79 +5187,83 @@
     <div class="dsn-form-header">
       <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
       <div class="dsn-form-title" id="dsn-form-title">✚ New Design</div>
+      <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+        📄 Import PDF
+        <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
+      </label>
       <button id="dsn-delete-btn" class="btn btn-danger btn-sm" style="display:none" onclick="designsDeleteDesign()">Delete</button>
     </div>
 
-    <!-- PDF import -->
-    <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">📄 Import from PDF</div>
-      <div class="dsn-upload-row">
-        <label class="dsn-upload-btn">
-          Choose PDF
-          <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
-        </label>
-        <span style="font-size:12px;color:var(--text3)">Claude AI reads the scanned PDF and fills the fields below.</span>
-      </div>
+    <!-- PDF status + API key (slim area, only visible when active) -->
+    <div style="margin-bottom:10px;">
       <div class="dsn-pdf-status" id="dsn-pdf-status"></div>
-      <!-- API key entry (shown when key not saved) -->
-      <div id="dsn-api-key-row" style="display:none;margin-top:8px;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:5px;">Anthropic API key (saved locally, never leaves your device):</div>
+      <div id="dsn-api-key-row" style="display:none;margin-top:4px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
           <button onclick="designsSaveApiKey()" class="dsn-upload-btn" style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:#fff;border-color:var(--accent)">Save</button>
         </div>
       </div>
-      <!-- Key saved badge -->
-      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);margin-top:8px;">
-        🔑 Anthropic API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';document.getElementById('dsn-api-key-input').focus()">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
+      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);margin-top:4px;">
+        🔑 API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';document.getElementById('dsn-api-key-input').focus()">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
       </div>
     </div>
 
-    <!-- Name -->
-    <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
-    <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
+    <div class="dsn-form-layout">
+      <!-- LEFT: form fields -->
+      <div class="dsn-form-left">
+        <!-- Name -->
+        <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
+        <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
 
-    <!-- Category -->
-    <label class="dsn-field-label">Category</label>
-    <select id="dsn-cat" class="dsn-select">
-      <option value="">— Select category —</option>
-      <option value="Ear Cuffs">Ear Cuffs</option>
-      <option value="Rings">Rings</option>
-      <option value="Earrings">Earrings</option>
-      <option value="Pendants / Necklaces">Pendants / Necklaces</option>
-      <option value="Other">Other</option>
-    </select>
+        <!-- Category -->
+        <label class="dsn-field-label">Category</label>
+        <select id="dsn-cat" class="dsn-select">
+          <option value="">— Select category —</option>
+          <option value="Ear Cuffs">Ear Cuffs</option>
+          <option value="Rings">Rings</option>
+          <option value="Earrings">Earrings</option>
+          <option value="Pendants / Necklaces">Pendants / Necklaces</option>
+          <option value="Other">Other</option>
+        </select>
 
-    <!-- Specs -->
-    <label class="dsn-field-label">Specifications &amp; Materials</label>
-    <textarea id="dsn-specs" class="dsn-textarea" rows="5"
-      placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."
-      oninput="dsnAutoResize(this)"></textarea>
+        <!-- Specs -->
+        <label class="dsn-field-label">Specifications &amp; Materials</label>
+        <textarea id="dsn-specs" class="dsn-textarea" rows="5"
+          placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."
+          oninput="dsnAutoResize(this)"></textarea>
 
-    <!-- Instructions -->
-    <label class="dsn-field-label">Step-by-Step Instructions</label>
-    <textarea id="dsn-instructions" class="dsn-textarea" rows="7"
-      placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."
-      oninput="dsnAutoResize(this)"></textarea>
+        <!-- Instructions -->
+        <label class="dsn-field-label">Step-by-Step Instructions</label>
+        <textarea id="dsn-instructions" class="dsn-textarea" rows="7"
+          placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."
+          oninput="dsnAutoResize(this)"></textarea>
 
-    <!-- Images -->
-    <label class="dsn-field-label">Reference Images</label>
-    <div class="dsn-img-previews" id="dsn-img-previews">
-      <span style="color:var(--text3);font-size:12px">No images yet</span>
-    </div>
-    <div class="dsn-upload-row" style="margin-bottom:16px;">
-      <label class="dsn-upload-btn">
-        + Add Images
-        <input type="file" accept="image/*" multiple style="display:none"
-          onchange="designsHandleImages(this.files);this.value=''">
-      </label>
-      <span style="font-size:12px;color:var(--text3)">JPEG, PNG, HEIC — up to 10 images per design</span>
-    </div>
+        <!-- Actions -->
+        <div class="dsn-form-actions">
+          <button class="btn btn-gold" style="flex:1" onclick="designsSaveDesign()">💾 Save Design</button>
+          <button class="btn btn-outline" onclick="designsShowLibrary()">Cancel</button>
+        </div>
+      </div>
 
-    <!-- Actions -->
-    <div class="dsn-form-actions">
-      <button class="btn btn-gold" style="flex:1" onclick="designsSaveDesign()">💾 Save Design</button>
-      <button class="btn btn-outline" onclick="designsShowLibrary()">Cancel</button>
+      <!-- RIGHT: reference images -->
+      <div class="dsn-form-right">
+        <div class="dsn-img-col-header">
+          <label class="dsn-field-label" style="margin:0">Reference Images</label>
+          <button class="dsn-img-edit-btn" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">✏ Edit</button>
+        </div>
+        <div class="dsn-img-col" id="dsn-img-previews">
+          <span style="color:var(--text3);font-size:12px">No images yet</span>
+        </div>
+        <div class="dsn-upload-row" style="margin-top:10px;">
+          <label class="dsn-upload-btn">
+            + Add Images
+            <input type="file" accept="image/*" multiple style="display:none"
+              onchange="designsHandleImages(this.files);this.value=''">
+          </label>
+          <div style="font-size:11px;color:var(--text3)">JPEG, PNG, HEIC — up to 10</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
