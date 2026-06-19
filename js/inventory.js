@@ -294,6 +294,13 @@ async function _invLoadSub(sub) {
 
 function _invVarTint(varName) {
   const n = varName.toLowerCase();
+  const orbMatch = n.match(/(\d+)\s+orbs?/);
+  if (orbMatch) {
+    const orbs = parseInt(orbMatch[1]);
+    if (orbs === 1) return '#EEF4FD';
+    if (orbs === 2) return '#EEF7F1';
+    if (orbs === 3) return '#FDF5EE';
+  }
   const isSingle = n.includes('single');
   const isDouble = n.includes('double');
   const isGF     = n.includes(' gf') || n.includes('gold fill');
@@ -310,6 +317,19 @@ function _invVarTint(varName) {
 const _INV_SIZE_RANK = { 'xs':0,'x-small':0,'xsmall':0,'extra small':0,'s':1,'sm':1,'small':1,'m':2,'md':2,'med':2,'medium':2,'l':3,'lg':3,'large':3,'xl':4,'x-large':4,'xlarge':4,'extra large':4,'xxl':5,'2xl':5 };
 
 function _invSortVars(vars) {
+  // Orb-count sort: "1 orb, Small" / "2 orbs, Large" etc.
+  if (vars.some(v => /\d+\s+orbs?/i.test(v.item_variation_data?.name || ''))) {
+    return [...vars].sort((a, b) => {
+      const na = (a.item_variation_data?.name || '').toLowerCase();
+      const nb = (b.item_variation_data?.name || '').toLowerCase();
+      const orbA = parseInt(na.match(/(\d+)\s+orbs?/)?.[1] ?? '99');
+      const orbB = parseInt(nb.match(/(\d+)\s+orbs?/)?.[1] ?? '99');
+      const sizeA = na.includes('small') ? 0 : na.includes('large') ? 1 : 2;
+      const sizeB = nb.includes('small') ? 0 : nb.includes('large') ? 1 : 2;
+      return orbA - orbB || sizeA - sizeB || na.localeCompare(nb);
+    });
+  }
+
   function score(v) {
     const name = (v.item_variation_data?.name || '').toLowerCase();
     const gauge = parseFloat(name.match(/(\d+(?:\.\d+)?)g/)?.[1] ?? '999');
