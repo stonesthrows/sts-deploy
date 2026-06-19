@@ -303,18 +303,22 @@ async function designsDeleteDesign() {
   }
 }
 
-// ── Thumbnail generator (80px, low-res for index) ──
+// ── Thumbnail generator (300px square crop, for index card) ──
 function _designsMakeThumb(src) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
       const c = document.createElement('canvas');
-      const SIZE  = 80;
-      const scale = SIZE / Math.max(img.width, img.height);
-      c.width  = Math.round(img.width  * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      resolve(c.toDataURL('image/jpeg', 0.7));
+      const SIZE  = 300;
+      // scale so the shorter side fills SIZE (cover behavior)
+      const scale = SIZE / Math.min(img.width, img.height);
+      const sw = Math.round(img.width  * scale);
+      const sh = Math.round(img.height * scale);
+      c.width  = SIZE;
+      c.height = SIZE;
+      // center-crop
+      c.getContext('2d').drawImage(img, -(sw - SIZE) / 2, -(sh - SIZE) / 2, sw, sh);
+      resolve(c.toDataURL('image/jpeg', 0.85));
     };
     img.onerror = () => resolve(null);
     img.src = src;
