@@ -57,12 +57,6 @@ async function etsySync() {
         orderType:     'order',
         contactSource: 'Etsy Message',
         takeInDate:    eo.createdAt ? eo.createdAt.slice(0, 10) : '',
-        addrStreet:    eo.addrStreet,
-        addrStreet2:   eo.addrStreet2,
-        addrCity:      eo.addrCity,
-        addrState:     eo.addrState,
-        addrZip:       eo.addrZip,
-        addrCountry:   eo.addrCountry,
       };
       ORDERS.push(order);
       const notionId = await notionCreateOrder(order);
