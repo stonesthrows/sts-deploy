@@ -400,7 +400,7 @@ function _invRenderSub(sub) {
         </div>
       </div>`;
 
-    vars.forEach(v => {
+    vars.forEach((v, rowIdx) => {
       const varName   = v.item_variation_data?.name || '';
       const varId     = v.id;
       const sqQty     = counts[varId] ?? null;
@@ -412,7 +412,7 @@ function _invRenderSub(sub) {
       const varSafe   = _esc(varName).replace(/'/g, '&#39;');
       const threshold = _invGetThreshold(varId);
       const isLow     = sqQty !== null && sqQty < threshold;
-      const rowTint   = _invVarTint(varName);
+      const rowTint   = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '');
 
       html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
