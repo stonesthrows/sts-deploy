@@ -5186,11 +5186,12 @@
   <div id="designs-form-wrap" style="display:none">
     <div class="dsn-form-header">
       <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
-      <div class="dsn-form-title" id="dsn-form-title">✚ New Design</div>
+      <div style="flex:1"></div>
       <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
         📄 Import PDF
         <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value=''">
       </label>
+      <button class="btn btn-gold btn-sm" onclick="designsSaveDesign()">💾 Save Design</button>
       <button id="dsn-delete-btn" class="btn btn-danger btn-sm" style="display:none" onclick="designsDeleteDesign()">Delete</button>
     </div>
 
@@ -5239,11 +5240,6 @@
           placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."
           oninput="dsnAutoResize(this)"></textarea>
 
-        <!-- Actions -->
-        <div class="dsn-form-actions">
-          <button class="btn btn-gold" style="flex:1" onclick="designsSaveDesign()">💾 Save Design</button>
-          <button class="btn btn-outline" onclick="designsShowLibrary()">Cancel</button>
-        </div>
       </div>
 
       <!-- RIGHT: reference images -->

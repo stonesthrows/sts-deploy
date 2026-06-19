@@ -191,7 +191,6 @@ function designsRenderForm() {
   _designsImgQueue = design ? [...(design.images || [])] : [];
   designsRenderImagePreviews();
 
-  document.getElementById('dsn-form-title').textContent = isEdit ? '✏️ Edit Design' : '✚ New Design';
   const delBtn = document.getElementById('dsn-delete-btn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
 
