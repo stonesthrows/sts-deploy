@@ -30,6 +30,7 @@ const STAGE_TO_NOTION = {
   'deposit-paid':   'Deposit Paid',
   'order-mat':      'Order Materials',
   'materials':      'Waiting on Materials',
+  'wait-cust-ship': 'Waiting on Customer Shipment',
   'build':          'At the Bench',
   'contact-need':   'Need to Contact Customer',
   'contact-done':   'Contacted Customer',

@@ -240,13 +240,13 @@ function renderSales() {
     stageMap[o.stage].count++;
     stageMap[o.stage].value += (o.price||0);
   });
-  var stageOrder = ['inquiry','sketch','needs-est','quote','wait-cust','est-appr','deposit-wait','deposit-paid','order-mat','materials','build','ready-pick','complete'];
+  var stageOrder = ['inquiry','sketch','needs-est','quote','wait-cust','est-appr','deposit-wait','deposit-paid','order-mat','materials','wait-cust-ship','build','ready-pick','complete'];
   var stageLabels = {
     'inquiry':'Inquiry','sketch':'Sketch','needs-est':'Needs Estimate','quote':'Estimate Sent',
     'wait-cust':'Waiting on Customer','est-appr':'Estimate Approved',
     'deposit-wait':'Waiting on Deposit','deposit-paid':'Deposit Paid',
     'order-mat':'Order Materials',
-    'materials':'Waiting on Materials','build':'At the Bench','ready-pick':'Ready for Pickup','complete':'Completed'
+    'materials':'Waiting on Materials','wait-cust-ship':'Waiting on Customer Shipment','build':'At the Bench','ready-pick':'Ready for Pickup','complete':'Completed'
   };
   var maxVal = 1;
   stageOrder.forEach(function(s){ if (stageMap[s]) maxVal = Math.max(maxVal, stageMap[s].value); });

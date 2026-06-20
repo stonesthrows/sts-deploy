@@ -21,6 +21,7 @@ const STAGES = [
   { id:'deposit-paid',   label:'Deposit Paid',                 cls:'s-deposit-paid'   },
   { id:'order-mat',      label:'Order Materials',              cls:'s-order-mat'      },
   { id:'materials',      label:'Waiting on Materials',         cls:'s-materials'      },
+  { id:'wait-cust-ship', label:'Waiting on Customer Shipment', cls:'s-wait-cust-ship' },
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
   { id:'etsy-bench',    label:'Etsy Order',                   cls:'s-etsy-bench'     },
   { id:'contact-need',   label:'Need to Contact Customer',     cls:'s-contact-need'   },
@@ -59,8 +60,9 @@ const COLUMN_GROUPS = [
     { id:'deposit-paid', cls:'s-deposit-paid', label:'Deposit Paid'       },
   ]},
   { label:'Materials',    cls:'s-materials-group', stages:[
-    { id:'order-mat',  cls:'s-order-mat',  label:'Order Materials'      },
-    { id:'materials',  cls:'s-materials',  label:'Waiting on Materials' },
+    { id:'order-mat',      cls:'s-order-mat',      label:'Order Materials'              },
+    { id:'materials',      cls:'s-materials',      label:'Waiting on Materials'         },
+    { id:'wait-cust-ship', cls:'s-wait-cust-ship', label:'Waiting on Customer Shipment' },
   ]},
   { label:'At the Bench', cls:'s-build',           stages:[
     {id:'build',      cls:'s-build',      label:'At the Bench'},
