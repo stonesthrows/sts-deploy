@@ -166,6 +166,7 @@ function renderProduction() {
           + '<span class="prod-col-count" style="background:' + col.color + '">' + colOrders.length + '</span>'
           + '</div>';
     html += '<div class="prod-col-body"'
+          + ' data-col-key="' + col.key + '"'
           + ' ondragover="prodDragOver(event)"'
           + ' ondragleave="prodDragLeave(event)"'
           + ' ondrop="prodDrop(event,\'' + col.key + '\')">';
@@ -319,6 +320,7 @@ function prodOrderCardHTML(o, showDeliverBtn) {
            + ' draggable="true"'
            + ' ondragstart="prodDragStart(event,\'' + o.id + '\')"'
            + ' ondragend="prodDragEnd(event)"'
+           + (showDeliverBtn ? ' onpointerdown="cardPointerDown(event,\'' + o.id + '\',\'prod\')"' : '')
            + ' onclick="openOrderCard(\'' + o.id + '\')">';
   html += '<div class="prod-card-drag-handle" title="Drag to move">⠿</div>';
   if (showDeliverBtn) {

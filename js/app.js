@@ -33,6 +33,105 @@ function toast(msg, icon='✓') {
 
 // ════════════════════════════════════════════
 
+//  TOUCH DRAG  —  Trello-for-iPad style long-press finger drag
+//  Native HTML5 drag-and-drop (ondragstart/ondragover) never fires for
+//  touch pointers, so the kanban + Ready-to-Ship boards get this separate
+//  pointer-events implementation. It only engages for touch/pen pointers
+//  while the viewport is in the iPad band (769–1024px, see CSS) — outside
+//  that band it's a no-op: phone keeps the tap-to-move sheet, desktop
+//  keeps native mouse drag-and-drop.
+// ════════════════════════════════════════════
+const TOUCH_DRAG_DROP_SEL = '.k-body, .prod-col-body';
+const TOUCH_DRAG_LONGPRESS_MS = 300;
+const TOUCH_DRAG_MOVE_TOLERANCE = 10;
+
+function isIpadDragWidth() {
+  return window.innerWidth > 768 && window.innerWidth <= 1024;
+}
+
+function _touchDragHighlight(bodyEl, on) {
+  const cls = bodyEl.classList.contains('prod-col-body') ? 'prod-drag-over' : 'drag-over';
+  bodyEl.classList.toggle(cls, on);
+}
+
+function cardPointerDown(ev, orderId, kind) {
+  if (ev.pointerType === 'mouse' || !isIpadDragWidth()) return;
+  const card = ev.currentTarget;
+  const startX = ev.clientX, startY = ev.clientY;
+  let dragging = false, ghost = null, longPressTimer, lastBody = null;
+
+  function onMove(mv) {
+    if (!dragging) {
+      if (Math.abs(mv.clientX - startX) > TOUCH_DRAG_MOVE_TOLERANCE ||
+          Math.abs(mv.clientY - startY) > TOUCH_DRAG_MOVE_TOLERANCE) clearTimeout(longPressTimer);
+      return;
+    }
+    mv.preventDefault();
+    ghost.style.left = (mv.clientX - ghost._w / 2) + 'px';
+    ghost.style.top  = (mv.clientY - ghost._h / 2) + 'px';
+    const under = document.elementFromPoint(mv.clientX, mv.clientY);
+    const body  = under && under.closest(TOUCH_DRAG_DROP_SEL);
+    if (body !== lastBody) {
+      if (lastBody) _touchDragHighlight(lastBody, false);
+      if (body) _touchDragHighlight(body, true);
+      lastBody = body;
+    }
+  }
+
+  function endDrag(up) {
+    clearTimeout(longPressTimer);
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
+    if (!dragging) return;
+    card.style.opacity = '';
+    if (lastBody) _touchDragHighlight(lastBody, false);
+    if (ghost) { ghost.remove(); ghost = null; }
+    const under = up && document.elementFromPoint(up.clientX, up.clientY);
+    const body  = under && under.closest(TOUCH_DRAG_DROP_SEL);
+    if (body) touchDragResolveMove(kind, orderId, body);
+    // A real drag shouldn't also open the order card behind it — swallow the
+    // synthetic click that follows pointerup.
+    card.addEventListener('click', ce => { ce.stopPropagation(); ce.preventDefault(); }, { capture: true, once: true });
+  }
+
+  function startDrag() {
+    dragging = true;
+    card.style.opacity = '0.4';
+    const rect = card.getBoundingClientRect();
+    ghost = card.cloneNode(true);
+    ghost.className = 'drag-ghost';
+    ghost.style.width  = rect.width + 'px';
+    ghost._w = rect.width;
+    ghost._h = rect.height;
+    ghost.style.left = (startX - rect.width / 2) + 'px';
+    ghost.style.top  = (startY - rect.height / 2) + 'px';
+    document.body.appendChild(ghost);
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  longPressTimer = setTimeout(startDrag, TOUCH_DRAG_LONGPRESS_MS);
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+}
+
+function touchDragResolveMove(kind, orderId, bodyEl) {
+  const order = ORDERS.find(o => o.id === orderId);
+  if (!order) return;
+  if (kind === 'kanban') {
+    const stageId = bodyEl.dataset.stageId;
+    if (!stageId) return;
+    if (bodyEl.dataset.pickup) order.pickup = bodyEl.dataset.pickup;
+    applyStageChange(order, stageId);
+  } else if (kind === 'prod' && typeof prodApplyMove === 'function') {
+    const colKey = bodyEl.dataset.colKey;
+    if (colKey) prodApplyMove(order, colKey);
+  }
+}
+
+// ════════════════════════════════════════════
+
 //  TAB SWITCHING
 // ════════════════════════════════════════════
 // Top-level tabs that have NO sub-nav (direct panels)

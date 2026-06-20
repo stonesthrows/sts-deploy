@@ -3459,14 +3459,12 @@
   }
 
   /* ═══════════════════════════════════════════════════
-     KANBAN + READY-TO-SHIP BOARDS — TOUCH / MOBILE  (≤ 1024px —
-     covers phones plus iPad portrait AND landscape, since native
-     HTML5 drag-and-drop doesn't fire on touch regardless of
-     viewport width). One column full-width per "page", swipe/
-     scroll snap between them. Dragging is replaced by the
-     tap-to-move sheet (shared by orders.js and production.js).
+     KANBAN + READY-TO-SHIP BOARDS — PHONE  (≤ 768px)
+     One column full-width per "page", swipe/scroll snap between
+     them. Dragging is replaced by the tap-to-move sheet (shared
+     by orders.js and production.js).
   ═══════════════════════════════════════════════════ */
-  @media (max-width: 1024px) {
+  @media (max-width: 768px) {
     .kanban-board {
       scroll-snap-type: x mandatory;
       gap: 0;
@@ -3480,7 +3478,6 @@
     .o-card { cursor: pointer; }
     .card-move-btn { display: flex; }
 
-    /* Ready to Pickup/Ship (production.js board) — same swipe-snap + tap-to-move treatment */
     .prod-board {
       scroll-snap-type: x mandatory;
       gap: 0;
@@ -3492,6 +3489,26 @@
       scroll-snap-align: start;
     }
     .prod-move-btn { display: flex; }
+  }
+
+  /* ═══════════════════════════════════════════════════
+     KANBAN + READY-TO-SHIP BOARDS — iPAD  (769px–1024px,
+     portrait AND landscape)
+     Trello-for-iPad style: several columns visible at once,
+     horizontal scroll for the rest, and a real long-press finger
+     drag between columns (native HTML5 drag-and-drop never fires
+     on touch, so this is a separate pointer-events implementation
+     — see cardPointerDown() in app.js). No tap-to-move button here;
+     the drag replaces it, same as the desktop mouse-drag board.
+  ═══════════════════════════════════════════════════ */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .kanban-board { gap: 8px; }
+    .k-col { flex: 0 0 240px; width: 240px; min-width: 240px; }
+    .o-card { cursor: grab; touch-action: none; }
+
+    .prod-board { gap: 8px; }
+    .prod-col { flex: 0 0 210px; width: 210px; min-width: 210px; }
+    .prod-order-card { cursor: grab; touch-action: none; }
   }
 
   /* ── Stage sheet (tap-to-move, mobile) ───────────────── */

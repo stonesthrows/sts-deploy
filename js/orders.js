@@ -66,6 +66,8 @@ function renderKanban() {
           <div class="k-sub-wrap s-pickup-sub">
             <div class="k-sub-head">📍 ${loc}<span class="k-sub-count">${locCards.length}</span></div>
             <div class="k-body"
+                 data-stage-id="${stageId}"
+                 data-pickup="${loc.replace(/"/g,'&quot;')}"
                  ondragover="dragOver(event)"
                  ondragleave="dragLeave(event)"
                  ondrop="dropWithPickup(event,'${stageId}','${loc.replace(/'/g,"\\'")}')">
@@ -80,6 +82,7 @@ function renderKanban() {
           <div class="k-sub-wrap s-pickup-sub">
             <div class="k-sub-head">📍 Unassigned<span class="k-sub-count">${unassigned.length}</span></div>
             <div class="k-body"
+                 data-stage-id="${group.stages[0].id}"
                  ondragover="dragOver(event)"
                  ondragleave="dragLeave(event)"
                  ondrop="drop(event,'${group.stages[0].id}')">
@@ -97,6 +100,7 @@ function renderKanban() {
           <div class="k-sub-wrap ${stage.cls}">
             <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
             <div class="k-body"
+                 data-stage-id="${stage.id}"
                  ondragover="dragOver(event)"
                  ondragleave="dragLeave(event)"
                  ondrop="drop(event,'${stage.id}')">
@@ -120,6 +124,7 @@ function renderKanban() {
           <div class="k-sub-wrap ${stage.cls}">
             <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
             <div class="k-body"
+                 data-stage-id="${stage.id}"
                  ondragover="dragOver(event)"
                  ondragleave="dragLeave(event)"
                  ondrop="drop(event,'${stage.id}')">
@@ -148,6 +153,7 @@ function renderKanban() {
           <span class="k-count">${totalCount}</span>
         </div>
         <div class="k-body"
+             data-stage-id="${stageId}"
              ondragover="dragOver(event)"
              ondragleave="dragLeave(event)"
              ondrop="drop(event,'${stageId}')">
@@ -192,6 +198,7 @@ function cardHTML(o) {
          draggable="true"
          ondragstart="dragStart(event,'${o.id}')"
          ondragend="dragEnd(event)"
+         onpointerdown="cardPointerDown(event,'${o.id}','kanban')"
          onclick="openOrderCard('${o.id}')">
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
