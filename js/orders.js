@@ -862,9 +862,26 @@ function removePhoto() {
 async function retrySyncOrder(id) {
   const order = ORDERS.find(o => o.id === id);
   if (!order || order.notionId) return;
-  if (typeof notionCreateOrder !== 'function') return;
   toast('Retrying Notion sync…', '⟳');
-  const notionId = await notionCreateOrder(order);
+
+  let notionId = null, errMsg = '';
+  try {
+    const r = await fetch('/api/notion-pipeline', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(order),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      notionId = d.notionId || null;
+      if (!notionId) errMsg = 'No notionId in response (status ' + r.status + ')';
+    } else {
+      errMsg = 'HTTP ' + r.status + ': ' + (d.error || JSON.stringify(d) || 'unknown error');
+    }
+  } catch(e) {
+    errMsg = 'Network error: ' + (e && e.message ? e.message : String(e));
+  }
+
   if (notionId) {
     order.notionId = notionId;
     saveToStorage();
@@ -873,7 +890,8 @@ async function retrySyncOrder(id) {
     toast('✓ Synced to Notion', '✓');
   } else {
     if (typeof setConnStatus === 'function') setConnStatus(false);
-    toast('⚠ Still failing — check your connection and try again', '⚠');
+    console.error('retrySyncOrder failed:', errMsg);
+    alert('Notion sync failed:\n\n' + errMsg);
   }
 }
 
