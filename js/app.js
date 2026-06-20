@@ -46,7 +46,12 @@ const TOUCH_DRAG_LONGPRESS_MS = 300;
 const TOUCH_DRAG_MOVE_TOLERANCE = 10;
 
 function isIpadDragWidth() {
-  return window.innerWidth > 768 && window.innerWidth <= 1024;
+  // Touch-capability check, not a width range — a 12.9" iPad Pro is 1366px
+  // wide in landscape, so any fixed upper bound keeps missing some iPad
+  // size/orientation. A real desktop window has a mouse (hover:hover) even
+  // at that same width, so this stays false there regardless of width.
+  return window.innerWidth > 768 &&
+    window.matchMedia('(pointer: coarse) and (hover: none)').matches;
 }
 
 function _touchDragHighlight(bodyEl, on) {

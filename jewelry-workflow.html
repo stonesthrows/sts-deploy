@@ -3500,8 +3500,13 @@
      on touch, so this is a separate pointer-events implementation
      — see cardPointerDown() in app.js). No tap-to-move button here;
      the drag replaces it, same as the desktop mouse-drag board.
+     Gated on touch capability (pointer:coarse, hover:none) rather
+     than a width range — a 12.9" iPad Pro is 1366px wide in
+     landscape, well past any reasonable phone/tablet width cutoff,
+     while a real desktop window at that same width has a mouse
+     (hover:hover) and should keep the native drag-and-drop board.
   ═══════════════════════════════════════════════════ */
-  @media (min-width: 769px) and (max-width: 1024px) {
+  @media (min-width: 769px) and (pointer: coarse) and (hover: none) {
     .kanban-board { gap: 8px; }
     .k-col { flex: 0 0 240px; width: 240px; min-width: 240px; }
     .o-card { cursor: grab; touch-action: none; }
