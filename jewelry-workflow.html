@@ -1204,6 +1204,20 @@
       padding: 0;
     }
     .card-print-btn:hover { background: #E4DDD4; border-color: var(--accent); }
+    .card-move-btn {
+      display: none; /* shown only on mobile — drag-and-drop doesn't work via touch */
+      width: 24px; height: 24px;
+      background: #F0EBE3;
+      border: 1px solid #DDD5CC;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.12s, border-color 0.12s;
+      padding: 0;
+    }
+    .card-move-btn:hover { background: #E4DDD4; border-color: var(--accent); }
     .card-photo {
       margin: 7px 0 4px;
       border-radius: 6px;
@@ -2425,13 +2439,12 @@
     .rq-push-item-ok { color: #3A7A4A; font-size: 11px; flex-shrink: 0; }
     .rq-no-sq { font-size: 10px; color: var(--text3); flex-shrink: 0; font-style: italic; }
     /* ── Production Report ── */
-    .prod-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .prod-report-table th {
-      text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
-      text-transform: uppercase; color: var(--text3); padding: 8px 10px; border-bottom: 2px solid var(--bdr);
+    .prod-report-summary {
+      display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text2);
+      background: var(--hover); border: 1px solid var(--bdr-light); border-radius: 8px;
+      padding: 8px 12px; font-weight: 600;
     }
-    .prod-report-table td { padding: 9px 10px; border-bottom: 1px solid var(--bdr-light); color: var(--text); }
-    .prod-report-table tfoot td { font-weight: 700; border-top: 2px solid var(--bdr); border-bottom: none; padding-top: 10px; }
+    .prod-report-summary b { color: var(--text); }
     /* ── Setup panel (Square search before timer starts) ── */
     .rq-setup-panel {
       margin-top: 10px; border-top: 1px solid var(--accent-border);
@@ -3385,9 +3398,6 @@
     /* Sales row 2-col → 1-col */
     .sales-row { grid-template-columns: 1fr; }
 
-    /* Kanban: keep h-scroll, just reduce column width slightly */
-    .k-col { min-width: 172px; width: 172px; }
-
     /* New-order form: 2-col → 1-col */
     .form-grid { grid-template-columns: 1fr; }
     .form-body { padding: 16px 14px; }
@@ -3438,6 +3448,79 @@
     /* Toast positioning */
     .toast { left: 12px; right: 12px; min-width: 0; max-width: 100%; }
   }
+
+  /* ═══════════════════════════════════════════════════
+     KANBAN — TOUCH / MOBILE  (≤ 1024px — covers phones plus
+     iPad portrait AND landscape, since native HTML5 drag-and-drop
+     doesn't fire on touch regardless of viewport width)
+     One column-group full-width per "page", swipe/scroll snap
+     between them. Dragging is replaced by the tap-to-move sheet.
+  ═══════════════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+    .kanban-board {
+      scroll-snap-type: x mandatory;
+      gap: 0;
+    }
+    .k-col {
+      flex: 0 0 100%;
+      width: 100%;
+      min-width: 100%;
+      scroll-snap-align: start;
+    }
+    .o-card { cursor: pointer; }
+    .card-move-btn { display: flex; }
+  }
+
+  /* ── Stage sheet (tap-to-move, mobile) ───────────────── */
+  .stage-sheet-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 950;
+  }
+  .stage-sheet-overlay.active { display: block; }
+  .stage-sheet {
+    display: none;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-height: 75vh;
+    background: var(--card-bg);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,.18);
+    z-index: 951;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .stage-sheet.active { display: flex; }
+  .stage-sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--bdr);
+    flex-shrink: 0;
+  }
+  .stage-sheet-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .stage-sheet-close {
+    background: none; border: none; font-size: 22px; line-height: 1;
+    color: var(--text-dim); cursor: pointer; padding: 0 2px;
+  }
+  .stage-sheet-body { overflow-y: auto; padding: 6px 0 18px; }
+  .ss-group-label {
+    padding: 10px 18px 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .ss-option {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%;
+    padding: 12px 18px;
+    background: none; border: none;
+    font-size: 13.5px; font-weight: 600; color: var(--text);
+    cursor: pointer; text-align: left;
+  }
+  .ss-option:active { background: var(--bg); }
+  .ss-option.ss-current { color: var(--accent); }
+  .ss-check { font-size: 14px; color: var(--accent); visibility: hidden; }
+  .ss-option.ss-current .ss-check { visibility: visible; }
 
   /* ═══════════════════════════════════════════════════
      SIDEBAR NAV REDESIGN (fable-redesign branch)
@@ -4036,6 +4119,15 @@
   </div>
 
   <div class="kanban-board" id="kanbanBoard"></div>
+
+  <div class="stage-sheet-overlay" id="stageSheetOverlay" onclick="closeStageSheet()"></div>
+  <div class="stage-sheet" id="stageSheet">
+    <div class="stage-sheet-head">
+      <span class="stage-sheet-title" id="stageSheetTitle">Move order</span>
+      <button class="stage-sheet-close" onclick="closeStageSheet()">&times;</button>
+    </div>
+    <div class="stage-sheet-body" id="stageSheetBody"></div>
+  </div>
 
 </div>
 
@@ -7057,7 +7149,9 @@ function savePrintSetup() {
     <h2 class="rq-header-title">📊 Production Report</h2>
     <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="rqRenderProductionReport(true)">⟳ Refresh</button>
   </div>
-  <div id="prod-report-body" style="padding:16px 20px;">
+  <div id="prod-report-rates" style="padding:8px 20px 0;"></div>
+  <div id="prod-report-summary" style="padding:8px 20px 0;"></div>
+  <div id="prod-report-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:8px;">
     <div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>
   </div>
 </div>

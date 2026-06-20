@@ -203,6 +203,9 @@ function cardHTML(o) {
           <button class="card-print-btn"
                   title="Print work order"
                   onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
+          <button class="card-move-btn"
+                  title="Move to another stage"
+                  onclick="event.stopPropagation(); openStageSheet('${o.id}')">↪</button>
           <span class="o-chevron"
                 title="Expand / Collapse"
                 onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
@@ -711,24 +714,65 @@ function dragLeave(ev) {
   ev.currentTarget.classList.remove('drag-over');
 }
 
+function applyStageChange(order, stageId) {
+  order.stage = stageId;
+  if (stageId === 'complete') completedHidden.add(order.id);
+  if (stageId === 'contact-done' && !order.contactedAt) {
+    order.contactedAt = new Date().toISOString().slice(0, 10);
+  }
+  updateCompletedToggle();
+  renderKanban();
+  // Sync stage to Notion immediately (fire-and-forget)
+  if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
+  saveToStorage();
+}
+
 function drop(ev, stageId) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('drag-over');
   if (!draggedId) return;
   const order = ORDERS.find(o => o.id === draggedId);
-  if (order) {
-    order.stage = stageId;
-    if (stageId === 'complete') completedHidden.add(order.id);
-    if (stageId === 'contact-done' && !order.contactedAt) {
-      order.contactedAt = new Date().toISOString().slice(0, 10);
-    }
-    updateCompletedToggle();
-    renderKanban();
-    // Sync stage to Notion immediately (fire-and-forget)
-    if (typeof notionUpdateStage === 'function') notionUpdateStage(order.notionId, stageId);
-    saveToStorage();
-  }
+  if (order) applyStageChange(order, stageId);
   draggedId = null;
+}
+
+// ════════════════════════════════════════════
+
+//  STAGE SHEET  (mobile tap-to-move, replaces drag-drop on touch)
+// ════════════════════════════════════════════
+let stageSheetOrderId = null;
+
+function openStageSheet(id) {
+  const order = ORDERS.find(o => o.id === id);
+  if (!order) return;
+  stageSheetOrderId = id;
+
+  document.getElementById('stageSheetTitle').textContent = `Move "${order.name}"`;
+  const body = document.getElementById('stageSheetBody');
+  body.innerHTML = COLUMN_GROUPS.map(group => `
+    <div class="ss-group-label">${group.label}</div>
+    ${group.stages.map(stage => `
+      <button class="ss-option ${order.stage === stage.id ? 'ss-current' : ''}"
+              onclick="pickStageFromSheet('${stage.id}')">
+        <span>${stage.label}</span>
+        <span class="ss-check">✓</span>
+      </button>`).join('')}
+  `).join('');
+
+  document.getElementById('stageSheetOverlay').classList.add('active');
+  document.getElementById('stageSheet').classList.add('active');
+}
+
+function closeStageSheet() {
+  document.getElementById('stageSheetOverlay').classList.remove('active');
+  document.getElementById('stageSheet').classList.remove('active');
+  stageSheetOrderId = null;
+}
+
+function pickStageFromSheet(stageId) {
+  const order = ORDERS.find(o => o.id === stageSheetOrderId);
+  if (order) applyStageChange(order, stageId);
+  closeStageSheet();
 }
 
 function dropWithPickup(ev, stageId, location) {
