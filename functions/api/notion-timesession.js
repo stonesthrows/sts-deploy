@@ -41,12 +41,35 @@ export async function onRequestPatch(context) {
   if (s.itemsJson      != null) props['Items JSON']        = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
   if (s.pushedToSquare != null) props['Pushed to Square']  = { checkbox: !!s.pushedToSquare };
   if (s.itemName       != null) props['Item Name']         = { rich_text: [{ text: { content: (s.itemName||'').slice(0,2000) } }] };
-  var res = await fetch(NOTION_API + '/pages/' + s.pageId, {
-    method: 'PATCH',
-    headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ properties: props }),
-  });
+
+  async function notionPatch(properties) {
+    return fetch(NOTION_API + '/pages/' + s.pageId, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ properties }),
+    });
+  }
+
+  var res  = await notionPatch(props);
   var data = await res.json();
+
+  // If Notion rejected because one of the newer optional properties doesn't exist
+  // on this database yet, retry with just the core fields so the rest still saves.
+  if (!res.ok && data.message && (s.itemsJson != null || s.pushedToSquare != null || s.itemName != null || s.pieces != null)) {
+    var core = {};
+    if (s.notes     != null) core['Notes']                      = props['Notes'];
+    if (s.stopTime  != null) core['Stop Time']                  = props['Stop Time'];
+    if (s.startTime != null) core['Start Time']                 = props['Start Time'];
+    if (s.totalMin  != null) core['Duration (min)']             = props['Duration (min)'];
+    if (s.dedMin    != null) core['Clocked-Out Deducted (min)'] = props['Clocked-Out Deducted (min)'];
+    if (s.netMin    != null) core['Net Work Time (min)']        = props['Net Work Time (min)'];
+    res  = await notionPatch(core);
+    data = await res.json();
+    if (res.ok) {
+      return jsonResp({ ok: true, warning: 'Saved core fields only — add "Items JSON" (Text), "Pushed to Square" (Checkbox), and confirm "Item Name" (Text) properties in the Notion database to save piece counts and Square links.' });
+    }
+  }
+
   if (!res.ok) return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
   return jsonResp({ ok: true });
 }

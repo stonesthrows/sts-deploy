@@ -1177,12 +1177,14 @@ function rqStopTimer(pid) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patchBody),
-  }).then(function(r) {
-    session.saved = r.ok;
-    session.error = r.ok ? null : 'Notion error';
+  }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+  .then(function(res) {
+    session.saved = res.ok;
+    session.error = res.ok ? null : 'Notion error';
     rqRenderSessions();
-    if (r.ok) toast('Session saved ✓', '✓');
-    else toast('Notion save failed', '⚠');
+    if (!res.ok) { toast('Notion save failed', '⚠'); return; }
+    if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
+    toast('Session saved ✓', '✓');
   }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
 }
 
@@ -1877,7 +1879,12 @@ function rqSaveEditSession(i) {
   patch.itemsJson = JSON.stringify(updatedItems);
   patch.itemName  = (updatedItems[0] && updatedItems[0].name) || '';
   fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-    .then(function(r) { toast(r.ok ? 'Session updated ✓' : 'Notion update failed', r.ok ? '✓' : '⚠'); })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) { toast('Notion update failed', '⚠'); return; }
+      if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
+      toast('Session updated ✓', '✓');
+    })
     .catch(function() { toast('Network error', '⚠'); });
 }
 
