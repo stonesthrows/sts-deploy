@@ -63,6 +63,7 @@ export async function onRequestPatch(context) {
     if (s.totalMin  != null) core['Duration (min)']             = props['Duration (min)'];
     if (s.dedMin    != null) core['Clocked-Out Deducted (min)'] = props['Clocked-Out Deducted (min)'];
     if (s.netMin    != null) core['Net Work Time (min)']        = props['Net Work Time (min)'];
+    if (s.pieces    != null) core['Pieces Made']                = props['Pieces Made'];
     res  = await notionPatch(core);
     data = await res.json();
     if (res.ok) {
