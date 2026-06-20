@@ -205,8 +205,12 @@ async function notionPushUnsynced() {
   }
   if (pushed) {
     saveToStorage();
+    if (typeof renderKanban === 'function') renderKanban();
+    if (typeof toast === 'function') toast('✓ Synced ' + pushed + ' previously-unsynced order' + (pushed > 1 ? 's' : '') + ' to Notion', '↻');
     console.log('notionPushUnsynced: pushed ' + pushed + ' orders to Notion');
   }
+  const stillUnsynced = unsynced.length - pushed;
+  if (stillUnsynced > 0 && typeof setConnStatus === 'function') setConnStatus(false);
 }
 
 // ════════════════════════════════════════════

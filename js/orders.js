@@ -195,7 +195,7 @@ function cardHTML(o) {
          onclick="openOrderCard('${o.id}')">
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
-        <div class="o-name">${o.name}</div>
+        <div class="o-name">${o.name}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}"
                   title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}"
@@ -574,6 +574,11 @@ function submitOrder() {
       if (notionId) {
         newOrder.notionId = notionId;
         saveToStorage();
+        if (typeof setConnStatus === 'function') setConnStatus(true);
+      } else {
+        if (typeof setConnStatus === 'function') setConnStatus(false);
+        toast('⚠ Saved locally — Notion sync failed, will retry on next app open', '⚠');
+        renderKanban();
       }
     });
   }
@@ -796,6 +801,28 @@ function removePhoto() {
   const order = ORDERS.find(o => o.id === currentPhotoOrderId);
   if (order) { delete order.photo; saveToStorage(); renderKanban(); toast('Photo removed', '✓'); }
   closeLightbox();
+}
+
+// ════════════════════════════════════════════
+
+//  MANUAL NOTION RETRY  —  tap the "⚠ unsynced" badge on a card
+// ════════════════════════════════════════════
+async function retrySyncOrder(id) {
+  const order = ORDERS.find(o => o.id === id);
+  if (!order || order.notionId) return;
+  if (typeof notionCreateOrder !== 'function') return;
+  toast('Retrying Notion sync…', '⟳');
+  const notionId = await notionCreateOrder(order);
+  if (notionId) {
+    order.notionId = notionId;
+    saveToStorage();
+    renderKanban();
+    if (typeof setConnStatus === 'function') setConnStatus(true);
+    toast('✓ Synced to Notion', '✓');
+  } else {
+    if (typeof setConnStatus === 'function') setConnStatus(false);
+    toast('⚠ Still failing — check your connection and try again', '⚠');
+  }
 }
 
 // ════════════════════════════════════════════
