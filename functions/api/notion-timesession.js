@@ -37,7 +37,9 @@ export async function onRequestPatch(context) {
   if (s.totalMin  != null) props['Duration (min)']             = { number: s.totalMin };
   if (s.dedMin    != null) props['Clocked-Out Deducted (min)'] = { number: s.dedMin };
   if (s.netMin    != null) props['Net Work Time (min)']        = { number: s.netMin };
-  if (s.pieces    != null) props['Pieces Made']                = { number: s.pieces };
+  if (s.pieces         != null) props['Pieces Made']       = { number: s.pieces };
+  if (s.itemsJson      != null) props['Items JSON']        = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
+  if (s.pushedToSquare != null) props['Pushed to Square']  = { checkbox: !!s.pushedToSquare };
   var res = await fetch(NOTION_API + '/pages/' + s.pageId, {
     method: 'PATCH',
     headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER, 'Content-Type': 'application/json' },
@@ -88,6 +90,7 @@ export async function onRequestPost(context) {
     'Notes':                        { rich_text: [{ text: { content: (s.notes || '').slice(0, 2000) } }] },
   };
   if (s.pieces    != null) props['Pieces Made'] = { number: s.pieces };
+  if (s.itemsJson != null) props['Items JSON']  = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
   if (s.startTime)         props['Start Time']  = { date: { start: s.startTime } };
   if (s.stopTime)          props['Stop Time']   = { date: { start: s.stopTime  } };
 
@@ -106,10 +109,12 @@ export async function onRequestPost(context) {
   var res  = await notionPost(props);
   var data = await res.json();
 
-  // If Notion rejected because Pieces Made doesn't exist yet, retry without it
-  if (!res.ok && s.pieces != null && data.message && data.message.includes('Pieces Made')) {
+  // If Notion rejected due to missing optional properties, retry without them
+  if (!res.ok && data.message && (s.pieces != null || s.itemsJson != null)) {
     var propsWithout = Object.assign({}, props);
     delete propsWithout['Pieces Made'];
+    delete propsWithout['Items JSON'];
+    delete propsWithout['Pushed to Square'];
     res  = await notionPost(propsWithout);
     data = await res.json();
   }
@@ -163,6 +168,8 @@ export async function onRequestGet(context) {
         date:          props['Date']?.date?.start || null,
         notes:         txt(props['Notes']),
         pieces:        num(props['Pieces Made']),
+        itemsJson:     txt(props['Items JSON']),
+        pushed:        props['Pushed to Square']?.checkbox ?? false,
         startTime:     props['Start Time']?.date?.start || null,
         stopTime:      props['Stop Time']?.date?.start  || null,
       };

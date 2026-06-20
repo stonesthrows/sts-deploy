@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v101-designs-kv-sync -->
+<!-- deploy-version: v89-gmail-scan-panel -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -16,20 +16,6 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /*
-     * ── Design Token Palette ─────────────────────────────────────────────────
-     * ALL colour usage must reference one of these tokens. Never use a raw hex
-     * inside a component rule — add the token here first.
-     *
-     * Backgrounds:  --bg  --hdr  --nav  --subnav  --hdr-pill
-     *               --card-bg  --card-head-bg
-     *               --surface  --surface2  --surface3  (aliases → card-head-bg)
-     * Borders:      --bdr  --bdr-light  --hdr-bdr  --border1  (alias → bdr)
-     * Accent:       --accent  --accent-mid  --accent-light
-     *               --accent-bg  --accent-border
-     * Text:         --text  --text2  --text3  --text-dim
-     *               --text1  (alias → text)
-     * ─────────────────────────────────────────────────────────────────────── */
     :root {
       --bg: #4E7A94;
       --hdr: #1E3D50;
@@ -50,19 +36,6 @@
       --text2: #4A6878;
       --text3: #6A8898;
       --text-dim: #7A9AAA;
-      /* Aliases — map legacy/inconsistent names to canonical tokens above */
-      --text1: var(--text);
-      --text-muted: var(--text3);
-      --border1: var(--bdr);
-      --card: var(--card-bg);
-      --surface: var(--card-head-bg);
-      --surface2: var(--card-head-bg);
-      --surface3: #D8EBF5;
-      --gold: var(--accent);
-      --hover: var(--card-head-bg);
-      --hover-bg: rgba(0, 0, 0, 0.04);
-      --input-bg: var(--card-bg);
-      --bg2: var(--hdr-pill);
     }
 
     body {
@@ -170,7 +143,7 @@
       border: 1px solid var(--hdr-bdr);
       border-radius: 20px;
       padding: 5px 14px;
-      color: var(--bdr-light);
+      color: var(--text2);
       font-size: 12px;
       display: flex; align-items: center; gap: 6px;
     }
@@ -180,8 +153,8 @@
       border-radius: 50%;
       transition: background 0.3s;
     }
-    .header-pill.conn-bad .dot { background: #FF9090; }
-    .header-pill.conn-bad .conn-label { color: #FF9090; }
+    .header-pill.conn-bad .dot { background: #E05C5C; }
+    .header-pill.conn-bad .conn-label { color: #E05C5C; }
 
     /* ── Nav ─────────────────────────────────── */
     .nav {
@@ -192,7 +165,7 @@
     }
     .nav-tab {
       padding: 13px 18px;
-      color: rgba(255,255,255,0.6);
+      color: #7A7268;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -224,7 +197,7 @@
     .sub-nav.active { display: flex; }
     .sub-nav-tab {
       padding: 10px 16px;
-      color: rgba(255,255,255,0.6);
+      color: #7A7268;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
@@ -240,8 +213,6 @@
     .content { padding: 20px 24px; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
-    .tab-panel.rq-page { display: none; }
-    .tab-panel.active.rq-page { display: flex; }
 
     /* ── Stat Cards ──────────────────────────── */
     .stats-row {
@@ -301,27 +272,6 @@
     .stat-label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.2px; text-transform: uppercase; margin-bottom: 3px; }
     .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
 
-    /* ── TripLog dashboard widget ─────────────── */
-    .tl-dash-widget { background: var(--card-bg, #fff); border: 1px solid #E4DDD4; border-radius: 12px; padding: 13px 18px; margin-bottom: 18px; }
-    .tl-dash-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-    .tl-dash-title { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
-    .tl-dash-open { background:none; border:none; font-size:12px; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
-    .tl-dash-open:hover { text-decoration:underline; }
-    .tl-dash-refresh { background:#F2EEE9; border:1px solid #E4DDD4; border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; color:var(--text2); line-height:1.6; }
-    .tl-dash-refresh:hover { background:#EAE4DE; }
-    .tl-dash-content { display:flex; align-items:center; gap:18px; flex-wrap:wrap; min-height:36px; }
-    .tl-dash-date-block { min-width:90px; }
-    .tl-dash-date { font-size:13px; font-weight:700; color:var(--text); }
-    .tl-dash-activity { font-size:10.5px; color:var(--text3); margin-top:1px; text-transform:uppercase; letter-spacing:0.3px; }
-    .tl-dash-route { flex:1; font-size:13px; color:var(--text2); min-width:120px; }
-    .tl-dash-from, .tl-dash-to { font-weight:600; color:var(--text); }
-    .tl-dash-arrow { color:var(--text3); margin:0 5px; }
-    .tl-dash-divider { width:1px; height:36px; background:#E4DDD4; flex-shrink:0; }
-    .tl-dash-stats { display:flex; gap:22px; flex-shrink:0; }
-    .tl-dash-stat { text-align:center; }
-    .tl-dash-stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; }
-    .tl-dash-stat-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.3px; margin-top:2px; }
-
     /* ── Kanban ──────────────────────────────── */
     .kanban-bar {
       display: flex; align-items: center; justify-content: space-between;
@@ -332,7 +282,7 @@
 
     .kanban-board {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       overflow-x: auto;
       padding-bottom: 16px;
       align-items: flex-start;
@@ -341,7 +291,7 @@
     .kanban-board::-webkit-scrollbar-track { background: #ECE7DF; border-radius: 3px; }
     .kanban-board::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
 
-    .k-col { flex: 1 1 0; min-width: 120px; }
+    .k-col { min-width: 196px; width: 196px; flex-shrink: 0; }
     .k-head {
       padding: 8px 11px;
       border-radius: 8px 8px 0 0;
@@ -448,12 +398,6 @@
     .s-needs-invoice .k-head   { background:#F4EAF8; color:#6A1B9A; }
     .s-needs-invoice .k-body   { background:#FAF4FC; }
     .s-needs-invoice .o-card   { border-left-color:#9C27B0; }
-    .k-sub-wrap.s-needs-invoice .k-sub-head { background:#F4EAF8; color:#6A1B9A; }
-    .k-sub-wrap.s-needs-invoice .k-body     { background:#FAF4FC; }
-    .k-sub-wrap.s-needs-invoice .o-card     { border-left-color:#9C27B0; }
-    .k-sub-wrap.s-invoice-sent  .k-sub-head { background:#E8D0F4; color:#4A0E72; }
-    .k-sub-wrap.s-invoice-sent  .k-body     { background:#F0E4FA; }
-    .k-sub-wrap.s-invoice-sent  .o-card     { border-left-color:#7B1FA2; }
 
     .s-contact-need .o-card    { border-left-color:#D4A020; }
     .s-contact-done .k-head    { background:#E2F4EA; color:#1A6038; }
@@ -500,16 +444,6 @@
     .k-sub-wrap.s-needs-est .k-sub-head     { background:#FEE8E0; color:#B04018; }
     .k-sub-wrap.s-needs-est .k-body         { background:#FEF3EE; }
     .k-sub-wrap.s-needs-est .o-card         { border-left-color:#E05828; }
-    .k-sub-wrap.s-intake-website .k-sub-head { background:#E0F4EE; color:#1A6B4A; }
-    .k-sub-wrap.s-intake-website .k-body     { background:#EBF8F3; }
-    .k-sub-wrap.s-intake-website .o-card     { border-left-color:#2A9D6A; }
-    .k-sync-btn {
-      margin-left: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700;
-      background: rgba(0,0,0,.12); border: none; border-radius: 4px;
-      color: inherit; cursor: pointer; vertical-align: middle;
-    }
-    .k-sync-btn:hover { background: rgba(0,0,0,.22); }
-    .k-sync-btn:disabled { opacity: .5; cursor: default; }
 
     /* Sub-section stage colors — Contact Customer group */
     .k-sub-wrap.s-contact-need .k-sub-head  { background:#FFF3CD; color:#7A5A00; }
@@ -531,15 +465,12 @@
     .k-sub-wrap.s-sketch       .o-card     { border-left-color:#D4A020; }
 
     /* Sub-section stage colors — Estimating group */
-    .k-sub-wrap.s-quote         .k-sub-head { background:#FEF0E6; color:#A84C10; }
-    .k-sub-wrap.s-quote         .k-body     { background:#FDF5EE; }
-    .k-sub-wrap.s-quote         .o-card     { border-left-color:#DC6B28; }
-    .k-sub-wrap.s-est-wait-appr .k-sub-head { background:#FEF8E0; color:#8A6010; }
-    .k-sub-wrap.s-est-wait-appr .k-body     { background:#FFFCF0; }
-    .k-sub-wrap.s-est-wait-appr .o-card     { border-left-color:#C89010; }
-    .k-sub-wrap.s-est-appr      .k-sub-head { background:#EBF7E0; color:#306818; }
-    .k-sub-wrap.s-est-appr      .k-body     { background:#F3FAE8; }
-    .k-sub-wrap.s-est-appr      .o-card     { border-left-color:#50901E; }
+    .k-sub-wrap.s-quote     .k-sub-head { background:#FEF0E6; color:#A84C10; }
+    .k-sub-wrap.s-quote     .k-body     { background:#FDF5EE; }
+    .k-sub-wrap.s-quote     .o-card     { border-left-color:#DC6B28; }
+    .k-sub-wrap.s-est-appr  .k-sub-head { background:#EBF7E0; color:#306818; }
+    .k-sub-wrap.s-est-appr  .k-body     { background:#F3FAE8; }
+    .k-sub-wrap.s-est-appr  .o-card     { border-left-color:#50901E; }
 
     /* Sub-section stage colors — Materials group */
     .k-sub-wrap.s-order-mat  .k-sub-head { background:#F5ECE0; color:#7C4A18; }
@@ -556,9 +487,6 @@
     .k-sub-wrap.s-ship-out   .k-sub-head { background:#C8E8F4; color:#0E5268; border-top:1px solid #A8D8EC; }
     .k-sub-wrap.s-ship-out   .k-body     { background:#EAF6FC; }
     .k-sub-wrap.s-ship-out   .o-card     { border-left-color:#1E84A8; }
-    .k-sub-wrap.s-etsy-bench .k-sub-head { background:#FEF0E8; color:#C04800; }
-    .k-sub-wrap.s-etsy-bench .k-body     { background:#FFF6F0; }
-    .k-sub-wrap.s-etsy-bench .o-card     { border-left-color:#F1641E; }
 
     /* Order card */
     .o-card {
@@ -908,18 +836,6 @@
     .ct-prev-price { font-size: 11.5px; color: var(--text); }
     .ct-prev-dl    { font-size: 10px; }
     .ct-prev-takein { font-size: 10.5px; color: var(--text2); }
-
-    .ct-current-order {
-      cursor: pointer;
-      border-color: #C8D9F0;
-      background: #F4F8FE;
-    }
-    .ct-current-order:hover { background: #E8F0FB; border-color: #A0BCDF; }
-    .ct-open-order-hint {
-      font-size: 10.5px; font-weight: 600; color: var(--accent);
-      flex-shrink: 0; opacity: 0.8;
-    }
-    .ct-current-order:hover .ct-open-order-hint { opacity: 1; text-decoration: underline; }
 
     /* ── Gmail in expand ─────────────────────── */
     .ct-gmail-thread {
@@ -1555,14 +1471,14 @@
     .notion-chip:hover { background: #E4D8F4; color: #4A2080; }
 
     /* ── Estimate Builder ───────────────────── */
-    .est-row {
+    .est-material-row {
       display: grid;
-      grid-template-columns: 1fr 28px 110px 28px;
-      gap: 6px;
+      grid-template-columns: 1fr 110px 30px;
+      gap: 8px;
       align-items: center;
       margin-bottom: 7px;
     }
-    .est-input {
+    .est-material-row input {
       border: 1px solid #D8D0C8;
       border-radius: 7px;
       padding: 8px 12px;
@@ -1572,33 +1488,18 @@
       outline: none;
       font-family: inherit;
       width: 100%;
-      box-sizing: border-box;
     }
-    .est-input:focus {
+    .est-material-row input:focus {
       border-color: var(--accent);
       background: #fff;
       box-shadow: 0 0 0 3px rgba(196,144,58,0.12);
     }
-    .est-stuller-btn {
-      width: 28px; height: 34px;
-      border: 1px solid #D8D0C8;
-      background: #FAFAF8;
-      border-radius: 7px;
-      cursor: pointer;
-      font-size: 14px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: background 0.12s, border-color 0.12s;
-      font-family: inherit;
-      padding: 0;
-    }
-    .est-stuller-btn:hover { background: #F0EAD8; border-color: var(--accent); }
     .est-remove-btn {
-      width: 28px; height: 34px;
+      width: 28px; height: 28px;
       border: none;
       background: #FEF0EE;
       color: #C43030;
-      border-radius: 7px;
+      border-radius: 6px;
       cursor: pointer;
       font-size: 17px;
       line-height: 1;
@@ -1606,13 +1507,12 @@
       flex-shrink: 0;
       transition: background 0.12s;
       font-family: inherit;
-      padding: 0;
     }
     .est-remove-btn:hover { background: #FCDAD6; }
     .est-col-labels {
       display: grid;
-      grid-template-columns: 1fr 28px 110px 28px;
-      gap: 6px;
+      grid-template-columns: 1fr 110px 30px;
+      gap: 8px;
       margin-bottom: 6px;
     }
     .est-col-label {
@@ -1620,94 +1520,6 @@
       text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text3);
     }
-
-    /* ── Stuller Search Modal ────────────────── */
-    .stl-bg {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.45);
-      z-index: 9000;
-      align-items: center; justify-content: center;
-    }
-    .stl-modal {
-      background: #fff;
-      border-radius: 14px;
-      width: 540px; max-width: 95vw;
-      max-height: 80vh;
-      display: flex; flex-direction: column;
-      box-shadow: 0 20px 60px rgba(0,0,0,.25);
-      overflow: hidden;
-    }
-    .stl-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 20px 14px;
-      border-bottom: 1px solid #E8E0D4;
-      font-size: 15px; font-weight: 700; color: var(--text);
-    }
-    .stl-close {
-      background: none; border: none; cursor: pointer;
-      font-size: 18px; color: var(--text3); line-height: 1;
-      padding: 2px 6px; border-radius: 5px;
-      transition: background 0.12s;
-    }
-    .stl-close:hover { background: #F0EAD8; }
-    .stl-filters {
-      display: flex; gap: 8px; padding: 12px 20px 0;
-      border-bottom: 1px solid #E8E0D4; padding-bottom: 12px;
-    }
-    .stl-filters .stl-select { flex: 1; }
-    .stl-metal-select { min-width: 130px; flex: 0 0 130px !important; }
-    #stl-gem-wrap { display: none; gap: 8px; width: 100%; }
-    #stl-gem-wrap .stl-select { flex: 1; }
-    .stl-tabs {
-      display: flex; gap: 0;
-      border-bottom: 1px solid #E8E0D4;
-    }
-    .stl-tab {
-      flex: 1; padding: 10px 0;
-      font-size: 13px; font-weight: 600;
-      background: none; border: none; cursor: pointer;
-      color: var(--text3); border-bottom: 2px solid transparent;
-      margin-bottom: -1px; transition: color 0.12s;
-      font-family: inherit;
-    }
-    .stl-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-    .stl-tab:hover:not(.active) { color: var(--text); }
-    .stl-pane { padding: 16px 20px; overflow-y: auto; flex: 1; }
-    .stl-search-row {
-      display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
-    }
-    .stl-input {
-      flex: 1;
-      border: 1px solid #D8D0C8; border-radius: 8px;
-      padding: 9px 12px; font-size: 13px;
-      font-family: inherit; outline: none;
-      background: #FAFAF8; color: var(--text);
-    }
-    .stl-input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(196,144,58,0.12); }
-    .stl-select {
-      border: 1px solid #D8D0C8; border-radius: 8px;
-      padding: 9px 10px; font-size: 13px;
-      font-family: inherit; background: #FAFAF8;
-      color: var(--text); outline: none; flex: 1;
-    }
-    .stl-result-area { min-height: 60px; }
-    .stl-loading { color: var(--text3); font-size: 13px; padding: 12px 0; text-align: center; }
-    .stl-error   { color: #C43030; font-size: 13px; padding: 12px 0; }
-    .stl-count   { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
-    .stl-cards   { display: flex; flex-direction: column; gap: 8px; }
-    .stl-card {
-      border: 1px solid #E8E0D4; border-radius: 9px;
-      padding: 10px 14px; background: #FAFAF8;
-      display: flex; flex-direction: column; gap: 6px;
-      transition: border-color 0.12s, background 0.12s;
-    }
-    .stl-card:hover { border-color: var(--accent); background: #FDF8F0; }
-    .stl-card-body { display: flex; flex-direction: column; gap: 2px; }
-    .stl-card-sku  { font-size: 11px; color: var(--text3); font-weight: 600; }
-    .stl-card-name { font-size: 13px; color: var(--text); font-weight: 500; }
-    .stl-card-footer { display: flex; align-items: center; justify-content: space-between; }
-    .stl-card-price { font-size: 13px; font-weight: 700; color: var(--accent); }
     .mult-toggle {
       display: flex;
       gap: 0;
@@ -1954,8 +1766,8 @@
     .mat-order-foot  { padding: 12px 16px; border-top: 1px solid #EEE6DC; background: #FDFAF6; }
 
     /* ── Production ──────────────────────────── */
-    .prod-board { display: flex; gap: 8px; overflow-x: auto; align-items: flex-start; padding-bottom: 16px; }
-    .prod-col { flex: 1 1 0; min-width: 130px; background: #F8F3EC; border-radius: 12px; overflow: hidden; }
+    .prod-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding-bottom: 16px; }
+    .prod-col { flex: 0 0 220px; background: #F8F3EC; border-radius: 12px; overflow: hidden; }
     .prod-col-head {
       display: flex; align-items: center; gap: 6px;
       padding: 11px 13px; background: #fff; border-bottom: 1px solid #E4DDD4;
@@ -2194,58 +2006,19 @@
     .notes-item-del { color: #C8C0B8; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
     .notes-item-del:hover { color: #C43030; }
     /* ── Restock Queue ── */
-    .rq-page {
-      display: flex; flex-direction: column;
-      height: calc(100vh - 100px); overflow: hidden;
-    }
-    .rq-header-bar {
-      padding: 12px 20px 8px; flex-shrink: 0;
-    }
-    .rq-header-title { font-size: 17px; font-weight: 700; color: var(--text); margin: 0; }
-    .rq-scroll-area {
-      flex: 1; overflow-y: auto; padding: 16px 20px 24px;
-    }
-    .rq-scroll-area::-webkit-scrollbar { width: 5px; }
-    .rq-scroll-area::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
     .rq-item {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 10px;
-      display: flex; flex-direction: column; padding: 10px 14px;
-      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
     }
-    .rq-item-row { display: flex; align-items: center; gap: 10px; }
-    .rq-item.rq-active {
-      border-color: var(--accent);
-      border-left: 4px solid var(--accent);
-      box-shadow: 0 3px 14px rgba(201,152,58,0.22);
-      background: #FDF0D0;
-      padding-left: 11px;
-    }
-    .rq-item.rq-active .rq-arrows { display: none !important; }
-    @media (max-width: 640px) {
-      .rq-item.rq-active {
-        background: #EFBF0A;
-        border-left: 5px solid #8B6400;
-        border-top: 4px solid #8B6400;
-        box-shadow: 0 4px 18px rgba(140,100,0,0.45);
-      }
-    }
-    .rq-start-btn {
-      background: none; border: 1px solid var(--accent); border-radius: 7px;
-      color: var(--accent); font-size: 15px; padding: 5px 12px; cursor: pointer;
-      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
-    }
-    .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
-    .rq-start-btn:disabled { border-color: #D8D0C8; color: #C8C0B8; cursor: default; }
-    .rq-arrows { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .rq-arrows { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
     .rq-arrow {
-      background: #fff; border: 1px solid #B8B0A8; border-radius: 4px;
-      padding: 2px 5px; font-size: 11px; line-height: 1.2;
-      color: #5A5250; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+      background: none; border: none; padding: 0 3px; font-size: 11px; line-height: 1.2;
+      color: #C8C0B8; cursor: pointer;
     }
-    .rq-arrow:hover:not(:disabled) { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
-    .rq-arrow:disabled { opacity: .3; cursor: default; }
+    .rq-arrow:hover:not(:disabled) { color: var(--accent); }
+    .rq-arrow:disabled { opacity: .25; cursor: default; }
     .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
-    .rq-text { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
+    .rq-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
     .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
     .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
     .rq-assignee {
@@ -2259,330 +2032,11 @@
     .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
     .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
     .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
-    .rq-log-section {
-      height: calc(100vh - 150px); flex-shrink: 0; border-top: 2px solid var(--bdr);
-      display: flex; flex-direction: column; overflow: hidden;
-      background: var(--card-head-bg);
-      transition: height 0.28s cubic-bezier(.4,0,.2,1);
-    }
-    .rq-log-section.rq-log-collapsed { height: 52px; }
-    .rq-page.rq-log-open .rq-header-bar { display: none; }
-    .rq-page.rq-log-open .rq-scroll-area { display: none; }
-    .rq-log-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2);
-      text-transform: uppercase; padding: 8px 14px 8px 20px;
-      display: flex; align-items: center; gap: 10px;
-      flex-shrink: 0; border-bottom: 1px solid var(--bdr-light);
-      user-select: none;
-    }
-    .rq-log-label { cursor: pointer; white-space: nowrap; flex-shrink: 0; }
-    .rq-log-label:hover { color: var(--accent); }
-    .rq-log-add {
-      display: flex; gap: 6px; flex: 0 0 auto; align-items: center;
-    }
-    .rq-add-input-wrap { position: relative; }
-    .rq-log-add input {
-      width: 160px; padding: 5px 10px; border: 1px solid var(--bdr);
-      border-radius: 7px; font-size: 12px; background: var(--card-bg);
-      color: var(--text); font-family: inherit; outline: none;
-    }
-    .rq-log-add input:focus { border-color: var(--accent); }
-    .rq-add-dropdown {
-      position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
-      min-width: 240px; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
-    }
-    .rq-add-chip {
-      display: flex; align-items: center; gap: 5px; font-size: 11px;
-      color: var(--accent); font-weight: 600; background: var(--accent-bg);
-      border: 1px solid var(--accent); border-radius: 5px; padding: 3px 8px;
-      white-space: nowrap; max-width: 160px; overflow: hidden;
-    }
-    .rq-add-chip span:first-child { overflow: hidden; text-overflow: ellipsis; }
-    .rq-add-chip-x { cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1; flex-shrink: 0; }
-    .rq-add-chip-x:hover { color: var(--text); }
-    @media (max-width: 640px) { .rq-log-add { display: none; } }
-    .rq-log-chevron {
-      font-size: 11px; color: var(--text3); margin-left: 8px;
-      transition: transform 0.25s; display: inline-block;
-    }
-    .rq-log-collapsed .rq-log-chevron { transform: rotate(180deg); }
-    .rq-notion-link {
-      font-size: 11px; color: var(--text2); text-decoration: none;
-      border: 1px solid var(--bdr); border-radius: 6px; padding: 3px 9px;
-      transition: border-color 0.15s, color 0.15s; font-weight: 400; letter-spacing: 0;
-    }
-    .rq-notion-link:hover { border-color: var(--accent); color: var(--accent); }
-    .rq-log-list {
-      flex: 1; overflow-y: auto; padding: 10px 20px 14px;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .rq-log-list::-webkit-scrollbar { width: 4px; }
-    .rq-log-list::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 2px; }
-    .rq-log-empty { font-size: 13px; color: var(--text-dim); text-align: center; padding: 20px 0; }
     .notes-save-dot {
       width: 7px; height: 7px; background: #6AB87A; border-radius: 50;
       display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
     }
     .notes-save-dot.visible { opacity: 1; }
-    /* ── Inline timer panel ── */
-    .rq-timer-panel {
-      margin-top: 10px; border-top: 1px solid var(--accent-border);
-      padding-top: 10px; display: flex; flex-direction: column; gap: 6px;
-    }
-    .rq-timer-running-row { display: flex; align-items: center; gap: 8px; }
-    .rq-timer-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #3A7A4A;
-      flex-shrink: 0; animation: rq-pulse 1.6s ease-in-out infinite;
-    }
-    @keyframes rq-pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
-    .rq-timer-elapsed { font-size: 13px; font-weight: 700; color: var(--accent); }
-    .rq-timer-emp { font-size: 12px; color: var(--text3); }
-    .rq-timer-meta { font-size: 11px; color: var(--text2); }
-    .rq-stop-btn {
-      background: transparent; border: 1px solid #A0402A; color: #A0402A;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-      padding: 4px 11px; border-radius: 6px; cursor: pointer; transition: background 0.15s;
-      flex-shrink: 0; margin-left: auto;
-    }
-    .rq-stop-btn:hover { background: rgba(160,64,42,0.08); }
-    .rq-stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .rq-timer-notes-row { display: flex; align-items: center; gap: 8px; }
-    .rq-timer-notes-toggle {
-      font-size: 10px; color: var(--text3); cursor: pointer; letter-spacing: 0.08em;
-      background: none; border: none; font-family: inherit; padding: 0;
-    }
-    .rq-timer-notes-toggle:hover { color: var(--accent); }
-    .rq-adjust-link {
-      font-size: 10px; color: var(--text3); cursor: pointer; background: none;
-      border: none; font-family: inherit; padding: 0; letter-spacing: 0.05em;
-      text-decoration: underline; text-underline-offset: 2px; transition: color 0.15s;
-    }
-    .rq-adjust-link:hover { color: var(--accent); }
-    .rq-adjust-panel {
-      display: none; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;
-    }
-    .rq-adjust-input {
-      background: #fff; border: 1px solid var(--bdr); border-radius: 6px;
-      color: var(--text); font-size: 12px; padding: 4px 7px; outline: none;
-      transition: border-color 0.2s; font-family: inherit;
-    }
-    .rq-adjust-input:focus { border-color: var(--accent); }
-    .rq-timer-notes-wrap { display: none; }
-    .rq-timer-notes-area {
-      width: 100%; background: #fff; border: 1px solid var(--bdr); border-radius: 8px;
-      color: var(--text); font-size: 13px; padding: 7px 10px; outline: none;
-      resize: none; height: 48px; transition: border-color 0.2s; font-family: inherit;
-      margin-top: 4px;
-    }
-    .rq-timer-notes-area:focus { border-color: var(--accent); }
-    .rq-save-note-btn {
-      background: none; border: 1px solid var(--bdr); border-radius: 6px;
-      color: var(--text2); font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; padding: 3px 10px; cursor: pointer;
-      transition: border-color 0.15s, color 0.15s; margin-top: 4px;
-    }
-    .rq-save-note-btn:hover { border-color: var(--accent); color: var(--accent); }
-    /* ── Piece count rows (running timer) ── */
-    .rq-pieces-section {
-      display: flex; flex-direction: column; gap: 4px;
-      border-top: 1px solid var(--bdr-light); padding-top: 6px; margin-top: 2px;
-    }
-    .rq-piece-row { display: flex; align-items: center; gap: 8px; }
-    .rq-piece-label {
-      flex: 1; font-size: 12px; color: var(--text2);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .rq-piece-input {
-      width: 52px; padding: 4px 6px; border: 1px solid var(--bdr); border-radius: 5px;
-      font-size: 13px; text-align: center; background: #fff; outline: none;
-      font-family: inherit; color: var(--text); flex-shrink: 0;
-    }
-    .rq-piece-input:focus { border-color: var(--accent); }
-    /* ── Push to Square (session log) ── */
-    .rq-sbar-pieces { font-size: 11px; color: var(--text2); font-weight: 500; }
-    .rq-push-btn {
-      background: none; border: 1px solid #3A7A4A; border-radius: 5px;
-      color: #3A7A4A; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
-      padding: 2px 8px; cursor: pointer; flex-shrink: 0; margin-left: auto;
-      transition: background 0.15s;
-    }
-    .rq-push-btn:hover { background: rgba(58,122,74,0.08); }
-    .rq-push-btn:disabled { opacity: 0.5; cursor: default; }
-    .rq-pushed-label { font-size: 11px; color: #3A7A4A; font-weight: 600; flex-shrink: 0; margin-left: auto; }
-    .rq-push-panel {
-      background: #F5F0EB; border: 1px solid var(--bdr); border-radius: 8px;
-      padding: 10px 12px; margin-top: 6px;
-    }
-    .rq-push-item {
-      display: flex; align-items: center; gap: 6px; font-size: 12px;
-      padding: 4px 0; border-bottom: 1px solid var(--bdr-light);
-    }
-    .rq-push-item:last-of-type { border-bottom: none; margin-bottom: 2px; }
-    .rq-push-item-name { flex: 1; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .rq-push-item-qty { font-weight: 700; color: var(--text); flex-shrink: 0; }
-    .rq-push-item-ok { color: #3A7A4A; font-size: 11px; flex-shrink: 0; }
-    .rq-no-sq { font-size: 10px; color: var(--text3); flex-shrink: 0; font-style: italic; }
-    /* ── Setup panel (Square search before timer starts) ── */
-    .rq-setup-panel {
-      margin-top: 10px; border-top: 1px solid var(--accent-border);
-      padding-top: 10px; display: flex; flex-direction: column; gap: 8px;
-    }
-    .rq-setup-search-wrap {
-      display: flex; align-items: center; gap: 6px;
-      border: 1px solid var(--bdr); border-radius: 8px;
-      padding: 5px 10px; background: #fff; transition: border-color 0.2s;
-    }
-    .rq-setup-search-wrap:focus-within { border-color: var(--accent); }
-    .rq-setup-search-icon { font-size: 14px; color: var(--text3); flex-shrink: 0; }
-    .rq-setup-search-input {
-      flex: 1; border: none; outline: none; background: transparent;
-      font-size: 13px; color: var(--text); font-family: inherit;
-    }
-    .rq-setup-spinner {
-      display: none; width: 12px; height: 12px; flex-shrink: 0;
-      border: 2px solid var(--bdr); border-top-color: var(--accent);
-      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
-    }
-    @keyframes rq-spin { to { transform: rotate(360deg); } }
-    .rq-setup-results {
-      display: none; flex-direction: column; border: 1px solid var(--bdr);
-      border-radius: 8px; overflow: hidden; background: var(--card-bg);
-      max-height: 210px; overflow-y: auto;
-    }
-    .rq-result-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; cursor: pointer; transition: background 0.1s;
-      border-bottom: 1px solid var(--bdr-light); gap: 12px;
-    }
-    .rq-result-item:last-child { border-bottom: none; }
-    .rq-result-item:hover { background: var(--hover); }
-    .rq-result-name { font-size: 13px; font-weight: 600; color: var(--text); }
-    .rq-result-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
-    .rq-result-price { font-size: 11px; color: var(--text2); flex-shrink: 0; }
-    .rq-result-none { padding: 6px 12px; font-size: 12px; color: var(--text3); }
-    .rq-result-nomatch { color: #A0402A; font-style: italic; }
-    .rq-selected-list { display: flex; flex-direction: column; gap: 4px; }
-    .rq-selected-item {
-      display: flex; align-items: center; gap: 8px;
-      background: var(--hover); border-radius: 7px; padding: 6px 10px;
-      border: 1px solid var(--bdr-light);
-    }
-    .rq-pcs-col { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-    .rq-pcs-label {
-      font-size: 10px; font-weight: 700; color: var(--text3);
-      letter-spacing: 0.05em; text-transform: uppercase;
-    }
-    .rq-pcs-input {
-      width: 44px; padding: 2px 6px; border: 1px solid var(--bdr); border-radius: 5px;
-      font-size: 12px; text-align: center; background: #fff; outline: none;
-      font-family: inherit; color: var(--text);
-    }
-    .rq-pcs-input:focus { border-color: var(--accent); }
-    .rq-item-remove {
-      background: none; border: none; cursor: pointer; color: var(--text3);
-      font-size: 12px; padding: 0 3px; flex-shrink: 0; line-height: 1;
-      transition: color 0.15s;
-    }
-    .rq-item-remove:hover { color: #A0402A; }
-    .rq-setup-footer {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      border-top: 1px solid var(--bdr-light); padding-top: 8px;
-    }
-    .rq-setup-cancel-btn {
-      background: none; border: 1px solid var(--bdr); border-radius: 6px;
-      color: var(--text3); font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; padding: 4px 11px; cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .rq-setup-cancel-btn:hover { border-color: var(--text3); color: var(--text); }
-    .rq-start-confirm-btn {
-      background: #3A7A4A; border: none; border-radius: 6px; color: #fff;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-      padding: 4px 13px; cursor: pointer; transition: background 0.15s; margin-left: auto;
-    }
-    .rq-start-confirm-btn:hover:not(:disabled) { background: #2E6340; }
-    .rq-start-confirm-btn:disabled { background: #B8C9BF; cursor: not-allowed; }
-    /* ── Session log bars ── */
-    .rq-session-bar {
-      background: var(--card-bg); border: 1px solid var(--bdr-light);
-      border-radius: 10px; padding: 10px 14px; flex-shrink: 0;
-    }
-    .rq-sbar-name { font-size: 13px; font-weight: 600; color: var(--text); }
-    .rq-sbar-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
-    .rq-sbar-footer {
-      display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text2);
-      border-top: 1px solid var(--bdr-light); padding-top: 6px; margin-top: 6px; flex-wrap: wrap;
-    }
-    .rq-sbar-net { font-weight: 700; color: var(--text); }
-    .rq-sbar-saved { color: #3A7A4A; font-weight: 600; }
-    /* ── Auto-match sub-row ── */
-    .rq-match-row { padding: 2px 0 0 0; }
-    .rq-match-loading {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 11px; color: var(--text3); font-style: italic; padding: 2px 4px;
-    }
-    .rq-match-spinner {
-      display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
-      border: 2px solid var(--bdr); border-top-color: var(--accent);
-      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
-    }
-    .rq-match-found {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 11px; padding: 2px 4px;
-    }
-    .rq-match-check { color: var(--accent); font-size: 10px; flex-shrink: 0; }
-    .rq-match-name {
-      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; color: var(--accent); font-weight: 600;
-    }
-    .rq-match-change {
-      background: none; border: 1px solid var(--bdr); border-radius: 5px;
-      color: var(--text3); font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
-      padding: 2px 7px; cursor: pointer; transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
-    }
-    .rq-match-change:hover { border-color: var(--accent); color: var(--accent); }
-    .rq-match-none {
-      display: flex; align-items: center; gap: 4px;
-      font-size: 11px; color: var(--text3); cursor: pointer; padding: 2px 4px;
-    }
-    .rq-match-none:hover .rq-match-link { color: var(--accent); }
-    .rq-match-x { color: #A0402A; font-size: 10px; flex-shrink: 0; }
-    .rq-match-link { text-decoration: underline; text-underline-offset: 2px; }
-    .rq-match-panel { padding: 6px 0 2px; }
-    /* ── Variant picker ── */
-    .rq-variant-picker { padding: 6px 0 2px; }
-    .rq-variant-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
-    .rq-variant-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-    .rq-variant-chip {
-      border: 1px solid var(--bdr); border-radius: 5px; padding: 3px 9px;
-      font-size: 11px; color: var(--text2); background: #fff; cursor: pointer;
-      user-select: none; transition: border-color 0.12s, background 0.12s, color 0.12s;
-    }
-    .rq-variant-chip:hover { border-color: var(--accent); color: var(--accent); }
-    .rq-variant-chip-on { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--accent) !important; font-weight: 700; }
-    .rq-variant-done {
-      background: var(--accent); border: none; border-radius: 5px; color: #fff;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 4px 13px; cursor: pointer;
-      transition: background 0.15s;
-    }
-    .rq-variant-done:hover { background: #8A6020; }
-    .rq-sbar-err { color: #A0402A; }
-    .rq-sbar-del {
-      background: none; border: 1px solid var(--bdr-light); border-radius: 5px;
-      cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 2px 7px;
-      line-height: 1; transition: border-color 0.15s, color 0.15s; margin-left: auto;
-    }
-    .rq-sbar-del:hover { border-color: #A0402A; color: #A0402A; }
-    .rq-sbar-time-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); margin:4px 0 6px; flex-wrap:wrap; }
-    .rq-sbar-time-val { color:var(--text2); font-weight:500; }
-    .rq-sbar-act-btn { background:none; border:1px solid var(--bdr-light); border-radius:5px; cursor:pointer; color:var(--text-dim); font-size:11px; padding:2px 7px; line-height:1; transition:border-color 0.15s,color 0.15s,background 0.15s; flex-shrink:0; }
-    .rq-sbar-act-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(150,110,60,0.06); }
-    .rq-sbar-act-btn:disabled { opacity:0.5; cursor:default; }
-    .rq-edit-row { background:#F5F0EB; border:1px solid var(--bdr); border-radius:8px; padding:10px 12px; margin-top:6px; display:flex; flex-direction:column; gap:8px; }
-    .rq-edit-field { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
-    .rq-edit-field label { width:52px; font-weight:600; color:var(--text3); flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
-    .rq-edit-input { background:#fff; border:1px solid var(--bdr); border-radius:6px; color:var(--text); font-size:12px; padding:4px 7px; outline:none; transition:border-color 0.2s; }
-    .rq-edit-input:focus { border-color:var(--accent); }
 
     /* ── Supplier Order Tracker ─────────────────── */
     #tab-supplier { padding: 0; }
@@ -2978,47 +2432,6 @@
       padding: 0 2px;
     }
     .sot-ord-remove:hover { color: #C43030; }
-    .sot-amt-wrap {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-    .sot-amt-input {
-      width: 58px;
-      height: 26px;
-      border: 1px solid #D0C8C0;
-      border-radius: 5px;
-      background: #FAF7F2;
-      color: var(--text);
-      font-size: 12px;
-      font-weight: 600;
-      text-align: right;
-      padding: 0 6px;
-      outline: none;
-      -moz-appearance: textfield;
-    }
-    .sot-amt-input::-webkit-inner-spin-button,
-    .sot-amt-input::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .sot-amt-input:focus { border-color: var(--gold); background: #fff; }
-    .sot-amt-unit {
-      font-size: 11px;
-      font-weight: 600;
-      color: #8A7E72;
-      min-width: 20px;
-    }
-    .sot-rg-btn {
-      background: #e63946;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 5px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .sot-rg-btn:hover { background: #c82333; }
     /* Order footer */
     .sot-order-foot {
       padding: 12px 14px;
@@ -3203,9 +2616,6 @@
       --card-bg: #242428; --card-head-bg: #2A2A2E;
       --bdr: #38383C; --bdr-light: #2E2E32;
       --text: #E8E0D4; --text2: #9A9298; --text3: #7A7278; --text-dim: #6A6868;
-      --surface3: #343438;
-      --hover: #343438;
-      --input-bg: #1A1A1E;
     }
     /* Midnight: key card backgrounds */
     body.theme-midnight .stat-card,
@@ -3585,14 +2995,7 @@
   }
 
   /* ── Home Dashboard ───────────────────────────────── */
-  .home-dash { max-width: none; }
-
-  .home-body-grid {
-    display: grid;
-    grid-template-columns: 3fr 2fr;
-    gap: 14px;
-    align-items: start;
-  }
+  .home-dash { max-width: 960px; }
 
   .home-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -3695,7 +3098,7 @@
 
   @media (max-width: 768px) {
     .home-kpi-row { grid-template-columns: 1fr 1fr; }
-    .home-body-grid { grid-template-columns: 1fr; }
+    .home-widgets { grid-template-columns: 1fr; }
   }
 
   </style>
@@ -3716,9 +3119,9 @@
     <div class="sb-item sb-active" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
 
     <div class="sb-section">Orders</div>
-    <div class="sb-item" data-sb="new-order"    onclick="sbNav('custom-orders','new-order',this)">✚ New Order</div>
     <div class="sb-item" data-sb="dashboard"    onclick="sbNav('custom-orders','dashboard',this)">📋 Custom Orders <span class="sb-badge" id="sb-badge-active"></span></div>
     <div class="sb-item" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
+    <div class="sb-item" data-sb="new-order"    onclick="sbNav('custom-orders','new-order',this)">✚ New Order</div>
     <div class="sb-item" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
 
     <div class="sb-section">Inventory</div>
@@ -3730,15 +3133,11 @@
     <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
 
     <div class="sb-section">More</div>
-    <div class="sb-item" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
-    <div class="sb-item" data-sb="notes"    onclick="sbNavDirect('notes',this)">📝 Notes</div>
-    <div class="sb-item" data-sb="designs"  onclick="sbNavDirect('designs',this)">🎨 Designs</div>
+    <div class="sb-item" data-sb="triplog" onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
+    <div class="sb-item" data-sb="notes"   onclick="sbNavDirect('notes',this)">📝 Notes</div>
     <div class="sb-item" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
     <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
   </nav>
-  <div style="padding:10px 10px 14px;border-top:1px solid #2E5C78;flex-shrink:0;">
-    <button onclick="openIntegrationsModal()" style="width:100%;background:none;border:1px solid #2E5C78;border-radius:8px;color:#7AAFC8;font-size:12px;font-weight:600;padding:8px 10px;cursor:pointer;text-align:left;letter-spacing:0.04em;">⚙ Integrations</button>
-  </div>
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="sbClose()"></div>
 <!-- ═══════════════════════════════════════════════════ -->
@@ -3775,9 +3174,6 @@
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="notes" onclick="switchTab('notes',this)">
     📝 Notes
   </div>
-  <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="designs" onclick="switchTab('designs',this)">
-    🎨 Designs
-  </div>
   <div class="nav-tab" role="tab" tabindex="0" aria-selected="false" data-parent="more" onclick="switchParent('more',this)">
     📊 More
   </div>
@@ -3785,14 +3181,14 @@
 
 <!-- Sub-nav (Orders) -->
 <div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="clearForm();switchSubTab('new-order',this)">
-    ✚ New Order
-  </div>
   <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
     📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="production" onclick="switchSubTab('production',this)">
     📬 Ready to Pick Up/Ship
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="switchSubTab('new-order',this)">
+    ✚ New Order
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="customers" onclick="switchSubTab('customers',this)">
     👥 Customers
@@ -3843,7 +3239,55 @@
   <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
   <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
   <div class="topbar-spacer"></div>
-  <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">⚙</button>
+  <div class="tv-wrap" id="tvWrap" style="display:none">
+    <button class="tv-pill" id="tvPill" onclick="tvToggle()">
+      <span class="tv-dot"></span>
+      🚗 Verify Trips
+    </button>
+    <div class="tv-panel" id="tvPanel" style="display:none">
+      <div class="tv-panel-head">
+        <span id="tvPanelDate">Yesterday's Trips</span>
+        <button class="eo-close" onclick="tvToggle()">×</button>
+      </div>
+      <div id="tvPanelBody" class="tv-panel-body">
+        <div style="text-align:center;padding:20px;color:var(--text-dim)">Loading…</div>
+      </div>
+      <div class="tv-panel-foot">
+        <button class="btn btn-danger btn-sm" onclick="tvFlag()">⚠ Flag Issue</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-gold btn-sm" onclick="tvConfirm()">✓ Looks Good</button>
+      </div>
+    </div>
+  </div>
+  <div class="theme-wrap">
+    <button class="theme-btn" onclick="toggleThemePicker()" title="Change color theme">🎨</button>
+    <div class="theme-picker" id="themePicker">
+      <div class="theme-swatch active" data-theme="" onclick="setTheme('')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#4E7A94 50%,#C9983A 50%)"></div>
+        <span class="theme-name">Steel</span>
+      </div>
+      <div class="theme-swatch" data-theme="warm" onclick="setTheme('warm')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#F5F0E8 50%,#C9983A 50%)"></div>
+        <span class="theme-name">Warm</span>
+      </div>
+      <div class="theme-swatch" data-theme="sage" onclick="setTheme('sage')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EEF4EC 50%,#5B8C50 50%)"></div>
+        <span class="theme-name">Sage</span>
+      </div>
+      <div class="theme-swatch" data-theme="coast" onclick="setTheme('coast')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#EBF0F8 50%,#3A70C0 50%)"></div>
+        <span class="theme-name">Coast</span>
+      </div>
+      <div class="theme-swatch" data-theme="midnight" onclick="setTheme('midnight')">
+        <div class="theme-dot" style="background:linear-gradient(135deg,#1A1A1C 50%,#D4A040 50%)"></div>
+        <span class="theme-name">Midnight</span>
+      </div>
+    </div>
+  </div>
+  <div class="header-pill" id="connPill">
+    <span class="dot"></span>
+    <span class="conn-label">Notion connected</span>
+  </div>
 </div>
 <!-- ═════════════════════════════════════════════════ -->
 
@@ -3882,85 +3326,42 @@
       </div>
     </div>
 
-    <!-- Two-column body -->
-    <div class="home-body-grid">
+    <!-- Widgets row -->
+    <div class="home-widgets">
 
-      <!-- LEFT column: Sales + TripLog row + Orders -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
-
-        <!-- Sales + TripLog side by side -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-
-          <!-- Square Weekend Sales widget -->
-          <div class="home-stage-card">
-            <div class="home-stage-head">
-              <span>💰 Weekend Sales</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="home-widget-link" onclick="dashSquareLoad()" title="Refresh">↻</button>
-                <a onclick="sbNav('more','sales',null)">Sales →</a>
-              </div>
-            </div>
-            <div id="hw-square-body" style="padding:12px 14px;min-height:52px;">
-              <div class="hw-loading">Loading…</div>
-            </div>
-          </div>
-
-          <!-- TripLog widget -->
-          <div class="home-stage-card">
-            <div class="home-stage-head">
-              <span>🚗 Latest Trip</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="home-widget-link" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻</button>
-                <a onclick="sbNavDirect('triplog',null)">Trips →</a>
-              </div>
-            </div>
-            <div id="tlDashContent" class="tl-dash-content" style="padding:12px 14px;min-height:60px;">
-              <span style="color:var(--text-dim);font-size:13px;">Loading…</span>
-            </div>
-          </div>
-
+      <!-- Gmail widget -->
+      <div class="home-widget">
+        <div class="home-widget-head">
+          <span>📧 Gmail</span>
+          <button class="home-widget-link" onclick="sbNavDirect('gmail',null)">Open full →</button>
         </div>
-
-        <!-- Orders in Studio -->
-        <div class="home-stage-card">
-          <div class="home-stage-head">
-            <span>📋 Orders in Studio</span>
-            <a onclick="sbNav('custom-orders','dashboard',null)">View kanban →</a>
-          </div>
-          <div class="home-stage-grid" id="hw-stage-grid">
-            <div style="padding:20px;color:var(--text-dim);font-size:13px">Loading orders…</div>
-          </div>
+        <div class="home-widget-body" id="hw-gmail-body">
+          <div class="hw-loading" id="hw-gmail-loading">Connecting to Gmail…</div>
         </div>
-
       </div>
 
-      <!-- RIGHT column: Gmail + Calendar -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
-
-        <!-- Gmail widget -->
-        <div class="home-widget">
-          <div class="home-widget-head">
-            <span>📧 Gmail</span>
-            <button class="home-widget-link" onclick="sbNavDirect('gmail',null)">Open full →</button>
-          </div>
-          <div class="home-widget-body" id="hw-gmail-body">
-            <div class="hw-loading" id="hw-gmail-loading">Connecting to Gmail…</div>
-          </div>
+      <!-- Calendar widget -->
+      <div class="home-widget">
+        <div class="home-widget-head">
+          <span>📅 Calendar</span>
+          <button class="home-widget-link" onclick="sbNav('more','calendar',null)">Open full →</button>
         </div>
-
-        <!-- Calendar widget -->
-        <div class="home-widget">
-          <div class="home-widget-head">
-            <span>📅 Calendar</span>
-            <button class="home-widget-link" onclick="sbNav('more','calendar',null)">Open full →</button>
-          </div>
-          <div class="home-widget-body" id="hw-cal-body">
-            <div class="hw-loading" id="hw-cal-loading">Connecting to Calendar…</div>
-          </div>
+        <div class="home-widget-body" id="hw-cal-body">
+          <div class="hw-loading" id="hw-cal-loading">Connecting to Calendar…</div>
         </div>
-
       </div>
 
+    </div>
+
+    <!-- Orders by stage -->
+    <div class="home-stage-card">
+      <div class="home-stage-head">
+        <span>📋 Orders in Studio</span>
+        <a onclick="sbNav('custom-orders','dashboard',null)">View kanban →</a>
+      </div>
+      <div class="home-stage-grid" id="hw-stage-grid">
+        <div style="padding:20px;color:var(--text-dim);font-size:13px">Loading orders…</div>
+      </div>
     </div>
 
   </div>
@@ -4005,14 +3406,13 @@
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text3);font-size:13px;">— synced with Notion</span></span>
     <div style="display:flex;align-items:center;gap:8px;">
-      <button onclick="clearForm();switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
+      <button onclick="switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">✚ New Order</button>
       <div class="overflow-wrap" id="kbOverflowWrap">
         <button class="overflow-btn" onclick="toggleKbOverflow()" title="More actions">⋯</button>
         <div class="overflow-menu" id="kbOverflowMenu">
           <button onclick="openPrintSetup();toggleKbOverflow()">⚙ Print Setup</button>
           <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" onclick="toggleKbOverflow()">📓 Notion DB</a>
           <button id="notionSyncBtn" onclick="notionSyncFromNotion();toggleKbOverflow()" title="Pull latest orders from Notion">↻ Sync Notion</button>
-          <button id="etsySyncBtn" onclick="etsySync();toggleKbOverflow()" title="Import new paid Etsy orders">🛍 Sync Etsy</button>
           <button onclick="syncGmail();toggleKbOverflow()">⟳ Sync Gmail</button>
           <button onclick="checkDriveScans(this);toggleKbOverflow()" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
           <button onclick="openIntegrationsModal();toggleKbOverflow()" title="Configure API keys and integrations">⚙ Integrations</button>
@@ -4032,55 +3432,29 @@
   <div class="new-order-cols">
     <div class="form-card">
       <div class="form-head">
-        <div class="form-head-title" id="order-form-title">Order Intake</div>
-        <div class="form-head-sub" id="order-form-sub">Submitting creates a Notion record automatically.</div>
+        <div class="form-head-title">Order Intake</div>
+        <div class="form-head-sub">Submitting creates a ClickUp task + Notion record automatically.</div>
       </div>
       <div class="form-body">
-        <div style="margin-bottom:20px;" id="order-type-section">
+        <div style="margin-bottom:20px;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Order Type</div>
-          <select id="f-order-type" onchange="onOrderTypeChange()" class="fg-select" style="width:100%;">
-            <option value="order">💍 Custom Order</option>
-            <option value="repair">🔧 Repair</option>
-            <option value="resize">💎 Resize</option>
-            <option value="etsy-order">🛍 Etsy Order</option>
-            <option value="website-order">🌐 Website Order</option>
-          </select>
-          <div class="ot-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
+          <div class="order-type-toggle">
+            <button class="ot-option selected" id="ot-order" onclick="setOrderType('order')">
+              💍 Custom Order
+            </button>
+            <button class="ot-option estimate" id="ot-estimate" onclick="setOrderType('estimate')">
+              📋 Estimate Request
+            </button>
+            <button class="ot-option repair" id="ot-repair" onclick="setOrderType('repair')">
+              🔧 Repair
+            </button>
+          </div>
+          <div class="ot-hint" id="ot-hint">Will be placed in the <strong>Inquiry</strong> column.</div>
         </div>
         <div class="form-grid">
-          <input type="hidden" id="f-editing-id">
-          <div class="fg full" id="f-stage-row" style="display:none;">
-            <label>Stage</label>
-            <select id="f-stage">
-              <option value="intake-custom">Custom Intake</option>
-              <option value="intake-repair">Repair Intake</option>
-              <option value="needs-est">Estimate Intake</option>
-              <option value="sketch-needs">Needs Sketch</option>
-              <option value="sketch-wait">Waiting on Sketch Approval</option>
-              <option value="sketch">Sketch Approved</option>
-              <option value="quote">Estimate Sent</option>
-              <option value="est-wait-appr">Waiting on Approval</option>
-              <option value="est-appr">Estimate Approved</option>
-              <option value="deposit-wait">Waiting on Deposit</option>
-              <option value="deposit-paid">Deposit Paid</option>
-              <option value="order-mat">Order Materials</option>
-              <option value="materials">Waiting on Materials</option>
-              <option value="build">At the Bench</option>
-              <option value="needs-invoice">Needs Invoicing</option>
-              <option value="invoice-sent">Invoice Sent</option>
-              <option value="contact-need">Need to Contact Customer</option>
-              <option value="contact-done">Contacted Customer</option>
-              <option value="ready-pick">Ready for Pickup</option>
-              <option value="complete">Completed</option>
-            </select>
-          </div>
           <div class="fg">
-            <label>First Name *</label>
-            <input type="text" id="f-firstname" placeholder="Sarah">
-          </div>
-          <div class="fg">
-            <label>Last Name</label>
-            <input type="text" id="f-lastname" placeholder="Johnson">
+            <label>Customer Name *</label>
+            <input type="text" id="f-name" placeholder="e.g. Sarah Johnson">
           </div>
           <div class="fg">
             <label>Email</label>
@@ -4088,29 +3462,29 @@
           </div>
           <div class="fg">
             <label>Phone</label>
-            <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
+            <input type="tel" id="f-phone" placeholder="(512) 555-0100">
           </div>
-          <div class="fg full">
+          <div class="fg full" id="shipping-address-row" style="display:none;">
             <label>Street Address</label>
             <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
           </div>
-          <div class="fg full">
+          <div class="fg full" id="shipping-address-row-2" style="display:none;">
             <label>Address Line 2</label>
             <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
           </div>
-          <div class="fg">
+          <div class="fg" id="shipping-address-row-3" style="display:none;">
             <label>City</label>
             <input type="text" id="f-addr-city" placeholder="Tampa">
           </div>
-          <div class="fg">
-            <label>State</label>
+          <div class="fg" id="shipping-address-row-4" style="display:none;">
+            <label>State / Province</label>
             <input type="text" id="f-addr-state" placeholder="FL">
           </div>
-          <div class="fg">
-            <label>Zip</label>
+          <div class="fg" id="shipping-address-row-5" style="display:none;">
+            <label>Postal / Zip Code</label>
             <input type="text" id="f-addr-zip" placeholder="33619">
           </div>
-          <div class="fg">
+          <div class="fg" id="shipping-address-row-6" style="display:none;">
             <label>Country</label>
             <input type="text" id="f-addr-country" placeholder="United States" value="United States">
           </div>
@@ -4142,7 +3516,6 @@
               <option value="Email">Email</option>
               <option value="Farmer's Market">Farmer's Market</option>
               <option value="Shopify Email">Shopify Email</option>
-              <option value="Website Order">Website Order</option>
               <option value="Etsy Message">Etsy Message</option>
               <option value="Instagram Message">Instagram Message</option>
               <option value="Text Message">Text Message</option>
@@ -4150,11 +3523,7 @@
             </select>
           </div>
           <div class="fg full">
-            <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
-            <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
-          </div>
-          <div class="fg full">
-            <label>Order Description</label>
+            <label>Order Description *</label>
             <textarea id="f-description" placeholder="Describe the piece — type, style, size, stone, any inspiration or reference images…"></textarea>
           </div>
           <div class="fg">
@@ -4177,45 +3546,18 @@
             <label>Internal Notes</label>
             <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:60px;"></textarea>
           </div>
-          <div class="fg full">
-            <label>Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent with estimate</span></label>
-            <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
-          </div>
-          <div class="fg" id="f-paid-by-row" style="display:none;">
-            <label>Paid By</label>
-            <select id="f-paid-by">
-              <option value="">— Select —</option>
-              <option value="Credit Card">Credit Card</option>
-              <option value="Square Invoice">Square Invoice</option>
-              <option value="Cash">Cash</option>
-            </select>
-          </div>
-          <div class="fg full">
-            <label>Sketch Notes</label>
-            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
-          </div>
         </div>
       </div>
       <div class="form-foot">
-        <button class="btn btn-gold" id="order-form-submit" onclick="submitOrder()">✓ Create Order</button>
-        <button class="btn btn-outline" id="order-form-gmail-btn" onclick="openGmailPanel()">✉ Pull from Gmail</button>
+        <button class="btn btn-gold" onclick="submitOrder()">✓ Create Order</button>
+        <button class="btn btn-outline" onclick="openGmailPanel()">✉ Pull from Gmail</button>
         <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
-        <button class="btn btn-outline" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
-        <button class="btn btn-ghost" id="order-form-back-btn" style="display:none;" onclick="closeEditOrderModal()">← Back</button>
-        <span id="order-form-foot-note" style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in Notion</span>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in ClickUp <strong>Custom Orders</strong> + Notion</span>
       </div>
-      <div id="order-edit-actions" style="display:none;flex-direction:row;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid rgba(0,0,0,.1);background:rgba(0,0,0,.04);">
-        <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
-        <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
-        <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
-      </div>
-      <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.05);"></div>
     </div>
 
   <!-- Estimate Builder Card -->
-  <div class="form-card" id="estimateBuilderCard" style="display:none;">
+  <div class="form-card" id="estimateBuilderCard">
     <div class="form-head">
       <div class="form-head-title">💰 Estimate Builder</div>
       <div class="form-head-sub">Add materials + labor, choose your markup, then approve and send a draft to Square.</div>
@@ -4230,7 +3572,6 @@
         </div>
         <div class="est-col-labels">
           <div class="est-col-label">Description</div>
-          <div class="est-col-label"></div>
           <div class="est-col-label">Cost ($)</div>
           <div class="est-col-label"></div>
         </div>
@@ -4247,36 +3588,16 @@
         </div>
       </div>
 
-      <!-- Shipping -->
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Shipping</div>
-        <div style="max-width:220px;">
-          <div class="fg">
-            <input type="number" id="est-shipping" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
-          </div>
-        </div>
-      </div>
-
       <!-- Multiplier -->
       <div style="margin-bottom:22px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Markup Multiplier</div>
         <div class="mult-toggle">
-          <button class="mult-btn"           id="mult-1"   onclick="setMultiplier(1)">None</button>
-          <button class="mult-btn selected"  id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
-          <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
+          <button class="mult-btn selected" id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
+          <button class="mult-btn"          id="mult-3"   onclick="setMultiplier(3)">3×</button>
         </div>
         <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
           (Materials + Labor) × 2.5
         </div>
-      </div>
-
-      <!-- Sales Tax -->
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;margin-bottom:8px;">Sales Tax</div>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
-          <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
-          Apply 8.25% sales tax
-        </label>
       </div>
 
       <!-- Total breakdown -->
@@ -4298,14 +3619,6 @@
           <span id="est-mult-label">× 2.5 markup</span>
           <span></span>
         </div>
-        <div class="est-total-row" id="est-shipping-row" style="display:none;">
-          <span>Shipping</span>
-          <span id="est-shipping-display">$0.00</span>
-        </div>
-        <div class="est-total-row" id="est-tax-row" style="display:none;">
-          <span>Sales Tax (8.25%)</span>
-          <span id="est-tax-display">$0.00</span>
-        </div>
         <div class="est-total-final">
           <span>Final Estimate</span>
           <span id="est-final">$0.00</span>
@@ -4315,9 +3628,8 @@
     </div>
     <div class="form-foot">
       <button class="btn btn-green" onclick="approveEstimate()">✓ Approve &amp; Send to Square</button>
-      <button class="btn btn-gold" onclick="saveEstimateToNotion()">💾 Save Estimate</button>
       <button class="btn btn-ghost" onclick="clearEstimate()">Clear Estimate</button>
-      <span id="est-save-status" style="margin-left:auto;font-size:11.5px;color:var(--accent);opacity:0;transition:opacity 0.4s;"></span>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates a draft estimate in Square for your review</span>
     </div>
   </div>
   </div><!-- /new-order-cols -->
@@ -4642,7 +3954,6 @@
         <div class="sot-foot-row">
           <button class="sot-foot-btn primary" onclick="sotPrint()">&#128424; Print</button>
           <button class="sot-foot-btn" onclick="sotCopy()">&#128203; Copy</button>
-          <button class="sot-rg-btn" onclick="sotSendToRG()">🛒 Send to RG</button>
         </div>
         <div style="margin-top:6px;font-size:11px;color:var(--text3);text-align:right" id="sotSyncStatus"></div>
       </div>
@@ -4730,15 +4041,14 @@
   <div class="oh-note" id="ohNote"></div>
 </div>
 
-<!-- ═════════════════════ INVENTORY ═════════════════════ -->
+<!-- ═══════════════════ INVENTORY ═══════════════════ -->
 <div id="tab-inv-adjust" class="tab-panel">
 
 <!-- Category nav (Earrings / Rings / Pendants) inside the panel -->
-<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;align-items:center;">
+<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
   <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
-  <button class="btn btn-outline btn-sm" onclick="invMgrOpen()" style="margin-left:auto;font-size:12px;">⚙ Manage Items</button>
 </div>
 
 <!-- Earrings panel -->
@@ -4791,7 +4101,7 @@
 <!-- Ring sub-tabs -->
 <div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
   <button id="inv-ring-subtab-stackable"  class="inv-ring-sub-btn inv-ear-sub active" onclick="invSwitchRingSub('stackable',this)">Stackable</button>
-  <button id="inv-ring-subtab-ring-spirit" class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('ring-spirit',this)">Spirit Animal</button>
+  <button id="inv-ring-subtab-spirit"     class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('spirit',this)">Spirit Animal</button>
   <button id="inv-ring-subtab-geometric"  class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('geometric',this)">Geometric</button>
   <button id="inv-ring-subtab-symbolic"   class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('symbolic',this)">Symbolic</button>
   <button id="inv-ring-subtab-meditation" class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('meditation',this)">Meditation</button>
@@ -4810,7 +4120,7 @@
 <!-- Ring sub-panels -->
 <div style="padding:0 16px 16px">
   <div id="inv-rsub-stackable"  class="inv-ring-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
-  <div id="inv-rsub-ring-spirit" class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-rsub-spirit"     class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-geometric"  class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-symbolic"   class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-meditation" class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
@@ -4966,323 +4276,7 @@
 }
 .inv-dot.ok  { background: #22c55e; }
 .inv-dot.err { background: #ef4444; }
-
-.inv-queue-btn {
-  padding: 0 9px;
-  height: 28px;
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fbbf24;
-  border-radius: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
-  transition: background .15s, color .15s;
-}
-.inv-queue-btn:hover { background: #fef3c7; color: #92400e; }
-
-.inv-qal-btn {
-  padding: 0 9px;
-  height: 26px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid #d97706;
-  border-radius: 6px;
-  background: #fffbeb;
-  color: #b45309;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background .15s, color .15s;
-}
-.inv-qal-btn:hover { background: #fef3c7; color: #92400e; }
-
-.inv-last-date {
-  font-size: 11px;
-  color: var(--text-dim);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.inv-split-you, .inv-split-georgina {
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 4px;
-  padding: 2px 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: opacity .15s;
-}
-.inv-split-you:hover, .inv-split-georgina:hover { opacity: .75; }
-.inv-split-you      { background: var(--accent-bg); color: var(--accent, #C9983A); }
-.inv-split-georgina { background: #f0ebff; color: #7c3aed; }
-
-/* Split stock popover */
-#inv-split-popover {
-  display: none;
-  position: absolute;
-  z-index: 9999;
-  background: var(--card-bg);
-  border: 1px solid var(--bdr);
-  border-radius: 10px;
-  padding: 14px 16px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  min-width: 180px;
-}
-.inv-sp-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text2);
-  margin-bottom: 10px;
-}
-.inv-sp-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.inv-sp-label {
-  width: 64px;
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: default;
-}
-.inv-sp-inp {
-  width: 64px;
-  height: 30px;
-  border: 1px solid var(--bdr);
-  border-radius: 6px;
-  background: var(--card-bg);
-  color: var(--text);
-  font-size: 13px;
-  text-align: center;
-  font-family: inherit;
-  -moz-appearance: textfield;
-}
-.inv-sp-inp::-webkit-inner-spin-button,
-.inv-sp-inp::-webkit-outer-spin-button { -webkit-appearance: none; }
-.inv-sp-inp:focus { outline: none; border-color: var(--accent); }
-.inv-sp-btns {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-.inv-sp-cancel {
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--bdr);
-  border-radius: 7px;
-  background: var(--card-bg);
-  color: var(--text2);
-  font-size: 12px;
-  cursor: pointer;
-}
-.inv-sp-cancel:hover { background: var(--bdr-light); }
-
-/* Low-stock modal */
-#inv-ls-modal-bg {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  z-index: 900;
-  align-items: center;
-  justify-content: center;
-}
-#inv-ls-modal {
-  background: var(--card-bg);
-  border-radius: 14px;
-  padding: 24px;
-  width: 360px;
-  max-width: 95vw;
-  box-shadow: 0 12px 40px rgba(0,0,0,.22);
-}
-
-/* ── Designs ─────────────────────────────── */
-.dsn-filter-bar { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px; }
-.dsn-filter-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:background .15s,color .15s; }
-.dsn-filter-btn:hover { background:var(--accent-bg);color:var(--text); }
-.dsn-filter-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
-.dsn-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px; }
-.dsn-card { background:var(--card-bg);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s; }
-.dsn-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:var(--accent-border); }
-.dsn-card-thumb-wrap { position:relative;height:120px;background:var(--surface); }
-.dsn-card-thumb { width:100%;height:100%;background-size:cover;background-position:center; }
-.dsn-card-thumb-empty { display:flex;align-items:center;justify-content:center;height:100%;background:var(--surface); }
-.dsn-img-badge { position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 7px; }
-.dsn-card-body { padding:11px 13px 13px; }
-.dsn-cat-chip { display:inline-block;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:20px;font-size:10.5px;font-weight:700;padding:2px 8px;margin-bottom:5px; }
-.dsn-card-name { font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.3; }
-.dsn-card-preview { font-size:11.5px;color:var(--text3);line-height:1.4; }
-/* Form */
-.dsn-form-header { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
-.dsn-form-title { font-size:16px;font-weight:800;color:var(--text);flex:1; }
-.dsn-field-label { font-size:12px;font-weight:700;color:var(--text);display:block;margin-bottom:4px; }
-.dsn-input { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;transition:border-color .15s; }
-.dsn-input:focus { outline:none;border-color:var(--accent); }
-.dsn-textarea { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;resize:none;min-height:38px;line-height:1.5;transition:border-color .15s;overflow:hidden; }
-.dsn-textarea:focus { outline:none;border-color:var(--accent); }
-.dsn-select { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px; }
-.dsn-upload-row { display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
-.dsn-upload-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
-.dsn-upload-btn:hover { background:var(--accent-bg); }
-.dsn-pdf-status { font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;min-height:18px; }
-.dsn-gear-menu { position:absolute;right:0;top:calc(100% + 6px);background:var(--card-bg);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;min-width:190px;padding:5px; }
-.dsn-gear-item { display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border:none;background:none;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;border-radius:7px;text-align:left;white-space:nowrap; }
-.dsn-gear-item:hover { background:var(--surface); }
-.dsn-gear-item.danger { color:#c0392b; }
-.dsn-gear-item.active { background:var(--accent);color:#fff; }
-.dsn-gear-sep { height:1px;background:var(--bdr);margin:4px 0; }
-.dsn-form-layout { display:grid;grid-template-columns:1fr 250px;gap:24px;align-items:start; }
-.dsn-form-right { position:sticky;top:10px; }
-.dsn-img-col-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
-.dsn-img-edit-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
-.dsn-img-edit-btn:hover { background:var(--accent-bg); }
-.dsn-img-edit-btn.active { background:#c0392b;color:#fff;border-color:#c0392b; }
-.dsn-img-col { display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:40px; }
-.dsn-thumb-wrap { position:relative; }
-.dsn-thumb { width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;border:1px solid var(--bdr);cursor:pointer;display:block; }
-.dsn-thumb:hover { border-color:var(--accent); }
-.dsn-thumb-del { position:absolute;top:7px;right:7px;width:28px;height:28px;border-radius:50%;background:rgba(192,57,43,.9);color:#fff;border:2px solid rgba(255,255,255,.7);cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .15s; }
-.dsn-img-col.edit-mode .dsn-thumb-del { opacity:1;pointer-events:auto; }
-.dsn-form-actions { display:flex;gap:8px;padding-top:4px;flex-wrap:wrap; }
-@media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
-/* Lightbox */
-#dsn-img-overlay { position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;align-items:center;justify-content:center; }
-#dsn-img-overlay img { max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain; }
-#dsn-img-overlay-close { position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;line-height:1; }
-@media (max-width:600px) {
-  .dsn-grid { grid-template-columns:1fr 1fr; }
-  .dsn-card-thumb-wrap { height:90px; }
-}
 </style>
-
-<!-- ═══════════════════ DESIGNS ══════════════════ -->
-<div id="tab-designs" class="tab-panel">
-  <div class="page-bar">
-    <div>
-      <div class="page-title">🎨 Design Library</div>
-      <div class="page-sub">Jewelry design specs, instructions &amp; reference images</div>
-    </div>
-    <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
-  </div>
-
-  <!-- Library view -->
-  <div id="designs-library">
-    <div class="dsn-filter-bar">
-      <button class="dsn-filter-btn active" data-cat="all" onclick="designsSetCatFilter('all')">All</button>
-      <button class="dsn-filter-btn" data-cat="Ear Cuffs" onclick="designsSetCatFilter('Ear Cuffs')">Ear Cuffs</button>
-      <button class="dsn-filter-btn" data-cat="Rings" onclick="designsSetCatFilter('Rings')">Rings</button>
-      <button class="dsn-filter-btn" data-cat="Earrings" onclick="designsSetCatFilter('Earrings')">Earrings</button>
-      <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
-      <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
-    </div>
-    <div class="dsn-grid" id="designs-list"></div>
-  </div>
-
-  <!-- Form view (new or edit) -->
-  <div id="designs-form-wrap" style="display:none">
-    <div class="dsn-form-header">
-      <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
-      <div style="flex:1"></div>
-      <div style="position:relative">
-        <button class="btn btn-outline btn-sm" id="dsn-gear-btn" onclick="designsToggleGearMenu()">⚙ Actions</button>
-        <div id="dsn-gear-menu" class="dsn-gear-menu" style="display:none">
-          <label class="dsn-gear-item">
-            📄 Import PDF
-            <input type="file" accept="application/pdf" style="display:none" onchange="designsHandlePDF(this.files[0]);this.value='';designsCloseGearMenu()">
-          </label>
-          <button class="dsn-gear-item" onclick="designsSaveDesign()">💾 Save Design</button>
-          <button class="dsn-gear-item" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
-          <div class="dsn-gear-sep"></div>
-          <button class="dsn-gear-item danger" id="dsn-delete-btn" style="display:none" onclick="designsDeleteDesign()">🗑 Delete Design</button>
-          <div class="dsn-gear-sep"></div>
-          <button class="dsn-gear-item" onclick="designsToggleApiKeyPanel()">🔑 API Key Settings</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- PDF import status (always visible when active) -->
-    <div id="dsn-pdf-status" class="dsn-pdf-status"></div>
-
-    <!-- API key panel (toggled by ⚙ gear button) -->
-    <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
-      <div id="dsn-api-key-row">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
-          <button onclick="designsSaveApiKey()" class="dsn-upload-btn" style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:#fff;border-color:var(--accent)">Save</button>
-        </div>
-      </div>
-      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);">
-        🔑 API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
-      </div>
-    </div>
-
-    <div class="dsn-form-layout">
-      <!-- LEFT: form fields -->
-      <div class="dsn-form-left">
-        <!-- Name + Category inline -->
-        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
-          <div>
-            <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
-            <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
-          </div>
-          <div>
-            <label class="dsn-field-label">Category</label>
-            <select id="dsn-cat" class="dsn-select">
-          <option value="">— Select category —</option>
-          <option value="Ear Cuffs">Ear Cuffs</option>
-          <option value="Rings">Rings</option>
-          <option value="Earrings">Earrings</option>
-          <option value="Pendants / Necklaces">Pendants / Necklaces</option>
-          <option value="Other">Other</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Specs -->
-        <label class="dsn-field-label">Specifications &amp; Materials</label>
-        <textarea id="dsn-specs" class="dsn-textarea" rows="5"
-          placeholder="Wire gauge, metal type, sizes (small/large mm), tools needed, bi-metal ratios, etc."
-          oninput="dsnAutoResize(this)"></textarea>
-
-        <!-- Instructions -->
-        <label class="dsn-field-label">Step-by-Step Instructions</label>
-        <textarea id="dsn-instructions" class="dsn-textarea" rows="7"
-          placeholder="Step 1: Cut length…&#10;Step 2: Fuse or solder into a circle…&#10;&#10;Notes/warnings go here too."
-          oninput="dsnAutoResize(this)"></textarea>
-
-      </div>
-
-      <!-- RIGHT: reference images -->
-      <div class="dsn-form-right">
-        <label class="dsn-field-label" style="margin-bottom:8px;display:block">Reference Images</label>
-        <div class="dsn-img-col" id="dsn-img-previews">
-          <span style="color:var(--text3);font-size:12px">No images yet</span>
-        </div>
-        <div id="dsn-img-add-row" style="display:none;margin-top:10px;">
-          <label class="dsn-upload-btn">
-            + Add Images
-            <input type="file" accept="image/*" multiple style="display:none"
-              onchange="designsHandleImages(this.files);this.value=''">
-          </label>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">JPEG, PNG, HEIC — up to 10</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Designs image lightbox -->
-<div id="dsn-img-overlay" onclick="if(event.target===this)designsCloseImageOverlay()">
-  <span id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()">×</span>
-  <img id="dsn-img-overlay-img" src="" alt="Design reference image">
-</div>
 
 <!-- ═══════════════════ TRIPLOG ═══════════════════ -->
 <div id="tab-triplog" class="tab-panel">
@@ -6460,8 +5454,217 @@ function savePrintSetup() {
   </div>
 </div>
 
+<div id="editOrderModalBg" class="eo-bg" onclick="if(event.target===this)closeEditOrderModal()">
+  <div class="eo-modal">
+
+    <div class="eo-head">
+      <div class="eo-head-title">✏️ Edit Order</div>
+      <button class="eo-close" onclick="closeEditOrderModal()">×</button>
+    </div>
+
+    <div class="eo-body">
+      <input type="hidden" id="eo-id">
+
+      <div class="eo-grid">
+        <div class="eo-field full">
+          <label>Customer Name</label>
+          <input type="text" id="eo-name" placeholder="Full name">
+        </div>
+        <div class="eo-field">
+          <label>Email</label>
+          <input type="email" id="eo-email" placeholder="customer@email.com">
+        </div>
+        <div class="eo-field">
+          <label>Phone</label>
+          <input type="tel" id="eo-phone" placeholder="(512) 555-0000">
+        </div>
+        <div id="eo-shipping-wrap" style="display:contents">
+          <div class="eo-field full" style="display:none" data-addr>
+            <label>Street Address</label>
+            <input type="text" id="eo-addr-street" placeholder="142 Palm Avenue">
+          </div>
+          <div class="eo-field full" style="display:none" data-addr>
+            <label>Address Line 2</label>
+            <input type="text" id="eo-addr-street2" placeholder="Apt, Suite, Unit (optional)">
+          </div>
+          <div class="eo-field" style="display:none" data-addr>
+            <label>City</label>
+            <input type="text" id="eo-addr-city" placeholder="Tampa">
+          </div>
+          <div class="eo-field" style="display:none" data-addr>
+            <label>State / Province</label>
+            <input type="text" id="eo-addr-state" placeholder="FL">
+          </div>
+          <div class="eo-field" style="display:none" data-addr>
+            <label>Postal / Zip Code</label>
+            <input type="text" id="eo-addr-zip" placeholder="33619">
+          </div>
+          <div class="eo-field" style="display:none" data-addr>
+            <label>Country</label>
+            <input type="text" id="eo-addr-country" placeholder="United States">
+          </div>
+        </div>
+        <div class="eo-field full">
+          <label>Order Description</label>
+          <textarea id="eo-desc" rows="3" placeholder="Describe the piece…"></textarea>
+        </div>
+        <div class="eo-field">
+          <label>Stage</label>
+          <select id="eo-stage">
+            <option value="intake-custom">Custom Intake</option>
+            <option value="intake-repair">Repair Intake</option>
+            <option value="needs-est">Estimate Intake</option>
+            <option value="sketch-needs">Needs Sketch</option>
+            <option value="sketch-wait">Waiting on Sketch Approval</option>
+            <option value="sketch">Sketch Approved</option>
+            <option value="quote">Estimate Sent</option>
+            <option value="est-appr">Estimate Approved</option>
+            <option value="deposit-wait">Waiting on Deposit</option>
+            <option value="deposit-paid">Deposit Paid</option>
+            <option value="order-mat">Order Materials</option>
+            <option value="materials">Waiting on Materials</option>
+            <option value="build">At the Bench</option>
+            <option value="needs-invoice">Needs Invoice / Final Payment</option>
+            <option value="contact-need">Need to Contact Customer</option>
+            <option value="contact-done">Contacted Customer</option>
+            <option value="ready-pick">Ready for Pickup</option>
+            <option value="complete">Completed</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Pickup Location</label>
+          <select id="eo-pickup" onchange="toggleEditShippingAddress()">
+            <option value="">— Select location —</option>
+            <option value="Bell Market">Bell Market</option>
+            <option value="Mueller Market">Mueller Market</option>
+            <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+            <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+            <option value="Austin Flea">Austin Flea</option>
+            <option value="Studio">Studio</option>
+            <option value="To be Shipped">📦 To be Shipped</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Quoted Price ($)</label>
+          <input type="number" id="eo-price" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="eo-field">
+          <label>Deadline</label>
+          <input type="date" id="eo-deadline">
+        </div>
+        <div class="eo-field">
+          <label>Contacted Via</label>
+          <select id="eo-source">
+            <option value="">— Select source —</option>
+            <option value="Email">Email</option>
+            <option value="Farmer's Market">Farmer's Market</option>
+            <option value="Shopify Email">Shopify Email</option>
+            <option value="Etsy Message">Etsy Message</option>
+            <option value="Instagram Message">Instagram Message</option>
+            <option value="Text Message">Text Message</option>
+            <option value="Facebook Message">Facebook Message</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Paid By</label>
+          <select id="eo-paid-by">
+            <option value="">— Select —</option>
+            <option value="Square">Square</option>
+            <option value="Venmo">Venmo</option>
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Zelle">Zelle</option>
+            <option value="PayPal">PayPal</option>
+          </select>
+        </div>
+        <div class="eo-field">
+          <label>Materials / Metal</label>
+          <input type="text" id="eo-materials" placeholder="e.g. 14k yellow gold">
+        </div>
+        <div class="eo-field">
+          <label>Ring Size</label>
+          <input type="text" id="eo-ring-size" placeholder="e.g. 6.5">
+        </div>
+        <div class="eo-field full">
+          <label>Internal Notes</label>
+          <textarea id="eo-notes" rows="2" placeholder="Sizing, preferences, referral source…"></textarea>
+        </div>
+        <div class="eo-field full">
+          <label>Sketch Notes</label>
+          <textarea id="eo-sketch" rows="2" placeholder="Sketch description or approval notes…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.1);"></div>
+
+    <div class="eo-foot">
+      <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
+      <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
+      <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
+      <button class="btn btn-outline btn-sm" onclick="closeEditOrderModal()">Close</button>
+      <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">Save Changes</button>
+    </div>
+
+  </div>
+</div>
 
 <style>
+/* ── Edit Order Modal ── */
+.eo-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 800;
+  align-items: center; justify-content: center;
+}
+.eo-bg.open { display: flex; }
+.eo-modal {
+  background: #4a7a96; border: 1px solid #3d6880;
+  border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  width: min(620px, 96vw); max-height: 90vh;
+  display: flex; flex-direction: column;
+}
+.eo-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0,0,0,.15);
+  background: #3d6880;
+  border-radius: 16px 16px 0 0;
+}
+.eo-head-title { font-size: 15px; font-weight: 700; color: #fff; }
+.eo-close {
+  background: none; border: none; font-size: 22px; line-height: 1;
+  color: rgba(255,255,255,.7); cursor: pointer;
+}
+.eo-close:hover { color: #fff; }
+.eo-body { overflow-y: auto; padding: 18px 20px; flex: 1; }
+.eo-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.eo-field { display: flex; flex-direction: column; gap: 4px; }
+.eo-field.full { grid-column: 1 / -1; }
+.eo-field label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3px; color: rgba(255,255,255,.85);
+}
+.eo-field input, .eo-field select, .eo-field textarea {
+  padding: 8px 10px; border: 1px solid rgba(0,0,0,.15); border-radius: 8px;
+  font-size: 13px; background: #f5f4f0; color: #1a1a1a;
+  font-family: inherit; transition: border-color .15s;
+}
+.eo-field input:focus, .eo-field select:focus, .eo-field textarea:focus {
+  outline: none; border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.25);
+}
+.eo-field textarea { resize: vertical; }
+.eo-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(0,0,0,.15);
+  background: #3d6880;
+  border-radius: 0 0 16px 16px;
+}
+
 /* ── Print Setup modal ── */
 .ps-bg {
   display: none; position: fixed; inset: 0;
@@ -6521,76 +5724,6 @@ function savePrintSetup() {
   border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
 }
 .ps-cancel-btn:hover { color: #fff; border-color: rgba(255,255,255,.6); }
-    /* ── Data Map modal ─────────────────────── */
-    #dataMapModalBg {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.6); z-index: 9100;
-      align-items: flex-start; justify-content: center;
-      padding-top: 48px;
-    }
-    #dataMapModalBg.open { display: flex; }
-    .datamap-modal {
-      background: #0f1117; border-radius: 14px;
-      width: 800px; max-width: 96vw;
-      max-height: 82vh; overflow-y: auto;
-      padding: 22px 24px 18px;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-      color: #e2e8f0;
-    }
-    .datamap-modal h3 { font-size: 15px; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
-    .datamap-modal .dm-subtitle { font-size: 11px; color: #64748b; margin-bottom: 16px; }
-    .dm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .dm-section {
-      background: #1e2430; border: 1px solid #2d3748;
-      border-radius: 8px; overflow: hidden;
-    }
-    .dm-section.dm-wide { grid-column: span 3; }
-    .dm-section-head {
-      padding: 7px 12px; font-size: 10px; font-weight: 700;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      border-bottom: 1px solid #2d3748;
-    }
-    #dataMapModalBg .dm-section:nth-child(1) .dm-section-head { background: #1a2636; color: #7dd3fc; }
-    #dataMapModalBg .dm-section:nth-child(2) .dm-section-head { background: #1a2c1a; color: #86efac; }
-    #dataMapModalBg .dm-section:nth-child(3) .dm-section-head { background: #2c1a2e; color: #c084fc; }
-    #dataMapModalBg .dm-section:nth-child(4) .dm-section-head { background: #1a1a2e; color: #818cf8; }
-    .dm-body { padding: 6px 0; }
-    .dm-group { padding: 0 10px 4px; }
-    .dm-group-label {
-      font-size: 9.5px; font-weight: 700; color: #64748b;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      padding: 5px 0 3px; border-top: 1px solid #252d3d;
-      margin-top: 4px;
-    }
-    .dm-group:first-child .dm-group-label { border-top: none; margin-top: 0; }
-    .dm-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 6px; padding: 4px 0; border-bottom: 1px solid #252d3d; }
-    .dm-row:last-child { border-bottom: none; }
-    .dm-key {
-      grid-column: 1; grid-row: 1;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 10.5px; color: #7dd3fc; font-weight: 600;
-    }
-    .dm-desc { grid-column: 1; grid-row: 2; color: #94a3b8; font-size: 10px; margin-top: 1px; }
-    .dm-tag {
-      grid-column: 2; grid-row: 1; align-self: center;
-      font-size: 8.5px; padding: 1px 4px; border-radius: 3px;
-      font-weight: 700; text-transform: uppercase; white-space: nowrap;
-    }
-    .dm-tag-cred { background: #451a03; color: #fb923c; }
-    .dm-tag-kv   { background: #14532d; color: #4ade80; }
-    .dm-tag-dyn  { background: #1e1b4b; color: #818cf8; }
-    .dm-tag-ret  { background: #2d1515; color: #f87171; text-decoration: line-through; }
-    .dm-ext-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 8px; padding: 10px; }
-    .dm-ext-card {
-      background: #0f1421; border: 1px solid #2d3748;
-      border-radius: 6px; padding: 8px 6px; text-align: center;
-    }
-    .dm-ext-icon { font-size: 18px; }
-    .dm-ext-name { font-size: 10.5px; font-weight: 700; color: #e2e8f0; margin-top: 3px; }
-    .dm-ext-detail { font-size: 9.5px; color: #64748b; margin-top: 2px; line-height: 1.35; }
-    .dm-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-    .dm-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; }
-    .dm-foot { display: flex; justify-content: flex-end; margin-top: 14px; border-top: 1px solid #2d3748; padding-top: 12px; }
 </style>
 
 <!-- ═══════════════════ INTEGRATIONS MODAL ═══════════════════ -->
@@ -6640,132 +5773,6 @@ function savePrintSetup() {
     <div class="int-foot">
       <button class="btn btn-outline" onclick="closeIntegrationsModal()">Cancel</button>
       <button class="btn btn-gold" onclick="saveIntegrations()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════ DATA MAP MODAL ═══════════════════ -->
-<div id="dataMapModalBg" onclick="if(event.target===this)closeDataMapModal()">
-  <div class="datamap-modal">
-    <h3>🗄 Data Storage Map</h3>
-    <p class="dm-subtitle">All localStorage keys, Cloudflare KV, and external service integrations used by STS Workflow.</p>
-
-    <div class="dm-legend">
-      <span class="dm-legend-item"><span class="dm-tag dm-tag-cred">CRED</span> API credential</span>
-      <span class="dm-legend-item"><span class="dm-tag dm-tag-kv">KV</span> Cloudflare KV</span>
-      <span class="dm-legend-item"><span class="dm-tag dm-tag-dyn">DYN</span> dynamic / per-ID</span>
-      <span class="dm-legend-item"><span class="dm-tag dm-tag-ret">RET</span> retired</span>
-    </div>
-
-    <div class="dm-grid">
-
-      <!-- COL 1 -->
-      <div class="dm-section">
-        <div class="dm-section-head">📦 App &amp; Credentials</div>
-        <div class="dm-body">
-          <div class="dm-group">
-            <div class="dm-group-label">Navigation / UI</div>
-            <div class="dm-row"><span class="dm-key">sts-nav-{tab}</span><span class="dm-desc">tab state per tab</span><span class="dm-tag dm-tag-dyn">DYN</span></div>
-            <div class="dm-row"><span class="dm-key">sts-nav-parent</span><span class="dm-desc">active parent tab</span></div>
-            <div class="dm-row"><span class="dm-key">sts-theme</span><span class="dm-desc">light / dark theme</span></div>
-            <div class="dm-row"><span class="dm-key">sts-hidden</span><span class="dm-desc">hidden order IDs</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">API Keys</div>
-            <div class="dm-row"><span class="dm-key">sts-anthropic-key</span><span class="dm-desc">Claude API key</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-google-client-id</span><span class="dm-desc">Google OAuth ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-google-client-secret</span><span class="dm-desc">Google OAuth secret</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-square-token</span><span class="dm-desc">Square API token</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-square-location</span><span class="dm-desc">Square location ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts_notionToken</span><span class="dm-desc">Notion token (timer)</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-clickup-token</span><span class="dm-desc">ClickUp token</span><span class="dm-tag dm-tag-ret">RET</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">Gmail Auth</div>
-            <div class="dm-row"><span class="dm-key">sts-gmail-token</span><span class="dm-desc">OAuth token</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-gmail-token-expiry</span><span class="dm-desc">token expiry</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-gmail-scope</span><span class="dm-desc">OAuth scope</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- COL 2 -->
-      <div class="dm-section">
-        <div class="dm-section-head">🛒 Orders &amp; Production</div>
-        <div class="dm-body">
-          <div class="dm-group">
-            <div class="dm-group-label">Orders Tab</div>
-            <div class="dm-row"><span class="dm-key">sts-orders</span><span class="dm-desc">all custom orders</span></div>
-            <div class="dm-row"><span class="dm-key">sts-completed-registry</span><span class="dm-desc">completed order IDs</span></div>
-            <div class="dm-row"><span class="dm-key">sts-est-state</span><span class="dm-desc">estimate form state</span></div>
-            <div class="dm-row"><span class="dm-key">workOrderPrintSettings</span><span class="dm-desc">print config</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">Production Tab</div>
-            <div class="dm-row"><span class="dm-key">sot_order_v1</span><span class="dm-desc">SOT order tracker</span></div>
-            <div class="dm-row"><span class="dm-key">sot_custom_v1</span><span class="dm-desc">SOT custom items</span></div>
-            <div class="dm-row"><span class="dm-key">sot_notes_v1</span><span class="dm-desc">SOT notes</span></div>
-            <div class="dm-row"><span class="dm-key">supplier_tracker_v3-5</span><span class="dm-desc">migrated to v1</span><span class="dm-tag dm-tag-ret">RET</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">Notes / Gmail / Sales</div>
-            <div class="dm-row"><span class="dm-key">sts_rqAutoMatch</span><span class="dm-desc">RQ auto-match setting</span></div>
-            <div class="dm-row"><span class="dm-key">sts_rqTimers</span><span class="dm-desc">request queue timers</span></div>
-            <div class="dm-row"><span class="dm-key">sts-gmail-threads</span><span class="dm-desc">cached email threads</span></div>
-            <div class="dm-row"><span class="dm-key">sts-square-autosync-date</span><span class="dm-desc">last Square sync</span></div>
-            <div class="dm-row"><span class="dm-key">sts-square-weekends</span><span class="dm-desc">weekend event config</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- COL 3 -->
-      <div class="dm-section">
-        <div class="dm-section-head">🎨 Inventory, Designs &amp; More</div>
-        <div class="dm-body">
-          <div class="dm-group">
-            <div class="dm-group-label">Inventory Tab</div>
-            <div class="dm-row"><span class="dm-key">sts-inv-hidden</span><span class="dm-desc">hidden items</span></div>
-            <div class="dm-row"><span class="dm-key">sts-inv-hidden-vars</span><span class="dm-desc">hidden variants</span></div>
-            <div class="dm-row"><span class="dm-key">sts-inv-extra</span><span class="dm-desc">extra / custom items</span></div>
-            <div class="dm-row"><span class="dm-key">sts-inv-thresholds</span><span class="dm-desc">restock thresholds</span></div>
-            <div class="dm-row"><span class="dm-key">sts-inv-last-added</span><span class="dm-desc">last added item</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">Designs Tab (→ KV)</div>
-            <div class="dm-row"><span class="dm-key">/api/designs</span><span class="dm-desc">index (no images)</span><span class="dm-tag dm-tag-kv">KV</span></div>
-            <div class="dm-row"><span class="dm-key">/api/designs?id=…</span><span class="dm-desc">full design + images</span><span class="dm-tag dm-tag-kv">KV</span></div>
-            <div class="dm-row"><span class="dm-key">sts-designs</span><span class="dm-desc">legacy (migrated)</span><span class="dm-tag dm-tag-ret">RET</span></div>
-            <div class="dm-row"><span class="dm-key">sts-designs-kv-migrated</span><span class="dm-desc">migration flag</span></div>
-          </div>
-          <div class="dm-group">
-            <div class="dm-group-label">Triplog / Timer / Scan</div>
-            <div class="dm-row"><span class="dm-key">sts-triplog-edits</span><span class="dm-desc">manual trip edits</span></div>
-            <div class="dm-row"><span class="dm-key">sts-triplog-gaps</span><span class="dm-desc">gap overrides</span></div>
-            <div class="dm-row"><span class="dm-key">sts_sessions</span><span class="dm-desc">time tracker sessions</span></div>
-            <div class="dm-row"><span class="dm-key">sts_activeTimer_{tid}</span><span class="dm-desc">active timer</span><span class="dm-tag dm-tag-dyn">DYN</span></div>
-            <div class="dm-row"><span class="dm-key">sts_notionPageId_{tid}</span><span class="dm-desc">Notion page per task</span><span class="dm-tag dm-tag-dyn">DYN</span></div>
-            <div class="dm-row"><span class="dm-key">sts-pending-scans</span><span class="dm-desc">unsynced bag scans</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- FULL-WIDTH: External APIs -->
-      <div class="dm-section dm-wide">
-        <div class="dm-section-head">🔗 External Service Integrations</div>
-        <div class="dm-ext-grid">
-          <div class="dm-ext-card"><div class="dm-ext-icon">📋</div><div class="dm-ext-name">Notion</div><div class="dm-ext-detail">Orders, time sessions, customers, notes</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">🟦</div><div class="dm-ext-name">Square</div><div class="dm-ext-detail">Sales, inventory, payments, customers</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">📧</div><div class="dm-ext-name">Gmail</div><div class="dm-ext-detail">kyle@stonesthrow — threads read + cached</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">📁</div><div class="dm-ext-name">Google Drive</div><div class="dm-ext-detail">"STS Order Bag Visual Reads" folder</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">📅</div><div class="dm-ext-name">Google Calendar</div><div class="dm-ext-detail">Events &amp; calendar view</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">🤖</div><div class="dm-ext-name">Anthropic</div><div class="dm-ext-detail">PDF OCR &amp; bag scan vision (claude-opus-4-8)</div></div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="dm-foot">
-      <button class="btn btn-outline" onclick="closeDataMapModal()">Close</button>
     </div>
   </div>
 </div>
@@ -6961,96 +5968,39 @@ function savePrintSetup() {
 <!-- Toast notification -->
 <div id="toast" class="toast"></div>
 
-<!-- ── Low-stock / Add to Restock Queue modal ── -->
-<div id="inv-ls-modal-bg" onclick="if(event.target===this)invCloseLowStockModal()">
-  <div id="inv-ls-modal">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">⚑ Low Stock</div>
-    <div id="inv-ls-item-name" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;"></div>
-    <div id="inv-ls-var-name" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"></div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 12px;background:var(--card-head-bg);border-radius:9px;border:1px solid var(--bdr);">
-      <span style="font-size:12px;color:var(--text-dim);">Current stock:</span>
-      <span id="inv-ls-qty" style="font-size:14px;font-weight:700;color:#d97706;"></span>
-    </div>
-    <div style="margin-bottom:18px;">
-      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">
-        Low-stock threshold for this item
-      </label>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input id="inv-ls-threshold" type="number" min="1" max="99"
-          style="width:72px;padding:7px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:14px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
-        <span style="font-size:12px;color:var(--text-dim);">Show button when stock is below this number</span>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-outline" onclick="invCloseLowStockModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="invConfirmLowStockAdd()">＋ Add to Restock Queue</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Queue All Low / Bulk Restock Queue modal ── -->
-<div id="inv-qal-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;"
-  onclick="if(event.target===this)invCloseQueueAllLowModal()">
-  <div style="background:var(--card-bg);border-radius:14px;padding:24px;width:560px;max-width:calc(100vw - 32px);max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.28);">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">⚑ Queue All Low Stock</div>
-    <div id="inv-qal-item-name" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;"></div>
-    <div id="inv-qal-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-outline" onclick="invCloseQueueAllLowModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="invConfirmQueueAllLow()">＋ Add to Restock Queue</button>
-    </div>
-  </div>
-</div>
-
 <!-- ═══════════════════ TO RESTOCK TAB ═══════════════════ -->
-<div id="tab-to-restock" class="tab-panel rq-page">
-  <!-- Top: header -->
-  <div class="rq-header-bar">
-    <h2 class="rq-header-title">📦 Restock Queue</h2>
-  </div>
-  <!-- Queue list -->
-  <div class="rq-scroll-area">
-    <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
-      No items in the Inventory Restock list yet.
-    </div>
-    <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-  </div>
-  <!-- Session log -->
-  <div class="rq-log-section rq-log-collapsed" id="rq-log-section">
-    <div class="rq-log-title">
-      <span class="rq-log-label" onclick="rqToggleLog()">Session Log <span class="rq-log-chevron">▲</span></span>
-      <div class="rq-log-add">
-        <div class="rq-add-input-wrap">
-          <input id="rq-add-input" type="text" placeholder="Add to restock queue…" autocomplete="off"
-            oninput="rqAddInputChange(this.value)"
-            onkeydown="if(event.key==='Enter')rqAddItem()">
-          <div id="rq-add-results" class="rq-setup-results rq-add-dropdown"></div>
-        </div>
-        <div id="rq-add-chip" class="rq-add-chip" style="display:none"></div>
-        <button class="btn btn-gold btn-sm" onclick="rqAddItem()">＋ Add</button>
+<div id="tab-to-restock" class="tab-panel">
+  <div style="display:flex;height:calc(100vh - 100px);">
+    <!-- Left: Restock Queue -->
+    <div style="width:420px;flex-shrink:0;overflow-y:auto;padding:18px 16px 32px;border-right:1px solid var(--bdr-light);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:700;color:var(--text);margin:0;">📦 Restock Queue</h2>
+        <span style="font-size:12px;color:#B0A898;">Drag to set urgency · assign to a team member</span>
       </div>
-      <a class="rq-notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
+      <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
+        No items in the Inventory Restock list yet.<br>
+        <span style="font-size:12px;">Add items from the Notes → Inventory Restock card.</span>
+      </div>
+      <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
-    <div id="rq-log-list" class="rq-log-list">
-      <div class="rq-log-empty">No sessions recorded yet</div>
+    <!-- Right: Timer -->
+    <div style="flex:1;min-width:0;">
+      <iframe id="timer-iframe" src="" style="width:100%;height:100%;border:none;display:block;" allowtransparency="true"></iframe>
     </div>
   </div>
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/data.js?v=2"></script>
+<script src="js/data.js"></script>
 <script src="js/notion.js"></script>
 <script src="js/customers.js"></script>
 <script src="js/app.js"></script>
-<script src="js/orders.js?v=20260616a"></script>
-<script src="js/stuller.js?v=20260616a"></script>
-<script src="js/shopify.js"></script>
-<script src="js/etsy.js"></script>
+<script src="js/orders.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js"></script>
-<script src="js/notes.js?v=12"></script>
+<script src="js/notes.js"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
@@ -7120,19 +6070,14 @@ function savePrintSetup() {
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-</script>
-<script src="js/designs.js"></script>
 <script src="js/triplog.js"></script>
-<script src="js/inventory.js?v=9"></script>
-<script src="js/inv-manager.js"></script>
+<script src="js/inventory.js?v=2"></script>
 <script src="js/calendar.js"></script>
 <script>
-function timerTabInit() { /* timer now lives inline in the restock queue */ }
+function timerTabInit() {
+  const iframe = document.getElementById('timer-iframe');
+  if (!iframe.getAttribute('src')) iframe.src = 'time-tracker.html';
+}
 
 // ── ⋯ Overflow menu toggle ─────────────────────
 function toggleKbOverflow() {
@@ -7235,7 +6180,7 @@ function applyStatFilter(key) {
 
     // KPIs from ORDERS
     if (typeof ORDERS !== 'undefined') {
-      const active = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered' && o.stage !== 'cancelled');
+      const active = ORDERS.filter(o => o.stage !== 'complete' && o.stage !== 'delivered');
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
       set('hkpi-active', active.length);
       set('hkpi-bench',  active.filter(o => o.stage === 'build').length);
@@ -7246,46 +6191,18 @@ function applyStatFilter(key) {
       }).length);
       set('hkpi-ready',  active.filter(o => o.stage === 'ready-pick' || o.stage === 'ship-out').length);
 
-      // Orders flat list — sorted by deadline, capped at 8
+      // Stage breakdown grid
       const stageGrid = document.getElementById('hw-stage-grid');
-      if (stageGrid && typeof STAGES !== 'undefined') {
-        const stageLabelMap = {};
-        STAGES.forEach(s => { stageLabelMap[s.id] = s.label; });
-        const typeIcon = { repair: '🔧', estimate: '📋' };
-        const sorted = active.slice().sort((a, b) => {
-          if (!a.deadline && !b.deadline) return 0;
-          if (!a.deadline) return 1;
-          if (!b.deadline) return -1;
-          return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0;
-        });
-        const shown = sorted.slice(0, 8);
-        stageGrid.style.display = 'block';
-        if (!shown.length) {
-          stageGrid.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
-        } else {
-          const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          stageGrid.innerHTML = shown.map(o => {
-            const dl      = deadlineInfo(o.deadline);
-            const icon    = typeIcon[o.orderType] || '💍';
-            const slbl    = stageLabelMap[o.stage] || o.stage || '—';
-            const contact = o.phone || o.email || '';
-            const needsContact = o.stage === 'contact-need';
-            const contactBadge = needsContact
-              ? `<span style="font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;background:#dc2626;color:#fff;flex-shrink:0;white-space:nowrap;">📞 Call</span>`
-              : '';
-            return `<div onclick="openOrderCard('${esc(o.id)}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--bdr-light);font-size:13px;cursor:pointer;" onmouseover="this.style.background='var(--hover-bg,rgba(0,0,0,.04))'" onmouseout="this.style.background=''">
-              <span style="font-size:14px;flex-shrink:0;">${icon}</span>
-              <span style="flex:1;min-width:0;">
-                <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(o.name||'—')}</div>
-                ${contact ? `<div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(contact)}</div>` : ''}
-              </span>
-              ${contactBadge}
-              <span style="font-size:11px;color:var(--text2);flex-shrink:0;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;">${esc(slbl)}</span>
-              <span class="${dl.cls}" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;">${dl.text}</span>
-            </div>`;
-          }).join('')
-          + (active.length > 8 ? `<div style="padding:7px 14px;font-size:11px;color:var(--text2);">+${active.length - 8} more — <a onclick="sbNav('custom-orders','dashboard',null)" style="color:var(--accent);cursor:pointer;">View all →</a></div>` : '');
-        }
+      if (stageGrid && typeof COLUMN_GROUPS !== 'undefined') {
+        const counts = {};
+        active.forEach(o => { counts[o.stage] = (counts[o.stage] || 0) + 1; });
+        const cols = COLUMN_GROUPS.map(g => {
+          const n = g.stages.reduce((s, st) => s + (counts[st.id] || 0), 0);
+          return { label: g.label, count: n };
+        }).filter(c => c.count > 0);
+        stageGrid.innerHTML = cols.length
+          ? cols.map(c => `<div class="home-stage-col has-orders"><div class="home-stage-count">${c.count}</div><div class="home-stage-lbl">${c.label}</div></div>`).join('')
+          : '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
       }
     }
 
@@ -7294,164 +6211,42 @@ function applyStatFilter(key) {
 
     // Calendar widget — pull from existing calendar if loaded
     _homeRefreshCalendar();
-
-    // Square weekend sales widget
-    dashSquareLoad();
   };
 
   function _homeRefreshGmail() {
     const body = document.getElementById('hw-gmail-body');
     if (!body) return;
-
-    let threads = [];
-    try {
-      const saved = localStorage.getItem('sts-gmail-threads');
-      if (saved) {
-        const d = JSON.parse(saved);
-        threads = (d.threads || []).filter(t => t.category === 'needs-reply').slice(0, 5);
-      }
-    } catch(e) {}
-
-    if (!threads.length) {
-      body.innerHTML = '<div class="hw-loading">No customer emails cached.<br><br><button class="btn btn-gold btn-sm" onclick="sbNavDirect(\'gmail\',null)">Open Gmail →</button></div>';
-      return;
+    // Try to use already-loaded gmail data (gt-content rows)
+    const existing = document.querySelectorAll('#gt-content .gt-thread-row, #gt-content .gt-msg-row');
+    if (existing.length > 0) {
+      const rows = Array.from(existing).slice(0, 5);
+      body.innerHTML = rows.map(r => {
+        const from = r.querySelector('.gt-from, .gt-sender')?.textContent?.trim() || '—';
+        const sub  = r.querySelector('.gt-subject, .gt-subj')?.textContent?.trim() || '';
+        const time = r.querySelector('.gt-time, .gt-date')?.textContent?.trim() || '';
+        return `<div class="hw-gmail-row"><span class="hw-gmail-dot" style="background:var(--accent)"></span><span class="hw-gmail-from">${from}</span><span class="hw-gmail-sub">${sub}</span><span class="hw-gmail-time">${time}</span></div>`;
+      }).join('');
+    } else {
+      body.innerHTML = '<div class="hw-loading">Sign in to Gmail to see messages.<br><br><button class="btn btn-gold btn-sm" onclick="sbNavDirect(\'gmail\',null)">Open Gmail →</button></div>';
     }
-
-    const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    body.innerHTML = threads.map(t => `
-      <div class="hw-gmail-row" style="cursor:pointer;align-items:flex-start;" onclick="sbNavDirect('gmail',null)">
-        <span class="hw-gmail-dot" style="background:${t.unread ? 'var(--accent)' : 'transparent'};border:${t.unread ? 'none' : '1.5px solid var(--bdr)'};margin-top:4px;flex-shrink:0;"></span>
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px;">
-            <span class="hw-gmail-from" style="font-weight:${t.unread ? '700' : '600'}">${esc(t.from)}</span>
-            <span class="hw-gmail-time">${esc(t.age)}</span>
-          </div>
-          <div class="hw-gmail-sub" style="color:var(--text2);">${esc(t.subject)}</div>
-          <div class="hw-gmail-sub" style="color:var(--text-dim);font-size:10px;">${esc((t.snippet||'').slice(0,80))}</div>
-        </div>
-      </div>`).join('');
   }
 
   function _homeRefreshCalendar() {
     const body = document.getElementById('hw-cal-body');
     if (!body) return;
-
-    // _calEvents is the global populated by calendar.js after calLoadEvents()
-    if (typeof _calEvents !== 'undefined' && _calEvents.length > 0) {
-      const now = new Date();
-      const upcoming = _calEvents
-        .filter(ev => {
-          const dtStr = ev.start && (ev.start.dateTime || ev.start.date);
-          return dtStr && new Date(dtStr) >= now;
-        })
-        .slice(0, 5);
-      if (!upcoming.length) {
-        body.innerHTML = '<div class="hw-loading">No upcoming events this month.</div>';
-        return;
-      }
-      body.innerHTML = upcoming.map(ev => {
-        const dtStr   = ev.start.dateTime || ev.start.date;
-        const dt      = new Date(dtStr);
-        const isAllDay = !ev.start.dateTime;
-        const dayNum  = dt.getDate();
-        const month   = dt.toLocaleDateString('en-US', { month: 'short' });
-        const timeStr = isAllDay ? 'All day' : dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        const title   = (ev.summary || '(No title)').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        return `<div class="hw-cal-event"><div class="hw-cal-date"><div class="hw-cal-day">${dayNum}</div><div class="hw-cal-month">${month}</div></div><div class="hw-cal-info"><div class="hw-cal-title">${title}</div><div class="hw-cal-time">${timeStr}</div></div></div>`;
+    // Try to pull from already-rendered calendar events
+    const calEvents = document.querySelectorAll('.cal-event, .fc-event, .cal-ev');
+    if (calEvents.length > 0) {
+      const evts = Array.from(calEvents).slice(0, 4);
+      body.innerHTML = evts.map(e => {
+        const title = e.querySelector('.fc-title, .cal-title')?.textContent?.trim() || e.textContent?.trim() || 'Event';
+        const time  = e.querySelector('.fc-time, .cal-time')?.textContent?.trim() || '';
+        return `<div class="hw-cal-event"><div class="hw-cal-date"><div class="hw-cal-day">—</div><div class="hw-cal-month">—</div></div><div class="hw-cal-info"><div class="hw-cal-title">${title}</div><div class="hw-cal-time">${time}</div></div></div>`;
       }).join('');
-    } else if (typeof calEnsureToken === 'function') {
-      // calendar.js is loaded — check for a token and trigger a fetch if we have one
-      calEnsureToken().then(token => {
-        if (token) {
-          body.innerHTML = '<div class="hw-loading">Loading events…</div>';
-          if (typeof calLoadEvents === 'function') calLoadEvents();
-        } else {
-          body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
-        }
-      });
     } else {
       body.innerHTML = '<div class="hw-loading">Sign in to Google to see events.<br><br><button class="btn btn-gold btn-sm" onclick="sbNav(\'more\',\'calendar\',null)">Open Calendar →</button></div>';
     }
   }
-
-  // Whenever calRender() fires (calendar tab loads events), also refresh the dashboard widget
-  const _origCalRender = window.calRender;
-  window.calRender = function() {
-    if (_origCalRender) _origCalRender.call(this);
-    _homeRefreshCalendar();
-  };
-
-  // Whenever loadGmailThreads() fires (gmail syncs), also refresh the dashboard widget
-  const _origLoadGmailThreads = window.loadGmailThreads;
-  window.loadGmailThreads = function(data) {
-    if (_origLoadGmailThreads) _origLoadGmailThreads.call(this, data);
-    _homeRefreshGmail();
-  };
-
-  window.dashSquareLoad = function() {
-    const body = document.getElementById('hw-square-body');
-    if (!body) return;
-
-    // Merge hardcoded baseline with localStorage synced data (same logic as sales.js)
-    let weekends = [];
-    try {
-      const synced = JSON.parse(localStorage.getItem('sts-square-weekends') || '[]');
-      const base = (typeof SQUARE_WEEKENDS !== 'undefined') ? SQUARE_WEEKENDS : [];
-      const syncedMap = {};
-      synced.forEach(w => { syncedMap[w.weekend] = w; });
-      weekends = base.map(w => syncedMap[w.weekend] || w);
-      synced.forEach(w => { if (!base.find(b => b.weekend === w.weekend)) weekends.push(w); });
-      weekends.sort((a, b) => a.weekend < b.weekend ? -1 : a.weekend > b.weekend ? 1 : 0);
-    } catch(e) {}
-
-    if (!weekends.length) {
-      body.innerHTML = '<div class="hw-loading">No sales data yet. <button class="btn btn-gold btn-sm" style="margin-left:8px" onclick="sbNav(\'more\',\'sales\',null)">Open Sales →</button></div>';
-      return;
-    }
-
-    const recent  = weekends.slice(-4);
-    const last    = recent[recent.length - 1];
-    const prev    = recent[recent.length - 2];
-    const lastTotal = last.total || 0;
-    const prevTotal = prev ? (prev.total || 0) : 0;
-    const change    = prevTotal ? ((lastTotal - prevTotal) / prevTotal * 100).toFixed(0) : null;
-
-    // Bar chart dimensions
-    const maxVal  = Math.max(...recent.map(w => w.total || 0), 1);
-    const BAR_H   = 80; // px total bar height area
-
-    const bars = recent.map(w => {
-      const satH = Math.round(((w.saturday || 0) / maxVal) * BAR_H);
-      const sunH = Math.round(((w.sunday   || 0) / maxVal) * BAR_H);
-      return `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;">
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;">$${Math.round(w.total||0).toLocaleString()}</div>
-          <div style="width:100%;max-width:52px;display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px;border-radius:5px 5px 0 0;overflow:hidden;">
-            <div style="background:#E8B850;height:${sunH}px;width:100%;"></div>
-            <div style="background:#C9983A;height:${satH}px;width:100%;"></div>
-          </div>
-          <div style="font-size:10px;color:var(--text2);margin-top:5px;text-align:center;white-space:nowrap;">${w.label}</div>
-        </div>`;
-    }).join('');
-
-    const changeHtml = change !== null
-      ? `<span style="font-weight:700;color:${change >= 0 ? '#2A7A48' : '#C43030'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
-      : '';
-
-    body.innerHTML = `
-      <div style="display:flex;align-items:flex-end;gap:8px;padding:4px 0 0;border-bottom:1px solid var(--bdr-light);padding-bottom:4px;">
-        ${bars}
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
-        <div style="display:flex;align-items:center;gap:14px;font-size:11px;color:var(--text2);">
-          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#C9983A;border-radius:2px;"></span>Sat</span>
-          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#E8B850;border-radius:2px;"></span>Sun</span>
-        </div>
-        <div style="font-size:11px;color:var(--text2);">
-          ${changeHtml}${changeHtml ? ' · ' : ''}${last.num_transactions || 0} transactions
-        </div>
-      </div>`;
-  };
 
   window.sbNav = function(parentId, subId) {
     switchParent(parentId, _navTabEl(parentId), true, true);
@@ -7514,11 +6309,6 @@ function applyStatFilter(key) {
 </script>
 <!-- ═════════════════════════════════════════════════ -->
 
-<script>
-function openDataMapModal()  { document.getElementById('dataMapModalBg').classList.add('open'); }
-function closeDataMapModal() { document.getElementById('dataMapModalBg').classList.remove('open'); }
-</script>
-
 <!-- Photo lightbox -->
 <div class="photo-lightbox" id="photoLightbox" onclick="closeLightbox()">
   <span class="lb-close" onclick="closeLightbox()">✕</span>
@@ -7532,9 +6322,3 @@ function closeDataMapModal() { document.getElementById('dataMapModalBg').classLi
 
 </body>
 </html>
-
-
-
-
-
-

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>STS → RG Cart Bookmarklet</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F0E8; color: #2C2820; max-width: 680px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 20px; color: #1E1C19; border-bottom: 2px solid #C9983A; padding-bottom: 10px; }
+  h2 { font-size: 14px; color: #5C5650; text-transform: uppercase; letter-spacing: .5px; margin-top: 28px; }
+  .card { background: #fff; border: 1px solid #E4DDD4; border-radius: 10px; padding: 18px 20px; margin: 12px 0; }
+  .step { display: flex; gap: 14px; margin-bottom: 14px; }
+  .num { background: #C9983A; color: #1E1C19; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .step p { margin: 0; font-size: 13px; line-height: 1.6; }
+  a.bookmarklet {
+    display: inline-block;
+    background: #e63946;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    margin: 16px 0;
+    cursor: grab;
+    border: 2px dashed transparent;
+  }
+  a.bookmarklet:hover { border-color: #fff; opacity: .9; }
+  .note { font-size: 12px; color: #888; font-style: italic; }
+  .tag { background: #FEF0CC; color: #8C6520; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>🛒 STS → Rio Grande Cart Bookmarklet</h1>
+
+<h2>Install</h2>
+<div class="card">
+  <p class="note" style="margin-bottom:12px">Drag the red button below to your browser's bookmarks bar. You only need to do this once.</p>
+  <a class="bookmarklet" href="javascript:(function(){var o=new URLSearchParams(location.search).get('sts-order');if(!o){var m=location.hash.match(/sts-order=([^&]*)/);o=m&&m[1];}if(!o){alert('No STS order found.\n\nClick “Send to RG” in the STS webapp first, then click this bookmarklet on the Rio Grande tab that opens.');return;}var items;try{items=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(o)))));}catch(e){alert('Decode error: '+e.message);return;}if(!items||!items.length){alert('Order is empty.');return;}var el=document.createElement('div');el.id='sts-rg-ov';el.style.cssText='position:fixed;top:20px;right:20px;z-index:2147483647;background:%231E1C19;border:2px solid %23C9983A;border-radius:12px;padding:18px 22px;width:360px;font-family:system-ui,sans-serif;box-shadow:0 8px 40px rgba(0,0,0,.6)';el.innerHTML='<div style=%22color:%23EEC96A;font-weight:700;font-size:15px;margin-bottom:12px%22>🛒 STS → RG Cart<\/div><div id=%22srg-st%22 style=%22font-size:12px;color:%23aaa;margin-bottom:8px%22>Starting…<\/div><div id=%22srg-lg%22 style=%22font-size:11px;max-height:220px;overflow-y:auto;line-height:1.6%22><\/div><div id=%22srg-bt%22 style=%22margin-top:12px;display:none%22><\/div>';document.body.appendChild(el);var st=document.getElementById('srg-st'),lg=document.getElementById('srg-lg'),bt=document.getElementById('srg-bt');function log(m,c){var p=document.createElement('div');p.style.color=c||'%23888';p.textContent=m;lg.appendChild(p);lg.scrollTop=lg.scrollHeight;}function bld(it){var cto=it.unit!=='qty';var uom=it.unit==='ft'?'FOOT':it.unit;var kg=0.03;if(cto){var n=parseFloat(it.amount)||0;if(it.unit==='OZT')kg=Math.round(n*31.1035)/1000;else if(it.unit==='DWT')kg=Math.round(n*1.5552)/1000;else if(it.unit==='lb')kg=Math.round(n*453.592)/1000;}return{code:it.code,cto:cto?{CtoLength:null,CtoLengthFraction:null,CtoSpoolCoiled:null,CtoWidth:null,CtoWidthFraction:null,ExactQtyRequested:null,NumberOfPieces:1,PieceMeasure:String(it.amount),PieceUom:uom}:null,engraving:null,gemComments:'',language:'en',quantity:cto?kg:(parseInt(it.amount)||1)};}(async function(){st.textContent='Adding '+items.length+' item(s)…';var ok=0,fail=0;for(var i=0;i<items.length;i++){var it=items[i];var lbl=(it.name||it.code).split(',')[0].substring(0,50);log('▸ '+lbl+' ('+it.amount+' '+it.unit+')…');try{var r=await fetch('/api/en/cart/items',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(bld(it))});if(r.ok){log('✓ Added','%236abf8a');ok++;}else{var t=await r.text();log('✗ '+r.status+' '+(t||'').substring(0,60),'%23e63946');fail++;}}catch(e){log('✗ '+e.message,'%23e63946');fail++;}await new Promise(res=>setTimeout(res,400));}st.textContent=ok+' added'+(fail?', '+fail+' failed':'')+' — Done!';st.style.color=fail?'%23e63946':'%236abf8a';bt.style.display='flex';bt.style.gap='8px';bt.innerHTML='<a href=%22/cart/%22 style=%22flex:1;text-align:center;padding:7px;background:%23C9983A;color:%231E1C19;border-radius:7px;font-weight:700;font-size:12px;text-decoration:none%22>View Cart<\/a><button onclick=%22document.getElementById(\'sts-rg-ov\').remove()%22 style=%22flex:1;padding:7px;background:0;border:1px solid %23555;color:%23aaa;border-radius:7px;font-size:12px;cursor:pointer%22>Close<\/button>';})();})();">🛒 STS → RG Cart</a>
+  <p class="note">Can't drag? Right-click the button → "Bookmark this link".</p>
+</div>
+
+<h2>How to use</h2>
+<div class="card">
+  <div class="step">
+    <div class="num">1</div>
+    <p>In the STS app, go to <strong>Supplies → Supplier Order</strong>. Check the items you need and enter amounts for each (OZT for wire/sheet, ft for chain, qty for everything else).</p>
+  </div>
+  <div class="step">
+    <div class="num">2</div>
+    <p>Click <span class="tag" style="background:#fde8ea;color:#c82333">🛒 Send to RG</span> in the order panel footer. This copies your order to the clipboard and opens Rio Grande in a new tab.</p>
+  </div>
+  <div class="step">
+    <div class="num">3</div>
+    <p>Switch to the Rio Grande tab that just opened. Make sure you're <strong>logged in</strong>. Then click the <strong>STS → RG Cart</strong> bookmarklet from your bookmarks bar.</p>
+  </div>
+  <div class="step">
+    <div class="num">4</div>
+    <p>A progress overlay appears and adds all items to your cart automatically. When done, click <strong>View Cart</strong> to review before checkout.</p>
+  </div>
+</div>
+
+<h2>Notes</h2>
+<div class="card" style="font-size:13px;line-height:1.7">
+  <p>• <strong>CTO items</strong> (wire, sheet) use OZT — the bookmarklet sends the exact weight you entered.</p>
+  <p>• <strong>Chain items</strong> (By the foot) use FOOT as the unit of measure.</p>
+  <p>• <strong>Per-pack items</strong> (jump rings, tools) use the qty stepper — bookmarklet sends that count.</p>
+  <p>• You must be logged into Rio Grande for the cart API to accept requests.</p>
+  <p>• If an item fails (400 error), RG may require it to be added manually — check the overlay log.</p>
+</div>
+
+</body>
+</html>

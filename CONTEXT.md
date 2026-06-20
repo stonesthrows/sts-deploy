@@ -49,6 +49,22 @@ Payment for a completed Custom Order or Repair that originated in the pipeline. 
 **Weekend**
 A Sat–Sun market event identified by its Saturday date key (e.g. `2026-05-30`). The unit of aggregation for Market Sales data.
 
+## Restock Queue & Production Timer
+
+**Restock Queue**
+The list of inventory items that need to be made. Lives under the "To Restock" sub-tab. Each item maps (optionally) to a Square catalog item. Items can be assigned to an employee and reordered by priority.
+
+**Production Session**
+A timed work block recorded against a single Restock Queue item. Has a start time, stop time, employee, one or more items being made, and a piece count. Saved to Notion for time-tracking records.
+
+**Pieces Made**
+The number of pieces produced during a Production Session. Tracked per catalog item (or variant). This is a production count — it records what was made, not necessarily what was added to Square Inventory. The two may differ (e.g., some pieces go to display, samples, or gifts). For parent/variant items (e.g., rings), pieces are tracked per selected variant — not as a single total for the parent. Piece counts are entered while the timer is running, not at setup time.
+
+**Inventory Push**
+An optional action taken after a Production Session is saved, initiated by the same employee on the same device. Adds the Pieces Made count to Square Inventory as a RECEIVE adjustment (relative add, not absolute set). Separate from saving the session — the employee decides whether and how many to push after reviewing the piece count. Push state (per-variant Square IDs and quantities) is persisted in localStorage keyed by Notion page ID, cleared on successful push.
+
+---
+
 ## Inventory
 
 **Square Inventory**

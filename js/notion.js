@@ -12,6 +12,7 @@ const STAGE_TO_NOTION = {
   'intake-custom':  'Custom Intake',
   'intake-repair':  'Repair Intake',
   'needs-est':      'Estimate Intake',
+  'intake-website': 'Website Order Intake',
   'sketch-needs':   'Needs Sketch',
   'sketch-wait':    'Waiting on Sketch Approval',
   'sketch':         'Sketch Approved',

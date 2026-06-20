@@ -492,6 +492,8 @@ var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceT
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 var _rqEditingSession = null;
+var _rqPushingSession = null;
+var _rqEditAdds       = {};  // { [sessionIdx]: { query, debounceTimer, _lastResults, variantPicker: null|{item,selectedIds} } }
 var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqVariantPickers = {}; // { [notionPageId]: { selectedIds: [] } }
@@ -1047,6 +1049,7 @@ function restockQueueRender() {
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
+        + _rqTimerPiecesHTML(safePid, timer.items)
         + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
         + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
         + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
@@ -1137,15 +1140,22 @@ function rqStopTimer(pid) {
   var totalMs  = Date.now() - t.startTime;
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
   var netMin   = Math.max(0, totalMin - 15);
-  // Capture notes before clearing state
+  // Capture notes and piece counts from the live DOM before clearing state
   var notesEl  = document.getElementById('rq-notes-' + pid);
   var notes    = notesEl ? notesEl.value.trim() : (t.notes || '');
-  var items    = t.items || [{ name: t.itemText }];
+  var rawItems = t.items || [{ name: t.itemText }];
+  var rows     = _rqTimerRows(rawItems);
+  var expandedItems = rows.map(function(row, ri) {
+    var inp = document.getElementById('rq-pcs-run-' + pid + '-' + ri);
+    var raw = inp ? inp.value.trim() : '';
+    var pcs = raw !== '' ? parseInt(raw, 10) : null;
+    return { name: row.label, squareId: row.squareId, pieces: isNaN(pcs) ? null : pcs, isCustom: row.isCustom };
+  });
   var totalPcs = null;
-  items.forEach(function(it) { if (it.pieces != null) { totalPcs = (totalPcs || 0) + it.pieces; } });
+  expandedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
   var session  = {
     notionPageId: t.sessionNotionPageId,
-    items: items,
+    items: expandedItems,
     employee: t.employee,
     startTime: new Date(t.startTime).toISOString(),
     stopTime: stopTime,
@@ -1161,7 +1171,7 @@ function rqStopTimer(pid) {
   rqRenderSessions();
   restockQueueRender();
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
-  var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes };
+  var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(expandedItems) };
   if (totalPcs != null) patchBody.pieces = totalPcs;
   fetch('/api/notion-timesession', {
     method: 'PATCH',
@@ -1427,32 +1437,54 @@ function _rqUpdateConfirmBtn(pid) {
 function _rqSelectedHTML(pid) {
   var s = _rqSetups[pid]; if (!s || !s.selectedItems.length) return '';
   return '<div class="rq-selected-list">'
-    + s.selectedItems.map(function(item, idx) {
+    + s.selectedItems.map(function(item) {
       var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
-      var pcsCol = item.isParent
-        ? '<div class="rq-pcs-col"><span style="font-size:9px;color:var(--text3);">sizes at stop</span></div>'
-        : '<div class="rq-pcs-col"><label class="rq-pcs-label">pcs</label><input type="number" min="0" step="1" class="rq-pcs-input" id="rq-pcs-' + pid + '-' + idx + '" placeholder="0" value="' + (item.pieces != null ? item.pieces : '') + '"></div>';
       return '<div class="rq-selected-item">'
         + '<div style="flex:1;min-width:0;">'
         + '<div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
         + '<div class="rq-result-meta">' + (item.category || '') + (item.sku ? ' · ' + item.sku : '') + '</div>'
         + '</div>'
-        + pcsCol
         + '<button class="rq-item-remove" onclick="rqRemoveSetupItem(\'' + pid + '\',\'' + safeId + '\')">✕</button>'
         + '</div>';
     }).join('')
     + '</div>';
 }
 
+// ── Piece-count helpers ───────────────────────────────────────────────────────
+
+function _rqTimerRows(items) {
+  var rows = [];
+  (items || []).forEach(function(item) {
+    if (item.isParent && item.selectedVariants && item.selectedVariants.length) {
+      item.selectedVariants.forEach(function(v) {
+        rows.push({ label: (item.name || '') + ' – ' + (v.name || ''), squareId: v.id || '', isCustom: false });
+      });
+    } else {
+      rows.push({ label: item.name || '', squareId: item.isCustom ? '' : (item.id || ''), isCustom: !!item.isCustom });
+    }
+  });
+  return rows;
+}
+
+function _rqTimerPiecesHTML(safePid, items) {
+  var rows = _rqTimerRows(items);
+  if (!rows.length) return '';
+  return '<div class="rq-pieces-section">'
+    + rows.map(function(row, ri) {
+        var safeLabel = (row.label || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        return '<div class="rq-piece-row">'
+          + '<span class="rq-piece-label">' + safeLabel + '</span>'
+          + '<input type="number" min="0" step="1" class="rq-piece-input" id="rq-pcs-run-' + safePid + '-' + ri + '" placeholder="0">'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
 function rqStartTimerConfirm(pid) {
   var s = _rqSetups[pid]; if (!s || !s.selectedItems.length) return;
   if (s.debounceTimer) clearTimeout(s.debounceTimer);
-  // Read PCS inputs before destroying the DOM
-  var items = s.selectedItems.map(function(item, idx) {
-    if (item.isParent) return Object.assign({}, item, { pieces: null });
-    var inp = document.getElementById('rq-pcs-' + pid + '-' + idx);
-    var pcs = inp && inp.value.trim() !== '' ? parseInt(inp.value.trim(), 10) : null;
-    return Object.assign({}, item, { pieces: isNaN(pcs) ? null : pcs });
+  var items = s.selectedItems.map(function(item) {
+    return Object.assign({}, item, { pieces: null });
   });
   var startTimeMs  = s.startTimeMs || Date.now();
   var assigneeName = (_rqMeta.assignees[pid]) || '';
@@ -1508,9 +1540,12 @@ function rqLoadSessions() {
       _rqSessions = ns
         .filter(function(s) { return s.netMin != null; })
         .map(function(s) {
+          var parsedItems = null;
+          if (s.itemsJson) { try { parsedItems = JSON.parse(s.itemsJson); } catch(e) {} }
+          var items = parsedItems || [{ name: s.itemName || '', squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false }];
           return {
             notionPageId: s.notionPageId,
-            items: [{ name: s.itemName || '' }],
+            items: items,
             employee: { name: s.employeeName || '', id: '' },
             startTime: s.startTime || null,
             stopTime:  s.stopTime  || null,
@@ -1518,6 +1553,7 @@ function rqLoadSessions() {
             netMs:     (s.netMin   || 0) * 60000,
             notes:     s.notes || '',
             saved: true, error: null,
+            pushed: !!s.pushed,
           };
         });
       _rqSessionsLoaded = true;
@@ -1551,8 +1587,254 @@ function _rqToDateTimeLocal(iso) {
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
 }
 
-function rqStartEditSession(i)  { _rqEditingSession = i;    rqRenderSessions(); }
-function rqCancelEditSession()   { _rqEditingSession = null; rqRenderSessions(); }
+function rqStartEditSession(i) {
+  var s = _rqSessions[i];
+  if (s) s._itemsBackup = JSON.parse(JSON.stringify(s.items || []));
+  _rqEditingSession = i; _rqPushingSession = null;
+  rqRenderSessions();
+}
+
+function rqCancelEditSession() {
+  var s = _rqSessions[_rqEditingSession];
+  if (s && s._itemsBackup) { s.items = s._itemsBackup; delete s._itemsBackup; }
+  delete _rqEditAdds[_rqEditingSession];
+  _rqEditingSession = null;
+  rqRenderSessions();
+}
+
+function rqOpenPushPanel(i)  { _rqPushingSession = i; _rqEditingSession = null; rqRenderSessions(); }
+function rqClosePushPanel()  { _rqPushingSession = null; rqRenderSessions(); }
+
+function rqConfirmPush(i) {
+  var s = _rqSessions[i]; if (!s) return;
+  var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
+  var loc = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
+  var pushItems = (s.items || []).filter(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
+  if (!pushItems.length) {
+    toast('No Square items to push', '⚠');
+    _rqPushingSession = null;
+    rqRenderSessions();
+    return;
+  }
+  var changes = pushItems.map(function(it) {
+    return {
+      type: 'ADJUSTMENT',
+      adjustment: {
+        catalog_object_id: it.squareId,
+        location_id:       loc,
+        quantity:          String(it.pieces),
+        from_state:        'NONE',
+        to_state:          'IN_STOCK',
+        occurred_at:       new Date().toISOString(),
+      },
+    };
+  });
+  _rqSqCall('/inventory/changes/batch-create', {
+    method: 'POST',
+    body: { changes: changes, idempotency_key: 'rq-push-' + (s.notionPageId || Date.now()) },
+  }).then(function(data) {
+    if (data.errors && data.errors.length) throw new Error(data.errors[0].detail || 'Square error');
+    s.pushed = true;
+    _rqPushingSession = null;
+    rqRenderSessions();
+    toast('Pushed to Square ✓', '✓');
+    if (s.notionPageId) {
+      fetch('/api/notion-timesession', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: s.notionPageId, pushedToSquare: true }),
+      }).catch(function() {});
+    }
+  }).catch(function() {
+    toast('Square push failed', '⚠');
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Push'; }
+  });
+}
+
+// ── Session edit: add missing item(s) ──────────────────────────────────────────
+
+function rqEditOpenAdd(i) {
+  _rqEditAdds[i] = { query: '', debounceTimer: null, _lastResults: null, variantPicker: null };
+  rqRenderSessions();
+  setTimeout(function() {
+    var inp = document.getElementById('rq-eadd-srch-' + i);
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function rqEditCloseAdd(i) {
+  var e = _rqEditAdds[i];
+  if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
+  delete _rqEditAdds[i];
+  rqRenderSessions();
+}
+
+function rqEditAddInput(i, value) {
+  var e = _rqEditAdds[i]; if (!e) return;
+  e.query = value;
+  if (e.debounceTimer) clearTimeout(e.debounceTimer);
+  if (!value || value.length < 2) {
+    var box = document.getElementById('rq-eadd-results-' + i);
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+    return;
+  }
+  e.debounceTimer = setTimeout(function() { _rqEditAddSearch(i, value); }, 350);
+}
+
+function _rqEditAddSearch(i, query) {
+  var e = _rqEditAdds[i]; if (!e) return;
+  var spinner = document.getElementById('rq-eadd-spinner-' + i);
+  if (spinner) spinner.style.display = 'block';
+  var localMatches = _rqLocalSearch(query);
+  _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    if (!_rqEditAdds[i]) return;
+    var found = searchData.objects || [];
+    if (!found.length) { _rqEditAddRenderResults(i, localMatches, query); return; }
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }) },
+    }).then(function(fullData) {
+      if (!_rqEditAdds[i]) return;
+      var rows = localMatches.slice();
+      (fullData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
+        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
+        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        if (variations.length <= 1) {
+          var v = variations[0] ? variations[0].item_variation_data : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+        } else {
+          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' }; }) });
+        }
+      });
+      _rqEditAddRenderResults(i, rows, query);
+    });
+  }).catch(function() {
+    if (_rqEditAdds[i]) _rqEditAddRenderResults(i, localMatches, query);
+  }).then(function() {
+    var sp = document.getElementById('rq-eadd-spinner-' + i);
+    if (sp) sp.style.display = 'none';
+  });
+}
+
+function _rqEditAddRenderResults(i, items, query) {
+  var e = _rqEditAdds[i]; if (!e) return;
+  e._lastResults = items;
+  var box = document.getElementById('rq-eadd-results-' + i);
+  if (!box) return;
+  if (!items || !items.length) {
+    var safeQ = (query || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    var escQ  = (query || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    box.innerHTML = '<div class="rq-result-none">No match for "' + safeQ + '"</div>'
+      + '<div class="rq-result-item" onclick="rqEditAddSelectCustom(' + i + ',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+    box.style.display = 'flex';
+    return;
+  }
+  box.innerHTML = items.map(function(item) {
+    var meta = item.isParent
+      ? (item.category || '') + ' · ' + (item.variantCount || '') + ' sizes'
+      : (item.category || '') + (item.sku ? ' · ' + item.sku : '');
+    var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
+    return '<div class="rq-result-item" onclick="rqEditAddSelectId(' + i + ',\'' + safeId + '\')">'
+      + '<div><div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
+      + '<div class="rq-result-meta">' + meta.replace(/</g,'&lt;') + '</div></div>'
+      + '</div>';
+  }).join('');
+  box.style.display = 'flex';
+}
+
+function rqEditAddSelectId(i, itemId) {
+  var e = _rqEditAdds[i]; if (!e) return;
+  var item = (e._lastResults || []).filter(function(it) { return it.id === itemId; })[0];
+  if (!item) return;
+  if (e.debounceTimer) clearTimeout(e.debounceTimer);
+  if (item.isParent) {
+    e.variantPicker = { item: item, selectedIds: [] };
+    rqRenderSessions();
+    return;
+  }
+  _rqEditAddCommitItem(i, { name: item.name, squareId: item.id, pieces: null, isCustom: false });
+}
+
+function rqEditAddSelectCustom(i, name) {
+  _rqEditAddCommitItem(i, { name: name, squareId: '', pieces: null, isCustom: true });
+}
+
+function rqEditToggleVariant(i, variantId) {
+  var e = _rqEditAdds[i]; if (!e || !e.variantPicker) return;
+  var idx = e.variantPicker.selectedIds.indexOf(variantId);
+  if (idx === -1) e.variantPicker.selectedIds.push(variantId);
+  else e.variantPicker.selectedIds.splice(idx, 1);
+  rqRenderSessions();
+}
+
+function rqEditCancelVariantPicker(i) {
+  var e = _rqEditAdds[i]; if (!e) return;
+  e.variantPicker = null;
+  rqRenderSessions();
+}
+
+function rqEditConfirmVariants(i) {
+  var e = _rqEditAdds[i]; if (!e || !e.variantPicker) return;
+  var picker = e.variantPicker;
+  var selected = (picker.item.variants || []).filter(function(v) { return picker.selectedIds.indexOf(v.id) !== -1; });
+  if (!selected.length) return;
+  var s = _rqSessions[i]; if (!s) return;
+  s.items = (s.items || []).concat(selected.map(function(v) {
+    return { name: picker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false };
+  }));
+  delete _rqEditAdds[i];
+  rqRenderSessions();
+}
+
+function _rqEditAddCommitItem(i, item) {
+  var s = _rqSessions[i]; if (!s) return;
+  s.items = (s.items || []).concat([item]);
+  delete _rqEditAdds[i];
+  rqRenderSessions();
+}
+
+function rqEditRemoveItem(i, idx) {
+  var s = _rqSessions[i]; if (!s) return;
+  s.items = (s.items || []).filter(function(_, ii) { return ii !== idx; });
+  rqRenderSessions();
+}
+
+function _rqEditAddPanelHTML(i, e) {
+  if (e.variantPicker) {
+    var picker = e.variantPicker;
+    return '<div class="rq-variant-picker">'
+      + '<div class="rq-variant-label">Choose size(s) for <strong>' + (picker.item.name || '').replace(/</g,'&lt;') + '</strong></div>'
+      + '<div class="rq-variant-grid">'
+      + (picker.item.variants || []).map(function(v) {
+          var isSel = picker.selectedIds.indexOf(v.id) !== -1;
+          var safeVId = (v.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
+          return '<div class="rq-variant-chip' + (isSel ? ' rq-variant-chip-on' : '') + '"'
+            + ' onclick="rqEditToggleVariant(' + i + ',\'' + safeVId + '\')">'
+            + (v.name || '').replace(/</g,'&lt;')
+            + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
+      + '<button class="rq-variant-done" onclick="rqEditConfirmVariants(' + i + ')">Add</button>'
+      + '<button class="rq-setup-cancel-btn" onclick="rqEditCancelVariantPicker(' + i + ')">Cancel</button>'
+      + '</div></div>';
+  }
+  return '<div class="rq-setup-search-wrap" style="margin-top:6px;">'
+    + '<span class="rq-setup-search-icon">⌕</span>'
+    + '<input type="text" class="rq-setup-search-input" id="rq-eadd-srch-' + i + '" placeholder="Search Square catalog…" autocomplete="off"'
+    + ' oninput="rqEditAddInput(' + i + ',this.value)">'
+    + '<div class="rq-setup-spinner" id="rq-eadd-spinner-' + i + '"></div>'
+    + '</div>'
+    + '<div class="rq-setup-results" id="rq-eadd-results-' + i + '"></div>'
+    + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqEditCloseAdd(' + i + ')">Cancel</button>';
+}
 
 function rqSaveEditSession(i) {
   var s = _rqSessions[i]; if (!s) return;
@@ -1568,6 +1850,19 @@ function rqSaveEditSession(i) {
     s.totalMs = new Date(newStop) - new Date(newStart);
     s.netMs   = Math.max(0, s.totalMs - 15 * 60000);
   }
+  // Read per-item piece count edits; drop any row left blank
+  var updatedItems = (s.items || []).map(function(it, ii) {
+    var inp = document.getElementById('rq-edit-pcs-' + i + '-' + ii);
+    if (!inp) return it;
+    var raw = inp.value.trim();
+    var pcs = raw !== '' ? parseInt(raw, 10) : null;
+    return Object.assign({}, it, { pieces: isNaN(pcs) ? null : pcs });
+  }).filter(function(it) { return it.pieces != null; });
+  s.items = updatedItems;
+  var totalPcs = null;
+  updatedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
+  delete s._itemsBackup;
+  delete _rqEditAdds[i];
   _rqEditingSession = null;
   rqRenderSessions();
   if (!s.notionPageId) return;
@@ -1578,6 +1873,8 @@ function rqSaveEditSession(i) {
     patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
     patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
   }
+  if (totalPcs != null) patch.pieces = totalPcs;
+  patch.itemsJson = JSON.stringify(updatedItems);
   fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
     .then(function(r) { toast(r.ok ? 'Session updated ✓' : 'Notion update failed', r.ok ? '✓' : '⚠'); })
     .catch(function() { toast('Network error', '⚠'); });
@@ -1681,6 +1978,19 @@ function rqRenderSessions() {
     var status = s.error
       ? '<span class="rq-sbar-err">⚠ ' + s.error + '</span>'
       : s.saved ? '<span class="rq-sbar-saved">✓ Saved</span>' : '<span style="color:var(--text-dim)">Saving…</span>';
+
+    // Pieces summary
+    var totalPcs = null;
+    (s.items || []).forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
+    var piecesLabel = totalPcs != null ? totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + ' made' : '';
+
+    // Push button — only show when saved, not yet pushed, and at least one real Square item has pieces
+    var canPush = !s.pushed && s.saved && !s.error
+      && (s.items || []).some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
+    var pushBtn = s.pushed
+      ? '<span class="rq-pushed-label">↑ Pushed</span>'
+      : canPush ? '<button class="rq-push-btn" onclick="rqOpenPushPanel(' + i + ')">↑ Square</button>' : '';
+
     var timeRow = '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
       + '<span style="color:#ccc">·</span>'
@@ -1688,16 +1998,46 @@ function rqRenderSessions() {
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-' + i + '" onclick="rqSyncShiftsForSession(' + i + ')">⟳ Sync</button>' : '')
       + '</div>';
+
     var isEditing = _rqEditingSession === i;
+    var editAdd = _rqEditAdds[i];
     var editRow = isEditing
       ? '<div class="rq-edit-row">'
         + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
         + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
+        + (s.items || []).map(function(it, ii) {
+            var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+            return '<div class="rq-edit-field">'
+              + '<label style="flex:1;width:auto;">' + safeLabel + '</label>'
+              + '<input class="rq-edit-input rq-piece-input" type="number" min="0" step="1" id="rq-edit-pcs-' + i + '-' + ii + '" placeholder="pcs" value="' + (it.pieces != null ? it.pieces : '') + '">'
+              + '<button class="rq-item-remove" onclick="rqEditRemoveItem(' + i + ',' + ii + ')">✕</button>'
+              + '</div>';
+          }).join('')
+        + (editAdd ? _rqEditAddPanelHTML(i, editAdd) : '<button class="rq-adjust-link" style="margin-top:4px;" onclick="rqEditOpenAdd(' + i + ')">+ Add item</button>')
         + '<div style="display:flex;gap:8px;margin-top:2px;">'
         + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(' + i + ')">Save</button>'
         + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession()">Cancel</button>'
         + '</div></div>'
       : '';
+
+    var isPushing = _rqPushingSession === i;
+    var pushPanel = isPushing
+      ? '<div class="rq-push-panel">'
+        + (s.items || []).map(function(it) {
+            var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+            var pushable  = it.squareId && !it.isCustom && it.pieces > 0;
+            return '<div class="rq-push-item">'
+              + '<span class="rq-push-item-name">' + safeLabel + '</span>'
+              + (it.pieces != null ? '<span class="rq-push-item-qty">' + it.pieces + ' pc' + (it.pieces !== 1 ? 's' : '') + '</span>' : '')
+              + (pushable ? '<span class="rq-push-item-ok">✓</span>' : '<span class="rq-no-sq">no Square match</span>')
+              + '</div>';
+          }).join('')
+        + '<div style="display:flex;gap:8px;margin-top:8px;">'
+        + '<button class="rq-start-confirm-btn" onclick="rqConfirmPush(' + i + ')">Confirm Push</button>'
+        + '<button class="rq-setup-cancel-btn" onclick="rqClosePushPanel()">Cancel</button>'
+        + '</div></div>'
+      : '';
+
     return '<div class="rq-session-bar">'
       + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
       + '<div style="flex:1;min-width:0;">'
@@ -1709,10 +2049,13 @@ function rqRenderSessions() {
       + timeRow
       + '<div class="rq-sbar-footer">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
-      + (s.notes ? '<span style="color:var(--text3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + s.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '')
+      + (piecesLabel ? '<span class="rq-sbar-pieces">' + piecesLabel + '</span>' : '')
+      + (s.notes ? '<span style="color:var(--text3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;">' + s.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '')
       + status
+      + pushBtn
       + '</div>'
       + editRow
+      + pushPanel
       + '</div>';
   }).join('');
 }
