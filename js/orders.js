@@ -767,6 +767,7 @@ function closeStageSheet() {
   document.getElementById('stageSheetOverlay').classList.remove('active');
   document.getElementById('stageSheet').classList.remove('active');
   stageSheetOrderId = null;
+  if (typeof prodStageSheetOrderId !== 'undefined') prodStageSheetOrderId = null;
 }
 
 function pickStageFromSheet(stageId) {

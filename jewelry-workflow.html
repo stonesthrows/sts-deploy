@@ -2060,6 +2060,15 @@
     .prod-col-body.prod-drag-over {
       background: #EAF3FF; border-radius: 8px; outline: 2px dashed #5b8dd9;
     }
+    .prod-move-btn {
+      display: none; /* shown only on touch — see ≤1024px block below */
+      float: right; margin: -2px -2px 2px 6px;
+      width: 22px; height: 22px;
+      background: #F0EBE3; border: 1px solid #DDD5CC; border-radius: 5px;
+      align-items: center; justify-content: center;
+      font-size: 12px; cursor: pointer; padding: 0;
+    }
+    .prod-move-btn:hover { background: #E4DDD4; }
 
     /* ── Month archive ───────────────────────── */
     .prod-archive { margin-top: 28px; }
@@ -3450,11 +3459,12 @@
   }
 
   /* ═══════════════════════════════════════════════════
-     KANBAN — TOUCH / MOBILE  (≤ 1024px — covers phones plus
-     iPad portrait AND landscape, since native HTML5 drag-and-drop
-     doesn't fire on touch regardless of viewport width)
-     One column-group full-width per "page", swipe/scroll snap
-     between them. Dragging is replaced by the tap-to-move sheet.
+     KANBAN + READY-TO-SHIP BOARDS — TOUCH / MOBILE  (≤ 1024px —
+     covers phones plus iPad portrait AND landscape, since native
+     HTML5 drag-and-drop doesn't fire on touch regardless of
+     viewport width). One column full-width per "page", swipe/
+     scroll snap between them. Dragging is replaced by the
+     tap-to-move sheet (shared by orders.js and production.js).
   ═══════════════════════════════════════════════════ */
   @media (max-width: 1024px) {
     .kanban-board {
@@ -3469,6 +3479,19 @@
     }
     .o-card { cursor: pointer; }
     .card-move-btn { display: flex; }
+
+    /* Ready to Pickup/Ship (production.js board) — same swipe-snap + tap-to-move treatment */
+    .prod-board {
+      scroll-snap-type: x mandatory;
+      gap: 0;
+    }
+    .prod-col {
+      flex: 0 0 100%;
+      width: 100%;
+      min-width: 100%;
+      scroll-snap-align: start;
+    }
+    .prod-move-btn { display: flex; }
   }
 
   /* ── Stage sheet (tap-to-move, mobile) ───────────────── */
@@ -4119,15 +4142,6 @@
   </div>
 
   <div class="kanban-board" id="kanbanBoard"></div>
-
-  <div class="stage-sheet-overlay" id="stageSheetOverlay" onclick="closeStageSheet()"></div>
-  <div class="stage-sheet" id="stageSheet">
-    <div class="stage-sheet-head">
-      <span class="stage-sheet-title" id="stageSheetTitle">Move order</span>
-      <button class="stage-sheet-close" onclick="closeStageSheet()">&times;</button>
-    </div>
-    <div class="stage-sheet-body" id="stageSheetBody"></div>
-  </div>
 
 </div>
 
@@ -6698,6 +6712,16 @@ function savePrintSetup() {
     .dm-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; }
     .dm-foot { display: flex; justify-content: flex-end; margin-top: 14px; border-top: 1px solid #2d3748; padding-top: 12px; }
 </style>
+
+<!-- ═══════════════════ STAGE/MOVE SHEET (shared: kanban + production) ═══════════════════ -->
+<div class="stage-sheet-overlay" id="stageSheetOverlay" onclick="closeStageSheet()"></div>
+<div class="stage-sheet" id="stageSheet">
+  <div class="stage-sheet-head">
+    <span class="stage-sheet-title" id="stageSheetTitle">Move order</span>
+    <button class="stage-sheet-close" onclick="closeStageSheet()">&times;</button>
+  </div>
+  <div class="stage-sheet-body" id="stageSheetBody"></div>
+</div>
 
 <!-- ═══════════════════ INTEGRATIONS MODAL ═══════════════════ -->
 <div id="integrationsModalBg">

@@ -67,13 +67,7 @@ function prodDragLeave(ev) {
   ev.currentTarget.classList.remove('prod-drag-over');
 }
 
-function prodDrop(ev, colKey) {
-  ev.preventDefault();
-  ev.currentTarget.classList.remove('prod-drag-over');
-  if (!prodDraggedId) return;
-  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
-  if (!o) { prodDraggedId = null; return; }
-
+function prodApplyMove(o, colKey) {
   // Determine new stage and pickup from the target column
   if (colKey === '__ship__') {
     o.stage  = 'ready-pick';
@@ -96,9 +90,47 @@ function prodDrop(ev, colKey) {
 
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, o.stage);
-  prodDraggedId = null;
   renderProduction();
   toast(o.name + ' moved to ' + (colKey === '__ship__' ? 'To be Shipped' : colKey === '__limbo__' ? 'In Limbo' : colKey), '📍');
+}
+
+function prodDrop(ev, colKey) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('prod-drag-over');
+  if (!prodDraggedId) return;
+  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  if (!o) { prodDraggedId = null; return; }
+  prodApplyMove(o, colKey);
+  prodDraggedId = null;
+}
+
+// ── Tap-to-move sheet (mobile/iPad — drag-and-drop doesn't fire on touch) ──
+var prodStageSheetOrderId = null;
+
+function openProdStageSheet(id) {
+  var o = ORDERS.find(function(x){ return x.id === id; });
+  if (!o) return;
+  prodStageSheetOrderId = id;
+  var curCol = prodGetColumn(o);
+
+  document.getElementById('stageSheetTitle').textContent = 'Move "' + o.name + '"';
+  var body = document.getElementById('stageSheetBody');
+  body.innerHTML = PROD_COLUMNS.map(function(col) {
+    return '<button class="ss-option ' + (curCol === col.key ? 'ss-current' : '') + '"'
+         + ' onclick="pickProdDestFromSheet(\'' + col.key + '\')">'
+         + '<span>' + col.icon + ' ' + col.label + '</span>'
+         + '<span class="ss-check">✓</span>'
+         + '</button>';
+  }).join('');
+
+  document.getElementById('stageSheetOverlay').classList.add('active');
+  document.getElementById('stageSheet').classList.add('active');
+}
+
+function pickProdDestFromSheet(colKey) {
+  var o = ORDERS.find(function(x){ return x.id === prodStageSheetOrderId; });
+  if (o) prodApplyMove(o, colKey);
+  closeStageSheet();
 }
 
 // ── Render ────────────────────────────────────────────────────
@@ -289,6 +321,10 @@ function prodOrderCardHTML(o, showDeliverBtn) {
            + ' ondragend="prodDragEnd(event)"'
            + ' onclick="openOrderCard(\'' + o.id + '\')">';
   html += '<div class="prod-card-drag-handle" title="Drag to move">⠿</div>';
+  if (showDeliverBtn) {
+    html += '<button class="prod-move-btn" title="Move to another location"'
+          + ' onclick="event.stopPropagation();openProdStageSheet(\'' + o.id + '\')">↪</button>';
+  }
   var nameHtml = showDeliverBtn
     ? o.name
     : '<span class="prod-cust-link" onclick="event.stopPropagation();prodOpenCustomer(\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')" title="View all orders for this customer">' + o.name + '</span>';
