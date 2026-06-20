@@ -41,6 +41,7 @@ export async function onRequestPatch(context) {
   if (s.itemsJson      != null) props['Items JSON']        = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
   if (s.pushedToSquare != null) props['Pushed to Square']  = { checkbox: !!s.pushedToSquare };
   if (s.itemName       != null) props['Item Name']         = { rich_text: [{ text: { content: (s.itemName||'').slice(0,2000) } }] };
+  if (s.laborRate      != null) props['Labor Rate']        = { number: s.laborRate };
 
   async function notionPatch(properties) {
     return fetch(NOTION_API + '/pages/' + s.pageId, {
@@ -55,7 +56,7 @@ export async function onRequestPatch(context) {
 
   // If Notion rejected because one of the newer optional properties doesn't exist
   // on this database yet, retry with just the core fields so the rest still saves.
-  if (!res.ok && data.message && (s.itemsJson != null || s.pushedToSquare != null || s.itemName != null || s.pieces != null)) {
+  if (!res.ok && data.message && (s.itemsJson != null || s.pushedToSquare != null || s.itemName != null || s.pieces != null || s.laborRate != null)) {
     var core = {};
     if (s.notes     != null) core['Notes']                      = props['Notes'];
     if (s.stopTime  != null) core['Stop Time']                  = props['Stop Time'];
@@ -67,7 +68,7 @@ export async function onRequestPatch(context) {
     res  = await notionPatch(core);
     data = await res.json();
     if (res.ok) {
-      return jsonResp({ ok: true, warning: 'Saved core fields only — add "Items JSON" (Text), "Pushed to Square" (Checkbox), and confirm "Item Name" (Text) properties in the Notion database to save piece counts and Square links.' });
+      return jsonResp({ ok: true, warning: 'Saved core fields only — add "Items JSON" (Text), "Pushed to Square" (Checkbox), "Labor Rate" (Number), and confirm "Item Name" (Text) properties in the Notion database to save piece counts, cost data, and Square links.' });
     }
   }
 
@@ -205,6 +206,7 @@ export async function onRequestGet(context) {
         pieces:        num(props['Pieces Made']),
         itemsJson:     txt(props['Items JSON']),
         pushed:        props['Pushed to Square']?.checkbox ?? false,
+        laborRate:     num(props['Labor Rate']),
         startTime:     props['Start Time']?.date?.start || null,
         stopTime:      props['Stop Time']?.date?.start  || null,
       };

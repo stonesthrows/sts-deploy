@@ -1153,10 +1153,12 @@ function rqStopTimer(pid) {
   });
   var totalPcs = null;
   expandedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
+  var laborRate = _rqRateFor((t.employee && t.employee.name) || '');
   var session  = {
     notionPageId: t.sessionNotionPageId,
     items: expandedItems,
     employee: t.employee,
+    laborRate: laborRate,
     startTime: new Date(t.startTime).toISOString(),
     stopTime: stopTime,
     totalMs: totalMs,
@@ -1171,20 +1173,23 @@ function rqStopTimer(pid) {
   rqRenderSessions();
   restockQueueRender();
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
-  var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(expandedItems) };
-  if (totalPcs != null) patchBody.pieces = totalPcs;
-  fetch('/api/notion-timesession', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patchBody),
-  }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-  .then(function(res) {
-    session.saved = res.ok;
-    session.error = res.ok ? null : 'Notion error';
-    rqRenderSessions();
-    if (!res.ok) { toast('Notion save failed', '⚠'); return; }
-    if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
-    toast('Session saved ✓', '✓');
+  _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
+    session.items = pricedItems;
+    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(pricedItems), laborRate: laborRate };
+    if (totalPcs != null) patchBody.pieces = totalPcs;
+    return fetch('/api/notion-timesession', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody),
+    }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      session.saved = res.ok;
+      session.error = res.ok ? null : 'Notion error';
+      rqRenderSessions();
+      if (!res.ok) { toast('Notion save failed', '⚠'); return; }
+      if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
+      toast('Session saved ✓', '✓');
+    });
   }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
 }
 
@@ -1860,90 +1865,110 @@ function rqSaveEditSession(i) {
     var pcs = raw !== '' ? parseInt(raw, 10) : null;
     return Object.assign({}, it, { pieces: isNaN(pcs) ? null : pcs });
   }).filter(function(it) { return it.pieces != null; });
-  s.items = updatedItems;
-  var totalPcs = null;
-  updatedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
   delete s._itemsBackup;
   delete _rqEditAdds[i];
   _rqEditingSession = null;
-  rqRenderSessions();
-  if (!s.notionPageId) return;
-  var patch = { pageId: s.notionPageId };
-  if (newStart) patch.startTime = newStart;
-  if (newStop)  patch.stopTime  = newStop;
-  if (newStart && newStop) {
-    patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
-    patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
-  }
-  if (totalPcs != null) patch.pieces = totalPcs;
-  patch.itemsJson = JSON.stringify(updatedItems);
-  patch.itemName  = (updatedItems[0] && updatedItems[0].name) || '';
-  fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-    .then(function(res) {
-      if (!res.ok) { toast('Notion update failed', '⚠'); return; }
-      if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
-      toast('Session updated ✓', '✓');
-    })
-    .catch(function() { toast('Network error', '⚠'); });
+
+  // Newly added items won't have a unitPrice snapshot yet — fetch it now.
+  // Items that already had one (priced at original Stop & Save) are left untouched.
+  _rqAttachItemPrices(updatedItems).then(function(pricedItems) {
+    s.items = pricedItems;
+    var totalPcs = null;
+    pricedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
+    rqRenderSessions();
+    if (!s.notionPageId) return;
+    var patch = { pageId: s.notionPageId };
+    if (newStart) patch.startTime = newStart;
+    if (newStop)  patch.stopTime  = newStop;
+    if (newStart && newStop) {
+      patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
+      patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
+    }
+    if (totalPcs != null) patch.pieces = totalPcs;
+    patch.itemsJson = JSON.stringify(pricedItems);
+    patch.itemName  = (pricedItems[0] && pricedItems[0].name) || '';
+    return fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+      .then(function(res) {
+        if (!res.ok) { toast('Notion update failed', '⚠'); return; }
+        if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
+        toast('Session updated ✓', '✓');
+      });
+  }).catch(function() { rqRenderSessions(); toast('Network error', '⚠'); });
 }
 
 // ── Production Report ────────────────────────────────────────────────────────
-// Cross-session rollup by item: total pieces made, labor time, and value.
-// A session's labor time is split evenly across all items it contains.
+// Read-only, per-session card view (same layout as the Session Log) with
+// Labor Cost, Item Value, and Profit Margin added. Labor Rate and per-item
+// unit price are snapshotted once at first Stop & Save (see rqStopTimer /
+// _rqAttachItemPrices) so historical figures don't drift if rates or prices
+// change later. Sessions saved before this existed fall back to current
+// rate/price and are marked "(est.)".
 
-var _rqReportCache   = null;
-var _rqReportLoading = false;
+var RQ_RATE_PEOPLE   = ['Vanessa', 'Stevie', 'Kyle'];
+var _rqRatesPanelOpen = false;
+var _rqReportSessions = null;
+var _rqReportLoading  = false;
 
-function rqRenderProductionReport(forceRefresh) {
-  var body = document.getElementById('prod-report-body');
-  if (!body) return;
-  if (_rqReportCache && !forceRefresh) { _rqRenderReportBody(_rqReportCache); return; }
-  if (_rqReportLoading) return;
-  _rqReportLoading = true;
-  body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>';
-  fetch('/api/notion-timesession?all=true')
-    .then(function(r) { return r.ok ? r.json() : []; })
-    .then(function(ns) {
-      var sessions = (Array.isArray(ns) ? ns : []).map(function(s) {
-        var parsedItems = null;
-        if (s.itemsJson) { try { parsedItems = JSON.parse(s.itemsJson); } catch(e) {} }
-        var items = parsedItems || (s.itemName ? [{ name: s.itemName, squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false }] : []);
-        return { items: items, netMs: (s.netMin || 0) * 60000 };
-      });
-      return _rqAttachPrices(_rqAggregateByItem(sessions));
-    })
-    .then(function(groups) {
-      _rqReportCache = groups;
-      _rqReportLoading = false;
-      _rqRenderReportBody(groups);
-    })
-    .catch(function() {
-      _rqReportLoading = false;
-      body.innerHTML = '<div style="text-align:center;color:#A0402A;font-size:13px;padding:30px 0;">Failed to load report</div>';
-    });
+function _rqLoadRates() {
+  try { return JSON.parse(localStorage.getItem('sts-employee-rates') || '{}'); }
+  catch (e) { return {}; }
 }
 
-function _rqAggregateByItem(sessions) {
-  var groups = {};
-  sessions.forEach(function(s) {
-    var items = s.items || [];
-    var n = items.length;
-    if (!n) return;
-    var perItemMs = (s.netMs || 0) / n;
-    items.forEach(function(it) {
-      var key = it.squareId || ('name:' + (it.name || ''));
-      if (!groups[key]) groups[key] = { name: it.name || '', squareId: it.squareId || '', isCustom: !!it.isCustom, totalPieces: 0, totalLaborMs: 0 };
-      if (it.pieces != null) groups[key].totalPieces += it.pieces;
-      groups[key].totalLaborMs += perItemMs;
-    });
+function _rqSaveRatesObj(rates) {
+  localStorage.setItem('sts-employee-rates', JSON.stringify(rates));
+}
+
+function _rqRateFor(name) {
+  var rates = _rqLoadRates();
+  var r = rates[name];
+  return (typeof r === 'number' && !isNaN(r)) ? r : 0;
+}
+
+function _rqRenderRatesPanel() {
+  var el = document.getElementById('prod-report-rates');
+  if (!el) return;
+  if (!_rqRatesPanelOpen) {
+    el.innerHTML = '<button class="rq-adjust-link" onclick="rqToggleRatesPanel()">✎ Edit Rates</button>';
+    return;
+  }
+  var rates = _rqLoadRates();
+  el.innerHTML = '<div class="rq-edit-row">'
+    + RQ_RATE_PEOPLE.map(function(name) {
+        return '<div class="rq-edit-field"><label style="width:60px;">' + name + '</label>'
+          + '<input class="rq-edit-input" type="number" min="0" step="0.5" id="rq-rate-' + name + '" placeholder="$/hr" value="' + (rates[name] != null ? rates[name] : '') + '"></div>';
+      }).join('')
+    + '<div style="display:flex;gap:8px;margin-top:2px;">'
+    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveRatesPanel()">Save</button>'
+    + '<button class="rq-sbar-act-btn" onclick="rqToggleRatesPanel()">Cancel</button>'
+    + '</div></div>';
+}
+
+function rqToggleRatesPanel() {
+  _rqRatesPanelOpen = !_rqRatesPanelOpen;
+  _rqRenderRatesPanel();
+}
+
+function rqSaveRatesPanel() {
+  var rates = {};
+  RQ_RATE_PEOPLE.forEach(function(name) {
+    var inp = document.getElementById('rq-rate-' + name);
+    var v = inp && inp.value.trim() !== '' ? parseFloat(inp.value.trim()) : null;
+    rates[name] = (v != null && !isNaN(v)) ? v : 0;
   });
-  return Object.keys(groups).map(function(k) { return groups[k]; });
+  _rqSaveRatesObj(rates);
+  _rqRatesPanelOpen = false;
+  _rqRenderRatesPanel();
+  if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+  toast('Rates saved ✓', '✓');
 }
 
-function _rqAttachPrices(groups) {
-  var ids = groups.filter(function(g) { return g.squareId && !g.isCustom; }).map(function(g) { return g.squareId; });
-  if (!ids.length) return Promise.resolve(groups);
+// Fetches Square prices for any item lacking a stored unitPrice and attaches
+// them. Items that already have a unitPrice (a prior snapshot) are left untouched.
+function _rqAttachItemPrices(items) {
+  var needPricing = (items || []).filter(function(it) { return it.squareId && !it.isCustom && it.unitPrice == null; });
+  if (!needPricing.length) return Promise.resolve(items);
+  var ids = needPricing.map(function(it) { return it.squareId; });
   return _rqSqCall('/catalog/batch-retrieve', { method: 'POST', body: { object_ids: ids } })
     .then(function(data) {
       var priceById = {};
@@ -1952,45 +1977,158 @@ function _rqAttachPrices(groups) {
         var vd = obj.item_variation_data || {};
         priceById[obj.id] = vd.price_money ? vd.price_money.amount / 100 : null;
       });
-      groups.forEach(function(g) {
-        g.unitPrice  = g.squareId && priceById[g.squareId] != null ? priceById[g.squareId] : null;
-        g.totalValue = g.unitPrice != null ? g.unitPrice * g.totalPieces : null;
+      return items.map(function(it) {
+        if (it.unitPrice != null || !it.squareId || it.isCustom) return it;
+        return Object.assign({}, it, { unitPrice: priceById[it.squareId] != null ? priceById[it.squareId] : null });
       });
-      return groups;
     })
-    .catch(function() { return groups; });
+    .catch(function() { return items; });
 }
 
-function _rqRenderReportBody(groups) {
+function rqRenderProductionReport(forceRefresh) {
+  _rqRenderRatesPanel();
   var body = document.getElementById('prod-report-body');
   if (!body) return;
-  if (!groups.length) {
+  if (_rqReportSessions && !forceRefresh) { _rqRenderReportBody(_rqReportSessions); return; }
+  if (_rqReportLoading) return;
+  _rqReportLoading = true;
+  body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>';
+  fetch('/api/notion-timesession?all=true')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(ns) {
+      var sessions = (Array.isArray(ns) ? ns : []).filter(function(s) { return s.netMin != null; }).map(function(s) {
+        var parsedItems = null;
+        if (s.itemsJson) { try { parsedItems = JSON.parse(s.itemsJson); } catch (e) {} }
+        var items = parsedItems || (s.itemName ? [{ name: s.itemName, squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false, unitPrice: null }] : []);
+        return {
+          notionPageId: s.notionPageId,
+          items: items,
+          employee: { name: s.employeeName || '' },
+          startTime: s.startTime, stopTime: s.stopTime,
+          netMs: (s.netMin || 0) * 60000,
+          laborRate: s.laborRate != null ? s.laborRate : null,
+        };
+      });
+      return _rqFillReportPriceFallbacks(sessions);
+    })
+    .then(function(sessions) {
+      _rqReportSessions = sessions;
+      _rqReportLoading = false;
+      _rqRenderReportBody(sessions);
+    })
+    .catch(function() {
+      _rqReportLoading = false;
+      body.innerHTML = '<div style="text-align:center;color:#A0402A;font-size:13px;padding:30px 0;">Failed to load report</div>';
+    });
+}
+
+// Live-priced fallback for sessions saved before snapshotting existed — flagged
+// with _priceIsEstimate so the report can mark them "(est.)" rather than passing
+// them off as locked-in historical figures.
+function _rqFillReportPriceFallbacks(sessions) {
+  var idsNeeded = {};
+  sessions.forEach(function(s) {
+    (s.items || []).forEach(function(it) {
+      if (it.unitPrice == null && it.squareId && !it.isCustom) idsNeeded[it.squareId] = true;
+    });
+  });
+  var ids = Object.keys(idsNeeded);
+  if (!ids.length) return Promise.resolve(sessions);
+  return _rqSqCall('/catalog/batch-retrieve', { method: 'POST', body: { object_ids: ids } })
+    .then(function(data) {
+      var priceById = {};
+      (data.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM_VARIATION') return;
+        var vd = obj.item_variation_data || {};
+        priceById[obj.id] = vd.price_money ? vd.price_money.amount / 100 : null;
+      });
+      sessions.forEach(function(s) {
+        (s.items || []).forEach(function(it) {
+          if (it.unitPrice == null && it.squareId && priceById[it.squareId] != null) {
+            it.unitPrice = priceById[it.squareId];
+            it._priceIsEstimate = true;
+          }
+        });
+      });
+      return sessions;
+    })
+    .catch(function() { return sessions; });
+}
+
+function _rqRenderReportBody(sessions) {
+  var body = document.getElementById('prod-report-body');
+  var summaryEl = document.getElementById('prod-report-summary');
+  if (!body) return;
+  if (!sessions.length) {
     body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No production data yet</div>';
+    if (summaryEl) summaryEl.innerHTML = '';
     return;
   }
-  var sorted = groups.slice().sort(function(a, b) { return (b.totalPieces || 0) - (a.totalPieces || 0); });
-  var grandLaborMs = 0, grandValue = 0;
-  sorted.forEach(function(g) { grandLaborMs += g.totalLaborMs || 0; if (g.totalValue != null) grandValue += g.totalValue; });
 
-  var rows = sorted.map(function(g) {
-    var safeName = (g.name || '—').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    var priceTxt = g.unitPrice != null ? '$' + g.unitPrice.toFixed(2) : '—';
-    var valueTxt = g.totalValue != null ? '$' + g.totalValue.toFixed(2) : '—';
-    return '<tr>'
-      + '<td>' + safeName + '</td>'
-      + '<td style="text-align:center;">' + (g.totalPieces || 0) + '</td>'
-      + '<td style="text-align:center;">' + _rqFmtDur(g.totalLaborMs || 0) + '</td>'
-      + '<td style="text-align:right;">' + priceTxt + '</td>'
-      + '<td style="text-align:right;font-weight:700;">' + valueTxt + '</td>'
-      + '</tr>';
+  var grandLabor = 0, grandValue = 0;
+
+  var cards = sessions.map(function(s) {
+    var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
+    var extraCount  = (s.items && s.items.length > 1) ? ' +' + (s.items.length - 1) + ' more' : '';
+    var safeName    = (primaryName + extraCount).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    var emp         = s.employee ? s.employee.name : '';
+
+    var totalPcs = null;
+    (s.items || []).forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
+
+    var hrs           = (s.netMs || 0) / 3600000;
+    var rateIsEstimate = s.laborRate == null;
+    var rate          = rateIsEstimate ? _rqRateFor(emp) : s.laborRate;
+    var laborCost     = hrs * rate;
+
+    var hasAnyValue   = (s.items || []).some(function(it) { return it.pieces != null && it.unitPrice != null; });
+    var valueIsEstimate = false;
+    var itemValue     = 0;
+    (s.items || []).forEach(function(it) {
+      if (it.pieces == null || it.unitPrice == null) return;
+      itemValue += it.pieces * it.unitPrice;
+      if (it._priceIsEstimate) valueIsEstimate = true;
+    });
+    var profit = itemValue - laborCost;
+
+    grandLabor += laborCost;
+    if (hasAnyValue) grandValue += itemValue;
+
+    var laborTxt  = 'Labor: $' + laborCost.toFixed(2) + ' (' + hrs.toFixed(1) + 'h × $' + rate.toFixed(2) + '/hr)' + (rateIsEstimate ? ' (est.)' : '');
+    var valueTxt  = hasAnyValue ? 'Value: $' + itemValue.toFixed(2) + (valueIsEstimate ? ' (est.)' : '') : 'Value: —';
+    var profitTxt = hasAnyValue ? 'Profit: ' + (profit >= 0 ? '+$' + profit.toFixed(2) : '-$' + Math.abs(profit).toFixed(2)) : 'Profit: —';
+    var profitColor = profit >= 0 ? '#3A7A4A' : '#A0402A';
+
+    return '<div class="rq-session-bar">'
+      + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="rq-sbar-name">' + safeName + (totalPcs != null ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
+      + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
+      + '</div></div>'
+      + '<div class="rq-sbar-time-row">'
+      + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
+      + '<span style="color:#ccc">·</span>'
+      + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
+      + '</div>'
+      + '<div class="rq-sbar-footer" style="flex-wrap:wrap;">'
+      + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
+      + '<span class="rq-sbar-pieces">' + laborTxt + '</span>'
+      + '<span class="rq-sbar-pieces">' + valueTxt + '</span>'
+      + '<span class="rq-sbar-pieces" style="font-weight:700;color:' + profitColor + ';">' + profitTxt + '</span>'
+      + '</div>'
+      + '</div>';
   }).join('');
 
-  body.innerHTML = '<table class="prod-report-table">'
-    + '<thead><tr><th>Item</th><th>Pieces Made</th><th>Labor Time</th><th>Unit Price</th><th>Total Value</th></tr></thead>'
-    + '<tbody>' + rows + '</tbody>'
-    + '<tfoot><tr><td colspan="2">Total</td><td style="text-align:center;">' + _rqFmtDur(grandLaborMs) + '</td><td></td>'
-    + '<td style="text-align:right;">$' + grandValue.toFixed(2) + '</td></tr></tfoot>'
-    + '</table>';
+  body.innerHTML = cards;
+  if (summaryEl) {
+    var grandProfit = grandValue - grandLabor;
+    summaryEl.innerHTML = '<div class="prod-report-summary">'
+      + '<span>' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : '') + '</span>'
+      + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
+      + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
+      + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
+      + '</div>';
+  }
 }
 
 function rqSyncShiftsForSession(i) {

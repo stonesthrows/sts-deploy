@@ -63,6 +63,21 @@ The number of pieces produced during a Production Session. Tracked per catalog i
 **Inventory Push**
 An optional action taken after a Production Session is saved, initiated by the same employee on the same device. Adds the Pieces Made count to Square Inventory as a RECEIVE adjustment (relative add, not absolute set). Separate from saving the session — the employee decides whether and how many to push after reviewing the piece count. Push state (per-variant Square IDs and quantities) is persisted in localStorage keyed by Notion page ID, cleared on successful push.
 
+**Labor Rate**
+An employee's hourly pay rate, entered and edited in a settings panel at the top of the Production Report tab (stored in localStorage). Snapshotted onto a Production Session the first time it's saved (initial Stop & Save) — never re-snapshotted by later edits to that session, even if the employee's rate changes afterward or the session is edited for an unrelated reason (e.g. adding a missed item).
+
+**Labor Cost** (Production Report context)
+A Production Session's net duration × the Labor Rate snapshotted on that session. For sessions saved before Labor Rate snapshotting existed, falls back to the employee's current rate and is marked "(est.)" to distinguish it from a locked-in historical figure.
+
+**Item Value** (Production Report context)
+A Production Session's Pieces Made × the per-item Square catalog unit price, snapshotted the same way and at the same time as Labor Rate (first Stop & Save only). Same "(est.)" fallback rule applies to sessions with no snapshot.
+
+**Profit Margin** (Production Report context)
+Item Value − Labor Cost for a single Production Session. Computed for display only; never stored.
+
+**Production Report**
+A read-only tab showing every Production Session as a card, in the same visual layout as the Session Log, but additionally showing Labor Cost, Item Value, and Profit Margin per session. Distinct from the Session Log, which is the working interface employees use to start/stop/edit/push sessions day-to-day — the Production Report is the cost/value review surface, scoped to Kyle.
+
 ---
 
 ## Inventory
