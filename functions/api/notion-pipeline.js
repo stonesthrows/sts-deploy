@@ -104,7 +104,12 @@ function orderToProps(o) {
   if (o.addrStreet2 != null) props['Address Line 2'] = { rich_text: [{ text: { content: (o.addrStreet2 || '').slice(0, 2000) } }] };
   if (o.addrCity    != null) props['City']           = { rich_text: [{ text: { content: (o.addrCity    || '').slice(0, 2000) } }] };
   if (o.addrState   != null) props['State']          = { rich_text: [{ text: { content: (o.addrState   || '').slice(0, 2000) } }] };
-  if (o.addrZip     != null) props['Zip']            = { rich_text: [{ text: { content: (o.addrZip     || '').slice(0, 2000) } }] };
+  // Zip is a Notion Number property — only send it when it parses cleanly,
+  // otherwise silently drop rather than erroring the whole save.
+  if (o.addrZip != null && o.addrZip !== '') {
+    const zipNum = parseFloat(String(o.addrZip).replace(/[^0-9.]/g, ''));
+    if (!isNaN(zipNum)) props['Zip'] = { number: zipNum };
+  }
   if (o.addrCountry != null) props['Country']        = { rich_text: [{ text: { content: (o.addrCountry || '').slice(0, 2000) } }] };
 
   // Estimate / job fields
@@ -112,9 +117,14 @@ function orderToProps(o) {
   if (o.customerNotes  != null) props['Notes for Customer'] = { rich_text: [{ text: { content: (o.customerNotes  || '').slice(0, 2000) } }] };
 
   // Order detail fields
-  if (o.ringSize   != null) props['Ring Size']    = { rich_text: [{ text: { content: (o.ringSize || '').slice(0, 2000) } }] };
+  // Ring Size is a Notion Number property — only send it when it parses
+  // cleanly (e.g. "7.5"); free-text sizes like "6.5 US" are dropped silently.
+  if (o.ringSize != null && o.ringSize !== '') {
+    const ringNum = parseFloat(o.ringSize);
+    if (!isNaN(ringNum)) props['Ring Size'] = { number: ringNum };
+  }
   if (o.deposit    != null) props['Deposit']      = { number: o.deposit || null };
-  if (o.takeIn)             props['Take-In Date'] = { date: { start: o.takeIn } };
+  if (o.takeIn)             props['Take-in Date'] = { date: { start: o.takeIn } };
   if (o.sketchDesc != null) props['Sketch Notes'] = { rich_text: [{ text: { content: (o.sketchDesc || '').slice(0, 2000) } }] };
 
   return props;
@@ -161,15 +171,15 @@ function pageToOrder(page) {
     addrStreet2:   txt(p['Address Line 2']),
     addrCity:      txt(p['City']),
     addrState:     txt(p['State']),
-    addrZip:       txt(p['Zip']),
+    addrZip:       (num(p['Zip']) != null ? String(num(p['Zip'])) : ''),
     addrCountry:   txt(p['Country']),
     // Estimate / job fields
     jobDesc:       txt(p['Job Description']),
     customerNotes: txt(p['Notes for Customer']),
     // Order detail fields
-    ringSize:      txt(p['Ring Size']),
+    ringSize:      (num(p['Ring Size']) != null ? String(num(p['Ring Size'])) : ''),
     deposit:       num(p['Deposit']),
-    takeIn:        dt(p['Take-In Date']),
+    takeIn:        dt(p['Take-in Date']),
     sketchDesc:    txt(p['Sketch Notes']),
   };
 }
