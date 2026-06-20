@@ -1875,6 +1875,7 @@ function rqSaveEditSession(i) {
   }
   if (totalPcs != null) patch.pieces = totalPcs;
   patch.itemsJson = JSON.stringify(updatedItems);
+  patch.itemName  = (updatedItems[0] && updatedItems[0].name) || '';
   fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
     .then(function(r) { toast(r.ok ? 'Session updated ✓' : 'Notion update failed', r.ok ? '✓' : '⚠'); })
     .catch(function() { toast('Network error', '⚠'); });
@@ -1973,7 +1974,9 @@ function rqRenderSessions() {
     return;
   }
   list.innerHTML = _rqSessions.map(function(s, i) {
-    var name   = (s.items && s.items[0] && s.items[0].name) || '—';
+    var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
+    var extraCount  = (s.items && s.items.length > 1) ? ' +' + (s.items.length - 1) + ' more' : '';
+    var name   = primaryName + extraCount;
     var emp    = s.employee ? s.employee.name : '';
     var status = s.error
       ? '<span class="rq-sbar-err">⚠ ' + s.error + '</span>'
@@ -2041,7 +2044,8 @@ function rqRenderSessions() {
     return '<div class="rq-session-bar">'
       + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
       + '<div style="flex:1;min-width:0;">'
-      + '<div class="rq-sbar-name">' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>'
+      + '<div class="rq-sbar-name">' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        + (piecesLabel ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
       + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
       + '</div>'
       + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ')" title="Delete">✕</button>'
@@ -2049,7 +2053,6 @@ function rqRenderSessions() {
       + timeRow
       + '<div class="rq-sbar-footer">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
-      + (piecesLabel ? '<span class="rq-sbar-pieces">' + piecesLabel + '</span>' : '')
       + (s.notes ? '<span style="color:var(--text3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;">' + s.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '')
       + status
       + pushBtn

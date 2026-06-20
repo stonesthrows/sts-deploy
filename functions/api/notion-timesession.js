@@ -40,6 +40,7 @@ export async function onRequestPatch(context) {
   if (s.pieces         != null) props['Pieces Made']       = { number: s.pieces };
   if (s.itemsJson      != null) props['Items JSON']        = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
   if (s.pushedToSquare != null) props['Pushed to Square']  = { checkbox: !!s.pushedToSquare };
+  if (s.itemName       != null) props['Item Name']         = { rich_text: [{ text: { content: (s.itemName||'').slice(0,2000) } }] };
   var res = await fetch(NOTION_API + '/pages/' + s.pageId, {
     method: 'PATCH',
     headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER, 'Content-Type': 'application/json' },
