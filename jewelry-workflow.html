@@ -2423,6 +2423,14 @@
     .rq-push-item-qty { font-weight: 700; color: var(--text); flex-shrink: 0; }
     .rq-push-item-ok { color: #3A7A4A; font-size: 11px; flex-shrink: 0; }
     .rq-no-sq { font-size: 10px; color: var(--text3); flex-shrink: 0; font-style: italic; }
+    /* ── Production Report ── */
+    .prod-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .prod-report-table th {
+      text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text3); padding: 8px 10px; border-bottom: 2px solid var(--bdr);
+    }
+    .prod-report-table td { padding: 9px 10px; border-bottom: 1px solid var(--bdr-light); color: var(--text); }
+    .prod-report-table tfoot td { font-weight: 700; border-top: 2px solid var(--bdr); border-bottom: none; padding-top: 10px; }
     /* ── Setup panel (Square search before timer starts) ── */
     .rq-setup-panel {
       margin-top: 10px; border-top: 1px solid var(--accent-border);
@@ -3725,6 +3733,7 @@
     <div class="sb-section">Inventory</div>
     <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
     <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
+    <div class="sb-item" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
 
     <div class="sb-section">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
@@ -3810,6 +3819,9 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="inv-adjust" onclick="switchSubTab('inv-adjust',this)">
     💎 Adjust Inventory
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="prod-report" onclick="switchSubTab('prod-report',this)">
+    📊 Production Report
   </div>
 </div>
 
@@ -7038,6 +7050,17 @@ function savePrintSetup() {
   </div>
 </div>
 
+<!-- ═══════════════════ PRODUCTION REPORT TAB ═══════════════════ -->
+<div id="tab-prod-report" class="tab-panel">
+  <div class="rq-header-bar">
+    <h2 class="rq-header-title">📊 Production Report</h2>
+    <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="rqRenderProductionReport(true)">⟳ Refresh</button>
+  </div>
+  <div id="prod-report-body" style="padding:16px 20px;">
+    <div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>
+  </div>
+</div>
+
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js?v=2"></script>
 <script src="js/notion.js"></script>
@@ -7213,6 +7236,7 @@ function applyStatFilter(key) {
     'print-bag':         'Print Order Bag',
     'inv-adjust':        'Adjust Inventory',
     'to-restock':        'To Restock',
+    'prod-report':       'Production Report',
     'supplier':          'Order Materials',
     'order-history':     'Order History',
     'triplog':           'Trips',

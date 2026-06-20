@@ -1888,6 +1888,111 @@ function rqSaveEditSession(i) {
     .catch(function() { toast('Network error', '⚠'); });
 }
 
+// ── Production Report ────────────────────────────────────────────────────────
+// Cross-session rollup by item: total pieces made, labor time, and value.
+// A session's labor time is split evenly across all items it contains.
+
+var _rqReportCache   = null;
+var _rqReportLoading = false;
+
+function rqRenderProductionReport(forceRefresh) {
+  var body = document.getElementById('prod-report-body');
+  if (!body) return;
+  if (_rqReportCache && !forceRefresh) { _rqRenderReportBody(_rqReportCache); return; }
+  if (_rqReportLoading) return;
+  _rqReportLoading = true;
+  body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>';
+  fetch('/api/notion-timesession?all=true')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(ns) {
+      var sessions = (Array.isArray(ns) ? ns : []).map(function(s) {
+        var parsedItems = null;
+        if (s.itemsJson) { try { parsedItems = JSON.parse(s.itemsJson); } catch(e) {} }
+        var items = parsedItems || (s.itemName ? [{ name: s.itemName, squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false }] : []);
+        return { items: items, netMs: (s.netMin || 0) * 60000 };
+      });
+      return _rqAttachPrices(_rqAggregateByItem(sessions));
+    })
+    .then(function(groups) {
+      _rqReportCache = groups;
+      _rqReportLoading = false;
+      _rqRenderReportBody(groups);
+    })
+    .catch(function() {
+      _rqReportLoading = false;
+      body.innerHTML = '<div style="text-align:center;color:#A0402A;font-size:13px;padding:30px 0;">Failed to load report</div>';
+    });
+}
+
+function _rqAggregateByItem(sessions) {
+  var groups = {};
+  sessions.forEach(function(s) {
+    var items = s.items || [];
+    var n = items.length;
+    if (!n) return;
+    var perItemMs = (s.netMs || 0) / n;
+    items.forEach(function(it) {
+      var key = it.squareId || ('name:' + (it.name || ''));
+      if (!groups[key]) groups[key] = { name: it.name || '', squareId: it.squareId || '', isCustom: !!it.isCustom, totalPieces: 0, totalLaborMs: 0 };
+      if (it.pieces != null) groups[key].totalPieces += it.pieces;
+      groups[key].totalLaborMs += perItemMs;
+    });
+  });
+  return Object.keys(groups).map(function(k) { return groups[k]; });
+}
+
+function _rqAttachPrices(groups) {
+  var ids = groups.filter(function(g) { return g.squareId && !g.isCustom; }).map(function(g) { return g.squareId; });
+  if (!ids.length) return Promise.resolve(groups);
+  return _rqSqCall('/catalog/batch-retrieve', { method: 'POST', body: { object_ids: ids } })
+    .then(function(data) {
+      var priceById = {};
+      (data.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM_VARIATION') return;
+        var vd = obj.item_variation_data || {};
+        priceById[obj.id] = vd.price_money ? vd.price_money.amount / 100 : null;
+      });
+      groups.forEach(function(g) {
+        g.unitPrice  = g.squareId && priceById[g.squareId] != null ? priceById[g.squareId] : null;
+        g.totalValue = g.unitPrice != null ? g.unitPrice * g.totalPieces : null;
+      });
+      return groups;
+    })
+    .catch(function() { return groups; });
+}
+
+function _rqRenderReportBody(groups) {
+  var body = document.getElementById('prod-report-body');
+  if (!body) return;
+  if (!groups.length) {
+    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No production data yet</div>';
+    return;
+  }
+  var sorted = groups.slice().sort(function(a, b) { return (b.totalPieces || 0) - (a.totalPieces || 0); });
+  var grandLaborMs = 0, grandValue = 0;
+  sorted.forEach(function(g) { grandLaborMs += g.totalLaborMs || 0; if (g.totalValue != null) grandValue += g.totalValue; });
+
+  var rows = sorted.map(function(g) {
+    var safeName = (g.name || '—').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    var priceTxt = g.unitPrice != null ? '$' + g.unitPrice.toFixed(2) : '—';
+    var valueTxt = g.totalValue != null ? '$' + g.totalValue.toFixed(2) : '—';
+    return '<tr>'
+      + '<td>' + safeName + '</td>'
+      + '<td style="text-align:center;">' + (g.totalPieces || 0) + '</td>'
+      + '<td style="text-align:center;">' + _rqFmtDur(g.totalLaborMs || 0) + '</td>'
+      + '<td style="text-align:right;">' + priceTxt + '</td>'
+      + '<td style="text-align:right;font-weight:700;">' + valueTxt + '</td>'
+      + '</tr>';
+  }).join('');
+
+  body.innerHTML = '<table class="prod-report-table">'
+    + '<thead><tr><th>Item</th><th>Pieces Made</th><th>Labor Time</th><th>Unit Price</th><th>Total Value</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody>'
+    + '<tfoot><tr><td colspan="2">Total</td><td style="text-align:center;">' + _rqFmtDur(grandLaborMs) + '</td><td></td>'
+    + '<td style="text-align:right;">$' + grandValue.toFixed(2) + '</td></tr></tfoot>'
+    + '</table>';
+}
+
 function rqSyncShiftsForSession(i) {
   var s = _rqSessions[i]; if (!s || !s.startTime || !s.stopTime) return;
   var btn = document.getElementById('rq-sync-btn-' + i);

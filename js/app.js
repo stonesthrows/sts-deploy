@@ -41,7 +41,7 @@ const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs','bgab'])
 // Each parent group and the ordered sub-tabs it contains
 const NAV_GROUPS = {
   'custom-orders': ['dashboard','production','new-order','customers','print-bag'],
-  'inventory':     ['to-restock','inv-adjust'],
+  'inventory':     ['to-restock','inv-adjust','prod-report'],
   'supplies':      ['supplier','order-history'],
   'more':          ['sales','calendar','pj-calc','pj-ref'],
 };
@@ -71,6 +71,7 @@ const TAB_HOOKS = {
   designs:    function() { if (typeof designsInit === 'function') designsInit(); },
   calendar:   function() { if (typeof calInit === 'function') calInit(); },
   'to-restock': function() { if (typeof restockQueueRender === 'function') restockQueueRender(); if (typeof timerTabInit === 'function') timerTabInit(); },
+  'prod-report': function() { if (typeof rqRenderProductionReport === 'function') rqRenderProductionReport(); },
   'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
   bgab:       function() { if (typeof bgabInit === 'function') bgabInit(); },
 };

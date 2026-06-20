@@ -152,31 +152,41 @@ export async function onRequestGet(context) {
   var token = context.env.NOTION_TOKEN;
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
 
-  var activeOnly = new URL(context.request.url).searchParams.get('active') === 'true';
-  var queryBody = activeOnly
-    ? { filter: { and: [
-        { property: 'Start Time', date: { is_not_empty: true } },
-        { property: 'Stop Time',  date: { is_empty: true } },
-      ]}, page_size: 10 }
-    : { sorts: [{ property: 'Date', direction: 'descending' }], page_size: 50 };
+  var params     = new URL(context.request.url).searchParams;
+  var activeOnly = params.get('active') === 'true';
+  var fetchAll   = params.get('all') === 'true';
 
-  var res = await fetch(NOTION_API + '/databases/' + DB_ID + '/query', {
-    method: 'POST',
-    headers: {
-      'Authorization':  'Bearer ' + token,
-      'Notion-Version': NOTION_VER,
-      'Content-Type':   'application/json',
-    },
-    body: JSON.stringify(queryBody),
-  });
+  var results = [];
+  var cursor  = null;
+  do {
+    var queryBody = activeOnly
+      ? { filter: { and: [
+          { property: 'Start Time', date: { is_not_empty: true } },
+          { property: 'Stop Time',  date: { is_empty: true } },
+        ]}, page_size: 10 }
+      : { sorts: [{ property: 'Date', direction: 'descending' }], page_size: fetchAll ? 100 : 50 };
+    if (cursor) queryBody.start_cursor = cursor;
 
-  var data = await res.json();
-  if (!res.ok) return jsonResp({ error: data.message || 'Notion error' }, res.status);
+    var res = await fetch(NOTION_API + '/databases/' + DB_ID + '/query', {
+      method: 'POST',
+      headers: {
+        'Authorization':  'Bearer ' + token,
+        'Notion-Version': NOTION_VER,
+        'Content-Type':   'application/json',
+      },
+      body: JSON.stringify(queryBody),
+    });
+
+    var data = await res.json();
+    if (!res.ok) return jsonResp({ error: data.message || 'Notion error' }, res.status);
+    results = results.concat(data.results || []);
+    cursor  = (fetchAll && data.has_more) ? data.next_cursor : null;
+  } while (cursor);
 
   function txt(prop) { return prop?.rich_text?.[0]?.plain_text || ''; }
   function num(prop) { return prop?.number ?? null; }
 
-  var sessions = (data.results || [])
+  var sessions = results
     .filter(function(p) { return !p.archived; })
     .map(function(p) {
       var props = p.properties;
