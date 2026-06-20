@@ -1,15 +1,19 @@
 // ════════════════════════════════════════════
 //  Square Webhook Handler  —  /api/square-webhook
 //  Listens for payment.updated events; on COMPLETED, decrements split
-//  inventory in Notion based on which device handled the sale.
+//  inventory in Notion based on which team member rang the sale.
 //
 //  Required env vars:
 //    SQUARE_TOKEN                 — Square API bearer token
 //    SQUARE_WEBHOOK_SIGNATURE_KEY — from Square Developer Dashboard → Webhooks
 //    NOTION_TOKEN                 — Notion integration token
 //    NOTION_INVENTORY_DB_ID       — from square-notion-setup output
-//    DEVICE_NICKNAME_YOU          — exact device name in Square for Kyle
-//    DEVICE_NICKNAME_GEORGINA     — exact device name in Square for Georgina
+//    TEAM_MEMBER_ID_YOU           — Square team_member_id for Kyle
+//    TEAM_MEMBER_ID_GEORGINA      — Square team_member_id for Georgina
+//
+//  Required KV binding:
+//    STS_KV — used to dedupe split-tender orders (multiple payment.updated
+//             events can fire for one order_id; only the first should decrement)
 // ════════════════════════════════════════════
 
 const SQUARE_API = 'https://connect.squareup.com';
@@ -39,6 +43,7 @@ function ok() {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function onRequestPost({ request, env }) {
+  const kv = env.STS_KV;
   const rawBody = await request.text();
 
   // Verify Square signature when key is configured
@@ -65,22 +70,36 @@ export async function onRequestPost({ request, env }) {
   // Only act when payment is fully completed (event also fires on authorize/cancel)
   if (payment.status !== 'COMPLETED') return ok();
 
-  // ── Resolve device → owner ────────────────────────────────────────────────
-  const deviceName    = (payment.device_details?.device_name || '').toLowerCase();
-  const youNick       = (env.DEVICE_NICKNAME_YOU      || '').toLowerCase();
-  const georginaNick  = (env.DEVICE_NICKNAME_GEORGINA || '').toLowerCase();
+  // ── Resolve team member → owner ───────────────────────────────────────────
+  const teamMemberId = payment.team_member_id || '';
+  const youId        = env.TEAM_MEMBER_ID_YOU      || '';
+  const georginaId   = env.TEAM_MEMBER_ID_GEORGINA || '';
 
   let propName;
-  if (youNick && deviceName.includes(youNick))          propName = 'Current Stock: You';
-  else if (georginaNick && deviceName.includes(georginaNick)) propName = 'Current Stock: Georgina';
+  if (youId && teamMemberId === youId)            propName = 'Current Stock: You';
+  else if (georginaId && teamMemberId === georginaId) propName = 'Current Stock: Georgina';
   else {
-    console.log(`[sq-webhook] device "${payment.device_details?.device_name}" not matched — skipping`);
+    console.log(`[sq-webhook] team_member_id "${teamMemberId}" not matched — skipping`);
     return ok();
   }
 
   // ── Fetch the order to get line items ─────────────────────────────────────
   const orderId = payment.order_id;
   if (!orderId) return ok();
+
+  // ── Dedupe by order: split-tender sales fire payment.updated once per
+  //    payment leg (e.g. failed card + cash + cash for one order), but the
+  //    line items — and the stock decrement — only happen once per order.
+  if (kv) {
+    const dedupeKey = `sq-webhook:order:${orderId}`;
+    if (await kv.get(dedupeKey)) {
+      console.log(`[sq-webhook] order ${orderId} already processed — skipping`);
+      return ok();
+    }
+    await kv.put(dedupeKey, '1', { expirationTtl: 86400 });
+  } else {
+    console.warn('[sq-webhook] STS_KV not bound — order dedup disabled, split-tender sales may over-decrement');
+  }
 
   const sqRes = await fetch(`${SQUARE_API}/v2/orders/${orderId}`, {
     headers: {
