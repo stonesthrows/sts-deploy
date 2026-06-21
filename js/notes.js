@@ -491,9 +491,16 @@ var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNot
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
-var _rqEditingSession = null;
-var _rqPushingSession = null;
-var _rqEditAdds       = {};  // { [sessionIdx]: { query, debounceTimer, _lastResults, variantPicker: null|{item,selectedIds} } }
+// Session edit/push/add-item state is scoped per "store" so the Session Log
+// ('log', backed by _rqSessions) and the Production Report ('report', backed
+// by _rqReportSessions) can each be mid-edit independently and reuse the same
+// editing functions below.
+var _rqEditingSession = { log: null, report: null };
+var _rqPushingSession = { log: null, report: null };
+var _rqEditAdds       = { log: {}, report: {} };  // [store][sessionIdx] => { query, debounceTimer, _lastResults, variantPicker }
+
+function _rqStoreList(store) { return store === 'report' ? _rqReportSessions : _rqSessions; }
+function _rqStoreRender(store) { if (store === 'report') { _rqRenderReportBody(_rqReportSessions); } else { rqRenderSessions(); } }
 var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqVariantPickers = {}; // { [notionPageId]: { selectedIds: [] } }
@@ -1305,6 +1312,44 @@ function _rqLocalSearch(query) {
   });
 }
 
+// Builds the { id, name, options:[{id,name,price,onByDefault}] } list for each Square
+// modifier list attached to an item (e.g. metal/style choices for Chevron Stackers) —
+// these come back in the batch-retrieve response's related_objects, not on the item itself.
+function _rqBuildModifierLists(obj, modifierListsById) {
+  var info = (obj.item_data && obj.item_data.modifier_list_info) || [];
+  var lists = [];
+  info.forEach(function(entry) {
+    if (entry.enabled === false) return;
+    var list = modifierListsById[entry.modifier_list_id];
+    if (!list || !list.modifier_list_data) return;
+    var overridesById = {};
+    (entry.modifier_overrides || []).forEach(function(ov) { overridesById[ov.modifier_id] = ov; });
+    var options = (list.modifier_list_data.modifiers || []).map(function(m) {
+      var md = m.modifier_data || {};
+      var pm = md.price_money;
+      var override = overridesById[m.id];
+      return {
+        id: m.id,
+        name: md.name || 'Option',
+        price: pm && pm.amount ? pm.amount / 100 : 0,
+        onByDefault: override ? !!override.on_by_default : !!md.on_by_default,
+      };
+    });
+    if (!options.length) return;
+    lists.push({ id: list.id, name: list.modifier_list_data.name || 'Options', options: options });
+  });
+  return lists;
+}
+
+function _rqDefaultModifierSelections(modifierLists) {
+  var selected = {};
+  (modifierLists || []).forEach(function(list) {
+    var def = list.options.filter(function(o) { return o.onByDefault; })[0] || list.options[0];
+    if (def) selected[list.id] = def.id;
+  });
+  return selected;
+}
+
 function _rqSearchCatalog(pid, query, autoSelect) {
   var s = _rqSetups[pid]; if (!s) return;
   var spinner = document.getElementById('rq-spinner-' + pid);
@@ -1312,7 +1357,7 @@ function _rqSearchCatalog(pid, query, autoSelect) {
   var localMatches = _rqLocalSearch(query);
   _rqSqCall('/catalog/search', {
     method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20, include_related_objects: true },
   }).then(function(searchData) {
     if (!_rqSetups[pid]) return;
     var found = searchData.objects || [];
@@ -1324,21 +1369,27 @@ function _rqSearchCatalog(pid, query, autoSelect) {
     }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }) },
+      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
     }).then(function(fullData) {
       if (!_rqSetups[pid]) return;
+      var modifierListsById = {};
+      (fullData.related_objects || []).forEach(function(o) {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
       var rows = localMatches.slice();
       (fullData.objects || []).forEach(function(obj) {
         if (obj.type !== 'ITEM') return;
         var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
         var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
         var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists });
         } else {
           rows.push({
             id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+            modifierLists: modifierLists,
             variants: variations.map(function(vv) {
               var vd = vv.item_variation_data;
               return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' };
@@ -1411,7 +1462,10 @@ function rqSelectCustomItem(pid, name) {
 function _rqSelectSetupItem(pid, item) {
   var s = _rqSetups[pid]; if (!s) return;
   var already = s.selectedItems.filter(function(i) { return i.id === item.id; }).length > 0;
-  if (!already) s.selectedItems.push(Object.assign({}, item, { pieces: null }));
+  if (!already) {
+    var selectedModifierIds = _rqDefaultModifierSelections(item.modifierLists);
+    s.selectedItems.push(Object.assign({}, item, { pieces: null, selectedModifierIds: selectedModifierIds }));
+  }
   var box = document.getElementById('rq-results-' + pid);
   if (box) { box.innerHTML = ''; box.style.display = 'none'; }
   var inp = document.getElementById('rq-srch-' + pid);
@@ -1427,6 +1481,15 @@ function rqRemoveSetupItem(pid, itemId) {
   s.selectedItems = s.selectedItems.filter(function(i) { return i.id !== itemId; });
   _rqUpdateSelectedEl(pid);
   _rqUpdateConfirmBtn(pid);
+}
+
+function rqSetSetupModifier(pid, itemId, listId, modifierId) {
+  var s = _rqSetups[pid]; if (!s) return;
+  var item = s.selectedItems.filter(function(i) { return i.id === itemId; })[0];
+  if (!item) return;
+  item.selectedModifierIds = item.selectedModifierIds || {};
+  item.selectedModifierIds[listId] = modifierId;
+  _rqUpdateSelectedEl(pid);
 }
 
 function _rqUpdateSelectedEl(pid) {
@@ -1446,12 +1509,29 @@ function _rqSelectedHTML(pid) {
   return '<div class="rq-selected-list">'
     + s.selectedItems.map(function(item) {
       var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
-      return '<div class="rq-selected-item">'
+      var modifierLists = item.modifierLists || [];
+      var modifierRows = modifierLists.map(function(list) {
+        var safeListId = (list.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
+        var opts = list.options.map(function(o) {
+          var sel = item.selectedModifierIds && item.selectedModifierIds[list.id] === o.id ? ' selected' : '';
+          return '<option value="' + o.id + '"' + sel + '>' + (o.name || '').replace(/</g,'&lt;') + (o.price ? ' (+$' + o.price.toFixed(2) + ')' : '') + '</option>';
+        }).join('');
+        return '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'
+          + '<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);flex-shrink:0;">' + (list.name || '').replace(/</g,'&lt;') + '</label>'
+          + '<select onchange="rqSetSetupModifier(\'' + pid + '\',\'' + safeId + '\',\'' + safeListId + '\', this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex:1;max-width:200px;">'
+          + opts
+          + '</select>'
+          + '</div>';
+      }).join('');
+      return '<div class="rq-selected-item" style="flex-direction:column;align-items:stretch;">'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
         + '<div style="flex:1;min-width:0;">'
         + '<div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
         + '<div class="rq-result-meta">' + (item.category || '') + (item.sku ? ' · ' + item.sku : '') + '</div>'
         + '</div>'
         + '<button class="rq-item-remove" onclick="rqRemoveSetupItem(\'' + pid + '\',\'' + safeId + '\')">✕</button>'
+        + '</div>'
+        + modifierRows
         + '</div>';
     }).join('')
     + '</div>';
@@ -1459,15 +1539,31 @@ function _rqSelectedHTML(pid) {
 
 // ── Piece-count helpers ───────────────────────────────────────────────────────
 
+// Appends the chosen modifier option name(s) (e.g. "Double Mixed (Silver+GF)") onto a
+// timer row label so production logs reflect exactly which metal/style was made.
+function _rqModifierSuffix(item) {
+  var lists = item.modifierLists || [];
+  var selected = item.selectedModifierIds || {};
+  var names = [];
+  lists.forEach(function(list) {
+    var opt = list.options.filter(function(o) { return o.id === selected[list.id]; })[0];
+    if (opt) names.push(opt.name);
+  });
+  return names.join(', ');
+}
+
 function _rqTimerRows(items) {
   var rows = [];
   (items || []).forEach(function(item) {
+    var modSuffix = _rqModifierSuffix(item);
     if (item.isParent && item.selectedVariants && item.selectedVariants.length) {
       item.selectedVariants.forEach(function(v) {
-        rows.push({ label: (item.name || '') + ' – ' + (v.name || ''), squareId: v.id || '', isCustom: false });
+        var label = (item.name || '') + ' – ' + (v.name || '') + (modSuffix ? ' – ' + modSuffix : '');
+        rows.push({ label: label, squareId: v.id || '', isCustom: false });
       });
     } else {
-      rows.push({ label: item.name || '', squareId: item.isCustom ? '' : (item.id || ''), isCustom: !!item.isCustom });
+      var label = (item.name || '') + (modSuffix ? ' – ' + modSuffix : '');
+      rows.push({ label: label, squareId: item.isCustom ? '' : (item.id || ''), isCustom: !!item.isCustom });
     }
   });
   return rows;
@@ -1594,34 +1690,34 @@ function _rqToDateTimeLocal(iso) {
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
 }
 
-function rqStartEditSession(i) {
-  var s = _rqSessions[i];
+function rqStartEditSession(store, i) {
+  var s = _rqStoreList(store)[i];
   if (s) s._itemsBackup = JSON.parse(JSON.stringify(s.items || []));
-  _rqEditingSession = i; _rqPushingSession = null;
-  rqRenderSessions();
+  _rqEditingSession[store] = i; _rqPushingSession[store] = null;
+  _rqStoreRender(store);
 }
 
-function rqCancelEditSession() {
-  var s = _rqSessions[_rqEditingSession];
+function rqCancelEditSession(store) {
+  var s = _rqStoreList(store)[_rqEditingSession[store]];
   if (s && s._itemsBackup) { s.items = s._itemsBackup; delete s._itemsBackup; }
-  delete _rqEditAdds[_rqEditingSession];
-  _rqEditingSession = null;
-  rqRenderSessions();
+  delete _rqEditAdds[store][_rqEditingSession[store]];
+  _rqEditingSession[store] = null;
+  _rqStoreRender(store);
 }
 
-function rqOpenPushPanel(i)  { _rqPushingSession = i; _rqEditingSession = null; rqRenderSessions(); }
-function rqClosePushPanel()  { _rqPushingSession = null; rqRenderSessions(); }
+function rqOpenPushPanel(store, i)  { _rqPushingSession[store] = i; _rqEditingSession[store] = null; _rqStoreRender(store); }
+function rqClosePushPanel(store)    { _rqPushingSession[store] = null; _rqStoreRender(store); }
 
-function rqConfirmPush(i) {
-  var s = _rqSessions[i]; if (!s) return;
+function rqConfirmPush(store, i) {
+  var s = _rqStoreList(store)[i]; if (!s) return;
   var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
   var loc = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
   var pushItems = (s.items || []).filter(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
   if (!pushItems.length) {
     toast('No Square items to push', '⚠');
-    _rqPushingSession = null;
-    rqRenderSessions();
+    _rqPushingSession[store] = null;
+    _rqStoreRender(store);
     return;
   }
   var changes = pushItems.map(function(it) {
@@ -1643,8 +1739,8 @@ function rqConfirmPush(i) {
   }).then(function(data) {
     if (data.errors && data.errors.length) throw new Error(data.errors[0].detail || 'Square error');
     s.pushed = true;
-    _rqPushingSession = null;
-    rqRenderSessions();
+    _rqPushingSession[store] = null;
+    _rqStoreRender(store);
     toast('Pushed to Square ✓', '✓');
     if (s.notionPageId) {
       fetch('/api/notion-timesession', {
@@ -1661,51 +1757,51 @@ function rqConfirmPush(i) {
 
 // ── Session edit: add missing item(s) ──────────────────────────────────────────
 
-function rqEditOpenAdd(i) {
-  _rqEditAdds[i] = { query: '', debounceTimer: null, _lastResults: null, variantPicker: null };
-  rqRenderSessions();
+function rqEditOpenAdd(store, i) {
+  _rqEditAdds[store][i] = { query: '', debounceTimer: null, _lastResults: null, variantPicker: null };
+  _rqStoreRender(store);
   setTimeout(function() {
-    var inp = document.getElementById('rq-eadd-srch-' + i);
+    var inp = document.getElementById('rq-eadd-srch-' + store + '-' + i);
     if (inp) inp.focus();
   }, 50);
 }
 
-function rqEditCloseAdd(i) {
-  var e = _rqEditAdds[i];
+function rqEditCloseAdd(store, i) {
+  var e = _rqEditAdds[store][i];
   if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
-  delete _rqEditAdds[i];
-  rqRenderSessions();
+  delete _rqEditAdds[store][i];
+  _rqStoreRender(store);
 }
 
-function rqEditAddInput(i, value) {
-  var e = _rqEditAdds[i]; if (!e) return;
+function rqEditAddInput(store, i, value) {
+  var e = _rqEditAdds[store][i]; if (!e) return;
   e.query = value;
   if (e.debounceTimer) clearTimeout(e.debounceTimer);
   if (!value || value.length < 2) {
-    var box = document.getElementById('rq-eadd-results-' + i);
+    var box = document.getElementById('rq-eadd-results-' + store + '-' + i);
     if (box) { box.innerHTML = ''; box.style.display = 'none'; }
     return;
   }
-  e.debounceTimer = setTimeout(function() { _rqEditAddSearch(i, value); }, 350);
+  e.debounceTimer = setTimeout(function() { _rqEditAddSearch(store, i, value); }, 350);
 }
 
-function _rqEditAddSearch(i, query) {
-  var e = _rqEditAdds[i]; if (!e) return;
-  var spinner = document.getElementById('rq-eadd-spinner-' + i);
+function _rqEditAddSearch(store, i, query) {
+  var e = _rqEditAdds[store][i]; if (!e) return;
+  var spinner = document.getElementById('rq-eadd-spinner-' + store + '-' + i);
   if (spinner) spinner.style.display = 'block';
   var localMatches = _rqLocalSearch(query);
   _rqSqCall('/catalog/search', {
     method: 'POST',
     body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
   }).then(function(searchData) {
-    if (!_rqEditAdds[i]) return;
+    if (!_rqEditAdds[store][i]) return;
     var found = searchData.objects || [];
-    if (!found.length) { _rqEditAddRenderResults(i, localMatches, query); return; }
+    if (!found.length) { _rqEditAddRenderResults(store, i, localMatches, query); return; }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
       body: { object_ids: found.map(function(o) { return o.id; }) },
     }).then(function(fullData) {
-      if (!_rqEditAdds[i]) return;
+      if (!_rqEditAdds[store][i]) return;
       var rows = localMatches.slice();
       (fullData.objects || []).forEach(function(obj) {
         if (obj.type !== 'ITEM') return;
@@ -1720,26 +1816,26 @@ function _rqEditAddSearch(i, query) {
             variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' }; }) });
         }
       });
-      _rqEditAddRenderResults(i, rows, query);
+      _rqEditAddRenderResults(store, i, rows, query);
     });
   }).catch(function() {
-    if (_rqEditAdds[i]) _rqEditAddRenderResults(i, localMatches, query);
+    if (_rqEditAdds[store][i]) _rqEditAddRenderResults(store, i, localMatches, query);
   }).then(function() {
-    var sp = document.getElementById('rq-eadd-spinner-' + i);
+    var sp = document.getElementById('rq-eadd-spinner-' + store + '-' + i);
     if (sp) sp.style.display = 'none';
   });
 }
 
-function _rqEditAddRenderResults(i, items, query) {
-  var e = _rqEditAdds[i]; if (!e) return;
+function _rqEditAddRenderResults(store, i, items, query) {
+  var e = _rqEditAdds[store][i]; if (!e) return;
   e._lastResults = items;
-  var box = document.getElementById('rq-eadd-results-' + i);
+  var box = document.getElementById('rq-eadd-results-' + store + '-' + i);
   if (!box) return;
   if (!items || !items.length) {
     var safeQ = (query || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
     var escQ  = (query || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     box.innerHTML = '<div class="rq-result-none">No match for "' + safeQ + '"</div>'
-      + '<div class="rq-result-item" onclick="rqEditAddSelectCustom(' + i + ',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
+      + '<div class="rq-result-item" onclick="rqEditAddSelectCustom(\'' + store + '\',' + i + ',\'' + escQ + '\')" style="color:var(--accent);font-weight:600;">＋ Use "' + safeQ + '" as custom item</div>';
     box.style.display = 'flex';
     return;
   }
@@ -1748,7 +1844,7 @@ function _rqEditAddRenderResults(i, items, query) {
       ? (item.category || '') + ' · ' + (item.variantCount || '') + ' sizes'
       : (item.category || '') + (item.sku ? ' · ' + item.sku : '');
     var safeId = (item.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
-    return '<div class="rq-result-item" onclick="rqEditAddSelectId(' + i + ',\'' + safeId + '\')">'
+    return '<div class="rq-result-item" onclick="rqEditAddSelectId(\'' + store + '\',' + i + ',\'' + safeId + '\')">'
       + '<div><div class="rq-result-name">' + (item.name || '').replace(/</g,'&lt;') + '</div>'
       + '<div class="rq-result-meta">' + meta.replace(/</g,'&lt;') + '</div></div>'
       + '</div>';
@@ -1756,64 +1852,64 @@ function _rqEditAddRenderResults(i, items, query) {
   box.style.display = 'flex';
 }
 
-function rqEditAddSelectId(i, itemId) {
-  var e = _rqEditAdds[i]; if (!e) return;
+function rqEditAddSelectId(store, i, itemId) {
+  var e = _rqEditAdds[store][i]; if (!e) return;
   var item = (e._lastResults || []).filter(function(it) { return it.id === itemId; })[0];
   if (!item) return;
   if (e.debounceTimer) clearTimeout(e.debounceTimer);
   if (item.isParent) {
     e.variantPicker = { item: item, selectedIds: [] };
-    rqRenderSessions();
+    _rqStoreRender(store);
     return;
   }
-  _rqEditAddCommitItem(i, { name: item.name, squareId: item.id, pieces: null, isCustom: false });
+  _rqEditAddCommitItem(store, i, { name: item.name, squareId: item.id, pieces: null, isCustom: false });
 }
 
-function rqEditAddSelectCustom(i, name) {
-  _rqEditAddCommitItem(i, { name: name, squareId: '', pieces: null, isCustom: true });
+function rqEditAddSelectCustom(store, i, name) {
+  _rqEditAddCommitItem(store, i, { name: name, squareId: '', pieces: null, isCustom: true });
 }
 
-function rqEditToggleVariant(i, variantId) {
-  var e = _rqEditAdds[i]; if (!e || !e.variantPicker) return;
+function rqEditToggleVariant(store, i, variantId) {
+  var e = _rqEditAdds[store][i]; if (!e || !e.variantPicker) return;
   var idx = e.variantPicker.selectedIds.indexOf(variantId);
   if (idx === -1) e.variantPicker.selectedIds.push(variantId);
   else e.variantPicker.selectedIds.splice(idx, 1);
-  rqRenderSessions();
+  _rqStoreRender(store);
 }
 
-function rqEditCancelVariantPicker(i) {
-  var e = _rqEditAdds[i]; if (!e) return;
+function rqEditCancelVariantPicker(store, i) {
+  var e = _rqEditAdds[store][i]; if (!e) return;
   e.variantPicker = null;
-  rqRenderSessions();
+  _rqStoreRender(store);
 }
 
-function rqEditConfirmVariants(i) {
-  var e = _rqEditAdds[i]; if (!e || !e.variantPicker) return;
+function rqEditConfirmVariants(store, i) {
+  var e = _rqEditAdds[store][i]; if (!e || !e.variantPicker) return;
   var picker = e.variantPicker;
   var selected = (picker.item.variants || []).filter(function(v) { return picker.selectedIds.indexOf(v.id) !== -1; });
   if (!selected.length) return;
-  var s = _rqSessions[i]; if (!s) return;
+  var s = _rqStoreList(store)[i]; if (!s) return;
   s.items = (s.items || []).concat(selected.map(function(v) {
     return { name: picker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false };
   }));
-  delete _rqEditAdds[i];
-  rqRenderSessions();
+  delete _rqEditAdds[store][i];
+  _rqStoreRender(store);
 }
 
-function _rqEditAddCommitItem(i, item) {
-  var s = _rqSessions[i]; if (!s) return;
+function _rqEditAddCommitItem(store, i, item) {
+  var s = _rqStoreList(store)[i]; if (!s) return;
   s.items = (s.items || []).concat([item]);
-  delete _rqEditAdds[i];
-  rqRenderSessions();
+  delete _rqEditAdds[store][i];
+  _rqStoreRender(store);
 }
 
-function rqEditRemoveItem(i, idx) {
-  var s = _rqSessions[i]; if (!s) return;
+function rqEditRemoveItem(store, i, idx) {
+  var s = _rqStoreList(store)[i]; if (!s) return;
   s.items = (s.items || []).filter(function(_, ii) { return ii !== idx; });
-  rqRenderSessions();
+  _rqStoreRender(store);
 }
 
-function _rqEditAddPanelHTML(i, e) {
+function _rqEditAddPanelHTML(store, i, e) {
   if (e.variantPicker) {
     var picker = e.variantPicker;
     return '<div class="rq-variant-picker">'
@@ -1823,24 +1919,24 @@ function _rqEditAddPanelHTML(i, e) {
           var isSel = picker.selectedIds.indexOf(v.id) !== -1;
           var safeVId = (v.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
           return '<div class="rq-variant-chip' + (isSel ? ' rq-variant-chip-on' : '') + '"'
-            + ' onclick="rqEditToggleVariant(' + i + ',\'' + safeVId + '\')">'
+            + ' onclick="rqEditToggleVariant(\'' + store + '\',' + i + ',\'' + safeVId + '\')">'
             + (v.name || '').replace(/</g,'&lt;')
             + '</div>';
         }).join('')
       + '</div>'
       + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
-      + '<button class="rq-variant-done" onclick="rqEditConfirmVariants(' + i + ')">Add</button>'
-      + '<button class="rq-setup-cancel-btn" onclick="rqEditCancelVariantPicker(' + i + ')">Cancel</button>'
+      + '<button class="rq-variant-done" onclick="rqEditConfirmVariants(\'' + store + '\',' + i + ')">Add</button>'
+      + '<button class="rq-setup-cancel-btn" onclick="rqEditCancelVariantPicker(\'' + store + '\',' + i + ')">Cancel</button>'
       + '</div></div>';
   }
   return '<div class="rq-setup-search-wrap" style="margin-top:6px;">'
     + '<span class="rq-setup-search-icon">⌕</span>'
-    + '<input type="text" class="rq-setup-search-input" id="rq-eadd-srch-' + i + '" placeholder="Search Square catalog…" autocomplete="off"'
-    + ' oninput="rqEditAddInput(' + i + ',this.value)">'
-    + '<div class="rq-setup-spinner" id="rq-eadd-spinner-' + i + '"></div>'
+    + '<input type="text" class="rq-setup-search-input" id="rq-eadd-srch-' + store + '-' + i + '" placeholder="Search Square catalog…" autocomplete="off"'
+    + ' oninput="rqEditAddInput(\'' + store + '\',' + i + ',this.value)">'
+    + '<div class="rq-setup-spinner" id="rq-eadd-spinner-' + store + '-' + i + '"></div>'
     + '</div>'
-    + '<div class="rq-setup-results" id="rq-eadd-results-' + i + '"></div>'
-    + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqEditCloseAdd(' + i + ')">Cancel</button>';
+    + '<div class="rq-setup-results" id="rq-eadd-results-' + store + '-' + i + '"></div>'
+    + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqEditCloseAdd(\'' + store + '\',' + i + ')">Cancel</button>';
 }
 
 function rqSaveEditSession(i) {
