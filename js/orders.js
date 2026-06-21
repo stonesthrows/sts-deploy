@@ -262,7 +262,6 @@ function openOrderCard(id) {
   document.getElementById('f-phone').value         = fmtPhone(o.phone);
   document.getElementById('f-source').value        = o.contactSource || '';
   document.getElementById('f-materials').value     = o.materials     || '';
-  document.getElementById('f-ring-size').value     = o.ringSize      || '';
   document.getElementById('f-paid-by').value       = o.paidBy        || '';
   document.getElementById('f-notes').value         = o.notes         || '';
   document.getElementById('f-customer-notes').value = o.customerNotes || '';
@@ -395,7 +394,7 @@ function saveOrderEdit() {
   o.phone         = document.getElementById('f-phone').value.trim();
   o.contactSource = document.getElementById('f-source').value    || null;
   o.materials     = document.getElementById('f-materials').value.trim() || '';
-  o.ringSize      = document.getElementById('f-ring-size').value.trim() || '';
+  o.ringSize      = oiDeriveRingSizesText(o.items);
   o.paidBy        = document.getElementById('f-paid-by').value          || '';
   o.notes         = document.getElementById('f-notes').value.trim()         || '';
   o.customerNotes = document.getElementById('f-customer-notes').value.trim() || '';
@@ -509,7 +508,7 @@ function submitOrder() {
   const items      = _oiItems.map(it => ({ ...it }));
   const price      = parseFloat(document.getElementById('f-price').value)   || 0;
   const deposit    = parseFloat(document.getElementById('f-deposit').value) || 0;
-  const ringSize   = document.getElementById('f-ring-size').value.trim()    || '';
+  const ringSize   = oiDeriveRingSizesText(items);
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
@@ -608,7 +607,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-ring-size','f-deposit','f-notes','f-customer-notes','f-sketch',
+  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-deposit','f-notes','f-customer-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -695,6 +694,37 @@ function oiRecalcTotal() {
   if (priceEl) priceEl.value = total ? total.toFixed(2) : '';
 }
 
+// Square ring category IDs (from inventory.js INV_RING_CAT_IDS) flattened into a lookup set,
+// used to detect which Square items are rings so we can offer a manual size field for the
+// ones that have no size variation set up in Square.
+function _oiRingCategoryIdSet() {
+  if (typeof INV_RING_CAT_IDS === 'undefined') return new Set();
+  return new Set(Object.values(INV_RING_CAT_IDS).flat());
+}
+
+// Stackable rings are the one ring sub-category staying on Square variation-less SKUs for
+// now (sizing is being rolled out everywhere else) — exclude them from the manual size field.
+function _oiStackableCategoryIdSet() {
+  if (typeof INV_RING_CAT_IDS === 'undefined' || !INV_RING_CAT_IDS.stackable) return new Set();
+  return new Set(INV_RING_CAT_IDS.stackable);
+}
+
+// Combines per-item ring sizes (manual entries for Square rings with no Square size
+// variation, plus sizes already embedded in a selected size variation's name) into the
+// single string sent to Notion / printed on the work order bag.
+function oiDeriveRingSizesText(items) {
+  if (!Array.isArray(items)) return '';
+  const sizes = [];
+  items.forEach(it => {
+    if (it.ringSize) { sizes.push(String(it.ringSize).trim()); return; }
+    if (it.type === 'square' && it.name && it.name.indexOf(' — ') !== -1) {
+      const suffix = it.name.split(' — ').pop().trim();
+      if (/size/i.test(suffix)) sizes.push(suffix);
+    }
+  });
+  return sizes.filter(Boolean).join(', ');
+}
+
 function oiSerialize() {
   return JSON.stringify(_oiItems);
 }
@@ -713,7 +743,8 @@ function oiRender() {
 }
 
 function oiRowHtml(it, idx) {
-  const typeSel = `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+  const isSquareSelected = it.type === 'square' && (it.squareVariationId || it.squareItemId);
+  const typeSel = isSquareSelected ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
     <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
     <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
   </select>`;
@@ -721,13 +752,24 @@ function oiRowHtml(it, idx) {
   let body;
   if (it.type === 'square') {
     if (it.squareVariationId || it.squareItemId) {
-      body = `<div class="rq-selected-item" style="flex:1;">
-        <div style="flex:1;">
-          <div class="rq-result-name">${(it.name || '').replace(/</g, '&lt;')}</div>
-          <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div>
+      const needsRingSize = it.isRing && it.noSquareSize && !it.isStackable;
+      body = `<div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+        <div class="rq-selected-item">
+          <div style="flex:1;">
+            <div class="rq-result-name">${(it.name || '').replace(/</g, '&lt;')}</div>
+            <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);">Square Price</span>
+            <input type="number" step="0.01" min="0" value="${it.price || 0}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
+          </div>
+          <button type="button" class="rq-item-remove" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
         </div>
-        <input type="number" step="0.01" min="0" value="${it.price || 0}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
-        <button type="button" class="rq-item-remove" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
+        ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
+          <input type="text" placeholder="e.g. 6.5" value="${(it.ringSize || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'ringSize',this.value)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
+          <span style="font-size:11px;color:var(--text3);">No size variation in Square — enter the size manually</span>
+        </div>` : ''}
       </div>`;
     } else {
       body = `<div style="flex:1;position:relative;">
@@ -784,11 +826,19 @@ function oiSearchSquare(idx, query) {
       method: 'POST',
       body: { object_ids: found.map(o => o.id) },
     }).then(fullData => {
+      const ringCatIds      = _oiRingCategoryIdSet();
+      const stackableCatIds = _oiStackableCategoryIdSet();
       const rows = [];
       (fullData.objects || []).forEach(obj => {
         if (obj.type !== 'ITEM') return;
         const itemName = obj.item_data ? obj.item_data.name : 'Unnamed';
         const variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        const catIds = [];
+        if (obj.item_data && obj.item_data.category_id) catIds.push(obj.item_data.category_id);
+        (obj.item_data && obj.item_data.categories || []).forEach(c => { if (c.id) catIds.push(c.id); });
+        const isRing      = catIds.some(id => ringCatIds.has(id));
+        const isStackable = catIds.some(id => stackableCatIds.has(id));
+        const noSquareSize = variations.length <= 1;
         variations.forEach(v => {
           const vd = v.item_variation_data || {};
           const priceMoney = vd.price_money;
@@ -800,6 +850,9 @@ function oiSearchSquare(idx, query) {
             name: varName ? itemName + ' — ' + varName : itemName,
             sku: vd.sku || '',
             price,
+            isRing,
+            isStackable,
+            noSquareSize,
           });
         });
       });
@@ -838,6 +891,10 @@ function oiSelectSquareResult(idx, i) {
     price: item.price,
     squareItemId: item.squareItemId,
     squareVariationId: item.squareVariationId,
+    isRing: !!item.isRing,
+    isStackable: !!item.isStackable,
+    noSquareSize: !!item.noSquareSize,
+    ringSize: '',
   };
   oiRender();
 }

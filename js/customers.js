@@ -676,7 +676,6 @@ function prefillFromOrder(orderId) {
   set('f-deposit',     o.deposit || '');
   set('f-deadline',    o.deadline || '');
   set('f-takein',      o.takeIn || '');
-  set('f-ring-size',   o.ringSize || '');
   set('f-materials',   o.materials || '');
   set('f-notes',       o.notes || '');
   set('f-pickup',      o.pickup || '');
