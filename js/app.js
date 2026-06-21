@@ -162,7 +162,7 @@ const TAB_HOOKS = {
     if (typeof dashTriplogLoad === 'function') dashTriplogLoad();
   },
   dashboard: function() {
-    if (typeof collapsedCards !== 'undefined') collapsedCards.clear();
+    if (typeof expandedCards !== 'undefined') expandedCards.clear();
     if (typeof renderKanban === 'function') renderKanban();
     if (typeof syncCollapseBtn === 'function') syncCollapseBtn();
   },

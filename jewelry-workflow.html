@@ -1495,10 +1495,11 @@
     }
     .o-chevron:hover { color: #5C5650; background: #F0EBE3; }
     .o-card.collapsed .o-chevron { transform: rotate(-90deg); }
-    .o-card.collapsed .o-desc,
-    .o-card.collapsed .o-foot { display: none; }
+    .o-card.collapsed .o-body { display: none; }
     .o-card.collapsed { padding-bottom: 10px; }
     .o-card .o-body { overflow: hidden; }
+    .o-collapsed-summary { display: none; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .o-card.collapsed .o-collapsed-summary { display: flex; }
 
     /* ── Drag & Drop ─────────────────────────── */
     .o-card { cursor: grab; }

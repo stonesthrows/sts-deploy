@@ -192,8 +192,9 @@ function renderKanban() {
 function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
   const hasPhoto = !!o.photo;
+  const isCollapsed = !expandedCards.has(o.id);
   return `
-    <div class="o-card${o.stage === 'contact-need' ? ' contact-pulse' : ''}"
+    <div class="o-card${o.stage === 'contact-need' ? ' contact-pulse' : ''}${isCollapsed ? ' collapsed' : ''}"
          id="card-${o.id}"
          draggable="true"
          ondragstart="dragStart(event,'${o.id}')"
@@ -217,6 +218,10 @@ function cardHTML(o) {
                 title="Expand / Collapse"
                 onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
         </div>
+      </div>
+      <div class="o-collapsed-summary">
+        ${o.pickup ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
+        <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
         ${hasPhoto ? `
@@ -636,7 +641,8 @@ function syncGmail() {
 // ════════════════════════════════════════════
 
 // ════════════════════════════════════════════
-const collapsedCards  = new Set();
+// Cards are collapsed by default — this tracks which ones the user expanded.
+const expandedCards   = new Set();
 const completedHidden = new Set();
 let   showCompleted   = false;
 
@@ -666,23 +672,23 @@ function toggleShowCompleted() {
 }
 
 function toggleCard(id) {
-  collapsedCards.has(id) ? collapsedCards.delete(id) : collapsedCards.add(id);
+  expandedCards.has(id) ? expandedCards.delete(id) : expandedCards.add(id);
   const card = document.getElementById('card-' + id);
-  if (card) card.classList.toggle('collapsed', collapsedCards.has(id));
+  if (card) card.classList.toggle('collapsed', !expandedCards.has(id));
   syncCollapseBtn();
 }
 
 function syncCollapseBtn() {
   const btn = document.getElementById('collapseAllBtn');
   if (!btn) return;
-  const allCollapsed = ORDERS.length > 0 && ORDERS.every(o => collapsedCards.has(o.id));
+  const allCollapsed = expandedCards.size === 0;
   btn.textContent = allCollapsed ? '⊞ Expand All' : '⊟ Collapse All';
 }
 
 function toggleCollapseAll() {
-  const allCollapsed = ORDERS.every(o => collapsedCards.has(o.id));
-  if (allCollapsed) { ORDERS.forEach(o => collapsedCards.delete(o.id)); }
-  else              { ORDERS.forEach(o => collapsedCards.add(o.id));    }
+  const allCollapsed = expandedCards.size === 0;
+  if (allCollapsed) { ORDERS.forEach(o => expandedCards.add(o.id)); }
+  else              { expandedCards.clear();                       }
   renderKanban();
   syncCollapseBtn();
 }
@@ -1405,7 +1411,7 @@ function eoSubmitInvoice() {
   });
 }
 
-// Always start with cards fully expanded.
-collapsedCards.clear();
+// Always start with cards fully collapsed.
+expandedCards.clear();
 renderKanban();
 syncCollapseBtn();
