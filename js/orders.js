@@ -259,6 +259,7 @@ function openOrderCard(id) {
   jdApplyVisibility(_jdMode);
   oiLoadFromOrder(o);
   document.getElementById('f-deposit').value       = o.deposit       || '';
+  dpUpdatePaidByLabel();
   document.getElementById('f-deadline').value      = o.deadline      || '';
   document.getElementById('f-takein').value        = o.takeIn        || '';
   document.getElementById('f-pickup').value        = o.pickup        || '';
@@ -611,6 +612,14 @@ function submitOrder() {
 }
 
 
+function dpUpdatePaidByLabel() {
+  const label   = document.getElementById('f-paid-by-label');
+  const deposit = document.getElementById('f-deposit');
+  if (!label || !deposit) return;
+  const hasDeposit = (parseFloat(deposit.value) || 0) > 0;
+  label.textContent = hasDeposit ? 'Deposit Paid By' : 'Paid By';
+}
+
 function toggleShippingAddress() {
   // Address fields are always visible — no-op
 }
@@ -636,6 +645,7 @@ function clearForm() {
   if (estCard) estCard.style.display = 'none';
   const estBtn = document.getElementById('add-estimate-btn');
   if (estBtn) estBtn.textContent = '💰 Add Estimate';
+  dpUpdatePaidByLabel();
   toggleShippingAddress();
   setOrderType('order');
   _setOrderFormEditMode(false);
