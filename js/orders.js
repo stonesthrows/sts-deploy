@@ -809,7 +809,7 @@ function oiRowHtml(it, idx, singleSlotMode) {
   let body;
   if (it.type === 'square') {
     if (it.squareVariationId || it.squareItemId) {
-      const needsRingSize = it.isRing && it.noSquareSize && !it.isStackable;
+      const needsRingSize = it.isRing && it.noSquareSize;
       body = `<div style="flex:1;display:flex;flex-direction:column;gap:6px;">
         <div class="rq-selected-item">
           <div style="flex:1;">
