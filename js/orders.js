@@ -760,11 +760,19 @@ function oiRowHtml(it, idx) {
             <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);">Square Price</span>
-            <input type="number" step="0.01" min="0" value="${it.price || 0}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);">${it.hasFixedPrice ? 'Square Price' : 'Enter Price'}</span>
+            <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid ${it.hasFixedPrice ? 'var(--bdr)' : '#C98A2A'};border-radius:6px;font-size:12px;">
           </div>
           <button type="button" class="rq-item-remove" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
         </div>
+        ${!it.hasFixedPrice ? `<div style="font-size:11px;color:#A0702A;">No fixed price in Square (variable pricing) — enter the price manually</div>` : ''}
+        ${(it.modifierLists || []).map(list => `
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">${(list.name || '').replace(/</g, '&lt;')}</label>
+          <select onchange="oiSetModifier(${idx},'${list.id}', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;background:#fff;flex:1;max-width:220px;">
+            ${list.options.map(o => `<option value="${o.id}" ${it.selectedModifierIds && it.selectedModifierIds[list.id] === o.id ? 'selected' : ''}>${(o.name || '').replace(/</g, '&lt;')} — $${((parseFloat(it.basePrice) || 0) + o.price).toFixed(2)}</option>`).join('')}
+          </select>
+        </div>`).join('')}
         ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
           <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
           <input type="text" placeholder="e.g. 6.5" value="${(it.ringSize || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'ringSize',this.value)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
@@ -818,14 +826,22 @@ function oiSearchSquare(idx, query) {
   if (spinner) spinner.style.display = 'block';
   _oiSqCall('/catalog/search', {
     method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20, include_related_objects: true },
   }).then(data => {
     const found = data.objects || [];
     if (!found.length) { oiRenderResults(idx, [], query); return null; }
     return _oiSqCall('/catalog/batch-retrieve', {
       method: 'POST',
-      body: { object_ids: found.map(o => o.id) },
+      body: { object_ids: found.map(o => o.id), include_related_objects: true },
     }).then(fullData => {
+      // Metal/style choices (e.g. Silver vs Gold Fill, Single vs Double) are set up in
+      // Square as MODIFIER_LIST objects attached to the item, not separate variations —
+      // those come back in related_objects, not inline on the item.
+      const modifierListsById = {};
+      (fullData.related_objects || []).forEach(o => {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
+
       const ringCatIds      = _oiRingCategoryIdSet();
       const stackableCatIds = _oiStackableCategoryIdSet();
       const rows = [];
@@ -839,17 +855,48 @@ function oiSearchSquare(idx, query) {
         const isRing      = catIds.some(id => ringCatIds.has(id));
         const isStackable = catIds.some(id => stackableCatIds.has(id));
         const noSquareSize = variations.length <= 1;
+
+        const modifierListInfo = (obj.item_data && obj.item_data.modifier_list_info) || [];
+        const modifierLists = modifierListInfo
+          .filter(info => info.enabled !== false)
+          .map(info => {
+            const list = modifierListsById[info.modifier_list_id];
+            if (!list || !list.modifier_list_data) return null;
+            const overridesById = {};
+            (info.modifier_overrides || []).forEach(ov => { overridesById[ov.modifier_id] = ov; });
+            const options = (list.modifier_list_data.modifiers || []).map(m => {
+              const md = m.modifier_data || {};
+              const pm = md.price_money;
+              const override = overridesById[m.id];
+              return {
+                id: m.id,
+                name: md.name || 'Option',
+                price: pm && pm.amount ? pm.amount / 100 : 0,
+                onByDefault: override ? !!override.on_by_default : !!md.on_by_default,
+              };
+            });
+            if (!options.length) return null;
+            return { id: list.id, name: list.modifier_list_data.name || 'Options', options };
+          })
+          .filter(Boolean);
+
         variations.forEach(v => {
           const vd = v.item_variation_data || {};
           const priceMoney = vd.price_money;
-          const price = priceMoney && priceMoney.amount ? priceMoney.amount / 100 : 0;
+          // Items set to "variable pricing" in Square (priced at the register, e.g. by
+          // metal/stone combo) have no price_money at all — don't show that as a real $0.
+          const hasFixedPrice = vd.pricing_type !== 'VARIABLE_PRICING' && !!(priceMoney && priceMoney.amount);
+          const basePrice = hasFixedPrice ? priceMoney.amount / 100 : 0;
           const varName = vd.name && vd.name !== 'Regular' ? vd.name : '';
           rows.push({
             squareItemId: obj.id,
             squareVariationId: v.id,
             name: varName ? itemName + ' — ' + varName : itemName,
             sku: vd.sku || '',
-            price,
+            basePrice,
+            price: basePrice,
+            hasFixedPrice,
+            modifierLists,
             isRing,
             isStackable,
             noSquareSize,
@@ -872,23 +919,38 @@ function oiRenderResults(idx, items, query) {
     box.style.display = 'flex';
     return;
   }
-  box.innerHTML = items.map((it, i) => `
+  box.innerHTML = items.map((it, i) => {
+    const hasOptions = it.modifierLists && it.modifierLists.length;
+    const metaParts = [];
+    if (it.sku) metaParts.push('SKU ' + it.sku.replace(/</g, '&lt;'));
+    if (hasOptions) metaParts.push((it.modifierLists.length === 1 ? it.modifierLists[0].options.length + ' options' : it.modifierLists.length + ' option groups'));
+    return `
     <div class="rq-result-item" onclick="oiSelectSquareResult(${idx}, ${i})">
       <div><div class="rq-result-name">${(it.name || '').replace(/</g, '&lt;')}</div>
-      <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div></div>
-      <div class="rq-result-price">$${it.price.toFixed(2)}</div>
-    </div>`).join('');
+      <div class="rq-result-meta">${metaParts.join(' · ')}</div></div>
+      <div class="rq-result-price">${it.hasFixedPrice ? '$' + it.price.toFixed(2) + (hasOptions ? '+' : '') : 'Variable price'}</div>
+    </div>`;
+  }).join('');
   box.style.display = 'flex';
 }
 
 function oiSelectSquareResult(idx, i) {
   const item = (_oiLastResults[idx] || [])[i];
   if (!item || !_oiItems[idx]) return;
-  _oiItems[idx] = {
+  const modifierLists = item.modifierLists || [];
+  const selectedModifierIds = {};
+  modifierLists.forEach(list => {
+    const def = list.options.find(o => o.onByDefault) || list.options[0];
+    if (def) selectedModifierIds[list.id] = def.id;
+  });
+  const newItem = {
     type: 'square',
     name: item.name,
     sku: item.sku,
-    price: item.price,
+    basePrice: item.hasFixedPrice ? item.basePrice : 0,
+    hasFixedPrice: !!item.hasFixedPrice,
+    modifierLists,
+    selectedModifierIds,
     squareItemId: item.squareItemId,
     squareVariationId: item.squareVariationId,
     isRing: !!item.isRing,
@@ -896,6 +958,31 @@ function oiSelectSquareResult(idx, i) {
     noSquareSize: !!item.noSquareSize,
     ringSize: '',
   };
+  newItem.price = item.hasFixedPrice ? _oiComputeSquarePrice(newItem) : '';
+  _oiItems[idx] = newItem;
+  oiRender();
+}
+
+// Sums the base variation price plus whichever modifier (metal, single/double, etc.)
+// is currently selected in each modifier list attached to the item.
+function _oiComputeSquarePrice(it) {
+  const base = parseFloat(it.basePrice) || 0;
+  const lists = it.modifierLists || [];
+  const selected = it.selectedModifierIds || {};
+  const modifierTotal = lists.reduce((sum, list) => {
+    const optId = selected[list.id];
+    const opt = list.options.find(o => o.id === optId);
+    return sum + (opt ? opt.price : 0);
+  }, 0);
+  return base + modifierTotal;
+}
+
+function oiSetModifier(idx, listId, modifierId) {
+  const it = _oiItems[idx];
+  if (!it) return;
+  it.selectedModifierIds = it.selectedModifierIds || {};
+  it.selectedModifierIds[listId] = modifierId;
+  it.price = _oiComputeSquarePrice(it);
   oiRender();
 }
 
