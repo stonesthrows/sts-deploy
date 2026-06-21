@@ -4296,15 +4296,24 @@
               <option value="Facebook Message">Facebook Message</option>
             </select>
           </div>
-          <div class="fg full">
+          <div class="fg full" id="jobdesc-fg">
             <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
-            <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+            <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;margin-bottom:6px;">
+              <option value="custom">Custom Item</option>
+              <option value="square">Square Item</option>
+            </select>
+            <div id="jobdesc-custom-wrap">
+              <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+            </div>
+            <div id="jobdesc-square-wrap" style="display:none;">
+              <div id="jobdesc-square-picker"></div>
+            </div>
           </div>
-          <div class="fg full">
+          <div class="fg full" id="orderdesc-fg">
             <label>Order Description</label>
             <textarea id="f-description" placeholder="Describe the piece — type, style, size, stone, any inspiration or reference images…"></textarea>
           </div>
-          <div class="fg">
+          <div class="fg" id="materials-fg">
             <label>Materials / Metal</label>
             <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
           </div>
@@ -4339,7 +4348,7 @@
               <option value="Cash">Cash</option>
             </select>
           </div>
-          <div class="fg full">
+          <div class="fg full" id="sketch-fg">
             <label>Sketch Notes</label>
             <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
           </div>

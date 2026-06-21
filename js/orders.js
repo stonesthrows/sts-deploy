@@ -253,6 +253,10 @@ function openOrderCard(id) {
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
   document.getElementById('f-description').value  = o.desc          || '';
   document.getElementById('f-stage').value         = o.stage         || 'intake-custom';
+  _jdMode = o.jobDescMode === 'square' ? 'square' : 'custom';
+  const jdType = document.getElementById('f-jobdesc-type');
+  if (jdType) jdType.value = _jdMode;
+  jdApplyVisibility(_jdMode);
   oiLoadFromOrder(o);
   document.getElementById('f-deposit').value       = o.deposit       || '';
   document.getElementById('f-deadline').value      = o.deadline      || '';
@@ -381,8 +385,9 @@ function saveOrderEdit() {
   if (!o) return;
 
   o.name          = getFullName();
-  o.jobDesc       = document.getElementById('f-job-desc').value.trim()       || '';
-  o.desc          = document.getElementById('f-description').value.trim();
+  o.jobDescMode   = _jdMode;
+  o.jobDesc       = jdGetJobDescValue();
+  o.desc          = jdGetDescValue();
   o.stage         = document.getElementById('f-stage').value;
   o.items         = _oiItems.map(it => ({ ...it }));
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
@@ -492,10 +497,11 @@ function submitOrder() {
   if (document.getElementById('f-editing-id').value) { saveOrderEdit(); return; }
   const name  = getFullName();
   const email = document.getElementById('f-email').value.trim();
-  const desc  = document.getElementById('f-description').value.trim();
+  const desc  = jdGetDescValue();
   if (!name || !desc) {
-    toast('Please fill in Name and Description', '⚠');
-    ['f-firstname', 'f-description'].forEach(id => {
+    toast(_jdMode === 'square' ? 'Please fill in Name and select a Square Item' : 'Please fill in Name and Description', '⚠');
+    const highlightIds = _jdMode === 'square' ? ['f-firstname'] : ['f-firstname', 'f-description'];
+    highlightIds.forEach(id => {
       const el = document.getElementById(id);
       if (el && !el.value.trim()) {
         el.style.borderColor = '#E05050';
@@ -505,6 +511,7 @@ function submitOrder() {
     return;
   }
 
+  const jobDesc    = jdGetJobDescValue();
   const items      = _oiItems.map(it => ({ ...it }));
   const price      = parseFloat(document.getElementById('f-price').value)   || 0;
   const deposit    = parseFloat(document.getElementById('f-deposit').value) || 0;
@@ -530,6 +537,8 @@ function submitOrder() {
   ORDERS.push({
     id:        newId,
     name:      name,
+    jobDesc:   jobDesc,
+    jobDescMode: _jdMode,
     desc:      desc,
     stage:     stage,
     deadline:  deadline,
@@ -630,6 +639,10 @@ function clearForm() {
   toggleShippingAddress();
   setOrderType('order');
   _setOrderFormEditMode(false);
+  const jdType = document.getElementById('f-jobdesc-type');
+  if (jdType) jdType.value = 'custom';
+  _jdMode = 'custom';
+  jdApplyVisibility('custom');
   oiInit();
 }
 
@@ -644,6 +657,46 @@ let _oiLastResults = {};
 function oiInit() {
   _oiItems = [];
   oiRender();
+}
+
+// ════════════════════════════════════════════
+//  JOB DESCRIPTION — Custom Item (free text) vs Square Item (the job IS a single
+//  catalog item, picked the same way as an Order Item). Square Item mode hides Order
+//  Description / Materials / Sketch Notes / the multi-item Order Items section, and
+//  uses the chosen item's name as the saved description/title — without touching
+//  whatever text was already typed in those hidden fields, so toggling back restores it.
+// ════════════════════════════════════════════
+let _jdMode = 'custom';
+
+function jdApplyVisibility(mode) {
+  const show = id => { const el = document.getElementById(id); if (el) el.style.display = ''; };
+  const hide = id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+  if (mode === 'square') {
+    hide('jobdesc-custom-wrap'); show('jobdesc-square-wrap');
+    hide('orderdesc-fg'); hide('materials-fg'); hide('sketch-fg'); hide('oi-section');
+  } else {
+    show('jobdesc-custom-wrap'); hide('jobdesc-square-wrap');
+    show('orderdesc-fg'); show('materials-fg'); show('sketch-fg'); show('oi-section');
+  }
+}
+
+function jdSetType(mode) {
+  _jdMode = mode;
+  if (mode === 'square' && (_oiItems.length !== 1 || _oiItems[0].type !== 'square')) {
+    _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
+  }
+  jdApplyVisibility(mode);
+  oiRender();
+}
+
+function jdGetDescValue() {
+  if (_jdMode === 'square') return (_oiItems[0] && _oiItems[0].name) || '';
+  return document.getElementById('f-description').value.trim();
+}
+
+function jdGetJobDescValue() {
+  if (_jdMode === 'square') return (_oiItems[0] && _oiItems[0].name) || '';
+  return document.getElementById('f-job-desc').value.trim();
 }
 
 function oiLoadFromOrder(o) {
@@ -730,21 +783,25 @@ function oiSerialize() {
 }
 
 function oiRender() {
-  const box = document.getElementById('oi-items-container');
-  if (!box) return;
-  if (!_oiItems.length) {
-    box.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — add a manual item or a Square item.</div>';
+  if (_jdMode === 'square') {
+    const box = document.getElementById('jobdesc-square-picker');
+    if (box) box.innerHTML = _oiItems.length ? oiRowHtml(_oiItems[0], 0, true) : '';
   } else {
-    box.innerHTML = _oiItems.map((it, idx) => oiRowHtml(it, idx)).join('');
+    const box = document.getElementById('oi-items-container');
+    if (box) {
+      box.innerHTML = !_oiItems.length
+        ? '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — add a manual item or a Square item.</div>'
+        : _oiItems.map((it, idx) => oiRowHtml(it, idx, false)).join('');
+    }
   }
   oiRecalcTotal();
   const itemsJson = document.getElementById('f-items-json');
   if (itemsJson) itemsJson.value = oiSerialize();
 }
 
-function oiRowHtml(it, idx) {
+function oiRowHtml(it, idx, singleSlotMode) {
   const isSquareSelected = it.type === 'square' && (it.squareVariationId || it.squareItemId);
-  const typeSel = isSquareSelected ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+  const typeSel = (isSquareSelected || singleSlotMode) ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
     <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
     <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
   </select>`;
@@ -799,7 +856,7 @@ function oiRowHtml(it, idx) {
   return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);">
     ${typeSel}
     ${body}
-    <button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
+    ${singleSlotMode ? '' : `<button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>`}
   </div>`;
 }
 
@@ -1441,7 +1498,7 @@ function setMultiplier(val) {
 function approveEstimate() {
   const customerEmail = document.getElementById('f-email')?.value.trim() || '';
   const customerName  = getFullName() || 'Customer';
-  const jobDesc = document.getElementById('f-job-desc')?.value.trim() || '';
+  const jobDesc = jdGetJobDescValue();
   const notes   = document.getElementById('f-customer-notes')?.value.trim() || '';
 
   if (!customerEmail) { toast('Add a customer email first.', '⚠️'); return; }
