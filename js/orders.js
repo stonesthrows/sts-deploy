@@ -621,7 +621,12 @@ function dpUpdatePaidByLabel() {
 }
 
 function toggleShippingAddress() {
-  // Address fields are always visible — no-op
+  const pickup    = document.getElementById('f-pickup');
+  const isShipped = pickup && pickup.value === 'To be Shipped';
+  ['addr-street-fg', 'addr-street2-fg', 'addr-city-fg', 'addr-state-fg', 'addr-zip-fg', 'addr-country-fg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isShipped ? '' : 'none';
+  });
 }
 
 function clearForm() {

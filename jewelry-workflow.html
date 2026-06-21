@@ -4237,38 +4237,6 @@
             <label>Phone</label>
             <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
           </div>
-          <div class="fg full">
-            <label>Street Address</label>
-            <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
-          </div>
-          <div class="fg full">
-            <label>Address Line 2</label>
-            <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
-          </div>
-          <div class="fg">
-            <label>City</label>
-            <input type="text" id="f-addr-city" placeholder="Tampa">
-          </div>
-          <div class="fg">
-            <label>State</label>
-            <input type="text" id="f-addr-state" placeholder="FL">
-          </div>
-          <div class="fg">
-            <label>Zip</label>
-            <input type="text" id="f-addr-zip" placeholder="33619">
-          </div>
-          <div class="fg">
-            <label>Country</label>
-            <input type="text" id="f-addr-country" placeholder="United States" value="United States">
-          </div>
-          <div class="fg">
-            <label>Take In Date</label>
-            <input type="date" id="f-takein">
-          </div>
-          <div class="fg">
-            <label>Deadline</label>
-            <input type="date" id="f-deadline">
-          </div>
           <div class="fg">
             <label>Pickup Location</label>
             <select id="f-pickup" onchange="toggleShippingAddress()">
@@ -4295,6 +4263,38 @@
               <option value="Text Message">Text Message</option>
               <option value="Facebook Message">Facebook Message</option>
             </select>
+          </div>
+          <div class="fg full" id="addr-street-fg">
+            <label>Street Address</label>
+            <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
+          </div>
+          <div class="fg full" id="addr-street2-fg">
+            <label>Address Line 2</label>
+            <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
+          </div>
+          <div class="fg" id="addr-city-fg">
+            <label>City</label>
+            <input type="text" id="f-addr-city" placeholder="Tampa">
+          </div>
+          <div class="fg" id="addr-state-fg">
+            <label>State</label>
+            <input type="text" id="f-addr-state" placeholder="FL">
+          </div>
+          <div class="fg" id="addr-zip-fg">
+            <label>Zip</label>
+            <input type="text" id="f-addr-zip" placeholder="33619">
+          </div>
+          <div class="fg" id="addr-country-fg">
+            <label>Country</label>
+            <input type="text" id="f-addr-country" placeholder="United States" value="United States">
+          </div>
+          <div class="fg">
+            <label>Take In Date</label>
+            <input type="date" id="f-takein">
+          </div>
+          <div class="fg">
+            <label>Deadline</label>
+            <input type="date" id="f-deadline">
           </div>
           <div class="fg full" id="jobdesc-fg">
             <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
