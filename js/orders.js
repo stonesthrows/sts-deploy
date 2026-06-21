@@ -253,7 +253,7 @@ function openOrderCard(id) {
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
   document.getElementById('f-description').value  = o.desc          || '';
   document.getElementById('f-stage').value         = o.stage         || 'intake-custom';
-  document.getElementById('f-price').value         = o.price         || '';
+  oiLoadFromOrder(o);
   document.getElementById('f-deposit').value       = o.deposit       || '';
   document.getElementById('f-deadline').value      = o.deadline      || '';
   document.getElementById('f-takein').value        = o.takeIn        || '';
@@ -385,6 +385,7 @@ function saveOrderEdit() {
   o.jobDesc       = document.getElementById('f-job-desc').value.trim()       || '';
   o.desc          = document.getElementById('f-description').value.trim();
   o.stage         = document.getElementById('f-stage').value;
+  o.items         = _oiItems.map(it => ({ ...it }));
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
   o.deposit       = parseFloat(document.getElementById('f-deposit').value) || 0;
   o.deadline      = document.getElementById('f-deadline').value || null;
@@ -505,6 +506,7 @@ function submitOrder() {
     return;
   }
 
+  const items      = _oiItems.map(it => ({ ...it }));
   const price      = parseFloat(document.getElementById('f-price').value)   || 0;
   const deposit    = parseFloat(document.getElementById('f-deposit').value) || 0;
   const ringSize   = document.getElementById('f-ring-size').value.trim()    || '';
@@ -532,6 +534,7 @@ function submitOrder() {
     desc:      desc,
     stage:     stage,
     deadline:  deadline,
+    items:     items,
     price:     price,
     deposit:   deposit,
     ringSize:  ringSize,
@@ -605,7 +608,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-ring-size','f-price','f-deposit','f-notes','f-customer-notes','f-sketch',
+  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-ring-size','f-deposit','f-notes','f-customer-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -628,6 +631,215 @@ function clearForm() {
   toggleShippingAddress();
   setOrderType('order');
   _setOrderFormEditMode(false);
+  oiInit();
+}
+
+// ════════════════════════════════════════════
+//  ORDER ITEMS — multi-item picker (manual entry or Square catalog item)
+//  Each item: { type:'manual'|'square', name, sku, price, squareItemId, squareVariationId }
+// ════════════════════════════════════════════
+let _oiItems = [];
+let _oiDebounce = {};
+let _oiLastResults = {};
+
+function oiInit() {
+  _oiItems = [];
+  oiRender();
+}
+
+function oiLoadFromOrder(o) {
+  if (Array.isArray(o.items) && o.items.length) {
+    _oiItems = o.items.map(it => ({ ...it }));
+  } else if (o.price) {
+    // Legacy order created before line items existed — preserve its total as a single item.
+    _oiItems = [{ type: 'manual', name: 'Order Total', price: o.price }];
+  } else {
+    _oiItems = [];
+  }
+  oiRender();
+}
+
+function oiAddItem() {
+  _oiItems.push({ type: 'manual', name: '', sku: '', price: 0 });
+  oiRender();
+}
+
+function oiRemoveItem(idx) {
+  _oiItems.splice(idx, 1);
+  oiRender();
+}
+
+function oiSetType(idx, type) {
+  if (!_oiItems[idx]) return;
+  _oiItems[idx] = type === 'square'
+    ? { type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }
+    : { type: 'manual', name: '', sku: '', price: 0 };
+  oiRender();
+}
+
+function oiUpdateField(idx, field, value) {
+  if (!_oiItems[idx]) return;
+  _oiItems[idx][field] = value;
+  if (field === 'price') oiRecalcTotal();
+}
+
+function oiClearSquareSelection(idx) {
+  if (!_oiItems[idx]) return;
+  _oiItems[idx] = { type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null };
+  oiRender();
+}
+
+function oiRecalcTotal() {
+  const total = _oiItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0), 0);
+  const priceEl = document.getElementById('f-price');
+  if (priceEl) priceEl.value = total ? total.toFixed(2) : '';
+}
+
+function oiSerialize() {
+  return JSON.stringify(_oiItems);
+}
+
+function oiRender() {
+  const box = document.getElementById('oi-items-container');
+  if (!box) return;
+  if (!_oiItems.length) {
+    box.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — add a manual item or a Square item.</div>';
+  } else {
+    box.innerHTML = _oiItems.map((it, idx) => oiRowHtml(it, idx)).join('');
+  }
+  oiRecalcTotal();
+  const itemsJson = document.getElementById('f-items-json');
+  if (itemsJson) itemsJson.value = oiSerialize();
+}
+
+function oiRowHtml(it, idx) {
+  const typeSel = `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+    <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
+    <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
+  </select>`;
+
+  let body;
+  if (it.type === 'square') {
+    if (it.squareVariationId || it.squareItemId) {
+      body = `<div class="rq-selected-item" style="flex:1;">
+        <div style="flex:1;">
+          <div class="rq-result-name">${(it.name || '').replace(/</g, '&lt;')}</div>
+          <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div>
+        </div>
+        <input type="number" step="0.01" min="0" value="${it.price || 0}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
+        <button type="button" class="rq-item-remove" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
+      </div>`;
+    } else {
+      body = `<div style="flex:1;position:relative;">
+        <div class="rq-setup-search-wrap">
+          <span class="rq-setup-search-icon">🔍</span>
+          <input type="text" class="rq-setup-search-input" placeholder="Search Square catalog…" oninput="oiSearchInput(${idx}, this.value)">
+          <div class="rq-setup-spinner" id="oi-spinner-${idx}"></div>
+        </div>
+        <div class="rq-setup-results" id="oi-results-${idx}"></div>
+      </div>`;
+    }
+  } else {
+    body = `<div style="flex:1;display:flex;gap:8px;">
+      <input type="text" placeholder="Item name" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'name',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+      <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+    </div>`;
+  }
+
+  return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);">
+    ${typeSel}
+    ${body}
+    <button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
+  </div>`;
+}
+
+function oiSearchInput(idx, value) {
+  if (_oiDebounce[idx]) clearTimeout(_oiDebounce[idx]);
+  const box = document.getElementById('oi-results-' + idx);
+  if (!value || value.length < 2) {
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+    return;
+  }
+  _oiDebounce[idx] = setTimeout(() => oiSearchSquare(idx, value), 350);
+}
+
+function _oiSqCall(path, opts = {}) {
+  const token = localStorage.getItem('sts-square-token') || '';
+  const payload = { path: '/v2' + path, method: opts.method || 'GET' };
+  if (opts.body) payload.body = opts.body;
+  if (token) payload.token = token;
+  return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
+}
+
+function oiSearchSquare(idx, query) {
+  const spinner = document.getElementById('oi-spinner-' + idx);
+  if (spinner) spinner.style.display = 'block';
+  _oiSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(data => {
+    const found = data.objects || [];
+    if (!found.length) { oiRenderResults(idx, [], query); return null; }
+    return _oiSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(o => o.id) },
+    }).then(fullData => {
+      const rows = [];
+      (fullData.objects || []).forEach(obj => {
+        if (obj.type !== 'ITEM') return;
+        const itemName = obj.item_data ? obj.item_data.name : 'Unnamed';
+        const variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        variations.forEach(v => {
+          const vd = v.item_variation_data || {};
+          const priceMoney = vd.price_money;
+          const price = priceMoney && priceMoney.amount ? priceMoney.amount / 100 : 0;
+          const varName = vd.name && vd.name !== 'Regular' ? vd.name : '';
+          rows.push({
+            squareItemId: obj.id,
+            squareVariationId: v.id,
+            name: varName ? itemName + ' — ' + varName : itemName,
+            sku: vd.sku || '',
+            price,
+          });
+        });
+      });
+      oiRenderResults(idx, rows, query);
+    });
+  }).catch(() => oiRenderResults(idx, [], query))
+    .then(() => { if (spinner) spinner.style.display = 'none'; });
+}
+
+function oiRenderResults(idx, items, query) {
+  _oiLastResults[idx] = items;
+  const box = document.getElementById('oi-results-' + idx);
+  if (!box) return;
+  if (!items.length) {
+    const safeQ = (query || '').replace(/</g, '&lt;');
+    box.innerHTML = `<div class="rq-result-none">No Square match for "${safeQ}" — use Manual Item instead</div>`;
+    box.style.display = 'flex';
+    return;
+  }
+  box.innerHTML = items.map((it, i) => `
+    <div class="rq-result-item" onclick="oiSelectSquareResult(${idx}, ${i})">
+      <div><div class="rq-result-name">${(it.name || '').replace(/</g, '&lt;')}</div>
+      <div class="rq-result-meta">${it.sku ? 'SKU ' + it.sku.replace(/</g, '&lt;') : ''}</div></div>
+      <div class="rq-result-price">$${it.price.toFixed(2)}</div>
+    </div>`).join('');
+  box.style.display = 'flex';
+}
+
+function oiSelectSquareResult(idx, i) {
+  const item = (_oiLastResults[idx] || [])[i];
+  if (!item || !_oiItems[idx]) return;
+  _oiItems[idx] = {
+    type: 'square',
+    name: item.name,
+    sku: item.sku,
+    price: item.price,
+    squareItemId: item.squareItemId,
+    squareVariationId: item.squareVariationId,
+  };
+  oiRender();
 }
 
 // ════════════════════════════════════════════
