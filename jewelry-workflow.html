@@ -2206,6 +2206,18 @@
     }
     .notes-add-input:focus { border-color: var(--accent); }
     #toorder-suggest, #restock-suggest { padding: 0 14px; }
+    .restock-size-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+    .restock-size-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 6px 10px; background: #F8F3EC; border: 1px solid #E4DDD4; border-radius: 6px;
+    }
+    .restock-size-name { font-size: 12px; color: var(--text); font-weight: 600; }
+    .restock-size-qty {
+      width: 52px; padding: 4px 6px; border: 1px solid #D8D0C8; border-radius: 6px;
+      font-size: 12px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .restock-size-qty:focus { border-color: var(--accent); outline: none; }
+    .restock-size-actions { display: flex; gap: 8px; margin-bottom: 8px; }
     .toorder-suggest-label { font-size: 11px; color: var(--text3); font-weight: 600; padding: 6px 0 3px; text-transform: uppercase; letter-spacing: .04em; }
     .toorder-suggest-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; margin-bottom: 4px; background: #F8F3EC; border: 1px solid #E4DDD4; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .toorder-suggest-item:hover { background: #F0E8DC; border-color: var(--accent); }
@@ -7262,7 +7274,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=15"></script>
+<script src="js/notes.js?v=16"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

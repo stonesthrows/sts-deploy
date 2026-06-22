@@ -429,9 +429,10 @@ function toOrderSuggestPick(id) {
 // ── Inventory Restock: Square item suggest dropdown ──────────
 // Mirrors the live-filter the Inventory tab uses against the real
 // Square catalog, so restock notes match actual item/variation names.
-var _restockCatalog = null;     // flat [{ name, varName }] once loaded
+var _restockCatalog = null;     // grouped [{ name, variations: [{ id, name }] }] once loaded
 var _restockCatalogLoading = false;
 var _restockCatalogError = null;
+var _restockMatches = [];       // last rendered suggestion list (indexes into _restockCatalog)
 
 function _restockSqFetch(path) {
   // Same pattern as _rqSqCall (Restock Queue page): only attach a token if
@@ -461,7 +462,7 @@ function _restockLoadCatalog() {
   _restockCatalogLoading = true;
   _restockCatalogError = null;
 
-  var rows = [];
+  var groups = [];
   function page(cursor) {
     var path = '/v2/catalog/list?types=ITEM' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
     _restockSqFetch(path).then(function(res) {
@@ -470,14 +471,16 @@ function _restockLoadCatalog() {
         var name = obj.item_data && obj.item_data.name;
         if (!name) return;
         var vars = (obj.item_data.variations || []).filter(function(v) { return !v.is_deleted; });
-        if (!vars.length) { rows.push({ name: name, varName: '' }); return; }
-        vars.forEach(function(v) {
-          rows.push({ name: name, varName: (v.item_variation_data && v.item_variation_data.name) || '' });
+        groups.push({
+          name: name,
+          variations: vars.map(function(v) {
+            return { id: v.id, name: (v.item_variation_data && v.item_variation_data.name) || '' };
+          }),
         });
       });
       if (res.cursor) { page(res.cursor); }
       else {
-        _restockCatalog = rows;
+        _restockCatalog = groups;
         _restockCatalogLoading = false;
         var input = document.getElementById('restock-input');
         if (input) restockSuggest(input.value);
@@ -490,6 +493,10 @@ function _restockLoadCatalog() {
     });
   }
   page(null);
+}
+
+function _restockEsc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function restockSuggest(value) {
@@ -505,29 +512,74 @@ function restockSuggest(value) {
   if (!_restockCatalog) { _restockLoadCatalog(); box.innerHTML = '<div class="toorder-suggest-label">Loading Square catalog…</div>'; return; }
 
   var q = text.toLowerCase();
-  var esc = function(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  };
-  var matches = _restockCatalog.filter(function(r) {
-    return r.name.toLowerCase().indexOf(q) !== -1 || r.varName.toLowerCase().indexOf(q) !== -1;
+  _restockMatches = _restockCatalog.filter(function(item) {
+    if (item.name.toLowerCase().indexOf(q) !== -1) return true;
+    return item.variations.some(function(v) { return v.name.toLowerCase().indexOf(q) !== -1; });
   }).slice(0, 6);
 
-  if (!matches.length) { box.innerHTML = ''; return; }
+  if (!_restockMatches.length) { box.innerHTML = ''; return; }
 
   var html = '<div class="toorder-suggest-label">📦 Square catalog match:</div>';
-  matches.forEach(function(r) {
-    var full = r.varName ? (r.name + ' – ' + r.varName) : r.name;
-    html += '<div class="toorder-suggest-item" onclick="restockSuggestPick(\'' + esc(full).replace(/'/g, "\\'") + '\')">'
-          + '<span class="toorder-suggest-name">' + esc(r.name) + '</span>'
-          + (r.varName ? '<span class="toorder-suggest-sup">' + esc(r.varName) + '</span>' : '')
+  _restockMatches.forEach(function(item, i) {
+    var meta = item.variations.length > 1 ? item.variations.length + ' sizes' : '';
+    html += '<div class="toorder-suggest-item" onclick="restockPickItem(' + i + ')">'
+          + '<span class="toorder-suggest-name">' + _restockEsc(item.name) + '</span>'
+          + (meta ? '<span class="toorder-suggest-sup">' + meta + '</span>' : '')
           + '</div>';
   });
   box.innerHTML = html;
 }
 
-function restockSuggestPick(text) {
-  var input = document.getElementById('restock-input');
+// ── Single-variation item: fill the input directly ───────────
+function restockPickItem(i) {
+  var item = _restockMatches[i];
+  if (!item) return;
   var box = document.getElementById('restock-suggest');
+
+  if (item.variations.length <= 1) {
+    var input = document.getElementById('restock-input');
+    if (input) { input.value = item.name; input.focus(); }
+    if (box) box.innerHTML = '';
+    return;
+  }
+  _restockRenderSizePicker(item, i, box);
+}
+
+// ── Multi-variation item (e.g. ring sizes): pick a quantity per size ──
+function _restockRenderSizePicker(item, matchIdx, box) {
+  if (!box) return;
+  var html = '<div class="toorder-suggest-label">📦 Choose size(s) for <strong>' + _restockEsc(item.name) + '</strong></div>'
+    + '<div class="restock-size-list">';
+  item.variations.forEach(function(v, i) {
+    html += '<div class="restock-size-row">'
+      + '<span class="restock-size-name">' + (_restockEsc(v.name) || '(Default)') + '</span>'
+      + '<input type="number" class="restock-size-qty" id="restock-size-qty-' + i + '" min="0" max="99" placeholder="0">'
+      + '</div>';
+  });
+  html += '</div>'
+    + '<div class="restock-size-actions">'
+    + '<button type="button" class="btn btn-gold btn-sm" onclick="restockConfirmSizes(' + matchIdx + ')">Add</button>'
+    + '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'restock-suggest\').innerHTML=\'\'">Cancel</button>'
+    + '</div>';
+  box.innerHTML = html;
+}
+
+function restockConfirmSizes(i) {
+  var item = _restockMatches[i];
+  if (!item) return;
+  var box = document.getElementById('restock-suggest');
+  var input = document.getElementById('restock-input');
+
+  var parts = [];
+  item.variations.forEach(function(v, idx) {
+    var el = document.getElementById('restock-size-qty-' + idx);
+    var qty = el ? parseInt(el.value, 10) || 0 : 0;
+    if (qty > 0) parts.push((v.name || '(Default)') + ' (' + qty + ')');
+  });
+
+  if (!parts.length) { return; }
+
+  var text = item.name + ' – Sizes ' + parts.join(', ');
   if (input) { input.value = text; input.focus(); }
   if (box) box.innerHTML = '';
 }
