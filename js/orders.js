@@ -260,6 +260,7 @@ function openOrderCard(id) {
   oiLoadFromOrder(o);
   document.getElementById('f-deposit').value       = o.deposit       || '';
   dpUpdatePaidByLabel();
+  document.getElementById('f-shipping').value      = o.shipping      || '';
   document.getElementById('f-deadline').value      = o.deadline      || '';
   document.getElementById('f-takein').value        = o.takeIn        || '';
   document.getElementById('f-pickup').value        = o.pickup        || '';
@@ -393,6 +394,7 @@ function saveOrderEdit() {
   o.items         = _oiItems.map(it => ({ ...it }));
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
   o.deposit       = parseFloat(document.getElementById('f-deposit').value) || 0;
+  o.shipping      = parseFloat(document.getElementById('f-shipping').value) || 0;
   o.deadline      = document.getElementById('f-deadline').value || null;
   o.takeIn        = document.getElementById('f-takein').value   || null;
   o.pickup        = document.getElementById('f-pickup').value   || null;
@@ -516,6 +518,7 @@ function submitOrder() {
   const items      = _oiItems.map(it => ({ ...it }));
   const price      = parseFloat(document.getElementById('f-price').value)   || 0;
   const deposit    = parseFloat(document.getElementById('f-deposit').value) || 0;
+  const shipping   = parseFloat(document.getElementById('f-shipping').value) || 0;
   const ringSize   = oiDeriveRingSizesText(items);
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
@@ -546,6 +549,7 @@ function submitOrder() {
     items:     items,
     price:     price,
     deposit:   deposit,
+    shipping:  shipping,
     ringSize:  ringSize,
     notionId:  null,
     email:     email,
@@ -630,7 +634,7 @@ function toggleShippingAddress() {
 }
 
 function clearForm() {
-  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-deposit','f-notes','f-customer-notes','f-sketch',
+  ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-deposit','f-shipping','f-notes','f-customer-notes','f-sketch',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -1683,10 +1687,12 @@ function printOrder(id) {
     deadline:  o.deadline    || '',
     price:     o.price       || '',
     deposit:   o.deposit     || '',
+    shipping:  o.shipping    || '',
     ringSize:  o.ringSize    || '',
     pickup:    o.pickup      || '',
     source:    o.contactSource || '',
-    stage:     o.stage       || ''
+    stage:     o.stage       || '',
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: it.price || 0 }))),
   });
   // Append print layout settings from localStorage
   try {

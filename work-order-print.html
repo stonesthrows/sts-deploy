@@ -404,7 +404,10 @@
   const deadline  = p.get('deadline')  || '';
   const price     = p.get('price')     || '';
   const deposit   = p.get('deposit')   || '';
+  const shipping  = p.get('shipping')  || '';
   const ringSize  = p.get('ringSize')  || '';
+  let lineItems = [];
+  try { lineItems = JSON.parse(p.get('items') || '[]'); } catch (e) { lineItems = []; }
   const state     = p.get('state')     || '';
   const zip       = p.get('zip')       || '';
   const city      = p.get('city')      || '';
@@ -423,14 +426,29 @@
   fc.dataset.font    = font;
   fc.dataset.sizerow = sizeRow;
 
-  // Build line item rows dynamically
+  // Build line item rows dynamically — pre-fill from the order's Square/manual items,
+  // then pad with blank rows (for materials/labor add-ons) up to the configured liRows.
   const liBlock = document.querySelector('.li-block');
   // Remove existing rows (keep header)
   liBlock.querySelectorAll('.li-row').forEach(r => r.remove());
-  for (let i = 0; i < liRows; i++) {
+  const rowCount = Math.max(liRows, lineItems.length);
+  for (let i = 0; i < rowCount; i++) {
     const row = document.createElement('div');
     row.className = 'li-row';
-    row.innerHTML = '<span class="li-d" contenteditable="true"></span><span class="li-a" contenteditable="true" oninput="recalc()"></span>';
+    const d = document.createElement('span');
+    d.className = 'li-d';
+    d.contentEditable = 'true';
+    const a = document.createElement('span');
+    a.className = 'li-a';
+    a.contentEditable = 'true';
+    a.oninput = recalc;
+    const it = lineItems[i];
+    if (it) {
+      d.textContent = it.desc || '';
+      if (it.amount) a.textContent = fmtMoney(it.amount);
+    }
+    row.appendChild(d);
+    row.appendChild(a);
     liBlock.appendChild(row);
   }
 
@@ -471,6 +489,8 @@
   document.getElementById('n-notes').textContent = notesText;
   const dep0 = parseFloat(deposit) || 0;
   if (dep0) document.getElementById('t-deposit').textContent = fmtMoney(dep0);
+  const ship0 = parseFloat(shipping) || 0;
+  if (ship0) document.getElementById('t-shipping').textContent = fmtMoney(ship0);
 
   function parseAmt(el) { return parseFloat((el.textContent || '').replace(/[$,\s]/g,'')) || 0; }
   function recalc() {
