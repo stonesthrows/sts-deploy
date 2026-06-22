@@ -1000,12 +1000,13 @@ function _rqAutoMatchSingle(pid, rawText) {
   _rqAutoMatches[pid] = '_loading_';
   _rqUpdateMatchRow(pid);
   var localMatches = _rqLocalSearch(query);
-  var token = localStorage.getItem('sts-square-token') || '';
-  if (!token) {
-    if (localMatches.length) { _rqAmSet(pid, localMatches[0]); }
-    else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
-    return;
-  }
+  // Note: _rqSqCall only attaches a token if one is saved in this browser's
+  // localStorage — the /api/square proxy falls back to its own server-side
+  // SQUARE_TOKEN otherwise. So this must NOT skip the live search just
+  // because no local token exists (that previously made every item on a
+  // device without a saved token — e.g. a phone that's never opened
+  // Integrations — show "No Square match" even though the server-side
+  // credential would have matched it fine).
   _rqSqCall('/catalog/search', {
     method: 'POST',
     body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
