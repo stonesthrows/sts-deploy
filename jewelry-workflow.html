@@ -2603,12 +2603,30 @@
     .rq-variant-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
     .rq-variant-grid { display: flex; flex-wrap: wrap; gap: 4px; }
     .rq-variant-chip {
-      border: 1px solid var(--bdr); border-radius: 5px; padding: 3px 9px;
-      font-size: 11px; color: var(--text2); background: #fff; cursor: pointer;
-      user-select: none; transition: border-color 0.12s, background 0.12s, color 0.12s;
+      display: flex; align-items: center; gap: 5px;
+      border: 1px solid var(--bdr); border-radius: 5px; padding: 3px 6px 3px 9px;
+      font-size: 11px; color: var(--text2); background: #fff;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
     }
-    .rq-variant-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .rq-variant-chip:hover { border-color: var(--accent); }
     .rq-variant-chip-on { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--accent) !important; font-weight: 700; }
+    .rq-variant-qty-inline {
+      width: 32px; padding: 1px 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 11px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .rq-variant-qty-inline:focus { border-color: var(--accent); outline: none; }
+    /* ── Grouped variant table (e.g. Metal x Size x Gauge) ── */
+    .rq-variant-table { border-collapse: collapse; font-size: 11px; margin-bottom: 2px; }
+    .rq-variant-table th {
+      border: 1px solid var(--bdr); padding: 3px 6px; background: var(--card-head-bg);
+      color: var(--text2); font-weight: 700; text-align: center; white-space: nowrap;
+    }
+    .rq-variant-table td { border: 1px solid var(--bdr); padding: 3px; text-align: center; }
+    .rq-variant-qty {
+      width: 36px; padding: 2px 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 11px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .rq-variant-qty:focus { border-color: var(--accent); outline: none; }
     .rq-variant-done {
       background: var(--accent); border: none; border-radius: 5px; color: #fff;
       font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 4px 13px; cursor: pointer;
@@ -7274,7 +7292,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=18"></script>
+<script src="js/notes.js?v=19"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

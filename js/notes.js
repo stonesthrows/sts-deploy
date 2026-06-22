@@ -662,7 +662,7 @@ function _rqStoreList(store) { return store === 'report' ? _rqReportSessions : _
 function _rqStoreRender(store) { if (store === 'report') { _rqRenderReportBody(_rqReportSessions); } else { rqRenderSessions(); } }
 var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
-var _rqVariantPickers = {}; // { [notionPageId]: { selectedIds: [] } }
+var _rqVariantPickers = {}; // { [notionPageId]: { qtyByVariantId: { [variantId]: qty } } }
 var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
@@ -701,6 +701,101 @@ function _rqMatchSizesToVariants(variants, rawText) {
     if (hit) out.push(Object.assign({}, v, { qty: hit.qty }));
   });
   return out;
+}
+
+// ── Variant attribute table (e.g. Metal x Size x Gauge) ──────────────────────
+// Square variation names like "Silver - Sm - 20g" get parsed into a grouped
+// table (metal columns grouped, size sub-grouped, gauge as leaf columns) with
+// one quantity input per leaf, instead of a flat wall of chips that gets
+// unreadable once an item has 6-8+ variations (e.g. Double Hoop Faux Nose Ring).
+function _rqClassifyToken(tok) {
+  var t = (tok || '').trim();
+  if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)$/i.test(t)) return 'metal';
+  if (/^(xs|sm|small|med|medium|lg|large|xl|xxl)$/i.test(t)) return 'size';
+  return 'other';
+}
+
+function _rqBuildVariantTable(variants) {
+  if (!variants || variants.length < 3) return null; // not worth a table for 1-2 sizes
+  var rows = variants.map(function(v) {
+    var tokens = (v.name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+    if (tokens.length < 2) return null;
+    var metal = null, size = null, rest = [];
+    tokens.forEach(function(tok) {
+      var cls = _rqClassifyToken(tok);
+      if (cls === 'metal' && !metal) metal = tok;
+      else if (cls === 'size' && !size) size = tok;
+      else rest.push(tok);
+    });
+    if (!metal) return null;
+    return { variant: v, metal: metal, size: size || '', leaf: rest.join(' ') };
+  });
+  if (rows.some(function(r) { return !r; })) return null; // any unparseable row -> fall back to flat chips
+
+  var metals = [];
+  rows.forEach(function(r) { if (metals.indexOf(r.metal) === -1) metals.push(r.metal); });
+  if (metals.length < 2) return null; // single metal -> flat chips is fine
+
+  rows.sort(function(a, b) {
+    var ma = metals.indexOf(a.metal), mb = metals.indexOf(b.metal);
+    if (ma !== mb) return ma - mb;
+    return (a.size || '').localeCompare(b.size || '');
+  });
+
+  return { rows: rows, metals: metals, hasSizes: rows.some(function(r) { return r.size; }) };
+}
+
+function _rqVariantTableHtml(pid, table, qtyByVariantId) {
+  var html = '<table class="rq-variant-table"><thead><tr>';
+  table.metals.forEach(function(metal) {
+    var cols = table.rows.filter(function(r) { return r.metal === metal; });
+    html += '<th colspan="' + cols.length + '">' + _restockEsc(metal) + '</th>';
+  });
+  html += '</tr>';
+
+  if (table.hasSizes) {
+    html += '<tr>';
+    table.metals.forEach(function(metal) {
+      var cols = table.rows.filter(function(r) { return r.metal === metal; });
+      var i = 0;
+      while (i < cols.length) {
+        var size = cols[i].size;
+        var span = 1;
+        while (i + span < cols.length && cols[i + span].size === size) span++;
+        html += '<th colspan="' + span + '">' + (_restockEsc(size) || '—') + '</th>';
+        i += span;
+      }
+    });
+    html += '</tr>';
+  }
+
+  html += '<tr>';
+  table.rows.forEach(function(r) {
+    html += '<th>' + (_restockEsc(r.leaf) || '—') + '</th>';
+  });
+  html += '</tr></thead><tbody><tr>';
+  table.rows.forEach(function(r) {
+    var qty = qtyByVariantId[r.variant.id] || '';
+    var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+    html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
+      + ' onchange="rqSetVariantQty(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
+  });
+  html += '</tr></tbody></table>';
+  return html;
+}
+
+function _rqVariantFlatHtml(pid, variants, qtyByVariantId) {
+  return '<div class="rq-variant-grid">'
+    + variants.map(function(v) {
+        var qty = qtyByVariantId[v.id] || '';
+        var safeVId = (v.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+        return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
+          + '<span>' + (v.name || '').replace(/</g, '&lt;') + '</span>'
+          + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
+          + ' onchange="rqSetVariantQty(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
+          + '</div>';
+      }).join('')
+    + '</div>';
 }
 
 // Local items not in Square catalog
@@ -801,18 +896,13 @@ function _rqMatchRowInner(pid) {
   if (_rqVariantPickers[pid] && match && typeof match === 'object' && match.isParent) {
     var picker = _rqVariantPickers[pid];
     var variants = match.variants || [];
+    var table = _rqBuildVariantTable(variants);
+    var body = table
+      ? _rqVariantTableHtml(safePid, table, picker.qtyByVariantId)
+      : _rqVariantFlatHtml(safePid, variants, picker.qtyByVariantId);
     return '<div class="rq-variant-picker">'
       + '<div class="rq-variant-label">Choose size(s) for <strong>' + (match.name||'').replace(/</g,'&lt;') + '</strong></div>'
-      + '<div class="rq-variant-grid">'
-      + variants.map(function(v) {
-          var isSel = picker.selectedIds.indexOf(v.id) !== -1;
-          var safeVId = (v.id||'').replace(/'/g,'').replace(/\\/g,'\\\\');
-          return '<div class="rq-variant-chip' + (isSel ? ' rq-variant-chip-on' : '') + '"'
-            + ' onclick="rqToggleVariant(\'' + safePid + '\',\'' + safeVId + '\')">'
-            + (v.name||'').replace(/</g,'&lt;')
-            + '</div>';
-        }).join('')
-      + '</div>'
+      + body
       + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
       + '<button class="rq-variant-done" onclick="rqConfirmVariants(\'' + safePid + '\')">Done</button>'
       + '<button class="rq-setup-cancel-btn" onclick="rqCloseVariantPicker(\'' + safePid + '\')">Skip</button>'
@@ -1038,8 +1128,9 @@ function rqMatchEditCustom(pid, name) {
 function rqOpenVariantPicker(pid) {
   var match = _rqAutoMatches[pid];
   if (!match || typeof match !== 'object' || !match.isParent) return;
-  var alreadySelected = (match.selectedVariants || []).map(function(v) { return v.id; });
-  _rqVariantPickers[pid] = { selectedIds: alreadySelected.slice() };
+  var qtyByVariantId = {};
+  (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || 1; });
+  _rqVariantPickers[pid] = { qtyByVariantId: qtyByVariantId };
   _rqUpdateMatchRow(pid);
 }
 
@@ -1048,11 +1139,11 @@ function rqCloseVariantPicker(pid) {
   _rqUpdateMatchRow(pid);
 }
 
-function rqToggleVariant(pid, variantId) {
+function rqSetVariantQty(pid, variantId, value) {
   var picker = _rqVariantPickers[pid]; if (!picker) return;
-  var idx = picker.selectedIds.indexOf(variantId);
-  if (idx === -1) picker.selectedIds.push(variantId);
-  else picker.selectedIds.splice(idx, 1);
+  var qty = parseInt(value, 10) || 0;
+  if (qty > 0) picker.qtyByVariantId[variantId] = qty;
+  else delete picker.qtyByVariantId[variantId];
   _rqUpdateMatchRow(pid);
 }
 
@@ -1060,9 +1151,9 @@ function rqConfirmVariants(pid) {
   var picker = _rqVariantPickers[pid]; if (!picker) return;
   var match = _rqAutoMatches[pid];
   if (!match || typeof match !== 'object') return;
-  var selectedVariants = (match.variants || []).filter(function(v) {
-    return picker.selectedIds.indexOf(v.id) !== -1;
-  });
+  var selectedVariants = (match.variants || [])
+    .filter(function(v) { return picker.qtyByVariantId[v.id] > 0; })
+    .map(function(v) { return Object.assign({}, v, { qty: picker.qtyByVariantId[v.id] }); });
   delete _rqVariantPickers[pid];
   _rqAmSet(pid, Object.assign({}, match, { selectedVariants: selectedVariants }));
 }
