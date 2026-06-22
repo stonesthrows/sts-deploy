@@ -1939,10 +1939,34 @@ function _rqEditAddPanelHTML(store, i, e) {
     + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqEditCloseAdd(\'' + store + '\',' + i + ')">Cancel</button>';
 }
 
-function rqSaveEditSession(i) {
-  var s = _rqSessions[i]; if (!s) return;
-  var startEl = document.getElementById('rq-edit-start-' + i);
-  var stopEl  = document.getElementById('rq-edit-stop-'  + i);
+// Shared edit panel (start/stop time, per-item piece inputs + remove, add-item
+// search/variant picker, Save/Cancel) used by both the Session Log and the
+// Production Report — they edit the same underlying session record.
+function _rqSessionEditRowHTML(store, i, s) {
+  if (_rqEditingSession[store] !== i) return '';
+  var editAdd = _rqEditAdds[store][i];
+  return '<div class="rq-edit-row">'
+    + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
+    + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
+    + (s.items || []).map(function(it, ii) {
+        var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        return '<div class="rq-edit-field">'
+          + '<label style="flex:1;width:auto;">' + safeLabel + '</label>'
+          + '<input class="rq-edit-input rq-piece-input" type="number" min="0" step="1" id="rq-edit-pcs-' + store + '-' + i + '-' + ii + '" placeholder="pcs" value="' + (it.pieces != null ? it.pieces : '') + '">'
+          + '<button class="rq-item-remove" onclick="rqEditRemoveItem(\'' + store + '\',' + i + ',' + ii + ')">✕</button>'
+          + '</div>';
+      }).join('')
+    + (editAdd ? _rqEditAddPanelHTML(store, i, editAdd) : '<button class="rq-adjust-link" style="margin-top:4px;" onclick="rqEditOpenAdd(\'' + store + '\',' + i + ')">+ Add item</button>')
+    + '<div style="display:flex;gap:8px;margin-top:2px;">'
+    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(\'' + store + '\',' + i + ')">Save</button>'
+    + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession(\'' + store + '\')">Cancel</button>'
+    + '</div></div>';
+}
+
+function rqSaveEditSession(store, i) {
+  var s = _rqStoreList(store)[i]; if (!s) return;
+  var startEl = document.getElementById('rq-edit-start-' + store + '-' + i);
+  var stopEl  = document.getElementById('rq-edit-stop-'  + store + '-' + i);
   var newStart = startEl && startEl.value ? new Date(startEl.value).toISOString() : s.startTime;
   var newStop  = stopEl  && stopEl.value  ? new Date(stopEl.value).toISOString()  : s.stopTime;
   if (newStart && newStop && new Date(newStop) <= new Date(newStart)) {
@@ -1955,15 +1979,15 @@ function rqSaveEditSession(i) {
   }
   // Read per-item piece count edits; drop any row left blank
   var updatedItems = (s.items || []).map(function(it, ii) {
-    var inp = document.getElementById('rq-edit-pcs-' + i + '-' + ii);
+    var inp = document.getElementById('rq-edit-pcs-' + store + '-' + i + '-' + ii);
     if (!inp) return it;
     var raw = inp.value.trim();
     var pcs = raw !== '' ? parseInt(raw, 10) : null;
     return Object.assign({}, it, { pieces: isNaN(pcs) ? null : pcs });
   }).filter(function(it) { return it.pieces != null; });
   delete s._itemsBackup;
-  delete _rqEditAdds[i];
-  _rqEditingSession = null;
+  delete _rqEditAdds[store][i];
+  _rqEditingSession[store] = null;
 
   // Newly added items won't have a unitPrice snapshot yet — fetch it now.
   // Items that already had one (priced at original Stop & Save) are left untouched.
@@ -1971,7 +1995,7 @@ function rqSaveEditSession(i) {
     s.items = pricedItems;
     var totalPcs = null;
     pricedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
-    rqRenderSessions();
+    _rqStoreRender(store);
     if (!s.notionPageId) return;
     var patch = { pageId: s.notionPageId };
     if (newStart) patch.startTime = newStart;
@@ -1990,7 +2014,7 @@ function rqSaveEditSession(i) {
         if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
         toast('Session updated ✓', '✓');
       });
-  }).catch(function() { rqRenderSessions(); toast('Network error', '⚠'); });
+  }).catch(function() { _rqStoreRender(store); toast('Network error', '⚠'); });
 }
 
 // ── Production Report ────────────────────────────────────────────────────────
@@ -2163,7 +2187,7 @@ function _rqRenderReportBody(sessions) {
 
   var grandLabor = 0, grandValue = 0;
 
-  var cards = sessions.map(function(s) {
+  var cards = sessions.map(function(s, i) {
     var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
     var extraCount  = (s.items && s.items.length > 1) ? ' +' + (s.items.length - 1) + ' more' : '';
     var safeName    = (primaryName + extraCount).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -2195,6 +2219,8 @@ function _rqRenderReportBody(sessions) {
     var profitTxt = hasAnyValue ? 'Profit: ' + (profit >= 0 ? '+$' + profit.toFixed(2) : '-$' + Math.abs(profit).toFixed(2)) : 'Profit: —';
     var profitColor = profit >= 0 ? '#3A7A4A' : '#A0402A';
 
+    var editRow = _rqSessionEditRowHTML('report', i, s);
+
     return '<div class="rq-session-bar">'
       + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
       + '<div style="flex:1;min-width:0;">'
@@ -2205,6 +2231,7 @@ function _rqRenderReportBody(sessions) {
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
       + '<span style="color:#ccc">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
+      + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'report\',' + i + ')">✎ Edit</button>'
       + '</div>'
       + '<div class="rq-sbar-footer" style="flex-wrap:wrap;">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
@@ -2212,6 +2239,7 @@ function _rqRenderReportBody(sessions) {
       + '<span class="rq-sbar-pieces">' + valueTxt + '</span>'
       + '<span class="rq-sbar-pieces" style="font-weight:700;color:' + profitColor + ';">' + profitTxt + '</span>'
       + '</div>'
+      + editRow
       + '</div>';
   }).join('');
 
@@ -2338,38 +2366,19 @@ function rqRenderSessions() {
       && (s.items || []).some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
     var pushBtn = s.pushed
       ? '<span class="rq-pushed-label">↑ Pushed</span>'
-      : canPush ? '<button class="rq-push-btn" onclick="rqOpenPushPanel(' + i + ')">↑ Square</button>' : '';
+      : canPush ? '<button class="rq-push-btn" onclick="rqOpenPushPanel(\'log\',' + i + ')">↑ Square</button>' : '';
 
     var timeRow = '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
       + '<span style="color:#ccc">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
-      + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(' + i + ')">✎ Edit</button>'
+      + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'log\',' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-' + i + '" onclick="rqSyncShiftsForSession(' + i + ')">⟳ Sync</button>' : '')
       + '</div>';
 
-    var isEditing = _rqEditingSession === i;
-    var editAdd = _rqEditAdds[i];
-    var editRow = isEditing
-      ? '<div class="rq-edit-row">'
-        + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
-        + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
-        + (s.items || []).map(function(it, ii) {
-            var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-            return '<div class="rq-edit-field">'
-              + '<label style="flex:1;width:auto;">' + safeLabel + '</label>'
-              + '<input class="rq-edit-input rq-piece-input" type="number" min="0" step="1" id="rq-edit-pcs-' + i + '-' + ii + '" placeholder="pcs" value="' + (it.pieces != null ? it.pieces : '') + '">'
-              + '<button class="rq-item-remove" onclick="rqEditRemoveItem(' + i + ',' + ii + ')">✕</button>'
-              + '</div>';
-          }).join('')
-        + (editAdd ? _rqEditAddPanelHTML(i, editAdd) : '<button class="rq-adjust-link" style="margin-top:4px;" onclick="rqEditOpenAdd(' + i + ')">+ Add item</button>')
-        + '<div style="display:flex;gap:8px;margin-top:2px;">'
-        + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(' + i + ')">Save</button>'
-        + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession()">Cancel</button>'
-        + '</div></div>'
-      : '';
+    var editRow = _rqSessionEditRowHTML('log', i, s);
 
-    var isPushing = _rqPushingSession === i;
+    var isPushing = _rqPushingSession.log === i;
     var pushPanel = isPushing
       ? '<div class="rq-push-panel">'
         + (s.items || []).map(function(it) {
@@ -2382,8 +2391,8 @@ function rqRenderSessions() {
               + '</div>';
           }).join('')
         + '<div style="display:flex;gap:8px;margin-top:8px;">'
-        + '<button class="rq-start-confirm-btn" onclick="rqConfirmPush(' + i + ')">Confirm Push</button>'
-        + '<button class="rq-setup-cancel-btn" onclick="rqClosePushPanel()">Cancel</button>'
+        + '<button class="rq-start-confirm-btn" onclick="rqConfirmPush(\'log\',' + i + ')">Confirm Push</button>'
+        + '<button class="rq-setup-cancel-btn" onclick="rqClosePushPanel(\'log\')">Cancel</button>'
         + '</div></div>'
       : '';
 
