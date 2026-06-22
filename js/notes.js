@@ -426,6 +426,74 @@ function toOrderSuggestPick(id) {
   }
 }
 
+// ── Inventory Restock: Square item suggest dropdown ──────────
+// Mirrors the live-filter the Inventory tab uses against the real
+// Square catalog, so restock notes match actual item/variation names.
+var _restockCatalog = null;     // flat [{ name, varName }] once loaded
+var _restockCatalogLoading = false;
+
+function _restockLoadCatalog() {
+  if (_restockCatalog || _restockCatalogLoading) return;
+  if (typeof _sqFetch !== 'function') return;
+  _restockCatalogLoading = true;
+
+  var rows = [];
+  function page(cursor) {
+    var path = '/v2/catalog/list?types=ITEM' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    _sqFetch(path).then(function(res) {
+      (res.objects || []).forEach(function(obj) {
+        if (obj.is_deleted) return;
+        var name = obj.item_data && obj.item_data.name;
+        if (!name) return;
+        var vars = (obj.item_data.variations || []).filter(function(v) { return !v.is_deleted; });
+        if (!vars.length) { rows.push({ name: name, varName: '' }); return; }
+        vars.forEach(function(v) {
+          rows.push({ name: name, varName: (v.item_variation_data && v.item_variation_data.name) || '' });
+        });
+      });
+      if (res.cursor) { page(res.cursor); }
+      else { _restockCatalog = rows; _restockCatalogLoading = false; restockSuggest(document.getElementById('restock-input').value); }
+    }).catch(function() { _restockCatalogLoading = false; });
+  }
+  page(null);
+}
+
+function restockSuggest(value) {
+  var box = document.getElementById('restock-suggest');
+  if (!box) return;
+  var text = (value || '').trim();
+  if (text.length < 2) { box.innerHTML = ''; return; }
+
+  if (!_restockCatalog) { _restockLoadCatalog(); box.innerHTML = ''; return; }
+
+  var q = text.toLowerCase();
+  var esc = function(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+  var matches = _restockCatalog.filter(function(r) {
+    return r.name.toLowerCase().indexOf(q) !== -1 || r.varName.toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 6);
+
+  if (!matches.length) { box.innerHTML = ''; return; }
+
+  var html = '<div class="toorder-suggest-label">📦 Square catalog match:</div>';
+  matches.forEach(function(r) {
+    var full = r.varName ? (r.name + ' – ' + r.varName) : r.name;
+    html += '<div class="toorder-suggest-item" onclick="restockSuggestPick(\'' + esc(full).replace(/'/g, "\\'") + '\')">'
+          + '<span class="toorder-suggest-name">' + esc(r.name) + '</span>'
+          + (r.varName ? '<span class="toorder-suggest-sup">' + esc(r.varName) + '</span>' : '')
+          + '</div>';
+  });
+  box.innerHTML = html;
+}
+
+function restockSuggestPick(text) {
+  var input = document.getElementById('restock-input');
+  var box = document.getElementById('restock-suggest');
+  if (input) { input.value = text; input.focus(); }
+  if (box) box.innerHTML = '';
+}
+
 // ── Drag and drop between note cards ─────────
 function notesDragStart(event, key, idx) {
   var items = itemsFor(key);
