@@ -221,6 +221,7 @@ function cardHTML(o) {
       </div>
       <div class="o-collapsed-summary">
         ${o.pickup ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
+        ${o.assignee ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
@@ -230,11 +231,12 @@ function cardHTML(o) {
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
         <div class="o-desc">${o.desc}</div>
-        ${(o.pickup || o.contactSource || o.contactedAt) ? `
+        ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
         <div class="o-badges">
           ${o.pickup        ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
           ${o.contactSource ? `<span class="o-badge source">💬 ${o.contactSource}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
+          ${o.assignee      ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
@@ -267,6 +269,7 @@ function openOrderCard(id) {
   document.getElementById('f-email').value         = o.email         || '';
   document.getElementById('f-phone').value         = fmtPhone(o.phone);
   document.getElementById('f-source').value        = o.contactSource || '';
+  document.getElementById('f-assignee').value      = o.assignee      || '';
   document.getElementById('f-materials').value     = o.materials     || '';
   document.getElementById('f-paid-by').value       = o.paidBy        || '';
   document.getElementById('f-notes').value         = o.notes         || '';
@@ -401,6 +404,7 @@ function saveOrderEdit() {
   o.email         = document.getElementById('f-email').value.trim();
   o.phone         = document.getElementById('f-phone').value.trim();
   o.contactSource = document.getElementById('f-source').value    || null;
+  o.assignee      = document.getElementById('f-assignee').value  || null;
   o.materials     = document.getElementById('f-materials').value.trim() || '';
   o.ringSize      = oiDeriveRingSizesText(o.items);
   o.paidBy        = document.getElementById('f-paid-by').value          || '';
@@ -531,6 +535,7 @@ function submitOrder() {
   const addrCountry = document.getElementById('f-addr-country').value.trim() || 'United States';
   const shippingAddress = { street: addrStreet, street2: addrStreet2, city: addrCity, state: addrState, zip: addrZip, country: addrCountry };
   const contactSource = document.getElementById('f-source').value || null;
+  const assignee      = document.getElementById('f-assignee').value || null;
   const newId      = 'u' + Date.now();
   const typeVal    = (document.getElementById('f-order-type') || {}).value || 'order';
   const typeMap    = ORDER_TYPE_STAGES[typeVal] || ORDER_TYPE_STAGES.order;
@@ -559,6 +564,7 @@ function submitOrder() {
     shippingAddress: shippingAddress,
     addrStreet, addrStreet2, addrCity, addrState, addrZip, addrCountry,
     contactSource: contactSource,
+    assignee:      assignee,
     orderType:     typeVal,
   });
 
@@ -646,6 +652,8 @@ function clearForm() {
   if (pickup) pickup.value = '';
   const source = document.getElementById('f-source');
   if (source) source.value = '';
+  const assignee = document.getElementById('f-assignee');
+  if (assignee) assignee.value = '';
   const editingId = document.getElementById('f-editing-id');
   if (editingId) editingId.value = '';
   const compose = document.getElementById('eo-invoice-compose');

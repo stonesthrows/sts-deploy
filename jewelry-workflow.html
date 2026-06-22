@@ -1003,6 +1003,7 @@
     .o-badge.pickup    { background:#EAF0FB; color:#2E5A8A; }
     .o-badge.source    { background:#F0EAF8; color:#6A3A9A; }
     .o-badge.contacted { background:#E6F4ED; color:#2A7A4A; }
+    .o-badge.assignee  { background:#FBEFE0; color:#9A5A1A; }
     .c-td { font-size: 13px; color: var(--text); }
     .c-muted { color: var(--text2); }
     .active-chip {
@@ -4262,6 +4263,15 @@
               <option value="Instagram Message">Instagram Message</option>
               <option value="Text Message">Text Message</option>
               <option value="Facebook Message">Facebook Message</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Assigned To</label>
+            <select id="f-assignee">
+              <option value="">— Unassigned —</option>
+              <option value="Kyle">Kyle</option>
+              <option value="Vanessa">Vanessa</option>
+              <option value="Stevie">Stevie</option>
             </select>
           </div>
           <div class="fg full" id="addr-street-fg">

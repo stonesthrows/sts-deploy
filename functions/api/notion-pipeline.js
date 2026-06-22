@@ -94,6 +94,7 @@ function orderToProps(o) {
   if (o.orderType)    props['Order Type']     = { select: { name: ORDER_TYPE_TO_NOTION[o.orderType] || 'Custom Order' } };
   if (o.contactSource) props['Contact Source'] = { select: { name: o.contactSource } };
   if (o.pickup)       props['Pickup Location'] = { select: { name: o.pickup } };
+  if (o.assignee != null) props['Assignee']     = o.assignee ? { select: { name: o.assignee } } : { select: null };
   if (o.paidBy)       props['Paid By']         = { select: { name: o.paidBy } };
   if (o.contactedAt)  props['Contacted At']    = { date: { start: o.contactedAt.slice(0, 10) } };
   if (o.deliveredAt)  props['Delivered At']    = { date: { start: o.deliveredAt.slice(0, 10) } };
@@ -162,6 +163,7 @@ function pageToOrder(page) {
     orderType:     NOTION_TO_ORDER_TYPE[orderTypeRaw] || 'order',
     contactSource: sel(p['Contact Source']) || '',
     pickup:        sel(p['Pickup Location']) || null,
+    assignee:      sel(p['Assignee']) || null,
     paidBy:        sel(p['Paid By']) || '',
     contactedAt:   dt(p['Contacted At'])  || null,
     deliveredAt:   dt(p['Delivered At'])  || null,
