@@ -2254,6 +2254,8 @@
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     }
     .rq-item-row { display: flex; align-items: center; gap: 10px; }
+    .rq-item-row-wrap { flex-wrap: wrap; }
+    .rq-inline-variant-table { flex: 1 0 100%; margin: 2px 0 4px; }
     .rq-item.rq-active {
       border-color: var(--accent);
       border-left: 4px solid var(--accent);
@@ -7292,7 +7294,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=19"></script>
+<script src="js/notes.js?v=20"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

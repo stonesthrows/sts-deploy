@@ -745,7 +745,8 @@ function _rqBuildVariantTable(variants) {
   return { rows: rows, metals: metals, hasSizes: rows.some(function(r) { return r.size; }) };
 }
 
-function _rqVariantTableHtml(pid, table, qtyByVariantId) {
+function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
+  onchangeFn = onchangeFn || 'rqSetVariantQty';
   var html = '<table class="rq-variant-table"><thead><tr>';
   table.metals.forEach(function(metal) {
     var cols = table.rows.filter(function(r) { return r.metal === metal; });
@@ -778,7 +779,7 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId) {
     var qty = qtyByVariantId[r.variant.id] || '';
     var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
     html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-      + ' onchange="rqSetVariantQty(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
+      + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
   });
   html += '</tr></tbody></table>';
   return html;
@@ -796,6 +797,37 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId) {
           + '</div>';
       }).join('')
     + '</div>';
+}
+
+// ── Always-visible inline table (for groupable multi-attribute items) ───────
+// Some items (Double Hoop Faux Nose Ring, etc.) have enough variations that
+// the "Pick sizes" popup is more friction than it's worth — Kyle wants the
+// table sitting permanently in the card, between the title and the assignee
+// field, always editable. Only items where _rqBuildVariantTable succeeds get
+// this treatment; everything else keeps the click-to-open picker unchanged.
+function _rqInlineVariantTableHtml(pid, match) {
+  var table = _rqBuildVariantTable(match.variants);
+  if (!table) return '';
+  var qtyByVariantId = {};
+  (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
+  return '<div class="rq-inline-variant-table">' + _rqVariantTableHtml(pid, table, qtyByVariantId, 'rqSetInlineVariantQty') + '</div>';
+}
+
+function rqSetInlineVariantQty(pid, variantId, value) {
+  var match = _rqAutoMatches[pid];
+  if (!match || typeof match !== 'object' || !match.isParent) return;
+  var qty = parseInt(value, 10) || 0;
+  var byId = {};
+  (match.selectedVariants || []).forEach(function(v) { byId[v.id] = v; });
+  var variant = (match.variants || []).filter(function(v) { return v.id === variantId; })[0];
+  if (!variant) return;
+  if (qty > 0) byId[variantId] = Object.assign({}, variant, { qty: qty });
+  else delete byId[variantId];
+  var selectedVariants = (match.variants || [])
+    .filter(function(v) { return byId[v.id]; })
+    .map(function(v) { return byId[v.id]; });
+  _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
+  _rqAmSave();
 }
 
 // Local items not in Square catalog
@@ -921,6 +953,16 @@ function _rqMatchRowInner(pid) {
   }
 
   var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // ── Parent item with a groupable table: sizes are edited in the always-
+  // visible inline table (see _rqInlineVariantTableHtml), not here ──
+  if (match.isParent && _rqBuildVariantTable(match.variants)) {
+    return '<div class="rq-match-found">'
+      + '<span class="rq-match-check">✓</span>'
+      + '<span class="rq-match-name">' + safeName + '</span>'
+      + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ item</button>'
+      + '</div>';
+  }
 
   // ── Parent item: variants not yet chosen ──
   if (match.isParent && (!match.selectedVariants || !match.selectedVariants.length)) {
@@ -1298,7 +1340,11 @@ function restockQueueRender() {
     var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
     var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
-    var mainRow = '<div class="rq-item-row">'
+    var match = pid ? _rqAutoMatches[pid] : null;
+    var inlineTable = (pid && !isRunning && !isSetup && match && typeof match === 'object' && match.isParent)
+      ? _rqInlineVariantTableHtml(safePid, match) : '';
+
+    var mainRow = '<div class="rq-item-row' + (inlineTable ? ' rq-item-row-wrap' : '') + '">'
       + (isRunning || isSetup ? '' :
           '<span class="rq-arrows">'
           + (!assignee ? '<button class="rq-arrow" onclick="rqMoveToTop(' + idx + ')" ' + (isFirstUnassigned ? 'disabled' : '') + ' title="Move to top">⇈</button>' : '')
@@ -1311,6 +1357,7 @@ function restockQueueRender() {
       + ' onblur="rqSaveText(this,' + idx + ')"'
       + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
       + '>' + safeText + '</span>'
+      + inlineTable
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
