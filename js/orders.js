@@ -809,6 +809,31 @@ function oiSerialize() {
   return JSON.stringify(_oiItems);
 }
 
+// Builds a printable label for one item that spells out its selected Square modifiers
+// and manual ring size — e.g. "Narrow Regular Gold Fill Chevron Stacker - Size 4" —
+// instead of just the bare catalog item name. Used only for the printed work order bag.
+function oiPrintLabel(it) {
+  if (!it) return '';
+  if (it.type !== 'square') return it.name || '';
+  const modParts = (it.modifierLists || []).map(list => {
+    const optId = it.selectedModifierIds && it.selectedModifierIds[list.id];
+    const opt = (list.options || []).find(o => o.id === optId);
+    return opt ? opt.name : null;
+  }).filter(Boolean);
+  let label = modParts.length ? modParts.join(' ') + ' ' + (it.name || '') : (it.name || '');
+  if (it.ringSize) label += ' - Size ' + it.ringSize;
+  return label;
+}
+
+// Job Description (estimate title) and Order Description keep showing the plain item
+// name in-app and in Notion — this richer version is only for the printed work order.
+function oiPrintDescription(o) {
+  if (o.jobDescMode === 'square' && Array.isArray(o.items) && o.items.length) {
+    return o.items.map(oiPrintLabel).filter(Boolean).join(', ');
+  }
+  return o.desc || '';
+}
+
 function oiRender() {
   if (_jdMode === 'square') {
     const box = document.getElementById('jobdesc-square-picker');
@@ -1651,7 +1676,7 @@ function printOrder(id) {
     city:      sa ? (sa.city    || '') : '',
     state:     sa ? (sa.state   || '') : '',
     zip:       sa ? (sa.zip     || '') : '',
-    desc:      o.desc        || '',
+    desc:      oiPrintDescription(o),
     notes:     o.notes       || '',
     materials: o.materials   || '',
     takeIn:    o.takeIn      || '',
