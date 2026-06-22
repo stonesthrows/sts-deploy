@@ -833,7 +833,9 @@ function oiPrintLabel(it) {
 // name in-app and in Notion — this richer version is only for the printed work order.
 function oiPrintDescription(o) {
   if (o.jobDescMode === 'square' && Array.isArray(o.items) && o.items.length) {
-    return o.items.map(oiPrintLabel).filter(Boolean).join(', ');
+    const labels = o.items.map(oiPrintLabel).filter(Boolean);
+    if (labels.length <= 1) return labels.join('');
+    return labels.map((label, i) => 'Item ' + (i + 1) + ' - ' + label).join('\n');
   }
   return o.desc || '';
 }
