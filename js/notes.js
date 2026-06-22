@@ -668,6 +668,41 @@ var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
 var _rqAddLastResults = [];
 
+// Parses the "Sizes 5 (2), 5.5 (1), 6.5 (3)" suffix produced by the
+// Inventory Restock size picker (notes.js restockConfirmSizes), so the
+// Restock Queue's auto-match can pre-select the same sizes/quantities
+// instead of making the user re-pick them from scratch.
+function _rqParseSizesFromText(text) {
+  var m = /[–-]\s*Sizes?\s+(.+)$/i.exec(text || '');
+  if (!m) return null;
+  var parts = m[1].split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!parts.length) return null;
+  return parts.map(function(p) {
+    var pm = /^(.+?)\s*\((\d+)\)$/.exec(p);
+    return pm ? { name: pm[1].trim(), qty: parseInt(pm[2], 10) } : { name: p, qty: null };
+  });
+}
+
+// Renders a selected-variant for display, appending its quantity when known.
+function _rqVariantLabel(v) {
+  var name = v.name || '';
+  return v.qty ? (name + ' (' + v.qty + ')') : name;
+}
+
+// Pre-selects the variants (with quantities) that the Inventory Restock size
+// picker already recorded in the note text, instead of leaving the Queue's
+// variant picker empty and making the user re-pick sizes that were already chosen.
+function _rqMatchSizesToVariants(variants, rawText) {
+  var sizes = _rqParseSizesFromText(rawText);
+  if (!sizes || !sizes.length || !variants || !variants.length) return [];
+  var out = [];
+  variants.forEach(function(v) {
+    var hit = sizes.filter(function(s) { return s.name.toLowerCase() === (v.name || '').toLowerCase().trim(); })[0];
+    if (hit) out.push(Object.assign({}, v, { qty: hit.qty }));
+  });
+  return out;
+}
+
 // Local items not in Square catalog
 var _RQ_LOCAL_ITEMS = [
   { id: 'local-chevron-single-silver-sm-l', name: 'Chevron Ear Cuff – Single Silver (Sm) – Left',  category: 'Ear Cuffs', isParent: false, sku: '' },
@@ -808,7 +843,7 @@ function _rqMatchRowInner(pid) {
 
   // ── Parent item: variants chosen ──
   if (match.isParent && match.selectedVariants && match.selectedVariants.length) {
-    var variantLabel = match.selectedVariants.map(function(v) { return v.name; }).join(', ');
+    var variantLabel = match.selectedVariants.map(_rqVariantLabel).join(', ');
     var safeVLabel = variantLabel.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return '<div class="rq-match-found">'
       + '<span class="rq-match-check">✓</span>'
@@ -870,7 +905,7 @@ function _rqAutoMatchSingle(pid, rawText) {
       });
       if (rows.length) {
         var best = rows[0];
-        if (best.isParent) best = Object.assign({}, best, { selectedVariants: [] });
+        if (best.isParent) best = Object.assign({}, best, { selectedVariants: _rqMatchSizesToVariants(best.variants, rawText) });
         _rqAmSet(pid, best);
       } else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
     });
@@ -1282,7 +1317,7 @@ function rqStartTimer(pid, itemText, assigneeName) {
   var preSelected = [];
   if (cached && typeof cached === 'object') {
     if (cached.isParent && cached.selectedVariants && cached.selectedVariants.length) {
-      var variantLabel = cached.selectedVariants.map(function(v) { return v.name; }).join(', ');
+      var variantLabel = cached.selectedVariants.map(_rqVariantLabel).join(', ');
       preSelected = [{ id: cached.id, name: cached.name + ' · ' + variantLabel, category: cached.category, isParent: false, sku: '', pieces: null }];
     } else {
       preSelected = [Object.assign({}, cached, { pieces: null })];
