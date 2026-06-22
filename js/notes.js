@@ -433,19 +433,38 @@ var _restockCatalog = null;     // flat [{ name, varName }] once loaded
 var _restockCatalogLoading = false;
 var _restockCatalogError = null;
 
+function _restockSqFetch(path) {
+  // Same pattern as _rqSqCall (Restock Queue page): only attach a token if
+  // one happens to be saved locally — the /api/square proxy falls back to
+  // its own server-side credential otherwise, so this works on any device
+  // without per-browser Square setup.
+  var token = localStorage.getItem('sts-square-token') || '';
+  var payload = { path: path, method: 'GET' };
+  if (token) payload.token = token;
+  return fetch('/api/square', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(function(r) {
+    return r.json().then(function(json) {
+      if (!r.ok) {
+        var msg = (json.errors && json.errors[0] && (json.errors[0].detail || json.errors[0].code)) || JSON.stringify(json);
+        throw new Error(msg);
+      }
+      return json;
+    });
+  });
+}
+
 function _restockLoadCatalog() {
   if (_restockCatalog || _restockCatalogLoading) return;
-  if (typeof _sqFetch !== 'function') {
-    _restockCatalogError = 'Square inventory script not loaded';
-    return;
-  }
   _restockCatalogLoading = true;
   _restockCatalogError = null;
 
   var rows = [];
   function page(cursor) {
     var path = '/v2/catalog/list?types=ITEM' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
-    _sqFetch(path).then(function(res) {
+    _restockSqFetch(path).then(function(res) {
       (res.objects || []).forEach(function(obj) {
         if (obj.is_deleted) return;
         var name = obj.item_data && obj.item_data.name;
