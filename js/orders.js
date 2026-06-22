@@ -1004,7 +1004,10 @@ function oiSearchSquare(idx, query) {
           // metal/stone combo) have no price_money at all — don't show that as a real $0.
           const hasFixedPrice = vd.pricing_type !== 'VARIABLE_PRICING' && !!(priceMoney && priceMoney.amount);
           const basePrice = hasFixedPrice ? priceMoney.amount / 100 : 0;
-          const varName = vd.name && vd.name !== 'Regular' ? vd.name : '';
+          // Only show the variation name when there's more than one variation to tell
+          // apart — a lone variation's name is often a stray default (e.g. "Size 2")
+          // with nothing to disambiguate, not a real size/option worth surfacing.
+          const varName = (variations.length > 1 && vd.name && vd.name !== 'Regular') ? vd.name : '';
           rows.push({
             squareItemId: obj.id,
             squareVariationId: v.id,
