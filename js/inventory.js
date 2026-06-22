@@ -180,6 +180,73 @@ function invHideItem(itemId, itemName, sub) {
   }
 }
 
+// ── Reset a single item back to live Square state ────
+// Clears any local overrides (hidden variations, thresholds, unsaved edits,
+// split-stock) tied to this item's *old* variation IDs, then re-fetches the
+// item fresh from Square. Use this when an item was restructured in Square
+// (e.g. a single variation split into several) and the card looks stale.
+
+async function invResetItem(itemId, itemName, sub) {
+  if (!confirm(`Reset "${itemName}" to match Square?\n\nThis clears any locally hidden variations, thresholds, and unsaved edits for this item, then re-fetches it fresh from Square.`)) return;
+
+  const data = _invData[sub];
+  const oldItem = data?.items.find(i => i.id === itemId);
+  const oldVarIds = (oldItem?.item_data?.variations || []).map(v => v.id);
+
+  // Clear hidden-variation entries recorded under this item's name
+  try {
+    const list = _invGetHiddenVars().filter(v => v.itemName !== itemName);
+    localStorage.setItem('sts-inv-hidden-vars', JSON.stringify(list));
+  } catch {}
+
+  // Clear thresholds / dirty edits tied to the old variation IDs
+  try {
+    const thresholds = _invGetThresholds();
+    oldVarIds.forEach(id => delete thresholds[id]);
+    localStorage.setItem('sts-inv-thresholds', JSON.stringify(thresholds));
+  } catch {}
+  oldVarIds.forEach(id => {
+    delete _invDirty[id];
+    delete _invSplitCache[id];
+    if (data) delete data.counts[id];
+  });
+
+  try {
+    const batchRes = await _sqFetch('/v2/catalog/batch-retrieve', {
+      method: 'POST',
+      body: JSON.stringify({ object_ids: [itemId] }),
+    });
+    const fresh = (batchRes.objects || []).find(o => o.id === itemId && o.type === 'ITEM' && !o.is_deleted);
+    if (!fresh) {
+      toast('Item not found in Square (may have been deleted)', '⚠');
+      return;
+    }
+
+    if (data) {
+      const idx = data.items.findIndex(i => i.id === itemId);
+      if (idx >= 0) data.items[idx] = fresh; else data.items.push(fresh);
+
+      const newVarIds = (fresh.item_data?.variations || []).filter(v => !v.is_deleted).map(v => v.id);
+      if (newVarIds.length) {
+        const countRes = await _sqFetch('/v2/inventory/counts/batch-retrieve', {
+          method: 'POST',
+          body: JSON.stringify({ catalog_object_ids: newVarIds, location_ids: [INV_LOCATION_ID] }),
+        });
+        (countRes.counts || []).forEach(c => {
+          data.counts[c.catalog_object_id] = parseInt(c.quantity) || 0;
+        });
+      }
+      _invRenderSub(sub);
+      _invApplySplitCache(sub);
+      _invUpdateCountLabel();
+    }
+
+    toast(`"${itemName}" reset to match Square ✓`, '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  }
+}
+
 // ── Extra items from Inventory Manager ───────
 
 function _invGetExtraEntries(sub) {
@@ -412,6 +479,11 @@ function _invRenderSub(sub) {
         <span>${_esc(name)}</span>
         <div style="display:flex;align-items:center;gap:6px;">
           ${lowVarsForItem.length >= 2 ? `<button class="inv-qal-btn" onclick="invOpenQueueAllLowModal('${item.id}')" title="Queue all low sizes">⚑ Queue All Low</button>` : ''}
+          <button onclick="invResetItem('${item.id}','${nameSafe}','${sub}')"
+            title="Reset this item to match Square (clears local overrides for it)"
+            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
+            onmouseenter="this.style.opacity='1';this.style.color='var(--accent,#C9983A)'"
+            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">↻</button>
           <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
             title="Remove entire item from webapp (won't affect Square)"
             style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
