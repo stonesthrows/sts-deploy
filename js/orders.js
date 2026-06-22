@@ -502,6 +502,9 @@ function setOrderType(type) {
 // ════════════════════════════════════════════
 function submitOrder() {
   if (document.getElementById('f-editing-id').value) { saveOrderEdit(); return; }
+  const submitBtn = document.getElementById('order-form-submit');
+  if (submitBtn && submitBtn.disabled) return; // guard against double-click double-submit
+  if (submitBtn) submitBtn.disabled = true;
   const name  = getFullName();
   const email = document.getElementById('f-email').value.trim();
   const desc  = jdGetDescValue();
@@ -515,6 +518,7 @@ function submitOrder() {
         el.addEventListener('input', () => el.style.borderColor = '', { once: true });
       }
     });
+    if (submitBtn) submitBtn.disabled = false;
     return;
   }
 
@@ -656,6 +660,8 @@ function clearForm() {
   if (assignee) assignee.value = '';
   const editingId = document.getElementById('f-editing-id');
   if (editingId) editingId.value = '';
+  const submitBtn = document.getElementById('order-form-submit');
+  if (submitBtn) submitBtn.disabled = false;
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
   const estCard = document.getElementById('estimateBuilderCard');

@@ -273,6 +273,34 @@ export async function onRequestPost(context) {
     return json({ notionId: order.notionId });
   }
 
+  // Idempotency guard — if a page with this App ID already exists (e.g. a
+  // retried create whose response got lost, or a duplicate push from another
+  // tab/device), patch that page instead of creating a second one.
+  if (order.id) {
+    const q = await fetch(`${NOTION_API}/databases/${PIPELINE_DB}/query`, {
+      method: 'POST', headers: hdrs,
+      body: JSON.stringify({
+        filter: { property: 'App ID', rich_text: { equals: order.id } },
+        page_size: 1,
+      }),
+    });
+    if (q.ok) {
+      const qd = await q.json();
+      const match = (qd.results || [])[0];
+      if (match) {
+        const r = await fetch(`${NOTION_API}/pages/${match.id}`, {
+          method: 'PATCH', headers: hdrs,
+          body: JSON.stringify({ properties: props, archived: false }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          return json({ error: err.message || 'update failed' }, r.status);
+        }
+        return json({ notionId: match.id });
+      }
+    }
+  }
+
   // Create new Notion page
   const r = await fetch(`${NOTION_API}/pages`, {
     method: 'POST', headers: hdrs,
