@@ -697,20 +697,32 @@ function jdApplyVisibility(mode) {
 
 function jdSetType(mode) {
   _jdMode = mode;
-  if (mode === 'square' && (_oiItems.length !== 1 || _oiItems[0].type !== 'square')) {
-    _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
+  if (mode === 'square') {
+    const allSquare = _oiItems.length > 0 && _oiItems.every(it => it.type === 'square');
+    if (!allSquare) {
+      _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
+    }
   }
   jdApplyVisibility(mode);
   oiRender();
 }
 
+function jdAddSquareItem() {
+  _oiItems.push({ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null });
+  oiRender();
+}
+
+function _jdSquareItemNames() {
+  return _oiItems.filter(it => it.name).map(it => it.name).join(', ');
+}
+
 function jdGetDescValue() {
-  if (_jdMode === 'square') return (_oiItems[0] && _oiItems[0].name) || '';
+  if (_jdMode === 'square') return _jdSquareItemNames();
   return document.getElementById('f-description').value.trim();
 }
 
 function jdGetJobDescValue() {
-  if (_jdMode === 'square') return (_oiItems[0] && _oiItems[0].name) || '';
+  if (_jdMode === 'square') return _jdSquareItemNames();
   return document.getElementById('f-job-desc').value.trim();
 }
 
@@ -800,7 +812,11 @@ function oiSerialize() {
 function oiRender() {
   if (_jdMode === 'square') {
     const box = document.getElementById('jobdesc-square-picker');
-    if (box) box.innerHTML = _oiItems.length ? oiRowHtml(_oiItems[0], 0, true) : '';
+    if (box) {
+      box.innerHTML = !_oiItems.length
+        ? '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — search and select a Square item.</div>'
+        : _oiItems.map((it, idx) => oiRowHtml(it, idx, true)).join('');
+    }
   } else {
     const box = document.getElementById('oi-items-container');
     if (box) {
@@ -814,9 +830,9 @@ function oiRender() {
   if (itemsJson) itemsJson.value = oiSerialize();
 }
 
-function oiRowHtml(it, idx, singleSlotMode) {
+function oiRowHtml(it, idx, hideTypeSelect) {
   const isSquareSelected = it.type === 'square' && (it.squareVariationId || it.squareItemId);
-  const typeSel = (isSquareSelected || singleSlotMode) ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+  const typeSel = (isSquareSelected || hideTypeSelect) ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
     <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
     <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
   </select>`;
@@ -871,7 +887,7 @@ function oiRowHtml(it, idx, singleSlotMode) {
   return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);">
     ${typeSel}
     ${body}
-    ${singleSlotMode ? '' : `<button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>`}
+    <button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
   </div>`;
 }
 
