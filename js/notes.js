@@ -431,11 +431,16 @@ function toOrderSuggestPick(id) {
 // Square catalog, so restock notes match actual item/variation names.
 var _restockCatalog = null;     // flat [{ name, varName }] once loaded
 var _restockCatalogLoading = false;
+var _restockCatalogError = null;
 
 function _restockLoadCatalog() {
   if (_restockCatalog || _restockCatalogLoading) return;
-  if (typeof _sqFetch !== 'function') return;
+  if (typeof _sqFetch !== 'function') {
+    _restockCatalogError = 'Square inventory script not loaded';
+    return;
+  }
   _restockCatalogLoading = true;
+  _restockCatalogError = null;
 
   var rows = [];
   function page(cursor) {
@@ -452,8 +457,18 @@ function _restockLoadCatalog() {
         });
       });
       if (res.cursor) { page(res.cursor); }
-      else { _restockCatalog = rows; _restockCatalogLoading = false; restockSuggest(document.getElementById('restock-input').value); }
-    }).catch(function() { _restockCatalogLoading = false; });
+      else {
+        _restockCatalog = rows;
+        _restockCatalogLoading = false;
+        var input = document.getElementById('restock-input');
+        if (input) restockSuggest(input.value);
+      }
+    }).catch(function(err) {
+      _restockCatalogLoading = false;
+      _restockCatalogError = (err && err.message) || 'Failed to load Square catalog';
+      var input = document.getElementById('restock-input');
+      if (input) restockSuggest(input.value);
+    });
   }
   page(null);
 }
@@ -464,7 +479,11 @@ function restockSuggest(value) {
   var text = (value || '').trim();
   if (text.length < 2) { box.innerHTML = ''; return; }
 
-  if (!_restockCatalog) { _restockLoadCatalog(); box.innerHTML = ''; return; }
+  if (_restockCatalogError) {
+    box.innerHTML = '<div class="toorder-suggest-label">⚠ ' + _restockCatalogError + '</div>';
+    return;
+  }
+  if (!_restockCatalog) { _restockLoadCatalog(); box.innerHTML = '<div class="toorder-suggest-label">Loading Square catalog…</div>'; return; }
 
   var q = text.toLowerCase();
   var esc = function(s) {

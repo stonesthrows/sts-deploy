@@ -3498,18 +3498,32 @@
     /* Notes: same one-card-full-width swipe/scroll-snap behavior
        as the Kanban/Ready-to-Ship boards above. Overrides the
        grid-column rules set earlier in the stylesheet — this block
-       comes later in source order so it wins at equal specificity. */
+       comes later in source order so it wins at equal specificity.
+       Each card also fills the full screen height (minus the fixed
+       header/nav chrome), not just the full width. */
+    .tab-panel.active.notes-page {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 100px);
+      overflow: hidden;
+    }
+    .notes-page .page-bar { flex-shrink: 0; }
+    .notes-page #notes-loading { flex-shrink: 0; }
     .notes-layout {
       display: flex;
       grid-template-columns: none;
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       gap: 0;
+      flex: 1;
+      min-height: 0;
     }
     .notes-card {
       flex: 0 0 100%;
       width: 100%;
       min-width: 100%;
+      height: 100%;
+      min-height: 0;
       scroll-snap-align: start;
     }
   }
@@ -4644,7 +4658,7 @@
 </div>
 
 <!-- ═══════════════════ NOTES ═══════════════════ -->
-<div id="tab-notes" class="tab-panel">
+<div id="tab-notes" class="tab-panel notes-page">
   <div class="page-bar">
     <div>
       <div class="page-title">📝 Notes</div>
@@ -4654,24 +4668,6 @@
   </div>
 
   <div id="notes-loading" style="display:none;padding:8px 2px;color:var(--text3);font-size:13px">⏳ Loading notes from Notion…</div>
-
-  <!-- Quick Capture bar -->
-  <div class="notes-capture">
-    <span style="font-size:18px;flex-shrink:0">⚡</span>
-    <input class="notes-capture-input" id="quick-capture-input" type="text"
-      placeholder="Quick note — type anything and hit Add…"
-      onkeydown="if(event.key==='Enter') quickCapture()">
-    <select class="notes-capture-select" id="quick-capture-cat">
-      <option value="auto">Auto-detect</option>
-      <option value="studio">Design Ideas</option>
-      <option value="todo">To-Do</option>
-      <option value="toorder">To Order</option>
-      <option value="restock">Inventory Restock</option>
-      <option value="webapp">Webapp Updates</option>
-      <option value="market">Market &amp; Display To-Do</option>
-    </select>
-    <button class="btn btn-gold btn-sm" onclick="quickCapture()">Add</button>
-  </div>
 
   <div class="notes-layout">
 
@@ -7266,7 +7262,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=13"></script>
+<script src="js/notes.js?v=14"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
