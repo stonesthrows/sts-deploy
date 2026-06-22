@@ -130,6 +130,7 @@ function toggleNoteItem(key, idx) {
 
 // ── Delete ───────────────────────────────────
 function deleteNoteItem(key, idx) {
+  if (key === 'restock') return; // only deletable from the Restock Queue page
   var items = itemsFor(key);
   var item = items[idx];
   if (!item) return;
@@ -180,7 +181,7 @@ function renderNotesList(key, items) {
     row += '<span style="' + textStyle + '">'
          + item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
          + '</span>';
-    if (!item._saving) {
+    if (!item._saving && key !== 'restock') {
       row += '<span onclick="deleteNoteItem(\'' + key + '\',' + idx + ')" '
            + 'style="cursor:pointer;color:#C4A0A0;font-size:18px;line-height:1;padding:0 4px" title="Remove">×</span>';
     }
