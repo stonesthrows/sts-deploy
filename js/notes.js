@@ -666,6 +666,7 @@ var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_n
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqExpanded      = {};  // { [notionPageId]: true } — bar tapped open to show detail
 var _rqEditMode      = {};  // { [notionPageId]: true } — expanded bar is in edit mode
+var _rqMobileEditMode = false; // header ✎ Edit toggle (mobile only) — when on, tapping a bar opens straight into edit
 var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
@@ -807,7 +808,12 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn) {
 // state) — used by both the grouped table and the flat chip grid, wherever
 // _rqMatchRowInner renders them inside the bar's expanded edit panel.
 function rqSetInlineVariantQty(pid, variantId, value) {
-  var match = _rqAutoMatches[pid];
+  // While a timer is running, the bar's _rqAutoMatches entry has been
+  // flattened into a display-only placeholder (see rqStartTimerConfirm) —
+  // the live, editable data lives on _rqTimers[pid].richMatch instead.
+  var timer = _rqTimers[pid];
+  var usingRichMatch = !!(timer && timer.richMatch);
+  var match = usingRichMatch ? timer.richMatch : _rqAutoMatches[pid];
   if (!match || typeof match !== 'object' || !match.isParent) return;
   var qty = parseInt(value, 10) || 0;
   var byId = {};
@@ -819,8 +825,13 @@ function rqSetInlineVariantQty(pid, variantId, value) {
   var selectedVariants = (match.variants || [])
     .filter(function(v) { return byId[v.id]; })
     .map(function(v) { return byId[v.id]; });
-  _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
-  _rqAmSave();
+  if (usingRichMatch) {
+    timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
+    _rqSaveTimerState();
+  } else {
+    _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
+    _rqAmSave();
+  }
   _rqSaveSizesFor(pid, selectedVariants);
 }
 
@@ -971,7 +982,8 @@ function _rqUpdateMatchRow(pid) {
 
 function _rqMatchRowInner(pid) {
   var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
-  var match = _rqAutoMatches[pid];
+  var timer = _rqTimers[pid];
+  var match = (timer && timer.richMatch) ? timer.richMatch : _rqAutoMatches[pid];
 
   // ── Search panel (change item) ──
   if (_rqMatchEdits[pid]) {
@@ -1034,22 +1046,38 @@ function rqRowClick(event, pid) {
   var t = event.target;
   if (t.closest('button, select, input, textarea, a')) return;
   _rqExpanded[pid] = !_rqExpanded[pid];
-  if (!_rqExpanded[pid]) delete _rqEditMode[pid];
+  if (!_rqExpanded[pid]) {
+    delete _rqEditMode[pid];
+  } else if (_rqMobileEditMode && window.innerWidth <= 640) {
+    // Header edit toggle is on (mobile) — skip the read view, open straight to edit.
+    _rqEditMode[pid] = true;
+    _rqMigrateSizesIfNeeded(pid);
+  }
   restockQueueRender();
 }
 
-function rqEnterEditMode(pid) {
-  _rqEditMode[pid] = true;
-  // Migration: items matched before restock-sizes existed may already have
-  // selectedVariants sitting only in this browser's localStorage cache.
-  // Push them into the shared store now, since opening the panel is the
-  // one moment we know the user is looking at (and trusts) this item's
-  // current sizes — don't wait for an actual edit to happen first.
+function rqToggleMobileEditMode() {
+  _rqMobileEditMode = !_rqMobileEditMode;
+  var btn = document.getElementById('rqMobileEditToggle');
+  if (btn) btn.classList.toggle('active', _rqMobileEditMode);
+}
+
+// Migration: items matched before restock-sizes existed may already have
+// selectedVariants sitting only in this browser's localStorage cache.
+// Push them into the shared store the moment we know the user is looking
+// at (and trusts) this item's current sizes — don't wait for an actual
+// edit to happen first.
+function _rqMigrateSizesIfNeeded(pid) {
   var match = _rqAutoMatches[pid];
   if (match && typeof match === 'object' && match.isParent
       && match.selectedVariants && match.selectedVariants.length && !_rqSizes[pid]) {
     _rqSaveSizesFor(pid, match.selectedVariants);
   }
+}
+
+function rqEnterEditMode(pid) {
+  _rqEditMode[pid] = true;
+  _rqMigrateSizesIfNeeded(pid);
   restockQueueRender();
 }
 
@@ -1327,7 +1355,7 @@ function _rqSaveTimerState() {
   var state = {};
   Object.keys(_rqTimers).forEach(function(pid) {
     var t = _rqTimers[pid];
-    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText, items: t.items || null };
+    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null };
   });
   localStorage.setItem('sts_rqTimers', JSON.stringify(state));
 }
@@ -1338,7 +1366,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return; // already active
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch(e) {}
@@ -1488,7 +1516,7 @@ function restockQueueRender() {
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
-        + _rqTimerPiecesHTML(safePid, timer.items)
+        + _rqTimerSizesHtml(safePid, timer.richMatch || match)
         + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
         + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
         + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
@@ -1556,12 +1584,20 @@ function rqStartTimer(pid, itemText, assigneeName) {
   if (cached && typeof cached === 'object') {
     if (cached.isParent && cached.selectedVariants && cached.selectedVariants.length) {
       var variantLabel = cached.selectedVariants.map(_rqVariantLabel).join(', ');
-      preSelected = [{ id: cached.id, name: cached.name + ' · ' + variantLabel, category: cached.category, isParent: false, sku: '', pieces: null }];
+      // Total pieces is already known from the sizes table — no need to ask
+      // the employee to retype it when the timer stops.
+      var totalQty = cached.selectedVariants.reduce(function(sum, v) { return sum + (v.qty || 0); }, 0);
+      preSelected = [{ id: cached.id, name: cached.name + ' · ' + variantLabel, category: cached.category, isParent: false, sku: '', pieces: totalQty || null }];
     } else {
       preSelected = [Object.assign({}, cached, { pieces: null })];
     }
   }
-  _rqSetups[pid] = { selectedItems: preSelected, query: preSelected.length ? '' : (itemText || ''), debounceTimer: null, startTimeMs: Date.now(), _lastResults: null };
+  // Stash the original, un-flattened match (variants + selectedVariants with
+  // qty intact) — rqStartTimerConfirm overwrites the bar's _rqAutoMatches
+  // entry with a flattened display-only placeholder, which would otherwise
+  // wipe out the sizes table the timer panel needs to keep showing/editing.
+  var richMatch = (cached && typeof cached === 'object' && cached.isParent) ? cached : null;
+  _rqSetups[pid] = { selectedItems: preSelected, query: preSelected.length ? '' : (itemText || ''), debounceTimer: null, startTimeMs: Date.now(), _lastResults: null, richMatch: richMatch };
   restockQueueRender();
   // Auto-search only if no pre-match
   if (!preSelected.length) {
@@ -1579,16 +1615,14 @@ function rqStopTimer(pid) {
   var totalMs  = Date.now() - t.startTime;
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
   var netMin   = Math.max(0, totalMin - 15);
-  // Capture notes and piece counts from the live DOM before clearing state
+  // Capture notes from the live DOM before clearing state; piece counts
+  // come from the matched sizes table (_rqLiveTimerRows), reading whatever
+  // was last edited — not a snapshot taken when the timer started.
   var notesEl  = document.getElementById('rq-notes-' + pid);
   var notes    = notesEl ? notesEl.value.trim() : (t.notes || '');
-  var rawItems = t.items || [{ name: t.itemText }];
-  var rows     = _rqTimerRows(rawItems);
-  var expandedItems = rows.map(function(row, ri) {
-    var inp = document.getElementById('rq-pcs-run-' + pid + '-' + ri);
-    var raw = inp ? inp.value.trim() : '';
-    var pcs = raw !== '' ? parseInt(raw, 10) : null;
-    return { name: row.label, squareId: row.squareId, pieces: isNaN(pcs) ? null : pcs, isCustom: row.isCustom };
+  var rows     = _rqLiveTimerRows(t);
+  var expandedItems = rows.map(function(row) {
+    return { name: row.label, squareId: row.squareId, pieces: row.pieces, isCustom: row.isCustom };
   });
   var totalPcs = null;
   expandedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
@@ -1991,27 +2025,39 @@ function _rqTimerRows(items) {
     if (item.isParent && item.selectedVariants && item.selectedVariants.length) {
       item.selectedVariants.forEach(function(v) {
         var label = (item.name || '') + ' – ' + (v.name || '') + (modSuffix ? ' – ' + modSuffix : '');
-        rows.push({ label: label, squareId: v.id || '', isCustom: false });
+        rows.push({ label: label, squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null });
       });
     } else {
       var label = (item.name || '') + (modSuffix ? ' – ' + modSuffix : '');
-      rows.push({ label: label, squareId: item.isCustom ? '' : (item.id || ''), isCustom: !!item.isCustom });
+      rows.push({ label: label, squareId: item.isCustom ? '' : (item.id || ''), isCustom: !!item.isCustom, pieces: item.pieces != null ? item.pieces : null });
     }
   });
   return rows;
 }
 
-function _rqTimerPiecesHTML(safePid, items) {
-  var rows = _rqTimerRows(items);
-  if (!rows.length) return '';
-  return '<div class="rq-pieces-section">'
-    + rows.map(function(row, ri) {
-        var safeLabel = (row.label || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-        return '<div class="rq-piece-row">'
-          + '<span class="rq-piece-label">' + safeLabel + '</span>'
-          + '<input type="number" min="0" step="1" class="rq-piece-input" id="rq-pcs-run-' + safePid + '-' + ri + '" placeholder="0">'
-          + '</div>';
-      }).join('')
+// Like _rqTimerRows, but reads live sizes/quantities from the timer's
+// richMatch (editable on desktop while running) instead of the snapshot
+// taken when the timer started — so an edit made mid-run actually changes
+// what gets logged when the timer stops, not just what's displayed.
+function _rqLiveTimerRows(t) {
+  if (t.richMatch && t.richMatch.isParent && t.richMatch.selectedVariants && t.richMatch.selectedVariants.length) {
+    var baseName = t.richMatch.name || '';
+    return t.richMatch.selectedVariants.map(function(v) {
+      return { label: baseName + ' – ' + (v.name || ''), squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null };
+    });
+  }
+  return _rqTimerRows(t.items || [{ name: t.itemText }]);
+}
+
+// Read-only (mobile) / editable (desktop) sizes breakdown shown in the
+// running-timer panel, in the slot the manual piece-count entry used to
+// occupy — the counts are already known from the matched sizes table, so
+// there's nothing left to ask the employee to type.
+function _rqTimerSizesHtml(pid, match) {
+  if (!match || typeof match !== 'object') return '';
+  return '<div class="rq-timer-sizes">'
+    + '<div class="rq-timer-sizes-readonly">' + _rqReadSummaryHtml(match) + '</div>'
+    + '<div class="rq-timer-sizes-edit"><div class="rq-match-row" id="rq-match-row-' + pid + '">' + _rqMatchRowInner(pid) + '</div></div>'
     + '</div>';
 }
 
@@ -2019,11 +2065,12 @@ function rqStartTimerConfirm(pid) {
   var s = _rqSetups[pid]; if (!s || !s.selectedItems.length) return;
   if (s.debounceTimer) clearTimeout(s.debounceTimer);
   var items = s.selectedItems.map(function(item) {
-    return Object.assign({}, item, { pieces: null });
+    return Object.assign({}, item, { pieces: item.pieces != null ? item.pieces : null });
   });
   var startTimeMs  = s.startTimeMs || Date.now();
   var assigneeName = (_rqMeta.assignees[pid]) || '';
   var primaryItem  = items[0] || {};
+  var richMatch    = s.richMatch || null;
   delete _rqSetups[pid];
   // Write confirmed item back to bar match cache (strip pieces)
   if (items.length && primaryItem.id) {
@@ -2037,6 +2084,7 @@ function rqStartTimerConfirm(pid) {
     sessionNotionPageId: null,
     itemText: primaryItem.name || '',
     items: items,
+    richMatch: richMatch,
     notes: '',
     tickInterval: null,
   };

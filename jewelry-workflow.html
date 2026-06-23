@@ -2272,6 +2272,10 @@
       font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 12px;
       cursor: pointer; margin-top: 6px; transition: background 0.15s;
     }
+    /* On mobile, editing is reached via the header ✎ Edit toggle, not a
+       per-bar button — tapping a bar goes straight to the read view (or,
+       with the header toggle on, straight to edit) instead. */
+    @media (max-width: 640px) { .rq-edit-btn { display: none; } }
     .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: #8A6020; }
     .rq-read-status { font-size: 12.5px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
     .rq-read-list { display: flex; flex-direction: column; gap: 3px; }
@@ -2472,6 +2476,16 @@
       font-family: inherit; color: var(--text); flex-shrink: 0;
     }
     .rq-piece-input:focus { border-color: var(--accent); }
+    /* ── Sizes breakdown shown while a timer is running ── */
+    .rq-timer-sizes {
+      border-top: 1px solid var(--bdr-light); padding-top: 6px; margin-top: 2px;
+    }
+    .rq-timer-sizes-edit { display: block; }
+    .rq-timer-sizes-readonly { display: none; }
+    @media (max-width: 640px) {
+      .rq-timer-sizes-edit { display: none; }
+      .rq-timer-sizes-readonly { display: block; }
+    }
     /* ── Push to Square (session log) ── */
     .rq-sbar-pieces { font-size: 11px; color: var(--text2); font-weight: 500; }
     .rq-sbar-pcs-inline { font-size: 12px; font-weight: 500; color: var(--text2); }
@@ -3251,6 +3265,14 @@
       transition: background 0.15s; line-height: 1; display: flex; align-items: center;
     }
     .theme-btn:hover { background: var(--hdr-pill); }
+    /* Mobile-only Restock Queue edit toggle — only shown while that tab is
+       active (via :has()), and only on narrow viewports; desktop always
+       keeps the per-bar Edit button instead. */
+    .rq-mobile-edit-toggle { display: none; font-size: 13px !important; font-weight: 700; }
+    body:has(#tab-to-restock.active) .rq-mobile-edit-toggle { display: inline-flex; }
+    @media (min-width: 641px) { .rq-mobile-edit-toggle { display: none !important; } }
+    .rq-mobile-edit-toggle.active { background: var(--accent); color: #fff; }
+    .rq-mobile-edit-toggle.active:hover { background: var(--accent); }
     .theme-picker {
       display: none; position: absolute; top: calc(100% + 8px); right: 0;
       background: var(--hdr); border: 1px solid var(--hdr-bdr);
@@ -4085,6 +4107,7 @@
   <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
   <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
   <div class="topbar-spacer"></div>
+  <button class="theme-btn rq-mobile-edit-toggle" id="rqMobileEditToggle" onclick="rqToggleMobileEditMode()" title="Edit Restock Queue items">✎ Edit</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">⚙</button>
 </div>
 <!-- ═════════════════════════════════════════════════ -->
@@ -7325,7 +7348,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=25"></script>
+<script src="js/notes.js?v=28"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
