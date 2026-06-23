@@ -666,7 +666,12 @@ var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_n
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqExpanded      = {};  // { [notionPageId]: true } — bar tapped open to show detail
 var _rqEditMode      = {};  // { [notionPageId]: true } — expanded bar is in edit mode
-var _rqMobileEditMode = false; // header ✎ Edit toggle (mobile only) — when on, tapping a bar opens straight into edit
+// header ✎ Edit toggle (mobile only) — when on, tapping a bar opens straight into edit.
+// Defaults on when embedded (?embed=1, e.g. the phone Queue tab) since that
+// view hides the topbar toggle that would otherwise turn this on — without
+// it, the read-only "No Square match yet" summary has no way to become
+// clickable on narrow widths where the per-row ✎ Edit button is also hidden.
+var _rqMobileEditMode = (typeof URLSearchParams !== 'undefined' && new URLSearchParams(location.search).has('embed'));
 var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
