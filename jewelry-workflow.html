@@ -2242,6 +2242,7 @@
     .rq-header-bar {
       padding: 12px 20px 8px; flex-shrink: 0;
     }
+    body.sts-embed #tab-to-restock .rq-header-bar { display: none; }
     .rq-header-title { font-size: 17px; font-weight: 700; color: var(--text); margin: 0; }
     .rq-scroll-area {
       flex: 1; overflow-y: auto; padding: 16px 20px 24px;
@@ -3938,6 +3939,11 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+<script>
+  if (new URLSearchParams(location.search).has('embed')) {
+    document.body.classList.add('sts-embed');
+  }
+</script>
 
 <!-- ══ SIDEBAR ══════════════════════════════════════ -->
 <div class="sidebar" id="appSidebar">

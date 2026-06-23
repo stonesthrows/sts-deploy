@@ -382,7 +382,7 @@
         localStorage.setItem('sts-nav-sub-inventory', 'to-restock');
       } catch (e) {}
       const frame = document.getElementById('queue-frame');
-      if (!frame.src) frame.src = 'jewelry-workflow.html';
+      if (!frame.src) frame.src = 'jewelry-workflow.html?embed=1';
       else frame.contentWindow.location.reload();
     }
   }
