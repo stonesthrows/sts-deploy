@@ -23,6 +23,9 @@ const STAGES = [
   { id:'materials',      label:'Waiting on Materials',         cls:'s-materials'      },
   { id:'wait-cust-ship', label:'Waiting on Customer Shipment', cls:'s-wait-cust-ship' },
   { id:'build',          label:'At the Bench',                 cls:'s-build'          },
+  { id:'kyle',           label:'Kyle',                         cls:'s-kyle'           },
+  { id:'stevie',         label:'Stevie',                       cls:'s-stevie'         },
+  { id:'vanessa',        label:'Vanessa',                      cls:'s-vanessa'        },
   { id:'etsy-bench',    label:'Etsy Order',                   cls:'s-etsy-bench'     },
   { id:'contact-need',   label:'Need to Contact Customer',     cls:'s-contact-need'   },
   { id:'contact-done',   label:'Contacted Customer',           cls:'s-contact-done'   },
@@ -44,6 +47,7 @@ const COLUMN_GROUPS = [
     { id:'intake-repair',  cls:'s-intake-repair',  label:'Repair Intake'         },
     { id:'needs-est',      cls:'s-needs-est',      label:'Estimate Intake'       },
     { id:'intake-website', cls:'s-intake-website', label:'Website Order Intake'  },
+    { id:'etsy-bench',     cls:'s-etsy-bench',     label:'Etsy Order'            },
   ]},
   { label:'Sketch',       cls:'s-sketch-group',    stages:[
     { id:'sketch-needs', cls:'s-sketch-needs', label:'Needs Sketch'                },
@@ -65,8 +69,10 @@ const COLUMN_GROUPS = [
     { id:'wait-cust-ship', cls:'s-wait-cust-ship', label:'Waiting on Customer Shipment' },
   ]},
   { label:'At the Bench', cls:'s-build',           stages:[
-    {id:'build',      cls:'s-build',      label:'At the Bench'},
-    {id:'etsy-bench', cls:'s-etsy-bench', label:'Etsy Order'},
+    {id:'build',   cls:'s-build',   label:'At the Bench'},
+    {id:'kyle',    cls:'s-kyle',    label:'Kyle'},
+    {id:'stevie',  cls:'s-stevie',  label:'Stevie'},
+    {id:'vanessa', cls:'s-vanessa', label:'Vanessa'},
   ]},
   { label:'Invoicing', cls:'s-needs-invoice', stages:[
     { id:'needs-invoice',  cls:'s-needs-invoice',  label:'Needs Invoicing' },
