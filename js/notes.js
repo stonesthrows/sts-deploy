@@ -875,9 +875,30 @@ function _rqLoadSizes(cb) {
     .then(function(d) {
       _rqSizes = (d && typeof d === 'object' && !d.error) ? d : {};
       _rqSizesLoaded = true;
+      _rqReconcileSizes();
       if (cb) cb();
     })
     .catch(function() { _rqSizesLoaded = true; if (cb) cb(); });
+}
+
+// Patches any already-cached _rqAutoMatches (loaded from this browser's own
+// localStorage, possibly long before restock-sizes existed) against the
+// just-fetched shared store. Without this, a device whose local cache
+// already has an entry for an item — even an empty one — would never
+// re-run auto-match for it, so the shared store's real sizes would sit
+// there correct on the server forever without ever reaching that device.
+function _rqReconcileSizes() {
+  var changed = false;
+  Object.keys(_rqSizes).forEach(function(pid) {
+    var match = _rqAutoMatches[pid];
+    if (!match || typeof match !== 'object' || !match.isParent) return;
+    var resolved = _rqResolveSelectedVariants(pid, match);
+    if (resolved) {
+      _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: resolved });
+      changed = true;
+    }
+  });
+  if (changed) _rqAmSave();
 }
 
 function _rqSaveSizes() {
