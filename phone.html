@@ -51,6 +51,27 @@
       text-transform: uppercase;
       color: var(--accent-light);
     }
+    .header-spacer { flex: 1; }
+    .gear-btn {
+      background: none;
+      border: 1px solid var(--hdr-bdr);
+      border-radius: 8px;
+      color: #7A9AAA;
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .gear-btn.active {
+      color: var(--accent-light);
+      border-color: var(--accent);
+      background: rgba(201,152,58,0.18);
+    }
 
     /* ── Tab bar ── */
     .tabs {
@@ -358,6 +379,8 @@
 
 <div class="header">
   <span class="header-title">Stones Throw Studio</span>
+  <div class="header-spacer"></div>
+  <button class="gear-btn" id="rq-edit-gear" onclick="rsToggleEditMode()" title="Toggle Restock Queue editing">⚙</button>
 </div>
 
 <div class="tabs">
@@ -418,6 +441,26 @@
       else frame.contentWindow.location.reload();
     }
   }
+
+  // ── Restock Queue editing toggle (gear button) ──
+  // Controls _rqMobileEditMode inside the embedded jewelry-workflow.html via
+  // a shared localStorage flag, since the iframe gets reloaded on every tab
+  // switch anyway — no postMessage plumbing needed, just reload after flipping it.
+  function _rsEditModeOn() {
+    try { return localStorage.getItem('sts-rq-edit-mode') === '1'; } catch (e) { return false; }
+  }
+  function _rsSyncGearBtn() {
+    document.getElementById('rq-edit-gear').classList.toggle('active', _rsEditModeOn());
+  }
+  function rsToggleEditMode() {
+    const on = !_rsEditModeOn();
+    try { localStorage.setItem('sts-rq-edit-mode', on ? '1' : '0'); } catch (e) {}
+    _rsSyncGearBtn();
+    toast(on ? 'Queue editing on' : 'Queue editing off');
+    const frame = document.getElementById('queue-frame');
+    if (frame.src) frame.contentWindow.location.reload();
+  }
+  _rsSyncGearBtn();
 
   // ── Toast ─────────────────────────────────────
   let _toastTimer;

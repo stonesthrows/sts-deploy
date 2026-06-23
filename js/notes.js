@@ -666,12 +666,13 @@ var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_n
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
 var _rqExpanded      = {};  // { [notionPageId]: true } — bar tapped open to show detail
 var _rqEditMode      = {};  // { [notionPageId]: true } — expanded bar is in edit mode
-// header ✎ Edit toggle (mobile only) — when on, tapping a bar opens straight into edit.
-// Defaults on when embedded (?embed=1, e.g. the phone Queue tab) since that
-// view hides the topbar toggle that would otherwise turn this on — without
-// it, the read-only "No Square match yet" summary has no way to become
-// clickable on narrow widths where the per-row ✎ Edit button is also hidden.
-var _rqMobileEditMode = (typeof URLSearchParams !== 'undefined' && new URLSearchParams(location.search).has('embed'));
+// header ✎ Edit toggle (mobile only) — when on, tapping a bar opens straight into edit
+// instead of the non-interactive read-only summary. Persisted in localStorage
+// (shared, same-origin) so the phone Queue tab's gear button can flip it from
+// outside the iframe and have it stick across that iframe's reloads.
+var _rqMobileEditMode = (function() {
+  try { return localStorage.getItem('sts-rq-edit-mode') === '1'; } catch (e) { return false; }
+})();
 var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
@@ -1141,6 +1142,7 @@ function rqRowClick(event, pid) {
 
 function rqToggleMobileEditMode() {
   _rqMobileEditMode = !_rqMobileEditMode;
+  try { localStorage.setItem('sts-rq-edit-mode', _rqMobileEditMode ? '1' : '0'); } catch (e) {}
   var btn = document.getElementById('rqMobileEditToggle');
   if (btn) btn.classList.toggle('active', _rqMobileEditMode);
 }
