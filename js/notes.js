@@ -1019,6 +1019,16 @@ function rqRowClick(event, pid) {
 
 function rqEnterEditMode(pid) {
   _rqEditMode[pid] = true;
+  // Migration: items matched before restock-sizes existed may already have
+  // selectedVariants sitting only in this browser's localStorage cache.
+  // Push them into the shared store now, since opening the panel is the
+  // one moment we know the user is looking at (and trusts) this item's
+  // current sizes — don't wait for an actual edit to happen first.
+  var match = _rqAutoMatches[pid];
+  if (match && typeof match === 'object' && match.isParent
+      && match.selectedVariants && match.selectedVariants.length && !_rqSizes[pid]) {
+    _rqSaveSizesFor(pid, match.selectedVariants);
+  }
   restockQueueRender();
 }
 
