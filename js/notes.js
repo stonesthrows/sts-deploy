@@ -3074,6 +3074,8 @@ function rqAddItem() {
   _rqAddHideDropdown();
   var chip = document.getElementById('rq-add-chip');
   if (chip) chip.style.display = 'none';
+  var sizesBox = document.getElementById('rq-add-sizes');
+  if (sizesBox) { sizesBox.style.display = 'none'; sizesBox.innerHTML = ''; }
 
   var temp = { notionPageId: null, text: text, block: 'Inventory Restock', done: false, _saving: true };
   NOTES_DATA.push(temp);
@@ -3097,11 +3099,15 @@ function rqAddItem() {
       if (pendingMatch) {
         _rqAmSet(res.data.notionPageId, pendingMatch);
         if (pendingMatch.isParent) {
-          // Expand straight into edit mode so the new item's size table is
-          // immediately visible and ready to fill in, instead of a separate
-          // "pick sizes" popup step.
-          _rqExpanded[res.data.notionPageId] = true;
-          _rqEditMode[res.data.notionPageId] = true;
+          if (pendingMatch.selectedVariants && pendingMatch.selectedVariants.length) {
+            // Sizes were already picked inline in the add bar.
+            _rqSaveSizesFor(res.data.notionPageId, pendingMatch.selectedVariants);
+          } else {
+            // No sizes picked yet — expand straight into edit mode so the
+            // size table is immediately visible and ready to fill in.
+            _rqExpanded[res.data.notionPageId] = true;
+            _rqEditMode[res.data.notionPageId] = true;
+          }
         }
         restockQueueRender();
       } else {
@@ -3208,6 +3214,8 @@ function _rqAddClearPending() {
   _rqAddLastResults = [];
   var chip = document.getElementById('rq-add-chip');
   if (chip) chip.style.display = 'none';
+  var sizesBox = document.getElementById('rq-add-sizes');
+  if (sizesBox) { sizesBox.style.display = 'none'; sizesBox.innerHTML = ''; }
 }
 
 function _rqAddHideDropdown() {
@@ -3219,10 +3227,44 @@ function _rqAddShowChip(item) {
   var chip = document.getElementById('rq-add-chip');
   if (!chip) return;
   var label = (item.name || '');
-  if (item.isParent) label += ' (pick sizes after)';
   chip.innerHTML = '<span>✓ ' + label.replace(/</g, '&lt;') + '</span>'
     + '<span class="rq-add-chip-x" onclick="rqAddClearItem()">×</span>';
   chip.style.display = 'flex';
+
+  var sizesBox = document.getElementById('rq-add-sizes');
+  if (!sizesBox) return;
+  if (item.isParent) {
+    var table = _rqBuildVariantTable(item.variants);
+    var qtyByVariantId = {};
+    (item.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
+    sizesBox.innerHTML = table
+      ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
+      : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty');
+    sizesBox.style.display = 'block';
+  } else {
+    sizesBox.style.display = 'none';
+    sizesBox.innerHTML = '';
+  }
+}
+
+// Mutates the pending (not-yet-saved) add-bar selection directly — the new
+// item has no notionPageId yet, so this can't go through rqSetInlineVariantQty
+// (which is keyed by pid into _rqAutoMatches/timers). Once the item is
+// actually created, rqAddItem() persists whatever's selected here via
+// _rqSaveSizesFor.
+function rqAddSetVariantQty(_pid, variantId, value) {
+  var item = _rqAddPendingMatch;
+  if (!item || !item.isParent) return;
+  var qty = parseInt(value, 10) || 0;
+  var byId = {};
+  (item.selectedVariants || []).forEach(function(v) { byId[v.id] = v; });
+  var variant = (item.variants || []).filter(function(v) { return v.id === variantId; })[0];
+  if (!variant) return;
+  if (qty > 0) byId[variantId] = Object.assign({}, variant, { qty: qty });
+  else delete byId[variantId];
+  item.selectedVariants = (item.variants || [])
+    .filter(function(v) { return byId[v.id]; })
+    .map(function(v) { return byId[v.id]; });
 }
 
 function rqDeleteItem(idx) {

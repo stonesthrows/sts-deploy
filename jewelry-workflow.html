@@ -2338,34 +2338,17 @@
     .rq-assignee.rq-vanessa { background: #EEF4FF; border-color: #A0BBEE; color: #2B5CC8; }
     .rq-assignee.rq-stevie  { background: #F4F0FF; border-color: #B4A0EE; color: #5C2BC8; }
     .rq-assignee.rq-kyle    { background: #F0FFF4; border-color: #8EC8A8; color: #1E7040; }
-    .rq-log-section {
-      height: calc(100vh - 150px); flex-shrink: 0; border-top: 2px solid var(--bdr);
-      display: flex; flex-direction: column; overflow: hidden;
-      background: var(--card-head-bg);
-      transition: height 0.28s cubic-bezier(.4,0,.2,1);
+    .rq-add-bar {
+      flex-shrink: 0; padding: 8px 20px 12px; border-bottom: 1px solid var(--bdr-light);
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start;
     }
-    .rq-log-section.rq-log-collapsed { height: 52px; }
-    .rq-page.rq-log-open .rq-header-bar { display: none; }
-    .rq-page.rq-log-open .rq-scroll-area { display: none; }
-    .rq-log-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--text2);
-      text-transform: uppercase; padding: 8px 14px 8px 20px;
-      display: flex; align-items: center; gap: 10px;
-      flex-shrink: 0; border-bottom: 1px solid var(--bdr-light);
-      user-select: none;
-    }
-    .rq-log-label { cursor: pointer; white-space: nowrap; flex-shrink: 0; }
-    .rq-log-label:hover { color: var(--accent); }
-    .rq-log-add {
-      display: flex; gap: 6px; flex: 0 0 auto; align-items: center;
-    }
-    .rq-add-input-wrap { position: relative; }
-    .rq-log-add input {
-      width: 160px; padding: 5px 10px; border: 1px solid var(--bdr);
-      border-radius: 7px; font-size: 12px; background: var(--card-bg);
+    .rq-add-input-wrap { position: relative; flex: 1 1 220px; min-width: 180px; }
+    .rq-add-bar input {
+      width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--bdr);
+      border-radius: 7px; font-size: 13px; background: var(--card-bg);
       color: var(--text); font-family: inherit; outline: none;
     }
-    .rq-log-add input:focus { border-color: var(--accent); }
+    .rq-add-bar input:focus { border-color: var(--accent); }
     .rq-add-dropdown {
       position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
       min-width: 240px; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
@@ -2374,30 +2357,13 @@
       display: flex; align-items: center; gap: 5px; font-size: 11px;
       color: var(--accent); font-weight: 600; background: var(--accent-bg);
       border: 1px solid var(--accent); border-radius: 5px; padding: 3px 8px;
-      white-space: nowrap; max-width: 160px; overflow: hidden;
+      white-space: nowrap; max-width: 220px; overflow: hidden; flex-shrink: 0;
     }
     .rq-add-chip span:first-child { overflow: hidden; text-overflow: ellipsis; }
     .rq-add-chip-x { cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1; flex-shrink: 0; }
     .rq-add-chip-x:hover { color: var(--text); }
-    @media (max-width: 640px) { .rq-log-add { display: none; } }
-    .rq-log-chevron {
-      font-size: 11px; color: var(--text3); margin-left: 8px;
-      transition: transform 0.25s; display: inline-block;
-    }
-    .rq-log-collapsed .rq-log-chevron { transform: rotate(180deg); }
-    .rq-notion-link {
-      font-size: 11px; color: var(--text2); text-decoration: none;
-      border: 1px solid var(--bdr); border-radius: 6px; padding: 3px 9px;
-      transition: border-color 0.15s, color 0.15s; font-weight: 400; letter-spacing: 0;
-    }
-    .rq-notion-link:hover { border-color: var(--accent); color: var(--accent); }
-    .rq-log-list {
-      flex: 1; overflow-y: auto; padding: 10px 20px 14px;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .rq-log-list::-webkit-scrollbar { width: 4px; }
-    .rq-log-list::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 2px; }
-    .rq-log-empty { font-size: 13px; color: var(--text-dim); text-align: center; padding: 20px 0; }
+    .rq-add-sizes { flex: 1 1 100%; }
+    @media (max-width: 640px) { .rq-add-bar { display: none; } }
     .notes-save-dot {
       width: 7px; height: 7px; background: #6AB87A; border-radius: 50;
       display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
@@ -7299,32 +7265,24 @@ function savePrintSetup() {
   <div class="rq-header-bar">
     <h2 class="rq-header-title">📦 Restock Queue</h2>
   </div>
+  <!-- Add item -->
+  <div class="rq-add-bar" id="rq-add-bar">
+    <div class="rq-add-input-wrap">
+      <input id="rq-add-input" type="text" placeholder="Search Square catalog to add…" autocomplete="off"
+        oninput="rqAddInputChange(this.value)"
+        onkeydown="if(event.key==='Enter')rqAddItem()">
+      <div id="rq-add-results" class="rq-setup-results rq-add-dropdown"></div>
+    </div>
+    <div id="rq-add-chip" class="rq-add-chip" style="display:none"></div>
+    <div id="rq-add-sizes" class="rq-add-sizes" style="display:none"></div>
+    <button class="btn btn-gold btn-sm" onclick="rqAddItem()">＋ Add</button>
+  </div>
   <!-- Queue list -->
   <div class="rq-scroll-area">
     <div id="restock-queue-empty" style="display:none;text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">
       No items in the Inventory Restock list yet.
     </div>
     <div id="restock-queue-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-  </div>
-  <!-- Session log -->
-  <div class="rq-log-section rq-log-collapsed" id="rq-log-section">
-    <div class="rq-log-title">
-      <span class="rq-log-label" onclick="rqToggleLog()">Session Log <span class="rq-log-chevron">▲</span></span>
-      <div class="rq-log-add">
-        <div class="rq-add-input-wrap">
-          <input id="rq-add-input" type="text" placeholder="Add to restock queue…" autocomplete="off"
-            oninput="rqAddInputChange(this.value)"
-            onkeydown="if(event.key==='Enter')rqAddItem()">
-          <div id="rq-add-results" class="rq-setup-results rq-add-dropdown"></div>
-        </div>
-        <div id="rq-add-chip" class="rq-add-chip" style="display:none"></div>
-        <button class="btn btn-gold btn-sm" onclick="rqAddItem()">＋ Add</button>
-      </div>
-      <a class="rq-notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
-    </div>
-    <div id="rq-log-list" class="rq-log-list">
-      <div class="rq-log-empty">No sessions recorded yet</div>
-    </div>
   </div>
 </div>
 
