@@ -2290,6 +2290,7 @@
       padding-left: 11px;
     }
     .rq-item.rq-active .rq-arrows { display: none !important; }
+    .rq-item-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     @media (max-width: 640px) {
       .rq-item.rq-active {
         background: #EFBF0A;
@@ -2297,6 +2298,11 @@
         border-top: 4px solid #8B6400;
         box-shadow: 0 4px 18px rgba(140,100,0,0.45);
       }
+      /* Title gets the full top line to itself; timer/assignee/delete
+         wrap together onto their own line below it, instead of squeezing
+         in next to the title and wrapping the text vertically. */
+      .rq-item-row { flex-wrap: wrap; }
+      .rq-item-controls { flex: 1 0 100%; justify-content: flex-end; margin-top: 6px; }
     }
     .rq-start-btn {
       background: none; border: 1px solid var(--accent); border-radius: 7px;
@@ -7319,7 +7325,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=22"></script>
+<script src="js/notes.js?v=23"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

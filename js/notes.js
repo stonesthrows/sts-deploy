@@ -646,6 +646,8 @@ function notesDrop(event, targetKey) {
 
 var _rqMeta       = { order: [], assignees: {} };
 var _rqMetaLoaded = false;
+var _rqSizes       = {};    // { [pid]: { [variantId]: qty } } — cross-device size/qty selections, via /api/restock-sizes
+var _rqSizesLoaded = false;
 var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
@@ -819,6 +821,7 @@ function rqSetInlineVariantQty(pid, variantId, value) {
     .map(function(v) { return byId[v.id]; });
   _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
   _rqAmSave();
+  _rqSaveSizesFor(pid, selectedVariants);
 }
 
 // Local items not in Square catalog
@@ -862,6 +865,54 @@ function _rqSaveMeta() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(_rqMeta),
   }).catch(function() { toast('Failed to save queue state', '⚠'); });
+}
+
+// ── Sizes persistence (cross-device variant qty selections) ─────────────────
+
+function _rqLoadSizes(cb) {
+  fetch('/api/restock-sizes')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _rqSizes = (d && typeof d === 'object' && !d.error) ? d : {};
+      _rqSizesLoaded = true;
+      if (cb) cb();
+    })
+    .catch(function() { _rqSizesLoaded = true; if (cb) cb(); });
+}
+
+function _rqSaveSizes() {
+  fetch('/api/restock-sizes', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_rqSizes),
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) toast(res.data.error || 'Failed to save sizes', '⚠');
+    })
+    .catch(function() { toast('Failed to save sizes', '⚠'); });
+}
+
+// Writes the chosen variant quantities for one item into the shared
+// cross-device store (dropping zero-qty entries) and saves.
+function _rqSaveSizesFor(pid, selectedVariants) {
+  var map = {};
+  (selectedVariants || []).forEach(function(v) { if (v.qty > 0) map[v.id] = v.qty; });
+  if (Object.keys(map).length) _rqSizes[pid] = map;
+  else delete _rqSizes[pid];
+  _rqSaveSizes();
+}
+
+// Resolves a parent item's selectedVariants from the saved cross-device
+// quantities (variant names are re-derived from the live Square match,
+// not stored, to keep the payload small). Returns null if nothing saved.
+function _rqResolveSelectedVariants(pid, match) {
+  var saved = _rqSizes[pid];
+  if (!saved || !Object.keys(saved).length) return null;
+  var resolved = (match.variants || [])
+    .filter(function(v) { return saved[v.id] > 0; })
+    .map(function(v) { return Object.assign({}, v, { qty: saved[v.id] }); });
+  return resolved.length ? resolved : null;
 }
 
 // ── Auto-match localStorage helpers ──────────────────────────────────────────
@@ -1062,7 +1113,15 @@ function _rqAutoMatchSingle(pid, rawText) {
       });
       if (rows.length) {
         var best = rows[0];
-        if (best.isParent) best = Object.assign({}, best, { selectedVariants: _rqMatchSizesToVariants(best.variants, rawText) });
+        if (best.isParent) {
+          // Cross-device saved sizes (restock-sizes) take priority over
+          // anything parsed from the note text — that's only a one-time
+          // seed for brand-new notes that haven't been saved anywhere yet.
+          var fromStore = _rqResolveSelectedVariants(pid, best);
+          var selectedVariants = fromStore || _rqMatchSizesToVariants(best.variants, rawText);
+          best = Object.assign({}, best, { selectedVariants: selectedVariants });
+          if (!fromStore && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
+        }
         _rqAmSet(pid, best);
       } else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
     });
@@ -1294,6 +1353,11 @@ function restockQueueRender() {
     return;
   }
 
+  if (!_rqSizesLoaded) {
+    _rqLoadSizes(restockQueueRender);
+    return;
+  }
+
   var items = _rqSortedItems();
   if (items.length === 0) {
     list.style.display = 'none';
@@ -1349,6 +1413,7 @@ function restockQueueRender() {
       + '<span class="rq-rank">' + (idx + 1) + '</span>'
       + (canExpand ? '<span class="rq-expand-caret">' + (expanded ? '▾' : '▸') + '</span>' : '')
       + '<span class="rq-text' + textCls + '">' + safeText + '</span>'
+      + '<div class="rq-item-controls">'
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
@@ -1356,6 +1421,7 @@ function restockQueueRender() {
         }).join('')
       + '</select>'
       + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
+      + '</div>'
       + '</div>';
 
     var matchRow = '';
@@ -2982,6 +3048,7 @@ function rqDeleteItem(idx) {
     delete _rqEditMode[pid];
     delete _rqAutoMatches[pid];
     _rqAmSave();
+    if (_rqSizes[pid]) { delete _rqSizes[pid]; _rqSaveSizes(); }
   }
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);
