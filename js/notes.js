@@ -671,13 +671,18 @@ var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
 var _rqAddLastResults = [];
-var _rqInvCounts        = {};     // { [variantId]: qty } — Square on-hand counts, fetched once per page session
-var _rqInvCountsFetched = false;  // guard so the batch fetch only ever fires once per session (no polling)
+var _rqInvCounts      = {};  // { [variantId]: qty } — Square on-hand counts, fetched once per variant per page session
+var _rqInvIdsQueued   = {};  // { [variantId]: true } — ids already requested (or in-flight), so we never re-request the same id twice
+var _rqInvIdsDone     = {};  // { [variantId]: true } — ids whose batch has resolved (success or failure), safe to render a final badge for
+var _rqInvFetchTimer  = null;
 
 // ── Live Square inventory counts (reference only, shown on expanded bars) ───
-// Fetched once per page session — not polled — since the restock queue is a
-// short-lived working view and Production Sessions/Inventory Push are the
-// actual source of truth for stock changes during the day.
+// Fetched once per variant per page session — not polled — since the restock
+// queue is a short-lived working view and Production Sessions/Inventory Push
+// are the actual source of truth for stock changes during the day. Auto-match
+// resolves items on a staggered delay (see restockQueueRender), so this is
+// debounced and re-run as each item's match comes in, rather than firing once
+// immediately and missing every item that hadn't matched yet.
 
 // Collects every real Square variation id referenced by the currently
 // matched queue items (skips local items, custom items, and items that
@@ -700,10 +705,14 @@ function _rqCollectInvVariantIds() {
 }
 
 function _rqFetchInvCounts() {
-  if (_rqInvCountsFetched) return;
-  var ids = _rqCollectInvVariantIds();
+  clearTimeout(_rqInvFetchTimer);
+  _rqInvFetchTimer = setTimeout(_rqFetchInvCountsNow, 250);
+}
+
+function _rqFetchInvCountsNow() {
+  var ids = _rqCollectInvVariantIds().filter(function(id) { return !_rqInvIdsQueued[id]; });
   if (!ids.length) return;
-  _rqInvCountsFetched = true; // mark immediately so a slow response can't trigger a second fetch
+  ids.forEach(function(id) { _rqInvIdsQueued[id] = true; }); // mark immediately so a slow response can't trigger a duplicate request
   _rqSqCall('/inventory/counts/batch-retrieve', {
     method: 'POST',
     body: { catalog_object_ids: ids, location_ids: [INV_LOCATION_ID] },
@@ -711,22 +720,24 @@ function _rqFetchInvCounts() {
     (data.counts || []).forEach(function(c) {
       _rqInvCounts[c.catalog_object_id] = parseInt(c.quantity, 10) || 0;
     });
+    ids.forEach(function(id) { _rqInvIdsDone[id] = true; });
     restockQueueRender();
   }).catch(function() {
-    // Leave _rqInvCountsFetched true — badges render as "unset" rather than
+    // Mark these ids done anyway — badges render as "unset" rather than
     // retrying indefinitely on a flaky connection.
+    ids.forEach(function(id) { _rqInvIdsDone[id] = true; });
   });
 }
 
 // Renders a small count badge for one variant id, reusing the Inventory
 // tab's existing .inv-badge styling/thresholds (see js/inventory.js) so the
-// two surfaces read consistently. Returns '' while the one-time fetch is
-// still in flight (better to show nothing briefly than a wrong number).
+// two surfaces read consistently. Returns '' while this id's fetch is still
+// in flight (better to show nothing briefly than a wrong number).
 function _rqInvBadgeHtml(variantId) {
   if (!variantId || variantId.indexOf('local-') === 0 || variantId.indexOf('custom-') === 0) {
     return '<span class="inv-badge unset">N/A</span>';
   }
-  if (!_rqInvCountsFetched) return '';
+  if (!_rqInvIdsDone[variantId]) return '';
   var qty = _rqInvCounts[variantId];
   var cls = (qty === undefined) ? 'unset' : qty === 0 ? 'no-stock' : qty <= 2 ? 'low-stock' : 'in-stock';
   var label = (qty === undefined) ? 'not tracked' : qty === 0 ? 'out of stock' : qty + ' in stock';
@@ -1040,6 +1051,7 @@ function _rqAmSet(pid, item) {
   _rqAutoMatches[pid] = item;
   _rqAmSave();
   _rqUpdateMatchRow(pid);
+  _rqFetchInvCounts(); // pick up inventory counts for this item's variant id(s), now that it has matched
 }
 
 function _rqUpdateMatchRow(pid) {
