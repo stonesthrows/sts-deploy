@@ -1582,20 +1582,18 @@ function rqStartTimer(pid, itemText, assigneeName) {
   var cached = _rqAutoMatches[pid];
   var preSelected = [];
   if (cached && typeof cached === 'object') {
-    if (cached.isParent && cached.selectedVariants && cached.selectedVariants.length) {
-      var variantLabel = cached.selectedVariants.map(_rqVariantLabel).join(', ');
-      // Total pieces is already known from the sizes table — no need to ask
-      // the employee to retype it when the timer stops.
-      var totalQty = cached.selectedVariants.reduce(function(sum, v) { return sum + (v.qty || 0); }, 0);
-      preSelected = [{ id: cached.id, name: cached.name + ' · ' + variantLabel, category: cached.category, isParent: false, sku: '', pieces: totalQty || null }];
-    } else {
-      preSelected = [Object.assign({}, cached, { pieces: null })];
-    }
+    // Total pieces is already known from the sizes table — no need to ask
+    // the employee to retype it when the timer stops. Keep the item's
+    // real shape (isParent/selectedVariants) intact rather than flattening
+    // sizes into a comma-joined name string, so the setup panel and timer
+    // panel can render the same vertical sizes list the regular bars use.
+    var totalQty = (cached.isParent && cached.selectedVariants)
+      ? cached.selectedVariants.reduce(function(sum, v) { return sum + (v.qty || 0); }, 0) : 0;
+    preSelected = [Object.assign({}, cached, { pieces: totalQty || null })];
   }
-  // Stash the original, un-flattened match (variants + selectedVariants with
-  // qty intact) — rqStartTimerConfirm overwrites the bar's _rqAutoMatches
-  // entry with a flattened display-only placeholder, which would otherwise
-  // wipe out the sizes table the timer panel needs to keep showing/editing.
+  // Keep a dedicated reference to the rich match for the duration of the
+  // run (read/written by _rqMatchRowInner and rqSetInlineVariantQty while
+  // a timer is active, then reconciled back into _rqAutoMatches on stop).
   var richMatch = (cached && typeof cached === 'object' && cached.isParent) ? cached : null;
   _rqSetups[pid] = { selectedItems: preSelected, query: preSelected.length ? '' : (itemText || ''), debounceTimer: null, startTimeMs: Date.now(), _lastResults: null, richMatch: richMatch };
   restockQueueRender();
@@ -1611,6 +1609,10 @@ function rqStopTimer(pid) {
   var stopBtn = document.getElementById('rq-stop-' + pid);
   if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = 'Saving…'; }
   clearInterval(t.tickInterval);
+  // Carry any mid-run size/qty edits (made against t.richMatch) back into
+  // the bar's permanent match cache, so they survive after the timer ends
+  // instead of reverting to whatever was set when the timer started.
+  if (t.richMatch) { _rqAmSet(pid, t.richMatch); _rqSaveSizesFor(pid, t.richMatch.selectedVariants || []); }
   var stopTime = new Date().toISOString();
   var totalMs  = Date.now() - t.startTime;
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
@@ -1989,6 +1991,10 @@ function _rqSelectedHTML(pid) {
           + '</select>'
           + '</div>';
       }).join('');
+      // Same vertical sizes list the regular bars use, instead of a
+      // comma-joined string crammed into the item name.
+      var sizesHtml = (item.isParent && item.selectedVariants && item.selectedVariants.length)
+        ? _rqReadSummaryHtml(item) : '';
       return '<div class="rq-selected-item" style="flex-direction:column;align-items:stretch;">'
         + '<div style="display:flex;align-items:center;gap:8px;">'
         + '<div style="flex:1;min-width:0;">'
@@ -1997,6 +2003,7 @@ function _rqSelectedHTML(pid) {
         + '</div>'
         + '<button class="rq-item-remove" onclick="rqRemoveSetupItem(\'' + pid + '\',\'' + safeId + '\')">✕</button>'
         + '</div>'
+        + sizesHtml
         + modifierRows
         + '</div>';
     }).join('')
