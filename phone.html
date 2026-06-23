@@ -212,6 +212,94 @@
       display: block;
     }
 
+    /* ── Restock add form ── */
+    .restock-search-wrap { position: relative; }
+    .restock-results {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 14px;
+      right: 14px;
+      z-index: 50;
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .restock-result {
+      padding: 10px 12px;
+      font-size: 13.5px;
+      color: var(--text);
+      cursor: pointer;
+      border-bottom: 1px solid #F4EFE8;
+    }
+    .restock-result:last-child { border-bottom: none; }
+    .restock-result:active { background: var(--accent-bg); }
+    .restock-result-sub { font-size: 11.5px; color: var(--text-dim); }
+    .restock-result-none { padding: 10px 12px; font-size: 13px; color: var(--text-dim); }
+    .restock-chip {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 14px;
+      padding: 8px 12px;
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .restock-chip-x {
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .restock-sizes {
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 14px 0;
+    }
+    .restock-size-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      border: 1px solid var(--bdr);
+      border-radius: 16px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .restock-size-pill input { accent-color: var(--accent); }
+    .restock-size-pill.checked {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .restock-submit-row { padding: 12px 14px 14px; }
+    .restock-submit-btn {
+      width: 100%;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 11px 0;
+      cursor: pointer;
+    }
+    .restock-submit-btn:disabled { background: #C8C0B8; cursor: default; }
+    .restock-submit-btn:active:not(:disabled) { background: #b8882a; }
+
     /* ── Toast ── */
     .toast {
       position: fixed;
@@ -242,7 +330,7 @@
 
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab('restock')">Restock</button>
-  <button class="tab-btn" onclick="showTab('timer')">Timer</button>
+  <button class="tab-btn" onclick="showTab('timer')">Queue</button>
 </div>
 
 <!-- Restock -->
@@ -250,24 +338,29 @@
   <div class="restock-wrap">
     <div class="card">
       <div class="card-head">
-        <span class="card-head-title">Inventory Restock</span>
-        <span class="card-count" id="restock-count"></span>
+        <span class="card-head-title">Add to Restock Queue</span>
       </div>
-      <div class="add-row">
-        <input class="add-input" id="restock-input" type="text" placeholder="Add item to restock…" autocomplete="off">
-        <button class="add-btn" onclick="addRestock()">+</button>
+      <div class="add-row restock-search-wrap">
+        <input class="add-input" id="restock-search-input" type="text" placeholder="Search Square catalog…" autocomplete="off"
+          oninput="rsSearchInput(this.value)">
+        <div class="restock-results" id="restock-results"></div>
       </div>
-      <div class="note-list" id="restock-list">
-        <div class="loading-row">Loading…</div>
+      <div class="restock-chip" id="restock-chip">
+        <span id="restock-chip-label"></span>
+        <span class="restock-chip-x" onclick="rsClearSelection()">✕</span>
+      </div>
+      <div class="restock-sizes" id="restock-sizes"></div>
+      <div class="restock-submit-row">
+        <button class="restock-submit-btn" id="restock-submit-btn" disabled onclick="rsSubmit()">Submit</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Timer -->
+<!-- Timer / Restock Queue -->
 <div class="page" id="page-timer">
   <div class="timer-wrap">
-    <iframe src="time-tracker.html" title="STS Work Timer"></iframe>
+    <iframe id="queue-frame" title="Restock Queue"></iframe>
   </div>
 </div>
 
@@ -280,6 +373,18 @@
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     event.currentTarget.classList.add('active');
+    if (name === 'timer') {
+      // Force the embedded jewelry-workflow.html straight to the Restock
+      // Queue tab every time this tab is opened — it restores its last-open
+      // nav state from localStorage on load (shared, same-origin).
+      try {
+        localStorage.setItem('sts-nav-parent', 'inventory');
+        localStorage.setItem('sts-nav-sub-inventory', 'to-restock');
+      } catch (e) {}
+      const frame = document.getElementById('queue-frame');
+      if (!frame.src) frame.src = 'jewelry-workflow.html';
+      else frame.contentWindow.location.reload();
+    }
   }
 
   // ── Toast ─────────────────────────────────────
@@ -292,140 +397,187 @@
     _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
   }
 
-  // ── Notes data ────────────────────────────────
-  const BLOCK = 'Inventory Restock';
-  let notesData = [];   // full list from API, filtered to BLOCK
-  let _poller;
+  // ── Restock add form: Square search → variant/size pick → submit ──
+  const RESTOCK_BLOCK = 'Inventory Restock';
+  let _rsDebounce  = null;
+  let _rsResults   = [];     // last search results
+  let _rsSelected  = null;   // { id, name, isParent, variants:[{id,name}] } or single-variant item
+  let _rsSizesChecked = {};  // { variantId: true }
 
-  function itemsFor() {
-    return notesData.filter(n => n.block === BLOCK);
-  }
-
-  function loadRestock() {
-    fetch('/api/notion-notes')
-      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-      .then(({ ok, data }) => {
-        if (!ok) { toast('Notion error — check connection', true); return; }
-        notesData = data || [];
-        render();
-      })
-      .catch(() => toast('Could not reach server', true));
-
-    if (!_poller) _poller = setInterval(refreshRestock, 30000);
-  }
-
-  function refreshRestock() {
-    fetch('/api/notion-notes')
-      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-      .then(({ ok, data }) => { if (ok) { notesData = data || []; render(); } })
-      .catch(() => {});
-  }
-
-  // ── Render ────────────────────────────────────
-  function render() {
-    const items  = itemsFor();
-    const list   = document.getElementById('restock-list');
-    const count  = document.getElementById('restock-count');
-
-    const pending = items.filter(i => !i.done).length;
-    count.textContent = pending > 0 ? pending + ' left' : (items.length ? 'all done ✓' : '');
-
-    if (!items.length) {
-      list.innerHTML = '<div class="note-empty">Nothing to restock</div>';
-      return;
-    }
-
-    list.innerHTML = items.map((item, idx) => {
-      const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const textClass = 'note-text' + (item.done ? ' done' : '');
-      const wrap = item._saving ? ' class="note-row note-saving"' : ' class="note-row"';
-      return `<div${wrap}>
-        <input class="note-cb" type="checkbox" ${item.done ? 'checked' : ''}
-          onchange="toggleRestock(${idx})">
-        <span class="${textClass}">${esc(item.text)}</span>
-        ${item._saving ? '' : `<button class="note-del" onclick="deleteRestock(${idx})" title="Remove">×</button>`}
-      </div>`;
-    }).join('');
-  }
-
-  // ── Add ───────────────────────────────────────
-  function addRestock() {
-    const input = document.getElementById('restock-input');
-    const text  = input.value.trim();
-    if (!text) return;
-    input.value = '';
-
-    const temp = { notionPageId: null, text, block: BLOCK, done: false, _saving: true };
-    notesData.push(temp);
-    render();
-
-    fetch('/api/notion-notes', {
+  function _rsSqCall(path, opts) {
+    opts = opts || {};
+    const payload = { path: '/v2' + path, method: opts.method || 'GET' };
+    if (opts.body) payload.body = opts.body;
+    return fetch('/api/square', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, block: BLOCK }),
-    })
-      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-      .then(({ ok, data }) => {
-        if (!ok) {
-          notesData.splice(notesData.indexOf(temp), 1);
-          render();
-          toast('Save failed — ' + (data.error || 'unknown'), true);
-          return;
-        }
-        temp.notionPageId = data.notionPageId;
-        temp._saving = false;
-        render();
-      })
-      .catch(err => {
-        notesData.splice(notesData.indexOf(temp), 1);
-        render();
-        toast('Failed: ' + err, true);
+      body: JSON.stringify(payload),
+    }).then(r => r.json());
+  }
+
+  function rsSearchInput(value) {
+    const q = (value || '').trim();
+    if (_rsDebounce) clearTimeout(_rsDebounce);
+    if (!q) { _rsHideResults(); return; }
+    _rsDebounce = setTimeout(() => _rsSearch(q), 350);
+  }
+
+  function _rsHideResults() {
+    const box = document.getElementById('restock-results');
+    box.style.display = 'none';
+    box.innerHTML = '';
+  }
+
+  function _rsSearch(query) {
+    const box = document.getElementById('restock-results');
+    box.innerHTML = '<div class="restock-result-none">Searching…</div>';
+    box.style.display = 'block';
+
+    _rsSqCall('/catalog/search', {
+      method: 'POST',
+      body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+    }).then(searchData => {
+      const found = searchData.objects || [];
+      if (!found.length) { _rsRenderResults([], query); return; }
+      return _rsSqCall('/catalog/batch-retrieve', {
+        method: 'POST',
+        body: { object_ids: found.map(o => o.id) },
+      }).then(batchData => {
+        const rows = [];
+        (batchData.objects || []).forEach(obj => {
+          if (obj.type !== 'ITEM') return;
+          const d = obj.item_data || {};
+          const vars = d.variations || [];
+          rows.push({
+            id: obj.id,
+            name: d.name || '',
+            isParent: vars.length > 1,
+            variants: vars.map(v => ({ id: v.id, name: (v.item_variation_data || {}).name || '' })),
+          });
+        });
+        _rsRenderResults(rows, query);
       });
+    }).catch(() => _rsRenderResults([], query));
   }
 
-  // allow Enter key to add
-  document.getElementById('restock-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') addRestock();
-  });
-
-  // ── Toggle ────────────────────────────────────
-  function toggleRestock(idx) {
-    const item = itemsFor()[idx];
-    if (!item || !item.notionPageId) return;
-    item.done = !item.done;
-    render();
-
-    fetch('/api/notion-notes?pageId=' + encodeURIComponent(item.notionPageId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ done: item.done }),
-    }).catch(() => {
-      item.done = !item.done;
-      render();
-      toast('Update failed', true);
-    });
+  function _rsRenderResults(items, query) {
+    _rsResults = items;
+    const box = document.getElementById('restock-results');
+    const esc = t => (t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    if (!items.length) {
+      box.innerHTML = `<div class="restock-result-none">No match for "${esc(query)}"</div>`;
+      box.style.display = 'block';
+      return;
+    }
+    box.innerHTML = items.map((item, idx) => `
+      <div class="restock-result" onclick="rsSelectResult(${idx})">
+        ${esc(item.name)}
+        ${item.isParent ? `<div class="restock-result-sub">${item.variants.length} sizes</div>` : ''}
+      </div>
+    `).join('');
+    box.style.display = 'block';
   }
 
-  // ── Delete ────────────────────────────────────
-  function deleteRestock(idx) {
-    const items = itemsFor();
-    const item  = items[idx];
+  function rsSelectResult(idx) {
+    const item = _rsResults[idx];
     if (!item) return;
-    const gi = notesData.indexOf(item);
-    notesData.splice(gi, 1);
-    render();
+    _rsSelected = item;
+    _rsSizesChecked = {};
+    document.getElementById('restock-search-input').value = '';
+    _rsHideResults();
 
-    if (!item.notionPageId) return;
-    fetch('/api/notion-notes?pageId=' + encodeURIComponent(item.notionPageId), {
-      method: 'DELETE',
-    }).catch(() => {
-      notesData.splice(gi, 0, item);
-      render();
-      toast('Delete failed', true);
-    });
+    document.getElementById('restock-chip').style.display = 'flex';
+    document.getElementById('restock-chip-label').textContent = item.name;
+
+    const sizesBox = document.getElementById('restock-sizes');
+    if (item.isParent && item.variants.length) {
+      sizesBox.innerHTML = item.variants.map(v => `
+        <label class="restock-size-pill" id="rs-pill-${v.id}">
+          <input type="checkbox" onchange="rsToggleSize('${v.id}')">
+          ${(v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+        </label>
+      `).join('');
+      sizesBox.style.display = 'flex';
+    } else {
+      // Single-variant item — treat its one variation as auto-selected.
+      sizesBox.style.display = 'none';
+      sizesBox.innerHTML = '';
+      if (item.variants[0]) _rsSizesChecked[item.variants[0].id] = true;
+    }
+    _rsUpdateSubmitState();
   }
 
-  loadRestock();
+  function rsToggleSize(variantId) {
+    if (_rsSizesChecked[variantId]) delete _rsSizesChecked[variantId];
+    else _rsSizesChecked[variantId] = true;
+    const pill = document.getElementById('rs-pill-' + variantId);
+    if (pill) pill.classList.toggle('checked', !!_rsSizesChecked[variantId]);
+    _rsUpdateSubmitState();
+  }
+
+  function _rsUpdateSubmitState() {
+    const has = _rsSelected && Object.keys(_rsSizesChecked).length > 0;
+    document.getElementById('restock-submit-btn').disabled = !has;
+  }
+
+  function rsClearSelection() {
+    _rsSelected = null;
+    _rsSizesChecked = {};
+    document.getElementById('restock-chip').style.display = 'none';
+    document.getElementById('restock-sizes').style.display = 'none';
+    document.getElementById('restock-sizes').innerHTML = '';
+    _rsUpdateSubmitState();
+  }
+
+  function rsSubmit() {
+    if (!_rsSelected || !Object.keys(_rsSizesChecked).length) return;
+    const item = _rsSelected;
+    const variantIds = Object.keys(_rsSizesChecked);
+    const btn = document.getElementById('restock-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    const variantById = {};
+    item.variants.forEach(v => { variantById[v.id] = v; });
+
+    Promise.all(variantIds.map(vid => {
+      const variant = variantById[vid];
+      const text = item.isParent ? `${item.name} — ${variant.name}` : item.name;
+      return fetch('/api/notion-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, block: RESTOCK_BLOCK }),
+      }).then(r => r.json().then(d => ({ ok: r.ok, data: d, vid })));
+    })).then(results => {
+      const failed = results.filter(r => !r.ok);
+      const okResults = results.filter(r => r.ok);
+      if (okResults.length) {
+        return fetch('/api/restock-sizes').then(r => r.json()).then(sizes => {
+          sizes = (sizes && typeof sizes === 'object' && !sizes.error) ? sizes : {};
+          okResults.forEach(r => {
+            const pid = r.data.notionPageId;
+            sizes[pid] = sizes[pid] || {};
+            sizes[pid][r.vid] = 1;
+          });
+          return fetch('/api/restock-sizes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sizes),
+          }).then(() => failed);
+        });
+      }
+      return failed;
+    }).then(failed => {
+      btn.textContent = 'Submit';
+      rsClearSelection();
+      if (failed && failed.length) toast(`Added ${variantIds.length - failed.length}/${variantIds.length} — some failed`, true);
+      else toast('Added to Restock Queue');
+    }).catch(() => {
+      btn.textContent = 'Submit';
+      _rsUpdateSubmitState();
+      toast('Failed to add item', true);
+    });
+  }
 </script>
 </body>
 </html>
