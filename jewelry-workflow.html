@@ -2254,8 +2254,34 @@
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     }
     .rq-item-row { display: flex; align-items: center; gap: 10px; }
-    .rq-item-row-wrap { flex-wrap: wrap; }
-    .rq-inline-variant-table { flex: 1 0 100%; margin: 2px 0 4px; }
+    .rq-item-row-clickable { cursor: pointer; border-radius: 6px; transition: background 0.12s; }
+    .rq-item-row-clickable:hover { background: var(--card-head-bg); }
+    .rq-expand-caret { width: 12px; text-align: center; font-size: 11px; color: var(--text3); flex-shrink: 0; }
+    .rq-expand-panel {
+      margin-top: 8px; padding: 10px 12px; border-top: 1px solid var(--bdr-light);
+      background: var(--card-head-bg); border-radius: 8px;
+    }
+    .rq-edit-title-row { margin-bottom: 8px; }
+    .rq-edit-title-input {
+      width: 100%; box-sizing: border-box; padding: 6px 9px; border: 1px solid var(--bdr); border-radius: 6px;
+      font-size: 13px; font-weight: 600; color: var(--text); background: #fff; font-family: inherit;
+    }
+    .rq-edit-title-input:focus { border-color: var(--accent); outline: none; }
+    .rq-edit-btn, .rq-edit-done-btn {
+      background: var(--accent); border: none; border-radius: 6px; color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 12px;
+      cursor: pointer; margin-top: 6px; transition: background 0.15s;
+    }
+    .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: #8A6020; }
+    .rq-read-status { font-size: 12.5px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+    .rq-read-list { display: flex; flex-direction: column; gap: 3px; }
+    .rq-read-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 4px 8px; background: #fff; border: 1px solid var(--bdr-light); border-radius: 6px;
+      font-size: 13px;
+    }
+    .rq-read-name { color: var(--text); font-weight: 600; }
+    .rq-read-qty { color: var(--accent); font-weight: 700; flex-shrink: 0; }
     .rq-item.rq-active {
       border-color: var(--accent);
       border-left: 4px solid var(--accent);
@@ -2288,8 +2314,7 @@
     .rq-arrow:hover:not(:disabled) { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
     .rq-arrow:disabled { opacity: .3; cursor: default; }
     .rq-rank { width: 22px; text-align: center; font-size: 12px; font-weight: 700; color: #B0A898; flex-shrink: 0; }
-    .rq-text { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; outline: none; cursor: text; }
-    .rq-text:focus { background: #F8F3EC; box-shadow: 0 0 0 2px rgba(183,140,95,.3); }
+    .rq-text { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; border-radius: 5px; padding: 2px 5px; }
     .rq-text.rq-done { text-decoration: line-through; color: #B0A898; }
     .rq-assignee {
       padding: 4px 8px; border: 1px solid #D8D0C8; border-radius: 6px;
@@ -7294,7 +7319,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=21"></script>
+<script src="js/notes.js?v=22"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

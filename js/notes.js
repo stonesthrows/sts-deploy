@@ -662,7 +662,8 @@ function _rqStoreList(store) { return store === 'report' ? _rqReportSessions : _
 function _rqStoreRender(store) { if (store === 'report') { _rqRenderReportBody(_rqReportSessions); } else { rqRenderSessions(); } }
 var _rqAutoMatches   = {};  // { [notionPageId]: item-object | '_loading_' | '_none_' }
 var _rqMatchEdits    = {};  // { [notionPageId]: { query, _lastResults, debounceTimer } }
-var _rqVariantPickers = {}; // { [notionPageId]: { qtyByVariantId: { [variantId]: qty } } }
+var _rqExpanded      = {};  // { [notionPageId]: true } — bar tapped open to show detail
+var _rqEditMode      = {};  // { [notionPageId]: true } — expanded bar is in edit mode
 var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
@@ -746,7 +747,7 @@ function _rqBuildVariantTable(variants) {
 }
 
 function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
-  onchangeFn = onchangeFn || 'rqSetVariantQty';
+  onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
   var html = '<table class="rq-variant-table"><thead><tr>';
   table.metals.forEach(function(metal) {
     var cols = table.rows.filter(function(r) { return r.metal === metal; });
@@ -785,7 +786,8 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   return html;
 }
 
-function _rqVariantFlatHtml(pid, variants, qtyByVariantId) {
+function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn) {
+  onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
   return '<div class="rq-variant-grid">'
     + variants.map(function(v) {
         var qty = qtyByVariantId[v.id] || '';
@@ -793,26 +795,15 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId) {
         return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
           + '<span>' + (v.name || '').replace(/</g, '&lt;') + '</span>'
           + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-          + ' onchange="rqSetVariantQty(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
+          + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
           + '</div>';
       }).join('')
     + '</div>';
 }
 
-// ── Always-visible inline table (for groupable multi-attribute items) ───────
-// Some items (Double Hoop Faux Nose Ring, etc.) have enough variations that
-// the "Pick sizes" popup is more friction than it's worth — Kyle wants the
-// table sitting permanently in the card, between the title and the assignee
-// field, always editable. Only items where _rqBuildVariantTable succeeds get
-// this treatment; everything else keeps the click-to-open picker unchanged.
-function _rqInlineVariantTableHtml(pid, match) {
-  var table = _rqBuildVariantTable(match.variants);
-  if (!table) return '';
-  var qtyByVariantId = {};
-  (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
-  return '<div class="rq-inline-variant-table">' + _rqVariantTableHtml(pid, table, qtyByVariantId, 'rqSetInlineVariantQty') + '</div>';
-}
-
+// Persists a quantity directly into the saved match (no transient picker
+// state) — used by both the grouped table and the flat chip grid, wherever
+// _rqMatchRowInner renders them inside the bar's expanded edit panel.
 function rqSetInlineVariantQty(pid, variantId, value) {
   var match = _rqAutoMatches[pid];
   if (!match || typeof match !== 'object' || !match.isParent) return;
@@ -924,24 +915,6 @@ function _rqMatchRowInner(pid) {
       + '</div>';
   }
 
-  // ── Variant picker ──
-  if (_rqVariantPickers[pid] && match && typeof match === 'object' && match.isParent) {
-    var picker = _rqVariantPickers[pid];
-    var variants = match.variants || [];
-    var table = _rqBuildVariantTable(variants);
-    var body = table
-      ? _rqVariantTableHtml(safePid, table, picker.qtyByVariantId)
-      : _rqVariantFlatHtml(safePid, variants, picker.qtyByVariantId);
-    return '<div class="rq-variant-picker">'
-      + '<div class="rq-variant-label">Choose size(s) for <strong>' + (match.name||'').replace(/</g,'&lt;') + '</strong></div>'
-      + body
-      + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
-      + '<button class="rq-variant-done" onclick="rqConfirmVariants(\'' + safePid + '\')">Done</button>'
-      + '<button class="rq-setup-cancel-btn" onclick="rqCloseVariantPicker(\'' + safePid + '\')">Skip</button>'
-      + '</div>'
-      + '</div>';
-  }
-
   // ── Loading / no match ──
   if (!match || match === '_loading_') {
     return '<div class="rq-match-loading"><span class="rq-match-spinner"></span>finding Square item…</div>';
@@ -954,35 +927,22 @@ function _rqMatchRowInner(pid) {
 
   var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // ── Parent item with a groupable table: sizes are edited in the always-
-  // visible inline table (see _rqInlineVariantTableHtml), not here ──
-  if (match.isParent && _rqBuildVariantTable(match.variants)) {
-    return '<div class="rq-match-found">'
+  // ── Parent item: sizes/variations are always editable directly here —
+  // no extra "Pick sizes" click needed once you're already in edit mode ──
+  if (match.isParent) {
+    var variants = match.variants || [];
+    var qtyByVariantId = {};
+    (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
+    var table = _rqBuildVariantTable(variants);
+    var body = table
+      ? _rqVariantTableHtml(safePid, table, qtyByVariantId, 'rqSetInlineVariantQty')
+      : _rqVariantFlatHtml(safePid, variants, qtyByVariantId);
+    return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
-      + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ item</button>'
-      + '</div>';
-  }
-
-  // ── Parent item: variants not yet chosen ──
-  if (match.isParent && (!match.selectedVariants || !match.selectedVariants.length)) {
-    return '<div class="rq-match-found">'
-      + '<span class="rq-match-check">✓</span>'
-      + '<span class="rq-match-name">' + safeName + '</span>'
-      + '<button class="rq-match-change" onclick="rqOpenVariantPicker(\'' + safePid + '\')">Pick sizes ▾</button>'
-      + '</div>';
-  }
-
-  // ── Parent item: variants chosen ──
-  if (match.isParent && match.selectedVariants && match.selectedVariants.length) {
-    var variantLabel = match.selectedVariants.map(_rqVariantLabel).join(', ');
-    var safeVLabel = variantLabel.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return '<div class="rq-match-found">'
-      + '<span class="rq-match-check">✓</span>'
-      + '<span class="rq-match-name">' + safeName + ' · ' + safeVLabel + '</span>'
-      + '<button class="rq-match-change" onclick="rqOpenVariantPicker(\'' + safePid + '\')">✎ sizes</button>'
-      + '<button class="rq-match-change" style="margin-left:2px;" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ item</button>'
-      + '</div>';
+      + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change item</button>'
+      + '</div>'
+      + body;
   }
 
   // ── Single-variation item ──
@@ -991,6 +951,70 @@ function _rqMatchRowInner(pid) {
     + '<span class="rq-match-name">' + safeName + '</span>'
     + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change</button>'
     + '</div>';
+}
+
+// ── Tap-to-expand bar ────────────────────────────────────────────────────────
+// The whole bar is clickable; clicks on its real controls (timer button,
+// assignee dropdown, delete x, or anything inside the expanded panel) must
+// not also toggle the expand state, hence the closest() bail-out below.
+function rqRowClick(event, pid) {
+  if (!pid) return;
+  var t = event.target;
+  if (t.closest('button, select, input, textarea, a')) return;
+  _rqExpanded[pid] = !_rqExpanded[pid];
+  if (!_rqExpanded[pid]) delete _rqEditMode[pid];
+  restockQueueRender();
+}
+
+function rqEnterEditMode(pid) {
+  _rqEditMode[pid] = true;
+  restockQueueRender();
+}
+
+function rqExitEditMode(pid) {
+  delete _rqEditMode[pid];
+  delete _rqMatchEdits[pid];
+  restockQueueRender();
+}
+
+function rqSaveTitleInput(el, idx) {
+  var newText = el.value.trim();
+  var item = _rqSortedItems()[idx];
+  if (!item || !item.notionPageId) return;
+  if (!newText) { el.value = item.text; return; }
+  if (newText === _rqShortName(item.text) || newText === item.text) return;
+  var pid = item.notionPageId;
+  delete _rqAutoMatches[pid];
+  _rqAmSave();
+  item.text = newText;
+  renderNotesList('restock', itemsFor('restock'));
+  _rqPatch(pid, { text: newText });
+  setTimeout(function() { _rqAutoMatchSingle(pid, newText); }, 150);
+}
+
+// Clean, no-buttons breakdown for the collapsed-but-expanded read view —
+// meant to be glanced at quickly (e.g. by an assistant checking counts)
+// without accidentally triggering an edit control.
+function _rqReadSummaryHtml(match) {
+  if (!match || match === '_loading_') {
+    return '<div class="rq-read-status"><span class="rq-match-spinner"></span>finding Square item…</div>';
+  }
+  if (match === '_none_') {
+    return '<div class="rq-read-status">No Square match yet</div>';
+  }
+  if (!match.isParent) {
+    var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="rq-read-status">✓ ' + safeName + '</div>';
+  }
+  var sel = match.selectedVariants || [];
+  if (!sel.length) {
+    return '<div class="rq-read-status">No sizes set yet</div>';
+  }
+  var rows = sel.map(function(v) {
+    var name = (v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span></div>';
+  }).join('');
+  return '<div class="rq-read-list">' + rows + '</div>';
 }
 
 function _rqAutoMatchSingle(pid, rawText) {
@@ -1156,7 +1180,8 @@ function rqMatchEditSelectId(pid, itemId) {
   delete _rqMatchEdits[pid];
   if (item.isParent) item = Object.assign({}, item, { selectedVariants: [] });
   _rqAmSet(pid, item);
-  if (item.isParent) rqOpenVariantPicker(pid);
+  // No extra "pick sizes" step needed — _rqMatchRowInner now always renders
+  // the size/quantity table directly for parent items.
 }
 
 function rqMatchEditCustom(pid, name) {
@@ -1164,41 +1189,6 @@ function rqMatchEditCustom(pid, name) {
   if (e && e.debounceTimer) clearTimeout(e.debounceTimer);
   delete _rqMatchEdits[pid];
   _rqAmSet(pid, { id: 'custom-' + Date.now(), name: name, category: 'Custom', isParent: false, sku: '', isCustom: true });
-}
-
-// ── Variant picker ────────────────────────────────────────────────────────────
-
-function rqOpenVariantPicker(pid) {
-  var match = _rqAutoMatches[pid];
-  if (!match || typeof match !== 'object' || !match.isParent) return;
-  var qtyByVariantId = {};
-  (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || 1; });
-  _rqVariantPickers[pid] = { qtyByVariantId: qtyByVariantId };
-  _rqUpdateMatchRow(pid);
-}
-
-function rqCloseVariantPicker(pid) {
-  delete _rqVariantPickers[pid];
-  _rqUpdateMatchRow(pid);
-}
-
-function rqSetVariantQty(pid, variantId, value) {
-  var picker = _rqVariantPickers[pid]; if (!picker) return;
-  var qty = parseInt(value, 10) || 0;
-  if (qty > 0) picker.qtyByVariantId[variantId] = qty;
-  else delete picker.qtyByVariantId[variantId];
-  _rqUpdateMatchRow(pid);
-}
-
-function rqConfirmVariants(pid) {
-  var picker = _rqVariantPickers[pid]; if (!picker) return;
-  var match = _rqAutoMatches[pid];
-  if (!match || typeof match !== 'object') return;
-  var selectedVariants = (match.variants || [])
-    .filter(function(v) { return picker.qtyByVariantId[v.id] > 0; })
-    .map(function(v) { return Object.assign({}, v, { qty: picker.qtyByVariantId[v.id] }); });
-  delete _rqVariantPickers[pid];
-  _rqAmSet(pid, Object.assign({}, match, { selectedVariants: selectedVariants }));
 }
 
 // ── Sorted items ──────────────────────────────────────────────────────────────
@@ -1342,10 +1332,13 @@ function restockQueueRender() {
     var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
     var match = pid ? _rqAutoMatches[pid] : null;
-    var inlineTable = (pid && !isRunning && !isSetup && match && typeof match === 'object' && match.isParent)
-      ? _rqInlineVariantTableHtml(safePid, match) : '';
+    var canExpand = pid && !isRunning && !isSetup;
+    var expanded  = canExpand && !!_rqExpanded[pid];
+    var editing   = expanded && !!_rqEditMode[pid];
+    var safeTextAttr = shortText.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    var mainRow = '<div class="rq-item-row' + (inlineTable ? ' rq-item-row-wrap' : '') + '">'
+    var mainRow = '<div class="rq-item-row' + (canExpand ? ' rq-item-row-clickable' : '') + '"'
+      + (canExpand ? ' onclick="rqRowClick(event,\'' + safePid + '\')"' : '') + '>'
       + (isRunning || isSetup ? '' :
           '<span class="rq-arrows">'
           + (!assignee ? '<button class="rq-arrow" onclick="rqMoveToTop(' + idx + ')" ' + (isFirstUnassigned ? 'disabled' : '') + ' title="Move to top">⇈</button>' : '')
@@ -1354,11 +1347,8 @@ function restockQueueRender() {
           + '</span>'
         )
       + '<span class="rq-rank">' + (idx + 1) + '</span>'
-      + '<span class="rq-text' + textCls + '" contenteditable="true" spellcheck="false"'
-      + ' onblur="rqSaveText(this,' + idx + ')"'
-      + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-      + '>' + safeText + '</span>'
-      + inlineTable
+      + (canExpand ? '<span class="rq-expand-caret">' + (expanded ? '▾' : '▸') + '</span>' : '')
+      + '<span class="rq-text' + textCls + '">' + safeText + '</span>'
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
@@ -1369,10 +1359,22 @@ function restockQueueRender() {
       + '</div>';
 
     var matchRow = '';
-    if (pid && !isRunning && !isSetup) {
-      matchRow = '<div class="rq-match-row" id="rq-match-row-' + safePid + '">'
-        + _rqMatchRowInner(pid)
-        + '</div>';
+    if (expanded) {
+      if (editing) {
+        matchRow = '<div class="rq-expand-panel">'
+          + '<div class="rq-edit-title-row">'
+          + '<input type="text" class="rq-edit-title-input" value="' + safeTextAttr + '"'
+          + ' onchange="rqSaveTitleInput(this,' + idx + ')" onkeydown="if(event.key===\'Enter\')this.blur()">'
+          + '</div>'
+          + '<div class="rq-match-row" id="rq-match-row-' + safePid + '">' + _rqMatchRowInner(pid) + '</div>'
+          + '<button class="rq-edit-done-btn" onclick="rqExitEditMode(\'' + safePid + '\')">✓ Done editing</button>'
+          + '</div>';
+      } else {
+        matchRow = '<div class="rq-expand-panel">'
+          + _rqReadSummaryHtml(match)
+          + '<button class="rq-edit-btn" onclick="rqEnterEditMode(\'' + safePid + '\')">✎ Edit</button>'
+          + '</div>';
+      }
     }
 
     var timerPanel = '';
@@ -2837,10 +2839,14 @@ function rqAddItem() {
       temp._saving = false;
       if (pendingMatch) {
         _rqAmSet(res.data.notionPageId, pendingMatch);
-        restockQueueRender();
         if (pendingMatch.isParent) {
-          setTimeout(function() { rqOpenVariantPicker(res.data.notionPageId); }, 50);
+          // Expand straight into edit mode so the new item's size table is
+          // immediately visible and ready to fill in, instead of a separate
+          // "pick sizes" popup step.
+          _rqExpanded[res.data.notionPageId] = true;
+          _rqEditMode[res.data.notionPageId] = true;
         }
+        restockQueueRender();
       } else {
         restockQueueRender();
       }
@@ -2972,7 +2978,8 @@ function rqDeleteItem(idx) {
     var me = _rqMatchEdits[pid];
     if (me && me.debounceTimer) clearTimeout(me.debounceTimer);
     delete _rqMatchEdits[pid];
-    delete _rqVariantPickers[pid];
+    delete _rqExpanded[pid];
+    delete _rqEditMode[pid];
     delete _rqAutoMatches[pid];
     _rqAmSave();
   }
@@ -2990,18 +2997,3 @@ function rqDeleteItem(idx) {
     });
 }
 
-function rqSaveText(el, idx) {
-  var newText = el.textContent.trim();
-  if (!newText) { el.textContent = ''; return; }
-  var item = _rqSortedItems()[idx];
-  if (!item || !item.notionPageId) return;
-  if (newText === _rqShortName(item.text) || newText === item.text) return;
-  var pid = item.notionPageId;
-  // Clear cached match since text changed, re-trigger after save
-  delete _rqAutoMatches[pid];
-  _rqAmSave();
-  item.text = newText;
-  renderNotesList('restock', itemsFor('restock'));
-  _rqPatch(pid, { text: newText });
-  setTimeout(function() { _rqAutoMatchSingle(pid, newText); }, 150);
-}
