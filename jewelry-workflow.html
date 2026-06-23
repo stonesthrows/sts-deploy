@@ -487,8 +487,12 @@
       font-size: 9px;
       font-weight: 700;
     }
-    .k-sub-wrap .k-body  { border-radius: 0; min-height: 60px; }
+    .k-sub-wrap .k-body  { border-radius: 0; min-height: 60px; transition: min-height 0.15s ease; }
     .k-sub-wrap:last-child .k-body { border-radius: 0 0 8px 8px; }
+
+    /* Auto-compact: empty sub-cards shrink to a thin header-only row, still droppable */
+    .k-sub-wrap.k-sub-empty .k-body { min-height: 8px; padding-top: 0; padding-bottom: 0; }
+    .k-sub-wrap.k-sub-empty .k-body .k-empty { display: none; }
 
     /* Sub-section stage colors — Intake group */
     .k-sub-wrap.s-intake-custom .k-sub-head { background:#E8EFFE; color:#3A5FCC; }
@@ -3558,6 +3562,8 @@
   @media (max-width: 768px) {
     .kanban-board {
       scroll-snap-type: x mandatory;
+      scroll-snap-stop: always;
+      overscroll-behavior-x: contain;
       gap: 0;
     }
     .k-col {
@@ -3565,12 +3571,15 @@
       width: 100%;
       min-width: 100%;
       scroll-snap-align: start;
+      scroll-snap-stop: always;
     }
     .o-card { cursor: pointer; }
     .card-move-btn { display: flex; }
 
     .prod-board {
       scroll-snap-type: x mandatory;
+      scroll-snap-stop: always;
+      overscroll-behavior-x: contain;
       gap: 0;
     }
     .prod-col {
@@ -3578,6 +3587,7 @@
       width: 100%;
       min-width: 100%;
       scroll-snap-align: start;
+      scroll-snap-stop: always;
     }
     .prod-move-btn { display: flex; }
 

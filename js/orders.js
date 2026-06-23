@@ -63,7 +63,7 @@ function renderKanban() {
         const locCards = pickupCards.filter(o => o.pickup === loc);
         const stageId  = group.stages[0].id;
         return `
-          <div class="k-sub-wrap s-pickup-sub">
+          <div class="k-sub-wrap s-pickup-sub${locCards.length ? '' : ' k-sub-empty'}">
             <div class="k-sub-head">📍 ${loc}<span class="k-sub-count">${locCards.length}</span></div>
             <div class="k-body"
                  data-stage-id="${stageId}"
@@ -97,7 +97,7 @@ function renderKanban() {
           (showCompleted || !completedHidden.has(o.id))
         );
         return `
-          <div class="k-sub-wrap ${stage.cls}">
+          <div class="k-sub-wrap ${stage.cls}${stageCards.length ? '' : ' k-sub-empty'}">
             <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
             <div class="k-body"
                  data-stage-id="${stage.id}"
@@ -121,7 +121,7 @@ function renderKanban() {
       const subsHTML = group.stages.map(stage => {
         const stageCards = allCards.filter(o => o.stage === stage.id);
         return `
-          <div class="k-sub-wrap ${stage.cls}">
+          <div class="k-sub-wrap ${stage.cls}${stageCards.length ? '' : ' k-sub-empty'}">
             <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
             <div class="k-body"
                  data-stage-id="${stage.id}"
