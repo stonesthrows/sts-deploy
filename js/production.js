@@ -67,7 +67,13 @@ function prodDragLeave(ev) {
   ev.currentTarget.classList.remove('prod-drag-over');
 }
 
-function prodApplyMove(o, colKey) {
+function prodDrop(ev, colKey) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('prod-drag-over');
+  if (!prodDraggedId) return;
+  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  if (!o) { prodDraggedId = null; return; }
+
   // Determine new stage and pickup from the target column
   if (colKey === '__ship__') {
     o.stage  = 'ready-pick';
@@ -90,47 +96,9 @@ function prodApplyMove(o, colKey) {
 
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, o.stage);
+  prodDraggedId = null;
   renderProduction();
   toast(o.name + ' moved to ' + (colKey === '__ship__' ? 'To be Shipped' : colKey === '__limbo__' ? 'In Limbo' : colKey), '📍');
-}
-
-function prodDrop(ev, colKey) {
-  ev.preventDefault();
-  ev.currentTarget.classList.remove('prod-drag-over');
-  if (!prodDraggedId) return;
-  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
-  if (!o) { prodDraggedId = null; return; }
-  prodApplyMove(o, colKey);
-  prodDraggedId = null;
-}
-
-// ── Tap-to-move sheet (mobile/iPad — drag-and-drop doesn't fire on touch) ──
-var prodStageSheetOrderId = null;
-
-function openProdStageSheet(id) {
-  var o = ORDERS.find(function(x){ return x.id === id; });
-  if (!o) return;
-  prodStageSheetOrderId = id;
-  var curCol = prodGetColumn(o);
-
-  document.getElementById('stageSheetTitle').textContent = 'Move "' + o.name + '"';
-  var body = document.getElementById('stageSheetBody');
-  body.innerHTML = PROD_COLUMNS.map(function(col) {
-    return '<button class="ss-option ' + (curCol === col.key ? 'ss-current' : '') + '"'
-         + ' onclick="pickProdDestFromSheet(\'' + col.key + '\')">'
-         + '<span>' + col.icon + ' ' + col.label + '</span>'
-         + '<span class="ss-check">✓</span>'
-         + '</button>';
-  }).join('');
-
-  document.getElementById('stageSheetOverlay').classList.add('active');
-  document.getElementById('stageSheet').classList.add('active');
-}
-
-function pickProdDestFromSheet(colKey) {
-  var o = ORDERS.find(function(x){ return x.id === prodStageSheetOrderId; });
-  if (o) prodApplyMove(o, colKey);
-  closeStageSheet();
 }
 
 // ── Render ────────────────────────────────────────────────────
@@ -166,7 +134,6 @@ function renderProduction() {
           + '<span class="prod-col-count" style="background:' + col.color + '">' + colOrders.length + '</span>'
           + '</div>';
     html += '<div class="prod-col-body"'
-          + ' data-col-key="' + col.key + '"'
           + ' ondragover="prodDragOver(event)"'
           + ' ondragleave="prodDragLeave(event)"'
           + ' ondrop="prodDrop(event,\'' + col.key + '\')">';
@@ -320,17 +287,9 @@ function prodOrderCardHTML(o, showDeliverBtn) {
            + ' draggable="true"'
            + ' ondragstart="prodDragStart(event,\'' + o.id + '\')"'
            + ' ondragend="prodDragEnd(event)"'
-           + (showDeliverBtn ? ' onpointerdown="cardPointerDown(event,\'' + o.id + '\',\'prod\')"' : '')
            + ' onclick="openOrderCard(\'' + o.id + '\')">';
   html += '<div class="prod-card-drag-handle" title="Drag to move">⠿</div>';
-  if (showDeliverBtn) {
-    html += '<button class="prod-move-btn" title="Move to another location"'
-          + ' onclick="event.stopPropagation();openProdStageSheet(\'' + o.id + '\')">↪</button>';
-  }
-  var nameHtml = showDeliverBtn
-    ? o.name
-    : '<span class="prod-cust-link" onclick="event.stopPropagation();prodOpenCustomer(\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')" title="View all orders for this customer">' + o.name + '</span>';
-  html += '<div class="prod-order-name">' + nameHtml + '</div>';
+  html += '<div class="prod-order-name">' + o.name + '</div>';
   html += '<div class="prod-order-desc">' + o.desc + '</div>';
   html += '<div class="prod-order-foot">';
   html += '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>';
@@ -347,43 +306,9 @@ function prodOrderCardHTML(o, showDeliverBtn) {
   }
   if (o.pdfUrl) {
     html += '<a class="prod-pdf-btn" href="' + o.pdfUrl + '" target="_blank" onclick="event.stopPropagation()">📄 View PDF</a>';
-    if (!showDeliverBtn) {
-      var cachedOcr = prodOcrCache(o.id);
-      html += '<button class="prod-scan-btn" id="prod-scan-btn-' + o.id + '"'
-            + ' onclick="event.stopPropagation();prodScanPdf(\'' + o.id + '\',\'' + o.pdfUrl.replace(/'/g,"\\'") + '\')">'
-            + (cachedOcr ? '🔍 Re-scan PDF' : '🔍 Scan PDF') + '</button>';
-      var saveBtn = '<button class="prod-ocr-save-btn" onclick="event.stopPropagation();prodSaveToCustomerOpen(\'' + o.id + '\',\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">📋 Save to Customer</button>';
-      if (cachedOcr) {
-        html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '">'
-              + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
-              + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
-              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none">'
-              + prodEsc(cachedOcr) + '</div>'
-              + '<div style="padding:6px 8px 8px">' + saveBtn + '</div>'
-              + '</div>';
-      } else {
-        html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '" style="display:none">'
-              + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
-              + '📝 Extracted Text <span id="prod-ocr-chev-' + o.id + '">▾</span></div>'
-              + '<div class="prod-ocr-body" id="prod-ocr-body-' + o.id + '" style="display:none"></div>'
-              + '<div style="padding:6px 8px 8px" id="prod-ocr-save-wrap-' + o.id + '" style="display:none">' + saveBtn + '</div>'
-              + '</div>';
-      }
-    }
   }
   if (showDeliverBtn && o.stage !== 'cancelled') {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
-  }
-  if (!showDeliverBtn) {
-    var safeName  = (o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html += '<div class="prod-archive-actions">'
-          + '<button class="prod-archive-btn prod-archive-btn-order"'
-          + ' onclick="event.stopPropagation();prodArchiveAction(\'' + safeName + '\',\'order\')">'
-          + '＋ New Order</button>'
-          + '<button class="prod-archive-btn prod-archive-btn-repair"'
-          + ' onclick="event.stopPropagation();prodArchiveAction(\'' + safeName + '\',\'repair\')">'
-          + '🔧 Repair</button>'
-          + '</div>';
   }
   html += '</div>';
   return html;
@@ -404,121 +329,6 @@ function prodToggleMonth(key) {
   renderProduction();
 }
 
-// ── Archive action confirmation modal ────────────────────────
-
-var _prodActionType = 'order';
-
-function prodArchiveAction(name, type) {
-  _prodActionType = type;
-  var title = type === 'repair' ? '🔧 New Repair Job' : '＋ New Order';
-  var titleEl = document.getElementById('prodActionModalTitle');
-  if (titleEl) titleEl.textContent = title;
-
-  var input = document.getElementById('prodActionName');
-  if (input) { input.value = name; }
-
-  // Show match note if customer is already on file
-  prodActionNameInput(name);
-
-  var bg = document.getElementById('prodActionModalBg');
-  if (bg) { bg.classList.add('open'); setTimeout(function(){ if(input) input.focus(); }, 50); }
-}
-
-function prodActionNameInput(val) {
-  var note    = document.getElementById('prodActionMatchNote');
-  var suggest = document.getElementById('prodActionSuggest');
-  if (!note || !suggest) return;
-
-  var q = (val || '').trim().toLowerCase();
-  if (!q) { note.textContent = ''; suggest.style.display = 'none'; return; }
-
-  // Exact / fuzzy match against CUSTOMERS
-  var matches = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : []).filter(function(c) {
-    return c.name.toLowerCase().indexOf(q) >= 0;
-  }).slice(0, 6);
-
-  var exact = matches.find(function(c){ return c.name.toLowerCase() === q; });
-  if (exact) {
-    note.textContent = '✓ Matches existing customer — will link to their record.';
-    note.style.color = '#2a7a4a';
-  } else if (matches.length) {
-    note.textContent = 'No exact match — choose below or continue as typed.';
-    note.style.color = '#8A5A10';
-  } else {
-    note.textContent = 'No existing customer found — a new record will be created.';
-    note.style.color = '#6A8898';
-  }
-
-  if (matches.length && !exact) {
-    suggest.innerHTML = matches.map(function(c) {
-      var esc = (c.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      var safe = (c.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #eee;"'
-           + ' onmouseover="this.style.background=\'#F4F0E8\'"'
-           + ' onmouseout="this.style.background=\'\'"'
-           + ' onclick="prodActionSelectCustomer(\'' + safe + '\')">'
-           + esc + '</div>';
-    }).join('');
-    suggest.style.display = 'block';
-  } else {
-    suggest.style.display = 'none';
-  }
-}
-
-function prodActionSelectCustomer(name) {
-  var input = document.getElementById('prodActionName');
-  if (input) input.value = name;
-  document.getElementById('prodActionSuggest').style.display = 'none';
-  prodActionNameInput(name);
-}
-
-function prodActionConfirm() {
-  var input = document.getElementById('prodActionName');
-  var name  = input ? input.value.trim() : '';
-  if (!name) { if (input) input.focus(); return; }
-
-  // Find email from CUSTOMERS if available
-  var cust  = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : [])
-              .find(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
-  var email = cust ? (cust.email || '') : '';
-
-  prodActionModalClose();
-  if (typeof prefillFromCustomer === 'function') prefillFromCustomer(name, email, _prodActionType);
-}
-
-function prodActionModalClose() {
-  var bg = document.getElementById('prodActionModalBg');
-  if (bg) bg.classList.remove('open');
-  var suggest = document.getElementById('prodActionSuggest');
-  if (suggest) suggest.style.display = 'none';
-}
-
-// ── Click customer name → jump to Customers tab and expand row ─
-
-function prodOpenCustomer(name) {
-  if (typeof CUSTOMERS === 'undefined') return;
-  var idx = CUSTOMERS.findIndex(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
-  if (idx < 0) { toast('No customer record found for ' + name, '👥'); return; }
-
-  // Switch to the customers sub-tab
-  var parentEl = document.querySelector('[data-parent="custom-orders"]');
-  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
-  var subEl = document.querySelector('.sub-nav-tab[data-tab="customers"]');
-  if (typeof switchSubTab === 'function') switchSubTab('customers', subEl);
-
-  // Switch sub-tab filter to "all" so the customer is visible
-  if (typeof switchCustTab === 'function') switchCustTab('all', document.querySelector('.cst-tab[data-cst="all"]'));
-
-  // Expand the matching row and scroll to it
-  setTimeout(function() {
-    if (typeof toggleCustomerRow === 'function') {
-      var wrap = document.getElementById('ct-wrap-' + idx);
-      if (wrap && !wrap.classList.contains('ct-open')) toggleCustomerRow(idx);
-      if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, 80);
-}
-
 function prodMarkDelivered(id) {
   var o = ORDERS.find(function(x){ return x.id === id; });
   if (!o) return;
@@ -530,275 +340,6 @@ function prodMarkDelivered(id) {
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
   renderProduction();
   toast(o.name + ' marked as delivered ✓', '✓');
-}
-
-// ════════════════════════════════════════════
-//  PDF OCR  —  via Cloud Vision API
-// ════════════════════════════════════════════
-
-var OCR_CACHE_KEY = 'sts-ocr-cache-v1';
-
-function prodOcrCache(orderId, setText) {
-  try {
-    var cache = JSON.parse(localStorage.getItem(OCR_CACHE_KEY) || '{}');
-    if (setText !== undefined) {
-      cache[orderId] = setText;
-      localStorage.setItem(OCR_CACHE_KEY, JSON.stringify(cache));
-      return setText;
-    }
-    return cache[orderId] || null;
-  } catch(e) { return null; }
-}
-
-function prodEsc(s) {
-  return String(s || '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// Extract Google Drive file ID from a Drive URL
-function prodDriveFileId(url) {
-  var m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
-  return m ? m[1] : null;
-}
-
-function prodToggleOcr(orderId) {
-  var body = document.getElementById('prod-ocr-body-' + orderId);
-  var chev = document.getElementById('prod-ocr-chev-' + orderId);
-  if (!body) return;
-  var open = body.style.display === 'none';
-  body.style.display = open ? '' : 'none';
-  if (chev) chev.textContent = open ? '▴' : '▾';
-}
-
-async function prodScanPdf(orderId, pdfUrl) {
-  // Check Gmail/Drive auth token
-  if (typeof _gmailAccessToken === 'undefined' || !_gmailAccessToken ||
-      (typeof _gmailTokenValid === 'function' && !_gmailTokenValid())) {
-    toast('Connect Gmail first to enable Drive access for PDF scanning', '🔑');
-    if (typeof gmailSignIn === 'function') gmailSignIn(true);
-    return;
-  }
-
-  var fileId = prodDriveFileId(pdfUrl);
-  if (!fileId) { toast('Could not parse Google Drive file ID from URL', '⚠️'); return; }
-
-  // Update button to loading state
-  var btn = document.getElementById('prod-scan-btn-' + orderId);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Scanning…'; }
-
-  try {
-    var resp = await fetch('/api/pdf-ocr', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ fileId: fileId, accessToken: _gmailAccessToken }),
-    });
-
-    var data = await resp.json();
-
-    if (!resp.ok || data.error) {
-      throw new Error(data.error || 'OCR request failed');
-    }
-
-    var text = data.text || '(no text found)';
-
-    // Cache result
-    prodOcrCache(orderId, text);
-
-    // Show panel
-    var panel = document.getElementById('prod-ocr-panel-' + orderId);
-    var body  = document.getElementById('prod-ocr-body-' + orderId);
-    var chev  = document.getElementById('prod-ocr-chev-' + orderId);
-    if (panel) panel.style.display = '';
-    if (body)  { body.textContent = text; body.style.display = ''; }
-    if (chev)  chev.textContent = '▴';
-
-    // Show the save-to-customer button (only present when panel was hidden before scan)
-    var saveWrap = document.getElementById('prod-ocr-save-wrap-' + orderId);
-    if (saveWrap) saveWrap.style.display = '';
-
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Re-scan PDF'; }
-    toast('PDF scanned — ' + (data.pageCount || 1) + ' page' + (data.pageCount !== 1 ? 's' : ''), '📝');
-
-  } catch(e) {
-    var panel = document.getElementById('prod-ocr-panel-' + orderId);
-    if (panel) {
-      panel.style.display = '';
-      panel.innerHTML = '<div class="prod-ocr-error">⚠️ ' + prodEsc(e.message) + '</div>';
-    }
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan PDF'; }
-    toast('OCR failed: ' + e.message, '⚠️');
-  }
-}
-
-// ── Save OCR text to Customer record ────────────────────────
-
-function prodFixCaps(s) {
-  if (!s) return s;
-  // If the string is entirely uppercase letters/spaces/punctuation, convert to Title Case
-  if (s === s.toUpperCase() && /[A-Z]/.test(s)) {
-    return s.replace(/\w\S*/g, function(w) {
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    });
-  }
-  return s;
-}
-
-function prodParseOcrText(text) {
-  var result = { name: '', email: '', phone: '', address: '', jobDesc: '', notes: '' };
-  if (!text) return result;
-
-  var nameM   = text.match(/\bname[:\s]+([^\n\r]+)/i);
-  var emailM  = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-  var phoneM  = text.match(/(?:phone|tel|cell|ph)[:\s]*([+\d()\-.\s]{7,20})/i)
-             || text.match(/\b(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})\b/);
-  var addrM   = text.match(/(?:address|addr)[:\s]+([^\n\r]+)/i);
-
-  // Job description: look for labelled line, then fall back to "description" label
-  var jobM    = text.match(/(?:job\s*desc(?:ription)?|work\s*desc(?:ription)?|service|repair\s*desc(?:ription)?)[:\s]+([^\n\r]+)/i)
-             || text.match(/\bdescription[:\s]+([^\n\r]+)/i);
-
-  // Notes: any line after a "notes" / "special instructions" / "instructions" label
-  var notesM  = text.match(/(?:notes?|special\s+instructions?|instructions?|comments?)[:\s]+([^\n\r]+)/i);
-
-  if (nameM)  result.name    = prodFixCaps(nameM[1].trim());
-  if (emailM) result.email   = emailM[0].trim();
-  if (phoneM) result.phone   = (phoneM[1] || phoneM[0]).trim();
-  if (addrM)  result.address = prodFixCaps(addrM[1].trim());
-  if (jobM)   result.jobDesc = prodFixCaps(jobM[1].trim());
-  if (notesM) result.notes   = prodFixCaps(notesM[1].trim());
-  return result;
-}
-
-var _prodSaveOrderId   = null;
-var _prodSaveOrderName = null;
-
-function prodSaveToCustomerOpen(orderId, orderName) {
-  var text = prodOcrCache(orderId);
-  if (!text) { toast('No scanned text found — scan the PDF first', '⚠️'); return; }
-
-  _prodSaveOrderId   = orderId;
-  _prodSaveOrderName = orderName;
-
-  var parsed = prodParseOcrText(text);
-
-  // Find matching customer by order name to pre-fill name field
-  var custName = parsed.name || orderName || '';
-  if (!parsed.name && orderName) {
-    var match = (typeof CUSTOMERS !== 'undefined' ? CUSTOMERS : [])
-      .find(function(c){ return c.name.toLowerCase() === orderName.toLowerCase(); });
-    if (match) {
-      custName       = match.name;
-      parsed.email   = parsed.email   || match.email   || '';
-      parsed.phone   = parsed.phone   || match.phone   || '';
-      parsed.address = parsed.address || match.address || '';
-    }
-  }
-
-  var f = {
-    name:    document.getElementById('prodSaveName'),
-    email:   document.getElementById('prodSaveEmail'),
-    phone:   document.getElementById('prodSavePhone'),
-    address: document.getElementById('prodSaveAddress'),
-    jobDesc: document.getElementById('prodSaveJobDesc'),
-    notes:   document.getElementById('prodSaveNotes'),
-  };
-  if (f.name)    f.name.value    = custName;
-  if (f.email)   f.email.value   = parsed.email;
-  if (f.phone)   f.phone.value   = parsed.phone;
-  if (f.address) f.address.value = parsed.address;
-  if (f.jobDesc) f.jobDesc.value = parsed.jobDesc;
-  if (f.notes)   f.notes.value   = parsed.notes;
-
-  var bg = document.getElementById('prodSaveCustomerBg');
-  if (bg) bg.classList.add('open');
-  setTimeout(prodValidateSaveFields, 0);
-}
-
-function prodValidateSaveFields() {
-  var email = (document.getElementById('prodSaveEmail') || {}).value || '';
-  var phone = (document.getElementById('prodSavePhone') || {}).value || '';
-  var eWarn = document.getElementById('prodSaveEmailWarn');
-  var pWarn = document.getElementById('prodSavePhoneWarn');
-
-  if (eWarn) {
-    var emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-    eWarn.textContent = emailOk ? '' : '⚠️ Doesn\'t look like a valid email address';
-  }
-  if (pWarn) {
-    var digits = phone.replace(/\D/g, '');
-    var phoneOk = !phone || digits.length === 10 || digits.length === 11;
-    pWarn.textContent = phoneOk ? '' : '⚠️ Phone has ' + digits.length + ' digits — expected 10 or 11';
-  }
-}
-
-function prodSaveToCustomerClose() {
-  var bg = document.getElementById('prodSaveCustomerBg');
-  if (bg) bg.classList.remove('open');
-}
-
-function prodSaveToCustomerConfirm() {
-  var name    = (document.getElementById('prodSaveName')    || {}).value || '';
-  var email   = (document.getElementById('prodSaveEmail')   || {}).value || '';
-  var phone   = (document.getElementById('prodSavePhone')   || {}).value || '';
-  var address = (document.getElementById('prodSaveAddress') || {}).value || '';
-  var jobDesc = (document.getElementById('prodSaveJobDesc') || {}).value || '';
-  var notes   = (document.getElementById('prodSaveNotes')   || {}).value || '';
-
-  name = name.trim();
-  if (!name) { toast('Name is required', '⚠️'); return; }
-
-  // Combine job description and notes into the customer notes field
-  var combinedNotes = [jobDesc.trim() ? 'Job: ' + jobDesc.trim() : '', notes.trim()].filter(Boolean).join('\n');
-
-  var customers = (typeof CUSTOMERS !== 'undefined') ? CUSTOMERS : [];
-
-  // Find existing customer (case-insensitive)
-  var idx = customers.findIndex(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
-  var isNew = idx < 0;
-  var cust = isNew ? { id: 'c-' + Date.now(), name: name } : Object.assign({}, customers[idx]);
-
-  if (email)         cust.email   = email;
-  if (phone)         cust.phone   = phone;
-  if (address)       cust.address = address;
-  if (combinedNotes) cust.notes   = combinedNotes;
-
-  if (isNew) {
-    customers.push(cust);
-  } else {
-    customers[idx] = cust;
-  }
-
-  // Persist to localStorage cache and re-render customers tab immediately
-  if (typeof saveCustomersToCache === 'function') saveCustomersToCache();
-  if (typeof renderCustomers      === 'function') renderCustomers();
-
-  // Also update the order record with the parsed desc and notes
-  var order = (typeof ORDERS !== 'undefined') ? ORDERS.find(function(o){ return o.id === _prodSaveOrderId; }) : null;
-  if (order) {
-    if (jobDesc.trim()) order.desc  = jobDesc.trim();
-    if (notes.trim())   order.notes = notes.trim();
-    // Update contact info on order too
-    if (email)   order.email = email;
-    if (phone)   order.phone = phone;
-    if (typeof saveToStorage === 'function') saveToStorage();
-
-    // Patch Custom Orders pipeline in Notion
-    if (order.notionId) {
-      var patch = { notionId: order.notionId };
-      if (jobDesc.trim()) patch.desc  = jobDesc.trim();
-      if (notes.trim())   patch.notes = notes.trim();
-      if (email)          patch.email = email;
-      if (phone)          patch.phone = phone;
-      fetch('/api/notion-pipeline', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(patch),
-      }).catch(function(e){ console.warn('Pipeline patch error:', e); });
-    }
-  }
-
-  prodSaveToCustomerClose();
-  toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
 }
 
 // ============================================================
@@ -831,9 +372,6 @@ var CATALOG = [
   {id:'rg_683164B',sup:'rg',cat:'Chains',name:'Sterling Silver 2.5mm Dapped Flat Oval Cable Chain',desc:'By the foot'},
   {id:'rg_632370B',sup:'rg',cat:'Chains',name:'Sterling Silver 1.3mm Dapped Bar & Link Chain',desc:'By the foot'},
   {id:'rg_656431B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.65mm Cable Chain w/ Blue Enamel Beads',desc:'By the foot'},
-  {id:'rg_656437B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.65mm Cable Chain w/ Pink Enamel Beads',desc:'By the foot'},
-  {id:'rg_656434B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.65mm Cable Chain w/ Turquoise Enamel Beads',desc:'By the foot'},
-  {id:'rg_656436B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.65mm Cable Chain w/ White Enamel Beads',desc:'By the foot'},
   {id:'rg_617936B',sup:'rg',cat:'Chains',name:'Sterling Silver 1.9mm Oval Cable Chain',desc:'By the foot'},
   {id:'rg_924236',sup:'rg',cat:'Findings & Clasps',name:'14/20 Yellow Gold-Filled 1.6mm Round Jump Ring',desc:'22 ga, per pack'},
   {id:'rg_927039',sup:'rg',cat:'Findings & Clasps',name:'14/20 Yellow Gold-Filled 1.4mm Round Jump Ring',desc:'23 ga, per pack'},
@@ -862,7 +400,21 @@ var CATALOG = [
   {id:'st_24191',sup:'stuller',cat:'Gemstones',name:'Natural London Blue Topaz, 8x6mm Oval Faceted AA',desc:'Per stone'},
   {id:'st_104740',sup:'stuller',cat:'Gemstones',name:'Natural Mozambique Garnet, 5mm Round Faceted AA',desc:'Per stone'},
   {id:'st_342542',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Diamond, 3mm Round Full-Cut VS F+',desc:'Per stone'},
-  {id:'st_170890',sup:'stuller',cat:'Bench Tools & Supplies',name:'Radiant Glow™ Treated Polishing Cloths, 4x4"',desc:'Per pack (SKU: 17-0890)'}
+  {id:'st_170890',sup:'stuller',cat:'Bench Tools & Supplies',name:'Radiant Glow™ Treated Polishing Cloths, 4x4"',desc:'Per pack (SKU: 17-0890)'},
+  {id:'st_247246',sup:'stuller',cat:'Gemstones',name:'Natural Tanzanite, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_264580',sup:'stuller',cat:'Gemstones',name:'Natural Citrine, 2.5mm Round Faceted AAA',desc:'Per stone'},
+  {id:'st_12834',sup:'stuller',cat:'Gemstones',name:'Natural Pink Tourmaline, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_119641',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Blue Sapphire, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_243407',sup:'stuller',cat:'Gemstones',name:'Natural Arizona Peridot, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_66865',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Ruby, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_134220',sup:'stuller',cat:'Gemstones',name:'Natural Blue Sheen Moonstone, 2.5mm Round Faceted AAA',desc:'Per stone'},
+  {id:'st_76051',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Alexandrite, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_62509',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Emerald, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_777333',sup:'stuller',cat:'Gemstones',name:'Stuller Lab-Grown Moissanite™, 2.5mm Round Faceted DEF',desc:'Per stone'},
+  {id:'st_104286',sup:'stuller',cat:'Gemstones',name:'Natural White Sapphire, 2.5mm Round Diamond-Cut AA',desc:'Per stone'},
+  {id:'st_12826',sup:'stuller',cat:'Gemstones',name:'Natural Aquamarine, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_104734',sup:'stuller',cat:'Gemstones',name:'Natural Mozambique Garnet, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_216213',sup:'stuller',cat:'Gemstones',name:'Natural Amethyst, 2.5mm Round Faceted AA',desc:'Per stone'}
 ];
 
 var CATALOG_IDS = new Set(CATALOG.map(function(c){return c.id;}));
@@ -914,15 +466,6 @@ function sotEsc(s) {
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
-function sotGetUnit(desc) {
-  var d = (desc||'').toLowerCase();
-  if (d.indexOf('by the ozt') >= 0) return 'OZT';
-  if (d.indexOf('by the dwt') >= 0) return 'DWT';
-  if (d.indexOf('by the foot') >= 0) return 'ft';
-  if (d.indexOf('by the inch') >= 0) return 'in';
-  if (d.indexOf('per lb') >= 0) return 'lb';
-  return null;
-}
 function sotWeekRange() {
   var now = new Date();
   var day = now.getDay();
@@ -951,17 +494,7 @@ function sotLoad() {
            || localStorage.getItem('supplier_tracker_v5')
            || localStorage.getItem('supplier_tracker_v4')
            || localStorage.getItem('supplier_tracker_v3');
-    if (raw) {
-      var d = JSON.parse(raw); sotOrder = d.order || {};
-      Object.keys(sotOrder).forEach(function(id) {
-        if (typeof sotOrder[id] !== 'object' || sotOrder[id] === null) {
-          sotOrder[id] = {qty: Number(sotOrder[id]) || 1, amount: ''};
-        } else {
-          if (!('qty' in sotOrder[id])) sotOrder[id].qty = 1;
-          if (!('amount' in sotOrder[id])) sotOrder[id].amount = '';
-        }
-      });
-    }
+    if (raw) { var d = JSON.parse(raw); sotOrder = d.order || {}; }
     var rawC = localStorage.getItem('sot_custom_v1');
     if (rawC) {
       var dc = JSON.parse(rawC);
@@ -1208,27 +741,17 @@ function sotRenderOrder() {
       html += '<div class="sot-ord-cat-label">' + sotEsc(cat) + '</div>';
       catMap[cat].forEach(function(id){
         var it = sotGetItem(id); if (!it) return;
-        var entry = sotOrder[id];
-        if (typeof entry !== 'object' || entry === null) entry = {qty:Number(entry)||1, amount:''};
-        var qty = entry.qty || 1;
-        var unit = sotGetUnit(it.desc);
+        var qty = sotOrder[id] || 1;
         html += '<div class="sot-ord-item">';
         html += '<div class="sot-ord-item-info">';
         if (it.sku) html += '<div class="sot-ord-item-sku">' + sotEsc(it.sku) + '</div>';
         html += '<div class="sot-ord-item-name">' + sotEsc(it.name) + '</div>';
         html += '</div>';
-        if (unit) {
-          html += '<div class="sot-amt-wrap">';
-          html += '<input class="sot-amt-input" type="number" min="0" step="0.1" value="' + sotEsc(entry.amount||'') + '" placeholder="0" oninput="sotSetAmount(\'' + sotEsc(id) + '\',this.value)">';
-          html += '<span class="sot-amt-unit">' + sotEsc(unit) + '</span>';
-          html += '</div>';
-        } else {
-          html += '<div class="sot-qty-wrap">';
-          html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',-1)">&#8722;</button>';
-          html += '<span class="sot-qty-val" id="sotq-' + sotEsc(id) + '">' + qty + '</span>';
-          html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',1)">+</button>';
-          html += '</div>';
-        }
+        html += '<div class="sot-qty-wrap">';
+        html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',-1)">&#8722;</button>';
+        html += '<span class="sot-qty-val" id="sotq-' + sotEsc(id) + '">' + qty + '</span>';
+        html += '<button class="sot-qty-btn" onclick="sotQty(\'' + sotEsc(id) + '\',1)">+</button>';
+        html += '</div>';
         html += '<button class="sot-ord-remove" onclick="sotRemove(\'' + sotEsc(id) + '\')" title="Remove">&#215;</button>';
         html += '</div>';
       });
@@ -1242,28 +765,18 @@ function sotRenderOrder() {
 
 // ── Interactions ─────────────────────────────────────────────
 function sotToggleItem(id, checked) {
-  if (checked) { if (sotOrder[id]===undefined) sotOrder[id]={qty:1,amount:''}; }
+  if (checked) { if (sotOrder[id]===undefined) sotOrder[id]=1; }
   else { delete sotOrder[id]; }
   sotSave(); sotRenderOrder();
   var badge = document.getElementById('sotOrderBadge');
   if (badge) badge.textContent = Object.keys(sotOrder).length;
 }
 function sotQty(id, delta) {
-  var entry = sotOrder[id];
-  if (typeof entry !== 'object' || entry === null) entry = {qty: Number(entry)||1, amount:''};
-  var q = ((entry.qty||1) + delta);
+  var q = ((sotOrder[id]||1) + delta);
   if (q < 1) q = 1;
-  entry.qty = q;
-  sotOrder[id] = entry;
+  sotOrder[id] = q;
   var el = document.getElementById('sotq-'+id);
   if (el) el.textContent = q;
-  sotSave();
-}
-function sotSetAmount(id, val) {
-  var entry = sotOrder[id];
-  if (typeof entry !== 'object' || entry === null) entry = {qty:1, amount:''};
-  entry.amount = String(val||'').trim();
-  sotOrder[id] = entry;
   sotSave();
 }
 function sotRemove(id) {
@@ -1281,30 +794,6 @@ function sotClearOrder() {
   sotSave();
   sotRenderCatalog();
   sotRenderOrder();
-}
-function sotSendToRG() {
-  var items = [];
-  Object.keys(sotOrder).forEach(function(id) {
-    var it = sotGetItem(id);
-    if (!it || it.sup !== 'rg') return;
-    var entry = sotOrder[id];
-    if (typeof entry !== 'object' || entry === null) entry = {qty:Number(entry)||1, amount:''};
-    var unit = sotGetUnit(it.desc);
-    var code = id.replace(/^rg_/, '');
-    items.push({code:code, name:it.name, amount: unit ? (entry.amount||'') : String(entry.qty||1), unit: unit||'qty'});
-  });
-  if (!items.length) { alert('No Rio Grande items in your order.'); return; }
-  var missing = items.filter(function(it){ return it.unit !== 'qty' && !it.amount; });
-  if (missing.length) {
-    alert('Enter amounts for:\n' + missing.map(function(i){ return '  • ' + i.name.split(',')[0]; }).join('\n'));
-    return;
-  }
-  var lines = items.map(function(it){ return it.code + ': ' + it.name + ' — ' + it.amount + ' ' + it.unit; });
-  var text = 'RG Cart Order:\n' + lines.join('\n');
-  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(items))));
-  try { navigator.clipboard.writeText(text); } catch(e) {}
-  window.open('https://www.riogrande.com/#sts-order=' + encodeURIComponent(encoded), '_blank');
-  if (typeof toast === 'function') toast('Order copied + RG opened in new tab', '🛒');
 }
 
 // ── Collapse ─────────────────────────────────────────────────
@@ -1462,11 +951,8 @@ function sotPrint() {
     lines.push('== ' + sup.name.toUpperCase() + ' ==');
     supIds.forEach(function(id){
       var it = sotGetItem(id);
-      var entry = sotOrder[id]||{qty:1,amount:''};
-      if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
-      var unit = sotGetUnit(it&&it.desc);
-      var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
-      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      var qty = sotOrder[id]||1;
+      if (it) lines.push('  ['+qty+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
     });
     lines.push('');
   });
@@ -1487,12 +973,8 @@ function sotCopy() {
     if (!supIds.length) return;
     lines.push('== ' + sup.name.toUpperCase() + ' ==');
     supIds.forEach(function(id){
-      var it = sotGetItem(id);
-      var entry = sotOrder[id]||{qty:1,amount:''};
-      if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
-      var unit = sotGetUnit(it&&it.desc);
-      var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
-      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      var it = sotGetItem(id); var qty = sotOrder[id]||1;
+      if (it) lines.push('  ['+qty+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
     });
     lines.push('');
   });
