@@ -862,7 +862,21 @@ var CATALOG = [
   {id:'st_24191',sup:'stuller',cat:'Gemstones',name:'Natural London Blue Topaz, 8x6mm Oval Faceted AA',desc:'Per stone'},
   {id:'st_104740',sup:'stuller',cat:'Gemstones',name:'Natural Mozambique Garnet, 5mm Round Faceted AA',desc:'Per stone'},
   {id:'st_342542',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Diamond, 3mm Round Full-Cut VS F+',desc:'Per stone'},
-  {id:'st_170890',sup:'stuller',cat:'Bench Tools & Supplies',name:'Radiant Glow™ Treated Polishing Cloths, 4x4"',desc:'Per pack (SKU: 17-0890)'}
+  {id:'st_170890',sup:'stuller',cat:'Bench Tools & Supplies',name:'Radiant Glow™ Treated Polishing Cloths, 4x4"',desc:'Per pack (SKU: 17-0890)'},
+  {id:'st_247246',sup:'stuller',cat:'Gemstones',name:'Natural Tanzanite, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_264580',sup:'stuller',cat:'Gemstones',name:'Natural Citrine, 2.5mm Round Faceted AAA',desc:'Per stone'},
+  {id:'st_12834',sup:'stuller',cat:'Gemstones',name:'Natural Pink Tourmaline, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_119641',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Blue Sapphire, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_243407',sup:'stuller',cat:'Gemstones',name:'Natural Arizona Peridot, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_66865',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Ruby, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_134220',sup:'stuller',cat:'Gemstones',name:'Natural Blue Sheen Moonstone, 2.5mm Round Faceted AAA',desc:'Per stone'},
+  {id:'st_76051',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Alexandrite, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_62509',sup:'stuller',cat:'Gemstones',name:'Lab-Grown Emerald, 2.5mm Round Faceted',desc:'Per stone'},
+  {id:'st_777333',sup:'stuller',cat:'Gemstones',name:'Stuller Lab-Grown Moissanite™, 2.5mm Round Faceted DEF',desc:'Per stone'},
+  {id:'st_104286',sup:'stuller',cat:'Gemstones',name:'Natural White Sapphire, 2.5mm Round Diamond-Cut AA',desc:'Per stone'},
+  {id:'st_12826',sup:'stuller',cat:'Gemstones',name:'Natural Aquamarine, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_104734',sup:'stuller',cat:'Gemstones',name:'Natural Mozambique Garnet, 2.5mm Round Faceted AA',desc:'Per stone'},
+  {id:'st_216213',sup:'stuller',cat:'Gemstones',name:'Natural Amethyst, 2.5mm Round Faceted AA',desc:'Per stone'}
 ];
 
 var CATALOG_IDS = new Set(CATALOG.map(function(c){return c.id;}));
