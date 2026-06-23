@@ -1208,10 +1208,23 @@ function _rqReadSummaryHtml(match) {
   return '<div class="rq-read-list">' + rows + '</div>';
 }
 
+// Runs auto-match jobs with limited concurrency via promise chaining (not
+// setTimeout) — see the call site in restockQueueRender for why.
+function _rqRunAutoMatchQueue(jobs) {
+  var CONCURRENCY = 3;
+  var idx = 0;
+  function next() {
+    if (idx >= jobs.length) return;
+    var job = jobs[idx++];
+    _rqAutoMatchSingle(job.pid, job.text).then(next);
+  }
+  for (var i = 0; i < Math.min(CONCURRENCY, jobs.length); i++) next();
+}
+
 function _rqAutoMatchSingle(pid, rawText) {
-  if (!pid) return;
+  if (!pid) return Promise.resolve();
   var query = _rqShortName(rawText || '');
-  if (!query) { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); return; }
+  if (!query) { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); return Promise.resolve(); }
   _rqAutoMatches[pid] = '_loading_';
   _rqUpdateMatchRow(pid);
   var localMatches = _rqLocalSearch(query);
@@ -1222,7 +1235,7 @@ function _rqAutoMatchSingle(pid, rawText) {
   // device without a saved token — e.g. a phone that's never opened
   // Integrations — show "No Square match" even though the server-side
   // credential would have matched it fine).
-  _rqSqCall('/catalog/search', {
+  return _rqSqCall('/catalog/search', {
     method: 'POST',
     body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
   }).then(function(searchData) {
@@ -1638,15 +1651,24 @@ function restockQueueRender() {
     return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + setupPanel + '</div>';
   }).join('');
 
-  // Trigger auto-match for items not yet cached
-  items.forEach(function(item, i) {
+  // Trigger auto-match for items not yet cached. This used to stagger each
+  // item with setTimeout(fn, i*200) — but mobile browsers throttle timers
+  // hard once a tab is backgrounded/screen-locked, so an item far enough
+  // down the queue could simply never get its turn if the user glanced away.
+  // A small-concurrency promise queue isn't timer-based, so once a job has
+  // actually started its fetch is not subject to that throttling.
+  var _rqAmPending = [];
+  items.forEach(function(item) {
     var pid = item.notionPageId;
     if (!pid || _rqTimers[pid] || _rqSetups[pid]) return;
     if (_rqAutoMatches[pid] !== undefined) return;
-    setTimeout(function() { _rqAutoMatchSingle(pid, item.text); }, i * 200);
+    _rqAutoMatches[pid] = '_loading_'; // claim immediately so a later render doesn't enqueue it twice
+    _rqUpdateMatchRow(pid);
+    _rqAmPending.push({ pid: pid, text: item.text });
   });
+  _rqRunAutoMatchQueue(_rqAmPending);
 
-  _rqFetchInvCounts(); // no-op after the first successful fetch (guarded internally)
+  _rqFetchInvCounts(); // debounced; re-collects ids for any newly-matched items each time it's called
 
   _rqRestartTicks();
   Object.keys(_rqSetups).forEach(function(pid) {
