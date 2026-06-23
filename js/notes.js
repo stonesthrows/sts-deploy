@@ -788,6 +788,8 @@ function _rqClassifyToken(tok) {
   var t = (tok || '').trim();
   if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)$/i.test(t)) return 'metal';
   if (/^(xs|sm|small|med|medium|lg|large|xl|xxl)$/i.test(t)) return 'size';
+  // Ring sizes — plain numbers (incl. half sizes) or "Size 7" / "Sz 7.5".
+  if (/^(size|sz)?\s*\d+(\.\d+)?$/i.test(t)) return 'size';
   return 'other';
 }
 
@@ -823,7 +825,7 @@ function _rqBuildVariantTable(variants) {
 
 function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
-  var html = '<table class="rq-variant-table"><thead><tr>';
+  var html = '<table class="rq-variant-table"><thead><tr><th class="rq-variant-corner"></th>';
   table.metals.forEach(function(metal) {
     var cols = table.rows.filter(function(r) { return r.metal === metal; });
     html += '<th colspan="' + cols.length + '">' + _restockEsc(metal) + '</th>';
@@ -831,7 +833,7 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   html += '</tr>';
 
   if (table.hasSizes) {
-    html += '<tr>';
+    html += '<tr><th class="rq-variant-row-label">Size</th>';
     table.metals.forEach(function(metal) {
       var cols = table.rows.filter(function(r) { return r.metal === metal; });
       var i = 0;
@@ -845,19 +847,14 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
     });
     html += '</tr>';
   }
-
-  html += '<tr>';
-  table.rows.forEach(function(r) {
-    html += '<th>' + (_restockEsc(r.leaf) || '—') + '</th>';
-  });
-  html += '</tr></thead><tbody><tr>';
+  html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
   table.rows.forEach(function(r) {
     var qty = qtyByVariantId[r.variant.id] || '';
     var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
     html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
       + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
   });
-  html += '</tr><tr class="rq-variant-inv-row">';
+  html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Current Stock</th>';
   table.rows.forEach(function(r) {
     html += '<td>' + _rqInvBadgeHtml(r.variant.id) + '</td>';
   });
@@ -2818,7 +2815,9 @@ function _rqRenderReportBody(sessions) {
       + '<div style="flex:1;min-width:0;">'
       + '<div class="rq-sbar-name">' + safeName + (totalPcs != null ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
       + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
-      + '</div></div>'
+      + '</div>'
+      + '<button class="rq-sbar-del" onclick="rqDeleteReportSession(' + i + ')" title="Delete">✕</button>'
+      + '</div>'
       + '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
       + '<span style="color:#ccc">·</span>'
@@ -3019,6 +3018,17 @@ function rqDeleteSession(i) {
   }
   _rqSessions.splice(i, 1);
   rqRenderSessions();
+}
+
+function rqDeleteReportSession(i) {
+  var s = _rqReportSessions && _rqReportSessions[i]; if (!s) return;
+  var name = (s.items && s.items[0] && s.items[0].name) || '?';
+  if (!confirm('Permanently delete this entry?\n' + name + ' — ' + (s.employee ? s.employee.name : '') + '\nThis cannot be undone.')) return;
+  if (s.notionPageId) {
+    fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' }).catch(function() {});
+  }
+  _rqReportSessions.splice(i, 1);
+  _rqRenderReportBody(_rqReportSessions);
 }
 
 // ── Queue mutations ───────────────────────────────────────────────────────────
