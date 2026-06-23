@@ -259,28 +259,63 @@
     }
     .restock-sizes {
       display: none;
-      flex-wrap: wrap;
-      gap: 8px;
+      flex-direction: column;
+      gap: 6px;
       margin: 10px 14px 0;
+      max-height: 40vh;
+      overflow-y: auto;
     }
     .restock-size-pill {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 6px 10px;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 10px;
       border: 1px solid var(--bdr);
-      border-radius: 16px;
-      font-size: 13px;
+      border-radius: 10px;
+      font-size: 13.5px;
       color: var(--text);
-      cursor: pointer;
       user-select: none;
     }
-    .restock-size-pill input { accent-color: var(--accent); }
     .restock-size-pill.checked {
       background: var(--accent-bg);
       border-color: var(--accent);
       color: var(--text);
     }
+    .restock-size-name { flex: 1; min-width: 0; }
+    .restock-qty-ctl {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .restock-qty-ctl button {
+      width: 26px;
+      height: 26px;
+      border: 1px solid var(--bdr);
+      border-radius: 6px;
+      background: var(--card-bg);
+      color: var(--text2);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .restock-qty-ctl button:active { background: var(--accent-bg); }
+    .restock-qty-ctl input {
+      width: 38px;
+      text-align: center;
+      border: 1px solid var(--bdr);
+      border-radius: 6px;
+      padding: 4px 2px;
+      font-size: 13.5px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+    }
+    .restock-qty-ctl input:focus { border-color: var(--accent); }
     .restock-submit-row { padding: 12px 14px 14px; }
     .restock-submit-btn {
       width: 100%;
@@ -508,27 +543,56 @@
     const sizesBox = document.getElementById('restock-sizes');
     if (item.isParent && item.variants.length) {
       sizesBox.innerHTML = item.variants.map(v => `
-        <label class="restock-size-pill" id="rs-pill-${v.id}">
-          <input type="checkbox" onchange="rsToggleSize('${v.id}')">
-          ${(v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
-        </label>
+        <div class="restock-size-pill" id="rs-pill-${v.id}">
+          <span class="restock-size-name">${(v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>
+          <div class="restock-qty-ctl">
+            <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
+            <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value=""
+              placeholder="0" onchange="rsSetQty('${v.id}',this.value)">
+            <button type="button" onclick="rsStepQty('${v.id}',1)">+</button>
+          </div>
+        </div>
       `).join('');
       sizesBox.style.display = 'flex';
     } else {
-      // Single-variant item — treat its one variation as auto-selected.
-      sizesBox.style.display = 'none';
-      sizesBox.innerHTML = '';
-      if (item.variants[0]) _rsSizesChecked[item.variants[0].id] = true;
+      // Single-variant item — show one qty control, defaulted to 1.
+      const v = item.variants[0];
+      if (v) {
+        _rsSizesChecked[v.id] = 1;
+        sizesBox.innerHTML = `
+          <div class="restock-size-pill" id="rs-pill-${v.id}">
+            <span class="restock-size-name">Qty</span>
+            <div class="restock-qty-ctl">
+              <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
+              <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value="1"
+                onchange="rsSetQty('${v.id}',this.value)">
+              <button type="button" onclick="rsStepQty('${v.id}',1)">+</button>
+            </div>
+          </div>`;
+        sizesBox.style.display = 'flex';
+      } else {
+        sizesBox.style.display = 'none';
+        sizesBox.innerHTML = '';
+      }
     }
     _rsUpdateSubmitState();
   }
 
-  function rsToggleSize(variantId) {
-    if (_rsSizesChecked[variantId]) delete _rsSizesChecked[variantId];
-    else _rsSizesChecked[variantId] = true;
+  function rsSetQty(variantId, value) {
+    const qty = Math.max(0, parseInt(value, 10) || 0);
+    const input = document.getElementById('rs-qty-' + variantId);
+    if (input) input.value = qty || '';
+    if (qty > 0) _rsSizesChecked[variantId] = qty;
+    else delete _rsSizesChecked[variantId];
     const pill = document.getElementById('rs-pill-' + variantId);
-    if (pill) pill.classList.toggle('checked', !!_rsSizesChecked[variantId]);
+    if (pill) pill.classList.toggle('checked', qty > 0);
     _rsUpdateSubmitState();
+  }
+
+  function rsStepQty(variantId, delta) {
+    const input = document.getElementById('rs-qty-' + variantId);
+    const current = (input && parseInt(input.value, 10)) || 0;
+    rsSetQty(variantId, current + delta);
   }
 
   function _rsUpdateSubmitState() {
@@ -573,7 +637,7 @@
           okResults.forEach(r => {
             const pid = r.data.notionPageId;
             sizes[pid] = sizes[pid] || {};
-            sizes[pid][r.vid] = 1;
+            sizes[pid][r.vid] = _rsSizesChecked[r.vid] || 1;
           });
           return fetch('/api/restock-sizes', {
             method: 'PUT',
