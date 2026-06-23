@@ -648,6 +648,9 @@ var _rqMeta       = { order: [], assignees: {} };
 var _rqMetaLoaded = false;
 var _rqSizes       = {};    // { [pid]: { [variantId]: qty } } — cross-device size/qty selections, via /api/restock-sizes
 var _rqSizesLoaded = false;
+var _rqNotes       = {};    // { [pid]: noteText } — free-text notes per item, via /api/restock-notes
+var _rqNotesLoaded = false;
+var _rqNotesSaveDebounce = null;
 var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
@@ -992,6 +995,42 @@ function _rqReconcileSizes() {
     }
   });
   if (changed) _rqAmSave();
+}
+
+// ── Notes persistence (cross-device free-text notes, e.g. for items not in Square) ──
+
+function _rqLoadNotes(cb) {
+  fetch('/api/restock-notes')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _rqNotes = (d && typeof d === 'object' && !d.error) ? d : {};
+      _rqNotesLoaded = true;
+      if (cb) cb();
+    })
+    .catch(function() { _rqNotesLoaded = true; if (cb) cb(); });
+}
+
+function _rqSaveNotes() {
+  fetch('/api/restock-notes', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_rqNotes),
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) toast(res.data.error || 'Failed to save note', '⚠');
+    })
+    .catch(function() { toast('Failed to save note', '⚠'); });
+}
+
+// Debounced so typing doesn't fire a PUT per keystroke.
+function rqSetNote(pid, value) {
+  if (!pid) return;
+  var text = (value || '').trim();
+  if (text) _rqNotes[pid] = text;
+  else delete _rqNotes[pid];
+  if (_rqNotesSaveDebounce) clearTimeout(_rqNotesSaveDebounce);
+  _rqNotesSaveDebounce = setTimeout(_rqSaveNotes, 600);
 }
 
 function _rqSaveSizes() {
@@ -1515,6 +1554,11 @@ function restockQueueRender() {
     return;
   }
 
+  if (!_rqNotesLoaded) {
+    _rqLoadNotes(restockQueueRender);
+    return;
+  }
+
   var items = _rqSortedItems();
   if (items.length === 0) {
     list.style.display = 'none';
@@ -1557,6 +1601,7 @@ function restockQueueRender() {
     var expanded  = canExpand && !!_rqExpanded[pid];
     var editing   = expanded && !!_rqEditMode[pid];
     var safeTextAttr = shortText.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var note = pid ? (_rqNotes[pid] || '') : '';
 
     var mainRow = '<div class="rq-item-row' + (canExpand ? ' rq-item-row-clickable' : '') + '"'
       + (canExpand ? ' onclick="rqRowClick(event,\'' + safePid + '\')"' : '') + '>'
@@ -1569,7 +1614,7 @@ function restockQueueRender() {
         )
       + '<span class="rq-rank">' + (idx + 1) + '</span>'
       + (canExpand ? '<span class="rq-expand-caret">' + (expanded ? '▾' : '▸') + '</span>' : '')
-      + '<span class="rq-text' + textCls + '">' + safeText + '</span>'
+      + '<span class="rq-text' + textCls + '">' + safeText + (note ? ' <span class="rq-note-flag" title="Has a note">📝</span>' : '') + '</span>'
       + '<div class="rq-item-controls">'
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
@@ -1581,6 +1626,9 @@ function restockQueueRender() {
       + '</div>'
       + '</div>';
 
+    var safeNoteAttr = note.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    var safeNoteHtml = note.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
     var matchRow = '';
     if (expanded) {
       if (editing) {
@@ -1590,11 +1638,14 @@ function restockQueueRender() {
           + ' onchange="rqSaveTitleInput(this,' + idx + ')" onkeydown="if(event.key===\'Enter\')this.blur()">'
           + '</div>'
           + '<div class="rq-match-row" id="rq-match-row-' + safePid + '">' + _rqMatchRowInner(pid) + '</div>'
+          + '<textarea class="rq-note-textarea" placeholder="Add a note… (handy for items not in Square)"'
+          + ' onchange="rqSetNote(\'' + safePid + '\',this.value)">' + safeNoteAttr + '</textarea>'
           + '<button class="rq-edit-done-btn" onclick="rqExitEditMode(\'' + safePid + '\')">✓ Done editing</button>'
           + '</div>';
       } else {
         matchRow = '<div class="rq-expand-panel">'
           + _rqReadSummaryHtml(match)
+          + (note ? '<div class="rq-note-display">📝 ' + safeNoteHtml + '</div>' : '')
           + '<button class="rq-edit-btn" onclick="rqEnterEditMode(\'' + safePid + '\')">✎ Edit</button>'
           + '</div>';
       }
@@ -3299,6 +3350,7 @@ function rqDeleteItem(idx) {
     delete _rqAutoMatches[pid];
     _rqAmSave();
     if (_rqSizes[pid]) { delete _rqSizes[pid]; _rqSaveSizes(); }
+    if (_rqNotes[pid]) { delete _rqNotes[pid]; _rqSaveNotes(); }
   }
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);

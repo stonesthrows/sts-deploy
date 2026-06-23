@@ -2281,6 +2281,18 @@
        with the header toggle on, straight to edit) instead. */
     @media (max-width: 640px) { .rq-edit-btn { display: none; } }
     .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: #8A6020; }
+    .rq-note-textarea {
+      width: 100%; box-sizing: border-box; margin-top: 8px; padding: 7px 10px;
+      border: 1px solid var(--bdr); border-radius: 7px; font-size: 12.5px;
+      font-family: inherit; color: var(--text); background: var(--card-bg);
+      resize: vertical; min-height: 44px; outline: none;
+    }
+    .rq-note-textarea:focus { border-color: var(--accent); }
+    .rq-note-display {
+      font-size: 12.5px; color: var(--text2); font-style: italic;
+      margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
+    }
+    .rq-note-flag { font-size: 11px; }
     .rq-read-status { font-size: 12.5px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
     .rq-read-list { display: flex; flex-direction: column; gap: 3px; }
     .rq-read-row {
