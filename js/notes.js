@@ -671,6 +671,67 @@ var _rqAmLoaded      = false;
 var _rqAddPendingMatch = null;  // Square item selected in add panel before save
 var _rqAddDebounce   = null;
 var _rqAddLastResults = [];
+var _rqInvCounts        = {};     // { [variantId]: qty } — Square on-hand counts, fetched once per page session
+var _rqInvCountsFetched = false;  // guard so the batch fetch only ever fires once per session (no polling)
+
+// ── Live Square inventory counts (reference only, shown on expanded bars) ───
+// Fetched once per page session — not polled — since the restock queue is a
+// short-lived working view and Production Sessions/Inventory Push are the
+// actual source of truth for stock changes during the day.
+
+// Collects every real Square variation id referenced by the currently
+// matched queue items (skips local items, custom items, and items that
+// haven't matched/finished matching yet).
+function _rqCollectInvVariantIds() {
+  var ids = [];
+  _rqSortedItems().forEach(function(item) {
+    var pid = item.notionPageId;
+    var match = pid ? _rqAutoMatches[pid] : null;
+    if (!match || typeof match !== 'object' || match.isCustom) return;
+    if (match.isParent) {
+      (match.variants || []).forEach(function(v) {
+        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
+      });
+    } else if (match.id && match.id.indexOf('local-') !== 0 && match.id.indexOf('custom-') !== 0) {
+      if (ids.indexOf(match.id) === -1) ids.push(match.id);
+    }
+  });
+  return ids;
+}
+
+function _rqFetchInvCounts() {
+  if (_rqInvCountsFetched) return;
+  var ids = _rqCollectInvVariantIds();
+  if (!ids.length) return;
+  _rqInvCountsFetched = true; // mark immediately so a slow response can't trigger a second fetch
+  _rqSqCall('/inventory/counts/batch-retrieve', {
+    method: 'POST',
+    body: { catalog_object_ids: ids, location_ids: [INV_LOCATION_ID] },
+  }).then(function(data) {
+    (data.counts || []).forEach(function(c) {
+      _rqInvCounts[c.catalog_object_id] = parseInt(c.quantity, 10) || 0;
+    });
+    restockQueueRender();
+  }).catch(function() {
+    // Leave _rqInvCountsFetched true — badges render as "unset" rather than
+    // retrying indefinitely on a flaky connection.
+  });
+}
+
+// Renders a small count badge for one variant id, reusing the Inventory
+// tab's existing .inv-badge styling/thresholds (see js/inventory.js) so the
+// two surfaces read consistently. Returns '' while the one-time fetch is
+// still in flight (better to show nothing briefly than a wrong number).
+function _rqInvBadgeHtml(variantId) {
+  if (!variantId || variantId.indexOf('local-') === 0 || variantId.indexOf('custom-') === 0) {
+    return '<span class="inv-badge unset">N/A</span>';
+  }
+  if (!_rqInvCountsFetched) return '';
+  var qty = _rqInvCounts[variantId];
+  var cls = (qty === undefined) ? 'unset' : qty === 0 ? 'no-stock' : qty <= 2 ? 'low-stock' : 'in-stock';
+  var label = (qty === undefined) ? 'not tracked' : qty === 0 ? 'out of stock' : qty + ' in stock';
+  return '<span class="inv-badge ' + cls + '">' + label + '</span>';
+}
 
 // Parses the "Sizes 5 (2), 5.5 (1), 6.5 (3)" suffix produced by the
 // Inventory Restock size picker (notes.js restockConfirmSizes), so the
@@ -785,6 +846,10 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
     html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
       + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
   });
+  html += '</tr><tr class="rq-variant-inv-row">';
+  table.rows.forEach(function(r) {
+    html += '<td>' + _rqInvBadgeHtml(r.variant.id) + '</td>';
+  });
   html += '</tr></tbody></table>';
   return html;
 }
@@ -796,9 +861,12 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn) {
         var qty = qtyByVariantId[v.id] || '';
         var safeVId = (v.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
         return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
+          + '<div class="rq-variant-chip-row">'
           + '<span>' + (v.name || '').replace(/</g, '&lt;') + '</span>'
           + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
           + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
+          + '</div>'
+          + _rqInvBadgeHtml(v.id)
           + '</div>';
       }).join('')
     + '</div>';
@@ -1033,6 +1101,7 @@ function _rqMatchRowInner(pid) {
   return '<div class="rq-match-found">'
     + '<span class="rq-match-check">✓</span>'
     + '<span class="rq-match-name">' + safeName + '</span>'
+    + _rqInvBadgeHtml(match.id)
     + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change</button>'
     + '</div>';
 }
@@ -1114,7 +1183,7 @@ function _rqReadSummaryHtml(match) {
   }
   if (!match.isParent) {
     var safeName = (match.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return '<div class="rq-read-status">✓ ' + safeName + '</div>';
+    return '<div class="rq-read-status">✓ ' + safeName + ' ' + _rqInvBadgeHtml(match.id) + '</div>';
   }
   var sel = match.selectedVariants || [];
   if (!sel.length) {
@@ -1122,7 +1191,7 @@ function _rqReadSummaryHtml(match) {
   }
   var rows = sel.map(function(v) {
     var name = (v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span></div>';
+    return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span>' + _rqInvBadgeHtml(v.id) + '</div>';
   }).join('');
   return '<div class="rq-read-list">' + rows + '</div>';
 }
@@ -1564,6 +1633,8 @@ function restockQueueRender() {
     if (_rqAutoMatches[pid] !== undefined) return;
     setTimeout(function() { _rqAutoMatchSingle(pid, item.text); }, i * 200);
   });
+
+  _rqFetchInvCounts(); // no-op after the first successful fetch (guarded internally)
 
   _rqRestartTicks();
   Object.keys(_rqSetups).forEach(function(pid) {
