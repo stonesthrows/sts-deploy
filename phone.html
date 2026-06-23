@@ -216,16 +216,13 @@
     .restock-search-wrap { position: relative; }
     .restock-results {
       display: none;
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 14px;
-      right: 14px;
-      z-index: 50;
+      position: fixed;   /* escapes .card's overflow:hidden so it isn't clipped */
+      z-index: 999;
       background: var(--card-bg);
       border: 1px solid var(--bdr);
       border-radius: 8px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-      max-height: 260px;
+      max-height: 60vh;
       overflow-y: auto;
     }
     .restock-result {
@@ -415,6 +412,11 @@
     }).then(r => r.json());
   }
 
+  window.addEventListener('resize', () => {
+    const box = document.getElementById('restock-results');
+    if (box.style.display === 'block') _rsPositionResults();
+  });
+
   function rsSearchInput(value) {
     const q = (value || '').trim();
     if (_rsDebounce) clearTimeout(_rsDebounce);
@@ -428,10 +430,24 @@
     box.innerHTML = '';
   }
 
+  // Fixed-position dropdown needs its coordinates computed from the input's
+  // on-screen position — it's no longer inside .card's box, so it can't rely
+  // on CSS top/left percentages.
+  function _rsPositionResults() {
+    const box   = document.getElementById('restock-results');
+    const input = document.getElementById('restock-search-input');
+    const rect  = input.getBoundingClientRect();
+    box.style.left  = rect.left + 'px';
+    box.style.width = rect.width + 'px';
+    box.style.top   = (rect.bottom + 4) + 'px';
+    box.style.maxHeight = (window.innerHeight - rect.bottom - 12) + 'px';
+  }
+
   function _rsSearch(query) {
     const box = document.getElementById('restock-results');
     box.innerHTML = '<div class="restock-result-none">Searching…</div>';
     box.style.display = 'block';
+    _rsPositionResults();
 
     _rsSqCall('/catalog/search', {
       method: 'POST',
