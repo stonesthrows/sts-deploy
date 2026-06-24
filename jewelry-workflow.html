@@ -5057,6 +5057,7 @@
   <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
+  <button id="inv-main-tab-permjewelry" class="inv-ear-sub"     onclick="invSwitchMain('permjewelry');if(!window._invPermJewelryLoaded)invLoadPermJewelry()">🔗 Permanent Jewelry</button>
   <button class="btn btn-outline btn-sm" onclick="invMgrOpen()" style="margin-left:auto;font-size:12px;">⚙ Manage Items</button>
 </div>
 
@@ -5167,6 +5168,38 @@
   <div id="inv-psub-p-spirit"    class="inv-pendant-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-psub-p-geometric" class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-psub-p-symbolic"  class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+</div>
+</div>
+
+<!-- Permanent Jewelry panel -->
+<div id="inv-main-permjewelry" class="inv-main-panel" style="display:none">
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">🔗 Permanent Jewelry Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
+  </div>
+</div>
+
+<!-- Permanent Jewelry sub-tabs -->
+<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+  <button id="inv-pj-subtab-pj-birthstone" class="inv-pj-sub-btn inv-ear-sub active" onclick="invSwitchPermJewelrySub('pj-birthstone',this)">Silver Birthstone Charms</button>
+  <button id="inv-pj-subtab-pj-giftfill"   class="inv-pj-sub-btn inv-ear-sub"        onclick="invSwitchPermJewelrySub('pj-giftfill',this)">Silver and Gold Fill Charms</button>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+  <input id="invPermJewelrySearch" type="text" placeholder="Filter items…"
+    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    oninput="invPermJewelryFilter(this.value)">
+  <button class="btn btn-gold btn-sm" id="invPermJewelryUpdateAllBtn" onclick="invUpdateAllPermJewelry()">Update All</button>
+  <button class="btn btn-outline btn-sm" id="invPermJewelryRefreshBtn" onclick="invRefreshPermJewelry()">↻ Refresh</button>
+</div>
+<div id="invPermJewelryCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+
+<!-- Permanent Jewelry sub-panels -->
+<div style="padding:0 16px 16px">
+  <div id="inv-pjsub-pj-birthstone" class="inv-pj-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+  <div id="inv-pjsub-pj-giftfill"   class="inv-pj-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
 </div>
 

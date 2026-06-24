@@ -30,6 +30,14 @@ const INV_PENDANT_CAT_IDS = {
   'p-symbolic':  ['H5AOPJIVMPBEJXPSJ22GHFYZ'],
 };
 
+// Square category IDs → Permanent Jewelry sub-tabs
+// No hardcoded categories yet — use ⚙ Manage Items to assign the matching
+// Square items/categories for each charm line.
+const INV_PERM_CAT_IDS = {
+  'pj-birthstone': [],
+  'pj-giftfill':   [],
+};
+
 // Square category IDs → earring sub-tabs
 // Ear Cuffs root + all sub-categories; others are single category
 const INV_CAT_IDS = {
@@ -274,7 +282,7 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub];
+  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub];
   if (!catIds) return;
 
   // Merge any extra categories/items added via the Inventory Manager
@@ -421,7 +429,7 @@ function _invRenderSub(sub) {
   if (!data) return;
 
   const { items, counts } = data;
-  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : 'invSearch';
+  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : INV_PERM_CAT_IDS[sub] ? 'invPermJewelrySearch' : 'invSearch';
   const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
@@ -543,7 +551,7 @@ function _invRenderSub(sub) {
 }
 
 function _invSetPanelHtml(sub, html) {
-  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : 'inv-sub-';
+  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : INV_PERM_CAT_IDS[sub] ? 'inv-pjsub-' : 'inv-sub-';
   const panel = document.getElementById(prefix + sub);
   if (panel) panel.innerHTML = html;
 }
@@ -627,6 +635,7 @@ async function _invSaveCount(qtyMap, sub) {
   _invApplySplitCache(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
+  else if (INV_PERM_CAT_IDS[sub]) _invUpdatePermJewelryCountLabel();
   else _invUpdateCountLabel();
 }
 
@@ -809,6 +818,70 @@ async function invRefreshPendants() {
 function _invUpdatePendantCountLabel() {
   const data  = _invData[_invPendantCurSub];
   const label = document.getElementById('invPendantCountLabel');
+  if (!label) return;
+  if (!data) { label.textContent = ''; return; }
+  const total      = data.items.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+// ── Permanent Jewelry tab ────────────────────
+
+let _invPermJewelryCurSub = 'pj-birthstone';
+let _invPermJewelryLoaded = false;
+
+async function invLoadPermJewelry() {
+  if (_invData[_invPermJewelryCurSub]) return;
+  await _invLoadSub(_invPermJewelryCurSub);
+  _invPermJewelryLoaded = true;
+}
+
+function invSwitchPermJewelrySub(sub, el) {
+  _invPermJewelryCurSub = sub;
+  document.querySelectorAll('.inv-pj-sub-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.inv-pj-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('inv-pjsub-' + sub);
+  if (panel) panel.style.display = '';
+  if (!_invData[sub]) _invLoadSub(sub);
+  else _invRenderSub(sub);
+  _invUpdatePermJewelryCountLabel();
+  _navSave('inv-pj-sub', sub);
+}
+
+function invPermJewelryFilter(val) {
+  _invRenderSub(_invPermJewelryCurSub);
+}
+
+async function invUpdateAllPermJewelry() {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+  const btn = document.getElementById('invPermJewelryUpdateAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await _invSaveCount(Object.fromEntries(entries), _invPermJewelryCurSub);
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshPermJewelry() {
+  const btn = document.getElementById('invPermJewelryRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  Object.keys(INV_PERM_CAT_IDS).forEach(sub => { delete _invData[sub]; });
+  _invDirty = {};
+  _invPermJewelryLoaded = false;
+  await invLoadPermJewelry();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+
+function _invUpdatePermJewelryCountLabel() {
+  const data  = _invData[_invPermJewelryCurSub];
+  const label = document.getElementById('invPermJewelryCountLabel');
   if (!label) return;
   if (!data) { label.textContent = ''; return; }
   const total      = data.items.length;
@@ -1019,6 +1092,7 @@ async function _invWarmLastAdded() {
     if (_invData[_invCurSub])     _invRenderSub(_invCurSub);
     if (_invData[_invRingCurSub]) _invRenderSub(_invRingCurSub);
     if (_invData[_invPendantCurSub]) _invRenderSub(_invPendantCurSub);
+    if (_invData[_invPermJewelryCurSub]) _invRenderSub(_invPermJewelryCurSub);
   } catch (e) {
     console.warn('[inv] could not warm last-added cache:', e.message);
   }

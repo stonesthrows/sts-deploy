@@ -41,6 +41,13 @@ const _INVMGR_TABS = {
       { key: 'p-symbolic',  label: 'Symbolic' },
     ],
   },
+  permjewelry: {
+    icon: '🔗',
+    subs: [
+      { key: 'pj-birthstone', label: 'Silver Birthstone Charms' },
+      { key: 'pj-giftfill',   label: 'Silver and Gold Fill Charms' },
+    ],
+  },
 };
 
 let _invMgrState        = {};
@@ -132,9 +139,10 @@ function _invMgrBuildShell() {
 
         <!-- Main tab switcher -->
         <div style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--card-head-bg);">
-          <button id="invMgrMainBtn-earrings" class="inv-ear-sub active" onclick="invMgrSwitchMain('earrings')">🪬 Earrings</button>
-          <button id="invMgrMainBtn-rings"    class="inv-ear-sub"        onclick="invMgrSwitchMain('rings')">💍 Rings</button>
-          <button id="invMgrMainBtn-pendants" class="inv-ear-sub"        onclick="invMgrSwitchMain('pendants')">📿 Pendants</button>
+          <button id="invMgrMainBtn-earrings"    class="inv-ear-sub active" onclick="invMgrSwitchMain('earrings')">🪬 Earrings</button>
+          <button id="invMgrMainBtn-rings"       class="inv-ear-sub"        onclick="invMgrSwitchMain('rings')">💍 Rings</button>
+          <button id="invMgrMainBtn-pendants"    class="inv-ear-sub"        onclick="invMgrSwitchMain('pendants')">📿 Pendants</button>
+          <button id="invMgrMainBtn-permjewelry" class="inv-ear-sub"        onclick="invMgrSwitchMain('permjewelry')">🔗 Perm. Jewelry</button>
           <span style="margin-left:8px;font-size:11px;color:var(--text-dim);">← drop into a sub-tab below</span>
         </div>
 
@@ -175,6 +183,7 @@ async function _invMgrFetchCatalog() {
       ...Object.values(INV_CAT_IDS).flat(),
       ...Object.values(INV_RING_CAT_IDS).flat(),
       ...Object.values(INV_PENDANT_CAT_IDS).flat(),
+      ...Object.values(INV_PERM_CAT_IDS).flat(),
     ]);
 
     // Items/categories already assigned via this manager
@@ -360,9 +369,10 @@ function _invMgrGetHiddenVars() {
 
 function _invMgrClearInvCache() {
   if (typeof _invData !== 'undefined') Object.keys(_invData).forEach(k => delete _invData[k]);
-  if (typeof window._invLoaded        !== 'undefined') window._invLoaded        = false;
-  if (typeof window._invRingLoaded    !== 'undefined') window._invRingLoaded    = false;
-  if (typeof window._invPendantLoaded !== 'undefined') window._invPendantLoaded = false;
+  if (typeof window._invLoaded           !== 'undefined') window._invLoaded           = false;
+  if (typeof window._invRingLoaded       !== 'undefined') window._invRingLoaded       = false;
+  if (typeof window._invPendantLoaded    !== 'undefined') window._invPendantLoaded    = false;
+  if (typeof window._invPermJewelryLoaded !== 'undefined') window._invPermJewelryLoaded = false;
 }
 
 function invMgrRestoreItem(itemId) {
@@ -391,7 +401,7 @@ function invMgrFilter(q) {
 
 function invMgrSwitchMain(main) {
   _invMgrCurMain = main;
-  ['earrings', 'rings', 'pendants'].forEach(m => {
+  ['earrings', 'rings', 'pendants', 'permjewelry'].forEach(m => {
     const btn = document.getElementById('invMgrMainBtn-' + m);
     if (btn) btn.classList.toggle('active', m === main);
   });
@@ -478,6 +488,7 @@ function invMgrSave() {
   if (typeof window._invLoaded     !== 'undefined') window._invLoaded     = false;
   if (typeof window._invRingLoaded !== 'undefined') window._invRingLoaded = false;
   if (typeof window._invPendantLoaded !== 'undefined') window._invPendantLoaded = false;
+  if (typeof window._invPermJewelryLoaded !== 'undefined') window._invPermJewelryLoaded = false;
 
   invMgrClose();
   toast('Saved. Switch sub-tabs to reload with new items.', '✓');
