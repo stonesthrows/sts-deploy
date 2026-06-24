@@ -2404,8 +2404,8 @@ function rqConfirmPush(store, i) {
 
 // ── Session edit: add missing item(s) ──────────────────────────────────────────
 
-function rqEditOpenAdd(store, i) {
-  _rqEditAdds[store][i] = { query: '', debounceTimer: null, _lastResults: null, variantPicker: null };
+function rqEditOpenAdd(store, i, replaceIdx) {
+  _rqEditAdds[store][i] = { query: '', debounceTimer: null, _lastResults: null, variantPicker: null, replaceIdx: (replaceIdx != null ? replaceIdx : null) };
   _rqStoreRender(store);
   setTimeout(function() {
     var inp = document.getElementById('rq-eadd-srch-' + store + '-' + i);
@@ -2518,6 +2518,13 @@ function rqEditAddSelectCustom(store, i, name) {
 
 function rqEditToggleVariant(store, i, variantId) {
   var e = _rqEditAdds[store][i]; if (!e || !e.variantPicker) return;
+  if (e.replaceIdx != null) {
+    // Relinking an existing item: one variant pick is enough, commit immediately.
+    var v = (e.variantPicker.item.variants || []).filter(function(vv) { return vv.id === variantId; })[0];
+    if (!v) return;
+    _rqEditAddCommitItem(store, i, { name: e.variantPicker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false });
+    return;
+  }
   var idx = e.variantPicker.selectedIds.indexOf(variantId);
   if (idx === -1) e.variantPicker.selectedIds.push(variantId);
   else e.variantPicker.selectedIds.splice(idx, 1);
@@ -2545,7 +2552,16 @@ function rqEditConfirmVariants(store, i) {
 
 function _rqEditAddCommitItem(store, i, item) {
   var s = _rqStoreList(store)[i]; if (!s) return;
-  s.items = (s.items || []).concat([item]);
+  var e = _rqEditAdds[store][i];
+  var replaceIdx = e ? e.replaceIdx : null;
+  if (replaceIdx != null && s.items && s.items[replaceIdx]) {
+    var oldItem = s.items[replaceIdx];
+    s.items = s.items.map(function(it, idx) {
+      return idx === replaceIdx ? Object.assign({}, item, { pieces: oldItem.pieces }) : it;
+    });
+  } else {
+    s.items = (s.items || []).concat([item]);
+  }
   delete _rqEditAdds[store][i];
   _rqStoreRender(store);
 }
@@ -2557,10 +2573,18 @@ function rqEditRemoveItem(store, i, idx) {
 }
 
 function _rqEditAddPanelHTML(store, i, e) {
+  var replacingLabel = '';
+  if (e.replaceIdx != null) {
+    var sess = _rqStoreList(store)[i];
+    var oldIt = sess && sess.items && sess.items[e.replaceIdx];
+    if (oldIt) {
+      replacingLabel = '<div class="rq-result-meta" style="margin-bottom:4px;">Re-linking <strong>' + (oldIt.name || '').replace(/</g,'&lt;') + '</strong> — search Square or use custom:</div>';
+    }
+  }
   if (e.variantPicker) {
     var picker = e.variantPicker;
-    return '<div class="rq-variant-picker">'
-      + '<div class="rq-variant-label">Choose size(s) for <strong>' + (picker.item.name || '').replace(/</g,'&lt;') + '</strong></div>'
+    return replacingLabel + '<div class="rq-variant-picker">'
+      + '<div class="rq-variant-label">Choose size' + (e.replaceIdx != null ? '' : '(s)') + ' for <strong>' + (picker.item.name || '').replace(/</g,'&lt;') + '</strong></div>'
       + '<div class="rq-variant-grid">'
       + (picker.item.variants || []).map(function(v) {
           var isSel = picker.selectedIds.indexOf(v.id) !== -1;
@@ -2572,11 +2596,11 @@ function _rqEditAddPanelHTML(store, i, e) {
         }).join('')
       + '</div>'
       + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">'
-      + '<button class="rq-variant-done" onclick="rqEditConfirmVariants(\'' + store + '\',' + i + ')">Add</button>'
+      + (e.replaceIdx != null ? '' : '<button class="rq-variant-done" onclick="rqEditConfirmVariants(\'' + store + '\',' + i + ')">Add</button>')
       + '<button class="rq-setup-cancel-btn" onclick="rqEditCancelVariantPicker(\'' + store + '\',' + i + ')">Cancel</button>'
       + '</div></div>';
   }
-  return '<div class="rq-setup-search-wrap" style="margin-top:6px;">'
+  return replacingLabel + '<div class="rq-setup-search-wrap" style="margin-top:6px;">'
     + '<span class="rq-setup-search-icon">⌕</span>'
     + '<input type="text" class="rq-setup-search-input" id="rq-eadd-srch-' + store + '-' + i + '" placeholder="Search Square catalog…" autocomplete="off"'
     + ' oninput="rqEditAddInput(\'' + store + '\',' + i + ',this.value)">'
@@ -2600,6 +2624,8 @@ function _rqSessionEditRowHTML(store, i, s) {
         return '<div class="rq-edit-field">'
           + '<label style="flex:1;width:auto;">' + safeLabel + '</label>'
           + '<input class="rq-edit-input rq-piece-input" type="number" min="0" step="1" id="rq-edit-pcs-' + store + '-' + i + '-' + ii + '" placeholder="pcs" value="' + (it.pieces != null ? it.pieces : '') + '">'
+          + '<input class="rq-edit-input rq-price-input" type="number" min="0" step="0.01" id="rq-edit-price-' + store + '-' + i + '-' + ii + '" placeholder="$ unit price" value="' + (it.unitPrice != null ? it.unitPrice : '') + '">'
+          + '<button class="rq-item-remove" title="Re-link to Square item" onclick="rqEditOpenAdd(\'' + store + '\',' + i + ',' + ii + ')">⌕</button>'
           + '<button class="rq-item-remove" onclick="rqEditRemoveItem(\'' + store + '\',' + i + ',' + ii + ')">✕</button>'
           + '</div>';
       }).join('')
@@ -2624,13 +2650,27 @@ function rqSaveEditSession(store, i) {
     s.totalMs = new Date(newStop) - new Date(newStart);
     s.netMs   = Math.max(0, s.totalMs - 15 * 60000);
   }
-  // Read per-item piece count edits; drop any row left blank
+  // Read per-item piece count + unit price edits; drop any row left blank
   var updatedItems = (s.items || []).map(function(it, ii) {
-    var inp = document.getElementById('rq-edit-pcs-' + store + '-' + i + '-' + ii);
-    if (!inp) return it;
-    var raw = inp.value.trim();
-    var pcs = raw !== '' ? parseInt(raw, 10) : null;
-    return Object.assign({}, it, { pieces: isNaN(pcs) ? null : pcs });
+    var pcsInp = document.getElementById('rq-edit-pcs-' + store + '-' + i + '-' + ii);
+    var priceInp = document.getElementById('rq-edit-price-' + store + '-' + i + '-' + ii);
+    var next = it;
+    if (pcsInp) {
+      var rawPcs = pcsInp.value.trim();
+      var pcs = rawPcs !== '' ? parseInt(rawPcs, 10) : null;
+      next = Object.assign({}, next, { pieces: isNaN(pcs) ? null : pcs });
+    }
+    if (priceInp) {
+      var rawPrice = priceInp.value.trim();
+      var price = rawPrice !== '' ? parseFloat(rawPrice) : null;
+      if (!isNaN(price) && price !== null) {
+        // Manually entered price is authoritative, not a Square-fallback guess.
+        next = Object.assign({}, next, { unitPrice: price, _priceIsEstimate: false });
+      } else if (rawPrice === '') {
+        next = Object.assign({}, next, { unitPrice: null, _priceIsEstimate: false });
+      }
+    }
+    return next;
   }).filter(function(it) { return it.pieces != null; });
   delete s._itemsBackup;
   delete _rqEditAdds[store][i];

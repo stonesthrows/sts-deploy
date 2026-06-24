@@ -691,7 +691,9 @@ function renderResults(tid, items, query) {
 function hideResults(tid) { $t(tid,'results').classList.remove('visible'); $t(tid,'results').innerHTML=''; }
 
 function selectCustomItem(tid, name) {
-  const customItem = { id: 'custom-' + Date.now(), name, category: 'Custom', isCustom: true, pieces: null };
+  const rawPrice = window.prompt(`Unit price for "${name}" (used for Value/Profit on the Production Report — leave blank if unknown):`, '');
+  const price = rawPrice && rawPrice.trim() !== '' ? parseFloat(rawPrice.trim()) : null;
+  const customItem = { id: 'custom-' + Date.now(), name, category: 'Custom', isCustom: true, pieces: null, unitPrice: (price != null && !isNaN(price)) ? price : null };
   selectItem(tid, customItem);
 }
 
