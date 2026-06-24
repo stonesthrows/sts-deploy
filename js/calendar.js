@@ -290,11 +290,15 @@ function calRenderGrid() {
   grid.innerHTML = html;
 }
 
+const CAL_UPCOMING_HIDDEN = ['downtown farmers market', 'texas farmers market'];
+
 function calRenderUpcoming() {
   const now = new Date();
   const upcoming = _calEvents.filter(function (ev) {
     const dtStr = ev.start && (ev.start.dateTime || ev.start.date);
-    return dtStr && new Date(dtStr) >= now;
+    if (!dtStr || new Date(dtStr) < now) return false;
+    const title = (ev.summary || '').trim().toLowerCase();
+    return !CAL_UPCOMING_HIDDEN.some(function (hidden) { return title.indexOf(hidden) !== -1; });
   }).slice(0, 10);
 
   const list = document.getElementById('cal-upcoming');
