@@ -91,7 +91,11 @@ function orderToProps(o) {
   if (o.price   != null) props['Price']       = { number: o.price || null };
   if (o.finalPrice != null) props['Final Price'] = { number: o.finalPrice };
   if (o.deadline)     props['Deadline']       = { date: { start: o.deadline } };
-  if (o.completedAt)  props['Completed At']   = { date: { start: o.completedAt.slice(0, 10) } };
+  // "Completed At" is the only finish-date property that exists in Notion —
+  // both stage='complete' (completedAt) and stage='delivered' (deliveredAt)
+  // write into it, completedAt taking priority if both are somehow set.
+  if (o.completedAt)       props['Completed At'] = { date: { start: o.completedAt.slice(0, 10) } };
+  else if (o.deliveredAt)  props['Completed At'] = { date: { start: o.deliveredAt.slice(0, 10) } };
   if (o.email)        props['Email']          = { email: o.email };
   if (o.phone)        props['Phone']          = { phone_number: o.phone };
   if (o.desc   != null) props['Order Description'] = { rich_text: [{ text: { content: (o.desc || '').slice(0, 2000) } }] };
@@ -103,7 +107,6 @@ function orderToProps(o) {
   if (o.assignee != null) props['Assignee']     = o.assignee ? { select: { name: o.assignee } } : { select: null };
   if (o.paidBy)       props['Paid By']         = { select: { name: o.paidBy } };
   if (o.contactedAt)  props['Contacted At']    = { date: { start: o.contactedAt.slice(0, 10) } };
-  if (o.deliveredAt)  props['Delivered At']    = { date: { start: o.deliveredAt.slice(0, 10) } };
   if (o.cancelledAt)  props['Cancelled At']    = { date: { start: o.cancelledAt.slice(0, 10) } };
   if (o.pdfUrl)       props['PDF URL']         = { url: o.pdfUrl };
 
@@ -151,16 +154,20 @@ function pageToOrder(page) {
   const stageRaw    = sel(p['Stage']).toLowerCase();
   const appId       = txt(p['App ID']);
   const orderTypeRaw = sel(p['Order Type']).toLowerCase();
+  const stage       = NOTION_TO_STAGE[stageRaw] || 'intake-custom';
+  // "Completed At" is the only finish-date property in Notion — route it to
+  // completedAt or deliveredAt locally based on which stage the order is in.
+  const finishDate  = dt(p['Completed At']) || null;
 
   return {
     id:            appId || ('n_' + page.id.replace(/-/g, '')),
     notionId:      page.id,
     name:          p['Customer Name']?.title?.[0]?.plain_text || '',
-    stage:         NOTION_TO_STAGE[stageRaw] || 'intake-custom',
+    stage:         stage,
     price:         num(p['Price'])       || 0,
     finalPrice:    num(p['Final Price']),
     deadline:      dt(p['Deadline']),
-    completedAt:   dt(p['Completed At']),
+    completedAt:   stage === 'complete'   ? finishDate : null,
     email:         eml(p['Email']),
     phone:         phn(p['Phone']),
     desc:          txt(p['Order Description']),
@@ -172,7 +179,7 @@ function pageToOrder(page) {
     assignee:      sel(p['Assignee']) || null,
     paidBy:        sel(p['Paid By']) || '',
     contactedAt:   dt(p['Contacted At'])  || null,
-    deliveredAt:   dt(p['Delivered At'])  || null,
+    deliveredAt:   stage === 'delivered'  ? finishDate : null,
     cancelledAt:   dt(p['Cancelled At'])  || null,
     pdfUrl:        p['PDF URL']?.url      || null,
     // Address fields

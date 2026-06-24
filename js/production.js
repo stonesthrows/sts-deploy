@@ -574,7 +574,9 @@ function prodMarkDelivered(id) {
   o.deliveredAt = dateStr;
   prodOpenMonths[dateStr.slice(0, 7)] = true;
   saveToStorage();
-  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
+  // Push the full order (not just a stage-only patch) so the completion
+  // date lands in Notion's "Completed At" property in the same request.
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
   renderProduction();
   toast(o.name + ' marked as completed ✓', '✓');
 }
