@@ -9,9 +9,10 @@ const CAL_EXPIRY_KEY   = 'sts-gcal-token-expiry';
 const CAL_REFRESH_KEY  = 'sts-gcal-refresh-token';
 const CAL_VERIFIER_KEY = 'sts-gcal-pkce-verifier';
 
-let _calCurrentDate = new Date();
-let _calEvents      = [];
-let _calRefreshTimer = null;
+let _calCurrentDate    = new Date();
+let _calEvents         = [];
+let _calUpcomingEvents = [];
+let _calRefreshTimer   = null;
 
 // ── Token helpers ─────────────────────────────
 
@@ -242,6 +243,36 @@ async function calLoadEvents() {
   } catch (err) {
     if (err.message !== 'no-token') console.error('Calendar load error', err);
   }
+
+  calLoadUpcoming();
+}
+
+// Separate from the grid fetch above — always spans "now" through +60 days,
+// regardless of which month the grid is currently showing, so the Upcoming
+// widgets (sidebar + dashboard) don't run dry near the end of a month.
+async function calLoadUpcoming() {
+  const now     = new Date();
+  const timeMin = now.toISOString();
+  const timeMax = new Date(now.getTime() + 60 * 86400000).toISOString();
+
+  const url = '/calendars/primary/events'
+    + '?timeMin=' + encodeURIComponent(timeMin)
+    + '&timeMax=' + encodeURIComponent(timeMax)
+    + '&singleEvents=true&orderBy=startTime&maxResults=200';
+
+  try {
+    const r = await calFetch(url);
+    if (r.status === 401) { calClearTokens(); return; }
+    const data = await r.json();
+    if (!data || !data.items) return;
+    _calUpcomingEvents = data.items.filter(function (ev) {
+      return (ev.summary || '').trim().toLowerCase() !== 'home';
+    });
+    calRenderUpcoming();
+    if (typeof _homeRefreshCalendar === 'function') _homeRefreshCalendar();
+  } catch (err) {
+    if (err.message !== 'no-token') console.error('Calendar upcoming load error', err);
+  }
 }
 
 // ── Render ────────────────────────────────────
@@ -292,18 +323,24 @@ function calRenderGrid() {
 
 const CAL_UPCOMING_HIDDEN = ['downtown farmers market', 'texas farmers market'];
 
-function calRenderUpcoming() {
+// Shared by both Upcoming widgets (Calendar tab sidebar + Dashboard widget).
+function calFilterUpcoming(events) {
   const now = new Date();
-  const upcoming = _calEvents.filter(function (ev) {
+  return events.filter(function (ev) {
     const dtStr = ev.start && (ev.start.dateTime || ev.start.date);
     if (!dtStr || new Date(dtStr) < now) return false;
     const title = (ev.summary || '').trim().toLowerCase();
     return !CAL_UPCOMING_HIDDEN.some(function (hidden) { return title.indexOf(hidden) !== -1; });
-  }).slice(0, 10);
+  });
+}
+
+function calRenderUpcoming() {
+  const upcoming = calFilterUpcoming(_calUpcomingEvents).slice(0, 10);
 
   const list = document.getElementById('cal-upcoming');
+  if (!list) return;
   if (!upcoming.length) {
-    list.innerHTML = '<div class="cal-empty">No upcoming events this month.</div>';
+    list.innerHTML = '<div class="cal-empty">No upcoming events in the next 60 days.</div>';
     return;
   }
   list.innerHTML = upcoming.map(function (ev) {

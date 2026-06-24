@@ -7673,17 +7673,13 @@ function applyStatFilter(key) {
     const body = document.getElementById('hw-cal-body');
     if (!body) return;
 
-    // _calEvents is the global populated by calendar.js after calLoadEvents()
-    if (typeof _calEvents !== 'undefined' && _calEvents.length > 0) {
-      const now = new Date();
-      const upcoming = _calEvents
-        .filter(ev => {
-          const dtStr = ev.start && (ev.start.dateTime || ev.start.date);
-          return dtStr && new Date(dtStr) >= now;
-        })
+    // _calUpcomingEvents is the global populated by calendar.js after calLoadUpcoming()
+    // (a rolling 60-day window, independent of whichever month the grid is showing).
+    if (typeof _calUpcomingEvents !== 'undefined' && _calUpcomingEvents.length > 0) {
+      const upcoming = (typeof calFilterUpcoming === 'function' ? calFilterUpcoming(_calUpcomingEvents) : _calUpcomingEvents)
         .slice(0, 5);
       if (!upcoming.length) {
-        body.innerHTML = '<div class="hw-loading">No upcoming events this month.</div>';
+        body.innerHTML = '<div class="hw-loading">No upcoming events in the next 60 days.</div>';
         return;
       }
       body.innerHTML = upcoming.map(ev => {
