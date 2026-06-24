@@ -70,7 +70,10 @@ An employee's hourly pay rate, entered and edited in a settings panel at the top
 A Production Session's net duration × the Labor Rate snapshotted on that session. For sessions saved before Labor Rate snapshotting existed, falls back to the employee's current rate and is marked "(est.)" to distinguish it from a locked-in historical figure.
 
 **Item Value** (Production Report context)
-A Production Session's Pieces Made × the per-item Square catalog unit price, snapshotted the same way and at the same time as Labor Rate (first Stop & Save only). Same "(est.)" fallback rule applies to sessions with no snapshot.
+A Production Session's Pieces Made × the per-item Square catalog unit price, snapshotted the same way and at the same time as Labor Rate (first Stop & Save only). Same "(est.)" fallback rule applies to sessions with no snapshot. The unit price can also be corrected manually after the fact, or re-derived by re-linking the item to a different Square catalog entry — both update the snapshot, not just the live estimate.
+
+**Items JSON** (Notion property, STS Work Sessions database)
+A rich-text property holding the full serialized `items` array for a Production Session (name, Square ID, pieces, unit price, custom-item flag, estimate flag) — the per-item data model is too variable for discrete Notion columns, so it's stored as one JSON blob, following the same pattern as BGAB Event data (see ADR 0001). If this property is missing or unparseable on a given page (e.g. sessions saved before it existed), the app falls back to reconstructing a single item from the page's core `Item Name`/`Square Item ID`/`Pieces Made` properties — degraded but never broken.
 
 **Profit Margin** (Production Report context)
 Item Value − Labor Cost for a single Production Session. Computed for display only; never stored.
