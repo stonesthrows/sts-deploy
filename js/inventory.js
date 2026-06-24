@@ -295,16 +295,20 @@ async function _invLoadSub(sub) {
 
   try {
     // Fetch catalog items belonging to these categories
-    // Uses search-catalog-items which correctly handles Square's multi-category format
-    const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
-      method: 'POST',
-      body: JSON.stringify({
-        category_ids: catIds,
-      }),
-    });
-
-    let items = (searchRes.items || []).filter(o => !o.is_deleted);
-    console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
+    // Uses search-catalog-items which correctly handles Square's multi-category format.
+    // Square treats an empty category_ids array as "no filter" (returns everything), so
+    // skip the search entirely when there are no category IDs to filter on.
+    let items = [];
+    if (catIds.length) {
+      const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
+        method: 'POST',
+        body: JSON.stringify({
+          category_ids: catIds,
+        }),
+      });
+      items = (searchRes.items || []).filter(o => !o.is_deleted);
+      console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
+    }
 
     // Merge items from any name-matched categories (e.g. "Earrings (Seamless Hoops)")
     // so items spread across multiple Square categories all appear together
