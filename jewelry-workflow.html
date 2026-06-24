@@ -587,6 +587,8 @@
       transition: box-shadow 0.15s, transform 0.1s;
     }
     .o-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.09); transform: translateY(-1px); }
+    .o-card.o-card-etsy    { background: #FEF0E8 !important; border-color: #F1641E !important; border-left-color: #F1641E !important; }
+    .o-card.o-card-shopify { background: #EAF8EE !important; border-color: #2A8C50 !important; border-left-color: #2A8C50 !important; }
     .o-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
     .o-unsynced { font-size: 10px; font-weight: 600; color: #B5650D; background: #FFF1DC; border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
     .o-desc { font-size: 11.5px; color: #6A6460; line-height: 1.4; margin-bottom: 8px; }
@@ -4301,6 +4303,7 @@
           <a href="https://www.notion.so/62de37d7be8348eba611f494006d8085" target="_blank" onclick="toggleKbOverflow()">📓 Notion DB</a>
           <button id="notionSyncBtn" onclick="notionSyncFromNotion();toggleKbOverflow()" title="Pull latest orders from Notion">↻ Sync Notion</button>
           <button id="etsySyncBtn" onclick="etsySync();toggleKbOverflow()" title="Import new paid Etsy orders">🛍 Sync Etsy</button>
+          <button id="shopifySyncBtn" onclick="shopifySync();toggleKbOverflow()" title="Import new Shopify orders">🛒 Sync Shopify</button>
           <button onclick="syncGmail();toggleKbOverflow()">⟳ Sync Gmail</button>
           <button onclick="checkDriveScans(this);toggleKbOverflow()" title="Check Google Drive folder for new scanned work order bags">☁ Check Drive</button>
           <button onclick="openIntegrationsModal();toggleKbOverflow()" title="Configure API keys and integrations">⚙ Integrations</button>

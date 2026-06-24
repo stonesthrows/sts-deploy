@@ -193,8 +193,10 @@ function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
   const hasPhoto = !!o.photo;
   const isCollapsed = !expandedCards.has(o.id);
+  const platformCls = o.id.startsWith('etsy-') ? ' o-card-etsy'
+                     : o.id.startsWith('shopify-') ? ' o-card-shopify' : '';
   return `
-    <div class="o-card${o.stage === 'contact-need' ? ' contact-pulse' : ''}${isCollapsed ? ' collapsed' : ''}"
+    <div class="o-card${platformCls}${o.stage === 'contact-need' ? ' contact-pulse' : ''}${isCollapsed ? ' collapsed' : ''}"
          id="card-${o.id}"
          draggable="true"
          ondragstart="dragStart(event,'${o.id}')"

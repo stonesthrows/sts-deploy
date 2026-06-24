@@ -1,0 +1,106 @@
+// ════════════════════════════════════════════
+//  Combined Order Auto-Sync  —  /api/sync-orders
+//  Cloudflare Pages Function
+//  Pulls recent Shopify + Etsy orders and pushes them into the Notion
+//  pipeline DB via /api/notion-pipeline, which is idempotent on App ID —
+//  safe to call repeatedly (e.g. from a daily scheduled task) without
+//  any separate "last synced" cursor tracking.
+// ════════════════════════════════════════════
+
+const LOOKBACK_DAYS = 14;
+
+const CORS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
+export async function onRequestGet(context) {
+  const origin = new URL(context.request.url).origin;
+  const since  = new Date(Date.now() - LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
+
+  const result = { shopifyChecked: 0, shopifyImported: 0, etsyChecked: 0, etsyImported: 0, errors: [] };
+
+  // ── Shopify ───────────────────────────────────────────────
+  try {
+    const r = await fetch(`${origin}/api/shopify-orders?since=${since}`);
+    const data = await r.json();
+    if (!r.ok || !Array.isArray(data)) {
+      result.errors.push('shopify-orders: ' + (data?.error || r.status));
+    } else {
+      result.shopifyChecked = data.length;
+      for (const so of data) {
+        const order = {
+          id:            'shopify-' + so.shopifyOrderId,
+          name:          so.name,
+          email:         so.email,
+          price:         so.price,
+          desc:          so.desc,
+          notes:         so.notes,
+          stage:         'intake-website',
+          orderType:     'order',
+          contactSource: 'Website Order',
+          takeIn:        so.createdAt ? so.createdAt.slice(0, 10) : '',
+        };
+        const pr = await fetch(`${origin}/api/notion-pipeline`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order),
+        });
+        if (pr.ok) result.shopifyImported++;
+        else result.errors.push('shopify ' + order.id + ': notion-pipeline ' + pr.status);
+      }
+    }
+  } catch (e) {
+    result.errors.push('shopify: ' + e.message);
+  }
+
+  // ── Etsy ──────────────────────────────────────────────────
+  try {
+    const r = await fetch(`${origin}/api/etsy-orders?since=${since}`);
+    const data = await r.json();
+    if (!r.ok || !Array.isArray(data)) {
+      result.errors.push('etsy-orders: ' + (data?.error || r.status));
+    } else {
+      result.etsyChecked = data.length;
+      for (const eo of data) {
+        const order = {
+          id:            'etsy-' + eo.etsyReceiptId,
+          name:          eo.name,
+          email:         eo.email,
+          price:         eo.price,
+          desc:          eo.desc,
+          notes:         eo.notes,
+          stage:         'etsy-bench',
+          orderType:     'order',
+          contactSource: 'Etsy Message',
+          takeIn:        eo.createdAt ? eo.createdAt.slice(0, 10) : '',
+          addrStreet:    eo.addrStreet  || '',
+          addrStreet2:   eo.addrStreet2 || '',
+          addrCity:      eo.addrCity    || '',
+          addrState:     eo.addrState   || '',
+          addrZip:       eo.addrZip     || '',
+          addrCountry:   eo.addrCountry || '',
+        };
+        const pr = await fetch(`${origin}/api/notion-pipeline`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order),
+        });
+        if (pr.ok) result.etsyImported++;
+        else result.errors.push('etsy ' + order.id + ': notion-pipeline ' + pr.status);
+      }
+    }
+  } catch (e) {
+    result.errors.push('etsy: ' + e.message);
+  }
+
+  return json(result);
+}
