@@ -277,7 +277,6 @@ function openOrderCard(id) {
   document.getElementById('f-notes').value         = o.notes         || '';
   document.getElementById('f-customer-notes').value = o.customerNotes || '';
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
-  setOrderType(o.orderType || 'order');
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
@@ -286,6 +285,12 @@ function openOrderCard(id) {
   document.getElementById('f-addr-zip').value      = sa.zip     || o.addrZip     || '';
   document.getElementById('f-addr-country').value  = sa.country || o.addrCountry || 'United States';
   toggleShippingAddress();
+
+  // Auto-select Etsy/Shopify in the Order Type dropdown for synced orders —
+  // only when orderType is still the generic default, so a manual
+  // recategorization (e.g. to Repair) sticks on future edits.
+  const platformType = o.id.startsWith('etsy-') ? 'etsy-order' : o.id.startsWith('shopify-') ? 'website-order' : null;
+  setOrderType(platformType && (!o.orderType || o.orderType === 'order') ? platformType : (o.orderType || 'order'));
 
   _setOrderFormEditMode(true, o.name);
   populateEstimateFromOrder(o);
