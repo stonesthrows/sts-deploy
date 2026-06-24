@@ -23,6 +23,8 @@ const STAGE_TO_NOTION = {
   'order-mat':      'Order Materials',
   'materials':      'Waiting on Materials',
   'wait-cust-ship': 'Waiting on Customer Shipment',
+  'needs-invoice':  'Needs Invoicing',
+  'invoice-sent':   'Invoice Sent',
   'build':          'At the Bench',
   'kyle':           'Kyle',
   'stevie':         'Stevie',
