@@ -15,6 +15,19 @@ var PROD_COLUMNS = [
   { key: '__cancelled__',             label: 'Cancelled',                 icon: '🚫', color: '#C04848' },
 ];
 
+// Sub-cards inside the "To be Shipped" column, grouped by order source
+var SHIP_SUBGROUPS = [
+  { key: 'custom',  label: 'Custom Orders',  icon: '💍' },
+  { key: 'etsy',    label: 'Etsy Orders',    icon: '🛍' },
+  { key: 'shopify', label: 'Shopify Orders', icon: '🛒' },
+];
+
+function prodShipGroup(o) {
+  if (o.id.startsWith('etsy-'))    return 'etsy';
+  if (o.id.startsWith('shopify-')) return 'shopify';
+  return 'custom';
+}
+
 function prodGetColumn(o) {
   if (o.stage === 'cancelled') return '__cancelled__';
   if (o.stage === 'ship-out') return '__ship__';
@@ -171,7 +184,23 @@ function renderProduction() {
           + ' ondragleave="prodDragLeave(event)"'
           + ' ondrop="prodDrop(event,\'' + col.key + '\')">';
 
-    if (!colOrders.length) {
+    if (col.key === '__ship__') {
+      SHIP_SUBGROUPS.forEach(function(sub) {
+        var subOrders = colOrders.filter(function(o){ return prodShipGroup(o) === sub.key; });
+        html += '<div class="prod-sub-wrap' + (subOrders.length ? '' : ' prod-sub-empty') + '">';
+        html += '<div class="prod-sub-head">'
+              + '<span>' + sub.icon + ' ' + sub.label + '</span>'
+              + '<span class="prod-sub-count">' + subOrders.length + '</span>'
+              + '</div>';
+        html += '<div class="prod-sub-body">';
+        if (!subOrders.length) {
+          html += '<div class="prod-col-empty">Drop here</div>';
+        } else {
+          subOrders.forEach(function(o) { html += prodOrderCardHTML(o, true); });
+        }
+        html += '</div></div>';
+      });
+    } else if (!colOrders.length) {
       html += '<div class="prod-col-empty">Drop here</div>';
     } else {
       colOrders.forEach(function(o) {
@@ -313,7 +342,7 @@ function renderProduction() {
 function prodOrderCardHTML(o, showDeliverBtn) {
   var dl = deadlineInfo(o.deadline);
   var deliveredLine = (o.deliveredAt || o.completedAt)
-    ? '<div class="prod-delivered-on">Delivered ' + fmtDate(o.deliveredAt || o.completedAt) + '</div>'
+    ? '<div class="prod-delivered-on">Completed ' + fmtDate(o.deliveredAt || o.completedAt) + '</div>'
     : '';
   var html = '<div class="prod-order-card"'
            + ' id="prod-card-' + o.id + '"'
@@ -372,7 +401,7 @@ function prodOrderCardHTML(o, showDeliverBtn) {
     }
   }
   if (showDeliverBtn && o.stage !== 'cancelled') {
-    html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Picked Up / Delivered</button>';
+    html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Mark Completed</button>';
   }
   if (!showDeliverBtn) {
     var safeName  = (o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -529,7 +558,7 @@ function prodMarkDelivered(id) {
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'delivered');
   renderProduction();
-  toast(o.name + ' marked as delivered ✓', '✓');
+  toast(o.name + ' marked as completed ✓', '✓');
 }
 
 // ════════════════════════════════════════════
