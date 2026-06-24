@@ -2457,10 +2457,15 @@ function _rqEditAddSearch(store, i, query) {
         var variations = obj.item_data ? (obj.item_data.variations || []) : [];
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+          var price = v && v.price_money ? v.price_money.amount / 100 : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, price: price });
         } else {
           rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
-            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' }; }) });
+            variants: variations.map(function(vv) {
+              var vd = vv.item_variation_data;
+              var vp = vd && vd.price_money ? vd.price_money.amount / 100 : null;
+              return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '', price: vp };
+            }) });
         }
       });
       _rqEditAddRenderResults(store, i, rows, query);
@@ -2509,7 +2514,7 @@ function rqEditAddSelectId(store, i, itemId) {
     _rqStoreRender(store);
     return;
   }
-  _rqEditAddCommitItem(store, i, { name: item.name, squareId: item.id, pieces: null, isCustom: false });
+  _rqEditAddCommitItem(store, i, { name: item.name, squareId: item.id, pieces: null, isCustom: false, unitPrice: item.price != null ? item.price : null });
 }
 
 function rqEditAddSelectCustom(store, i, name) {
@@ -2522,7 +2527,7 @@ function rqEditToggleVariant(store, i, variantId) {
     // Relinking an existing item: one variant pick is enough, commit immediately.
     var v = (e.variantPicker.item.variants || []).filter(function(vv) { return vv.id === variantId; })[0];
     if (!v) return;
-    _rqEditAddCommitItem(store, i, { name: e.variantPicker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false });
+    _rqEditAddCommitItem(store, i, { name: e.variantPicker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false, unitPrice: v.price != null ? v.price : null });
     return;
   }
   var idx = e.variantPicker.selectedIds.indexOf(variantId);
@@ -2544,7 +2549,7 @@ function rqEditConfirmVariants(store, i) {
   if (!selected.length) return;
   var s = _rqStoreList(store)[i]; if (!s) return;
   s.items = (s.items || []).concat(selected.map(function(v) {
-    return { name: picker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false };
+    return { name: picker.item.name + ' – ' + (v.name || ''), squareId: v.id, pieces: null, isCustom: false, unitPrice: v.price != null ? v.price : null };
   }));
   delete _rqEditAdds[store][i];
   _rqStoreRender(store);
