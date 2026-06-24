@@ -918,7 +918,23 @@ var CATALOG = [
   {id:'rg_601118',sup:'rg',cat:'Metals — Wire',name:'14K White Gold Round Wire, 18-Ga., Soft (Contains Nickel)',desc:'By the OZT'},
   {id:'rg_108924',sup:'rg',cat:'Metals — Wire',name:'Argentium® Silver Round Wire, 24-Ga., Hard',desc:'By the OZT'},
   {id:'rg_621644B',sup:'rg',cat:'Chains',name:'Sterling Silver 2.4mm Open Foxtail Chain',desc:'By the foot'},
-  {id:'rg_100910',sup:'rg',cat:'Metals — Wire',name:'Sterling Silver Bead Wire, 10-Ga.',desc:'By the OZT'}
+  {id:'rg_100910',sup:'rg',cat:'Metals — Wire',name:'Sterling Silver Bead Wire, 10-Ga.',desc:'By the OZT'},
+
+  // ── Added from Rio Grande order history (one-off chains, by request) ──
+  {id:'rg_643985B',sup:'rg',cat:'Chains',name:'10K Yellow Gold 1.4mm Diamond-Cut Oval Rolo Chain',desc:'By the inch'},
+  {id:'rg_678682B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.4mm Dapped Bar & Link Chain',desc:'By the foot'},
+  {id:'rg_679918B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.4mm Flat Oval Cable Chain',desc:'By the foot'},
+  {id:'rg_675726B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 1.5mm Cable Chain',desc:'By the foot'},
+  {id:'rg_643011B',sup:'rg',cat:'Chains',name:'14/20 Yellow Gold-Filled 2.1mm Patterned Long & Short Chain',desc:'By the foot'},
+  {id:'rg_643126B',sup:'rg',cat:'Chains',name:'14/20 Rose Gold-Filled 3.2mm Heart Link Chain',desc:'By the foot'},
+  {id:'rg_618628B',sup:'rg',cat:'Chains',name:'Sterling Silver 1.1mm Flat Wire Rolo Chain',desc:'By the foot'},
+  {id:'rg_619330B',sup:'rg',cat:'Chains',name:'Sterling Silver 1.9mm Patterned Cable Chain',desc:'By the foot'},
+  {id:'rg_621635B',sup:'rg',cat:'Chains',name:'Sterling Silver 1.9mm Square Foxtail Chain',desc:'By the foot'},
+  {id:'rg_621726B',sup:'rg',cat:'Chains',name:'Sterling Silver 2.4mm Rolo Chain',desc:'By the foot'},
+  {id:'rg_616780B',sup:'rg',cat:'Chains',name:'Sterling Silver 2.7mm Flat Rolo Chain',desc:'By the foot'},
+  {id:'rg_617800B',sup:'rg',cat:'Chains',name:'Sterling Silver 2.8mm Flat Curb Chain',desc:'By the foot'},
+  {id:'rg_612785B',sup:'rg',cat:'Chains',name:'Sterling Silver 2mm Diamond-Cut Rolo Chain',desc:'By the foot'},
+  {id:'rg_683693B',sup:'rg',cat:'Chains',name:'Sterling Silver 3mm Flat Heart Link Chain',desc:'By the foot'}
 ];
 
 var CATALOG_IDS = new Set(CATALOG.map(function(c){return c.id;}));
