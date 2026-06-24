@@ -23,6 +23,7 @@ var SHIP_SUBGROUPS = [
 ];
 
 function prodShipGroup(o) {
+  if (o.shipChannel)               return o.shipChannel;
   if (o.id.startsWith('etsy-'))    return 'etsy';
   if (o.id.startsWith('shopify-')) return 'shopify';
   return 'custom';
@@ -65,7 +66,7 @@ function prodDragEnd(ev) {
     if (el) el.style.opacity = '';
   }
   prodDraggedId = null;
-  document.querySelectorAll('.prod-col-body').forEach(function(b) {
+  document.querySelectorAll('.prod-col-body, .prod-sub-body').forEach(function(b) {
     b.classList.remove('prod-drag-over');
   });
 }
@@ -114,6 +115,20 @@ function prodDrop(ev, colKey) {
   var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
   if (!o) { prodDraggedId = null; return; }
   prodApplyMove(o, colKey);
+  prodDraggedId = null;
+}
+
+// Drop directly onto a Custom/Etsy/Shopify sub-card inside "To be Shipped" —
+// manually (re)assigns the channel, overriding the id-prefix default.
+function prodDropShip(ev, subKey) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.currentTarget.classList.remove('prod-drag-over');
+  if (!prodDraggedId) return;
+  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  if (!o) { prodDraggedId = null; return; }
+  o.shipChannel = subKey;
+  prodApplyMove(o, '__ship__');
   prodDraggedId = null;
 }
 
@@ -192,7 +207,10 @@ function renderProduction() {
               + '<span>' + sub.icon + ' ' + sub.label + '</span>'
               + '<span class="prod-sub-count">' + subOrders.length + '</span>'
               + '</div>';
-        html += '<div class="prod-sub-body">';
+        html += '<div class="prod-sub-body"'
+              + ' ondragover="prodDragOver(event)"'
+              + ' ondragleave="prodDragLeave(event)"'
+              + ' ondrop="prodDropShip(event,\'' + sub.key + '\')">';
         if (!subOrders.length) {
           html += '<div class="prod-col-empty">Drop here</div>';
         } else {
