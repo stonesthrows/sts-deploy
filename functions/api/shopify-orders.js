@@ -39,12 +39,11 @@ export async function onRequestGet(context) {
           createdAt
           email
           note
-          customer { firstName lastName }
           totalPriceSet { shopMoney { amount } }
           lineItems(first: 15) {
             nodes { title quantity variantTitle }
           }
-          shippingAddress { address1 address2 city province country zip }
+          shippingAddress { firstName lastName address1 address2 city province country zip }
           displayFulfillmentStatus
         }
       }
@@ -80,8 +79,8 @@ export async function onRequestGet(context) {
       ? [addr.address1, addr.address2, addr.city, addr.province, addr.zip, addr.country].filter(Boolean).join(', ')
       : '';
 
-    const customerName = o.customer
-      ? `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim()
+    const customerName = (addr && (addr.firstName || addr.lastName))
+      ? `${addr.firstName || ''} ${addr.lastName || ''}`.trim()
       : (o.email || 'Unknown');
 
     const notes = [
