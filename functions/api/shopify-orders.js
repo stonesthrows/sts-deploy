@@ -45,7 +45,7 @@ export async function onRequestGet(context) {
             nodes { title quantity variantTitle }
           }
           shippingAddress { address1 address2 city province country zip }
-          fulfillmentStatus
+          displayFulfillmentStatus
         }
       }
     }
@@ -99,7 +99,7 @@ export async function onRequestGet(context) {
       desc:   linesSummary,
       notes,
       createdAt:         o.createdAt,
-      fulfillmentStatus: o.fulfillmentStatus,
+      fulfillmentStatus: o.displayFulfillmentStatus,
     };
   });
 
