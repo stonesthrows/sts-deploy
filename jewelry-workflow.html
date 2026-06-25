@@ -494,6 +494,11 @@
     .k-sub-wrap.k-sub-empty .k-body { min-height: 8px; padding-top: 0; padding-bottom: 0; }
     .k-sub-wrap.k-sub-empty .k-body .k-empty { display: none; }
 
+    /* Auto-hide entirely when empty: unassigned bench + platform intake sub-cards */
+    .k-sub-wrap.k-sub-empty.s-build,
+    .k-sub-wrap.k-sub-empty.s-intake-website,
+    .k-sub-wrap.k-sub-empty.s-etsy-bench { display: none; }
+
     /* Sub-section stage colors — Intake group */
     .k-sub-wrap.s-intake-custom .k-sub-head { background:#E8EFFE; color:#3A5FCC; }
     .k-sub-wrap.s-intake-custom .k-body     { background:#EFF3FD; }
@@ -7419,7 +7424,7 @@ function savePrintSetup() {
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
-<script src="js/notes.js?v=33"></script>
+<script src="js/notes.js?v=34"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">

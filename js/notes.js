@@ -2626,6 +2626,7 @@ function _rqSessionEditRowHTML(store, i, s) {
   return '<div class="rq-edit-row">'
     + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
     + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
+    + '<div class="rq-edit-field"><label>Labor Rate</label><input class="rq-edit-input" type="number" min="0" step="0.5" placeholder="$/hr" id="rq-edit-rate-' + store + '-' + i + '" value="' + (s.laborRate != null ? s.laborRate : '') + '"></div>'
     + (s.items || []).map(function(it, ii) {
         var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
         return '<div class="rq-edit-field">'
@@ -2657,6 +2658,14 @@ function rqSaveEditSession(store, i) {
     s.totalMs = new Date(newStop) - new Date(newStart);
     s.netMs   = Math.max(0, s.totalMs - 15 * 60000);
   }
+  var rateEl = document.getElementById('rq-edit-rate-' + store + '-' + i);
+  var newRate = null;
+  if (rateEl) {
+    var rawRate = rateEl.value.trim();
+    if (rawRate !== '') { var parsedRate = parseFloat(rawRate); if (!isNaN(parsedRate)) newRate = parsedRate; }
+  }
+  var rateChanged = newRate !== (s.laborRate != null ? s.laborRate : null);
+  s.laborRate = newRate;
   // Read per-item piece count + unit price edits; drop any row left blank
   var updatedItems = (s.items || []).map(function(it, ii) {
     var pcsInp = document.getElementById('rq-edit-pcs-' + store + '-' + i + '-' + ii);
@@ -2699,6 +2708,7 @@ function rqSaveEditSession(store, i) {
       patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
     }
     if (totalPcs != null) patch.pieces = totalPcs;
+    if (rateChanged && newRate != null) patch.laborRate = newRate;
     patch.itemsJson = JSON.stringify(pricedItems);
     patch.itemName  = (pricedItems[0] && pricedItems[0].name) || '';
     return fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
