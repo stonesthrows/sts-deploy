@@ -7378,7 +7378,8 @@ function savePrintSetup() {
 <div id="tab-prod-report" class="tab-panel">
   <div class="rq-header-bar">
     <h2 class="rq-header-title">📊 Production Report</h2>
-    <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="rqRenderProductionReport(true)">⟳ Refresh</button>
+    <button id="rq-sync-missing-btn" class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="rqSyncMissingSessions('report')" title="Sync only sessions missing Square clock in/out data">⟳ Sync Missing</button>
+    <button class="btn btn-outline btn-sm" onclick="rqRenderProductionReport(true)">⟳ Refresh</button>
   </div>
   <div id="prod-report-rates" style="padding:8px 20px 0;"></div>
   <div id="prod-report-summary" style="padding:8px 20px 0;"></div>

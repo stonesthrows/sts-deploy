@@ -2875,6 +2875,7 @@ function _rqRenderReportBody(sessions) {
       + '<span style="color:#ccc">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'report\',' + i + ')">✎ Edit</button>'
+      + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-report-' + i + '" onclick="rqSyncShiftsForSession(\'report\',' + i + ')">⟳ Sync</button>' : '')
       + '</div>'
       + '<div class="rq-sbar-footer" style="flex-wrap:wrap;">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
@@ -2898,10 +2899,13 @@ function _rqRenderReportBody(sessions) {
   }
 }
 
-function rqSyncShiftsForSession(i) {
-  var s = _rqSessions[i]; if (!s || !s.startTime || !s.stopTime) return;
-  var btn = document.getElementById('rq-sync-btn-' + i);
+function rqSyncShiftsForSession(store, i) {
+  var sessions = store === 'report' ? _rqReportSessions : _rqSessions;
+  var s = sessions && sessions[i]; if (!s || !s.startTime || !s.stopTime) return Promise.resolve(false);
+  var btn = document.getElementById('rq-sync-btn-' + store + '-' + i);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  var render = function() { if (store === 'report') { _rqRenderReportBody(_rqReportSessions); } else { rqRenderSessions(); } };
+  return new Promise(function(resolve) {
   var empName = (s.employee && s.employee.name) || '';
   var KNOWN = { 'Vanessa': 'TMAMWG-ZS9lqZWKm', 'Vanessa Bigley': 'TMAMWG-ZS9lqZWKm',
                 'Stevie': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana Schafer': 'Q5gZGbDStWUysIE3CKhJ' };
@@ -2911,6 +2915,7 @@ function rqSyncShiftsForSession(i) {
     if (!empId) {
       toast('Unknown employee: ' + (empName || '?'), '⚠');
       if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync'; }
+      resolve(false);
       return;
     }
     var pStartMs = new Date(s.startTime).getTime();
@@ -2952,8 +2957,8 @@ function rqSyncShiftsForSession(i) {
       s.totalMs = totalMs; s.netMs = Math.max(0, totalMs - dedMs);
       var baseNotes = (s.notes || '').replace(/— Session Timeline —[\s\S]*$/, '').trim();
       s.notes = [baseNotes, block].filter(Boolean).join('\n\n');
-      rqRenderSessions();
-      if (!s.notionPageId) { toast('Timeline saved locally', '✓'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } return; }
+      render();
+      if (!s.notionPageId) { toast('Timeline saved locally', '✓'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } resolve(true); return; }
       fetch('/api/notion-timesession', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pageId: s.notionPageId, notes: s.notes,
@@ -2963,10 +2968,12 @@ function rqSyncShiftsForSession(i) {
       }).then(function(r) {
         toast(r.ok ? 'Timeline & times synced ✓' : 'Notion sync failed', r.ok ? '✓' : '⚠');
         if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
-      }).catch(function() { toast('Network error', '⚠'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } });
+        resolve(!!r.ok);
+      }).catch(function() { toast('Network error', '⚠'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } resolve(false); });
     }).catch(function(e) {
       toast('Square sync failed: ' + (e.message||e), '⚠');
       if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
+      resolve(false);
     });
   }
 
@@ -2981,6 +2988,33 @@ function rqSyncShiftsForSession(i) {
       doSync(match ? match.id : '');
     })
     .catch(function() { doSync(''); });
+  });
+}
+
+function _rqSessionMissingShiftSync(s) {
+  return !!(s && s.startTime && s.stopTime) && !/— Session Timeline —/.test(s.notes || '');
+}
+
+function rqSyncMissingSessions(store) {
+  var sessions = store === 'report' ? _rqReportSessions : _rqSessions;
+  var btn = document.getElementById(store === 'report' ? 'rq-sync-missing-btn' : 'rq-sync-missing-btn-log');
+  var eligible = [];
+  (sessions || []).forEach(function(s, i) { if (_rqSessionMissingShiftSync(s)) eligible.push(i); });
+  if (!eligible.length) { toast('No sessions are missing Square clock in/out data', '✓'); return Promise.resolve(); }
+  if (btn) { btn.disabled = true; btn.textContent = '⟳ Syncing…'; }
+  var done = 0, tried = 0;
+  function next() {
+    if (tried >= eligible.length) {
+      if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync Missing'; }
+      toast('Synced ' + done + '/' + tried + ' session' + (tried !== 1 ? 's' : ''), done === tried ? '✓' : '⚠');
+      return;
+    }
+    var i = eligible[tried];
+    tried++;
+    if (btn) btn.textContent = '⟳ ' + tried + '/' + eligible.length + '…';
+    rqSyncShiftsForSession(store, i).then(function(ok) { if (ok) done++; next(); });
+  }
+  next();
 }
 
 function rqRenderSessions() {
@@ -3016,7 +3050,7 @@ function rqRenderSessions() {
       + '<span style="color:#ccc">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'log\',' + i + ')">✎ Edit</button>'
-      + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-' + i + '" onclick="rqSyncShiftsForSession(' + i + ')">⟳ Sync</button>' : '')
+      + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-log-' + i + '" onclick="rqSyncShiftsForSession(\'log\',' + i + ')">⟳ Sync</button>' : '')
       + '</div>';
 
     var editRow = _rqSessionEditRowHTML('log', i, s);
