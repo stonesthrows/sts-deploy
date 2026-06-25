@@ -2733,9 +2733,16 @@ function _rqSaveRatesObj(rates) {
   localStorage.setItem('sts-employee-rates', JSON.stringify(rates));
 }
 
+// Notion's Employee field stores full names, but rates are keyed by the
+// short first name used in the queue assignee dropdown — alias them so
+// historical sessions still resolve to a rate (see rqSyncShiftsForSession's
+// KNOWN map for the same full-name/short-name mismatch).
+var RQ_NAME_ALIASES = { 'Vanessa Bigley': 'Vanessa', 'Stevana Schafer': 'Stevie', 'Stevana': 'Stevie' };
+
 function _rqRateFor(name) {
   var rates = _rqLoadRates();
-  var r = rates[name];
+  var key = RQ_NAME_ALIASES[name] || name;
+  var r = rates[key];
   return (typeof r === 'number' && !isNaN(r)) ? r : 0;
 }
 
