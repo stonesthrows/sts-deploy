@@ -711,8 +711,9 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   return html;
 }
 
-function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId) {
+function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
+  stoneOnchangeFn = stoneOnchangeFn || 'rqSetVariantStone';
   stoneByVariantId = stoneByVariantId || {};
   return '<div class="rq-variant-grid">'
     + variants.map(function(v) {
@@ -728,7 +729,7 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList
             var sel = (curIdx === s.idx) ? ' selected' : '';
             return '<option value="' + s.idx + '"' + sel + '>' + (s.name || '').replace(/</g, '&lt;') + '</option>';
           }).join('');
-          stoneHtml = '<select class="rq-variant-stone-select" onchange="rqSetVariantStone(\'' + pid + '\',\'' + safeVId + '\',this.value)">' + opts + '</select>';
+          stoneHtml = '<select class="rq-variant-stone-select" onchange="' + stoneOnchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">' + opts + '</select>';
         }
         return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
           + '<div class="rq-variant-chip-row">'
@@ -3203,18 +3204,23 @@ function _rqAddSearch(query) {
     if (!found.length) { _rqAddRenderResults(localMatches, query); return; }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }) },
+      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
     }).then(function(batchData) {
+      var modifierListsById = {};
+      (batchData.related_objects || []).forEach(function(o) {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
       var rows = [];
       (batchData.objects || []).forEach(function(obj) {
         if (obj.type !== 'ITEM') return;
         var d = obj.item_data || {};
         var vars = d.variations || [];
+        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (vars.length > 1) {
-          rows.push({ id: obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: true, variantCount: vars.length, variants: vars.map(function(v) { return { id: v.id, name: (v.item_variation_data || {}).name || '' }; }) });
+          rows.push({ id: obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: true, variantCount: vars.length, modifierLists: modifierLists, variants: vars.map(function(v) { return { id: v.id, name: (v.item_variation_data || {}).name || '' }; }) });
         } else {
           var vd = vars[0] ? (vars[0].item_variation_data || {}) : {};
-          rows.push({ id: vars[0] ? vars[0].id : obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: false, sku: vd.sku || '' });
+          rows.push({ id: vars[0] ? vars[0].id : obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: false, sku: vd.sku || '', modifierLists: modifierLists });
         }
       });
       if (!rows.length) rows = localMatches;
@@ -3297,10 +3303,15 @@ function _rqAddShowChip(item) {
   if (item.isParent) {
     var table = _rqBuildVariantTable(item.variants);
     var qtyByVariantId = {};
-    (item.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
+    var stoneByVariantId = {};
+    (item.selectedVariants || []).forEach(function(v) {
+      qtyByVariantId[v.id] = v.qty || '';
+      if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
+    });
+    var stoneList = _rqStoneOptionsFor(item);
     sizesBox.innerHTML = table
       ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
-      : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty');
+      : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
     sizesBox.style.display = 'block';
   } else {
     sizesBox.style.display = 'none';
@@ -3321,11 +3332,31 @@ function rqAddSetVariantQty(_pid, variantId, value) {
   (item.selectedVariants || []).forEach(function(v) { byId[v.id] = v; });
   var variant = (item.variants || []).filter(function(v) { return v.id === variantId; })[0];
   if (!variant) return;
-  if (qty > 0) byId[variantId] = Object.assign({}, variant, { qty: qty });
-  else delete byId[variantId];
+  if (qty > 0) {
+    var prevStone = byId[variantId] && byId[variantId].stoneIdx;
+    byId[variantId] = Object.assign({}, variant, { qty: qty }, prevStone !== undefined ? { stoneIdx: prevStone } : {});
+  } else delete byId[variantId];
   item.selectedVariants = (item.variants || [])
     .filter(function(v) { return byId[v.id]; })
     .map(function(v) { return byId[v.id]; });
+  // Re-render so the stone dropdown appears/disappears immediately as a
+  // size crosses the qty>0 threshold, instead of only showing up after
+  // some unrelated re-render (e.g. on the next keystroke elsewhere).
+  if (_rqStoneOptionsFor(item)) _rqAddShowChip(item);
+}
+
+// Same not-yet-saved-pid pattern as rqAddSetVariantQty — mutates
+// _rqAddPendingMatch directly since this item has no notionPageId yet.
+function rqAddSetVariantStone(_pid, variantId, stoneIdxStr) {
+  var item = _rqAddPendingMatch;
+  if (!item || !item.isParent) return;
+  var stoneIdx = stoneIdxStr === '' ? undefined : parseInt(stoneIdxStr, 10);
+  item.selectedVariants = (item.selectedVariants || []).map(function(v) {
+    if (v.id !== variantId) return v;
+    var next = Object.assign({}, v);
+    if (stoneIdx === undefined) delete next.stoneIdx; else next.stoneIdx = stoneIdx;
+    return next;
+  });
 }
 
 function rqDeleteItem(idx) {
