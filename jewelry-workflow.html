@@ -2245,19 +2245,7 @@
       font-size: 13px; outline: none; font-family: inherit; color: var(--text); background: #fff;
     }
     .notes-add-input:focus { border-color: var(--accent); }
-    #toorder-suggest, #restock-suggest { padding: 0 14px; }
-    .restock-size-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
-    .restock-size-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      padding: 6px 10px; background: #F8F3EC; border: 1px solid #E4DDD4; border-radius: 6px;
-    }
-    .restock-size-name { font-size: 12px; color: var(--text); font-weight: 600; }
-    .restock-size-qty {
-      width: 52px; padding: 4px 6px; border: 1px solid #D8D0C8; border-radius: 6px;
-      font-size: 12px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
-    }
-    .restock-size-qty:focus { border-color: var(--accent); outline: none; }
-    .restock-size-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+    #toorder-suggest { padding: 0 14px; }
     .toorder-suggest-label { font-size: 11px; color: var(--text3); font-weight: 600; padding: 6px 0 3px; text-transform: uppercase; letter-spacing: .04em; }
     .toorder-suggest-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; margin-bottom: 4px; background: #F8F3EC; border: 1px solid #E4DDD4; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .toorder-suggest-item:hover { background: #F0E8DC; border-color: var(--accent); }
@@ -4853,23 +4841,6 @@
         <button class="btn btn-gold btn-sm" onclick="addNoteItem('toorder')">Add</button>
       </div>
       <div id="toorder-suggest"></div>
-    </div>
-
-    <!-- Card 5: Inventory Restock checklist -->
-    <div class="notes-card">
-      <div class="notes-card-head">
-        📦 Inventory Restock
-        <span class="notes-card-count" id="restock-count"></span>
-      </div>
-      <div class="notes-list" id="restock-list" ondragover="notesDragOver(event)" ondragleave="notesDragLeave(event)" ondrop="notesDrop(event,'restock')"></div>
-      <div class="notes-add-row">
-        <input class="notes-add-input" id="restock-input" type="text"
-          placeholder="Item running low…" autocomplete="off"
-          onkeydown="if(event.key==='Enter') addNoteItem('restock')"
-          oninput="restockSuggest(this.value)">
-        <button class="btn btn-gold btn-sm" onclick="addNoteItem('restock')">Add</button>
-      </div>
-      <div id="restock-suggest"></div>
     </div>
 
     <!-- Card 6: Webapp Updates -->
