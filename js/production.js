@@ -236,7 +236,12 @@ function renderProduction() {
 
   // ── Year / Month / Type archive ───────────────────────────────
   var archiveOrders = ORDERS.filter(function(o) {
-    return o.stage === 'delivered' || o.stage === 'complete' || o.stage === 'cancelled';
+    if (o.stage !== 'delivered' && o.stage !== 'complete' && o.stage !== 'cancelled') return false;
+    if (q) {
+      var archiveHaystack = ((o.name || '') + ' ' + (o.desc || '')).toLowerCase();
+      if (archiveHaystack.indexOf(q) < 0) return false;
+    }
+    return true;
   });
 
   html += '<div class="prod-archive">';
@@ -247,7 +252,7 @@ function renderProduction() {
   ARCHIVE_YEARS.forEach(function(year) {
     var yearStr = String(year);
     var yearKey = 'year-' + yearStr;
-    var yearOpen = !!prodOpenMonths[yearKey];
+    var yearOpen = !!prodOpenMonths[yearKey] || !!q;
 
     // Bucket orders into months for this year
     var monthBuckets = {};
@@ -269,6 +274,8 @@ function renderProduction() {
       return d.startsWith(yearStr);
     }).length;
 
+    if (q && yearTotal === 0) return;
+
     html += '<div class="prod-year-folder" id="prod-year-' + yearStr + '">';
     html += '<div class="prod-year-head" onclick="prodToggleMonth(\'' + yearKey + '\')">'
           + '<span class="prod-folder-icon">' + (yearOpen ? '📂' : '📁') + '</span>'
@@ -284,7 +291,7 @@ function renderProduction() {
       monthKeys.forEach(function(mk) {
         var bucket   = monthBuckets[mk];
         var mTotal   = bucket.completed.length + bucket.cancelled.length;
-        var mOpen    = !!prodOpenMonths[mk];
+        var mOpen    = !!prodOpenMonths[mk] || !!q;
         var mLabel   = prodMonthLabel(mk);
 
         html += '<div class="prod-month-folder" id="prod-folder-' + mk + '">';
@@ -301,7 +308,7 @@ function renderProduction() {
           // ── Completed sub-folder ──
           if (bucket.completed.length) {
             var ck   = mk + '-completed';
-            var cOpen = !!prodOpenMonths[ck];
+            var cOpen = !!prodOpenMonths[ck] || !!q;
             var cVal  = bucket.completed.reduce(function(s, o){ return s + (o.finalPrice || o.price || 0); }, 0);
             html += '<div class="prod-subfolder">';
             html += '<div class="prod-subfolder-head sf-completed" onclick="prodToggleMonth(\'' + ck + '\')">'
@@ -322,7 +329,7 @@ function renderProduction() {
           // ── Cancelled sub-folder ──
           if (bucket.cancelled.length) {
             var xk   = mk + '-cancelled';
-            var xOpen = !!prodOpenMonths[xk];
+            var xOpen = !!prodOpenMonths[xk] || !!q;
             html += '<div class="prod-subfolder">';
             html += '<div class="prod-subfolder-head sf-cancelled" onclick="prodToggleMonth(\'' + xk + '\')">'
                   + '<span>' + (xOpen ? '📂' : '📁') + '</span>'
@@ -351,7 +358,9 @@ function renderProduction() {
   html += '</div>'; // prod-archive
 
   if (!readyOrders.length && !archiveOrders.length) {
-    html = '<div class="prod-empty">No orders yet.</div>';
+    html = q
+      ? '<div class="prod-empty">No orders match "' + prodSearchTerm.replace(/</g, '&lt;') + '".</div>'
+      : '<div class="prod-empty">No orders yet.</div>';
   }
 
   grid.innerHTML = html;
