@@ -69,7 +69,7 @@ const COLUMN_GROUPS = [
     { id:'wait-cust-ship', cls:'s-wait-cust-ship', label:'Waiting on Customer Shipment' },
   ]},
   { label:'At the Bench', cls:'s-build',           stages:[
-    {id:'build',   cls:'s-build',   label:'At the Bench'},
+    {id:'build',   cls:'s-build',   label:'Unassigned'},
     {id:'kyle',    cls:'s-kyle',    label:'Kyle'},
     {id:'stevie',  cls:'s-stevie',  label:'Stevie'},
     {id:'vanessa', cls:'s-vanessa', label:'Vanessa'},

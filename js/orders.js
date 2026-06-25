@@ -222,7 +222,9 @@ function cardHTML(o) {
         </div>
       </div>
       <div class="o-collapsed-summary">
-        ${o.pickup ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
+        ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
+          : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
+          : o.pickup ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
         ${o.assignee ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
