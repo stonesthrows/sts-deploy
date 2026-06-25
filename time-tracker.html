@@ -215,7 +215,8 @@
     <div class="log-title">
       <span>Session log</span>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="sync-all-btn" onclick="syncAllSessions()" style="background:none;border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;transition:border-color 0.15s,color 0.15s;" title="Sync all sessions with Square shifts">⟳ Sync All</button>
+        <button id="sync-missing-btn" onclick="syncMissingSessions()" style="background:none;border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;transition:border-color 0.15s,color 0.15s;" title="Sync only sessions missing Square clock in/out data">⟳ Sync Missing</button>
+        <button id="sync-all-btn" onclick="syncAllSessions()" style="background:none;border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:0.08em;padding:3px 10px;cursor:pointer;transition:border-color 0.15s,color 0.15s;" title="Re-sync all sessions with Square shifts">⟳ Sync All</button>
         <a class="notion-link" href="https://app.notion.com/p/e59ae574e5ee4d569395e15bd56450e9" target="_blank">Open in Notion ↗</a>
       </div>
     </div>
@@ -1294,6 +1295,27 @@ async function syncShiftsForSession(i) {
     if (btn) { btn.disabled = false; btn.textContent = '⟳'; }
     return true;
   } catch(e) { showToast('Shift sync failed: ' + e.message, true); if (btn) { btn.disabled=false; btn.textContent='⟳'; } return false; }
+}
+
+function sessionMissingShiftSync(s) {
+  return !(s.shiftEvents || []).some(e => e.type === 'in' || e.type === 'out');
+}
+
+async function syncMissingSessions() {
+  const btn = $g('sync-missing-btn'); if (btn) { btn.disabled = true; btn.textContent = '⟳ Syncing…'; }
+  const eligible = sessions.map((s,i) => ({s,i})).filter(({s}) => s.startTime && s.stopTime && sessionMissingShiftSync(s));
+  let done = 0, tried = 0;
+  for (const {i} of eligible) {
+    tried++;
+    const ok = await syncShiftsForSession(i);
+    if (ok) done++;
+    if (btn) btn.textContent = `⟳ ${tried}/${eligible.length}…`;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync Missing'; }
+  if (!tried) { showToast('No sessions are missing Square clock in/out data'); return; }
+  const failed = tried - done;
+  if (failed > 0) showToast(`Synced ${done}/${tried} sessions — ${failed} failed`, true);
+  else showToast(`Synced ${done} session${done!==1?'s':''} ✓`);
 }
 
 async function syncAllSessions() {
