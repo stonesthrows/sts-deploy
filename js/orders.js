@@ -349,8 +349,10 @@ function markOrderComplete() {
   renderKanban();
   closeEditOrderModal();
 
-  // Sync stage to Notion
-  if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, 'complete');
+  // Push the full order (not just a stage-only patch) so the completion
+  // date lands in Notion's "Completed At" property in the same request —
+  // matches prodMarkDelivered's approach for the 'delivered' stage.
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
   saveToStorage();
   toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');

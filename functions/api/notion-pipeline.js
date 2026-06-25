@@ -157,7 +157,14 @@ function pageToOrder(page) {
   const stage       = NOTION_TO_STAGE[stageRaw] || 'intake-custom';
   // "Completed At" is the only finish-date property in Notion — route it to
   // completedAt or deliveredAt locally based on which stage the order is in.
-  const finishDate  = dt(p['Completed At']) || null;
+  // If an order was marked Completed/Delivered by changing the Notion status
+  // directly (bypassing the app's "Mark Completed" button), this date is
+  // left blank — fall back to the page's last-edited time as a best guess
+  // so the order doesn't silently vanish from the Order Archive.
+  const completedAtSet = !!dt(p['Completed At']);
+  const finishDate  = dt(p['Completed At'])
+    || ((stage === 'complete' || stage === 'delivered') ? (page.last_edited_time || '').slice(0, 10) : null)
+    || null;
 
   return {
     id:            appId || ('n_' + page.id.replace(/-/g, '')),
@@ -168,6 +175,10 @@ function pageToOrder(page) {
     finalPrice:    num(p['Final Price']),
     deadline:      dt(p['Deadline']),
     completedAt:   stage === 'complete'   ? finishDate : null,
+    // True when finishDate above is a guess (last-edited fallback) rather
+    // than an actual "Completed At" value — tells the client to write the
+    // guessed date back to Notion so it only ever needs to be guessed once.
+    dateGuessed:   (stage === 'complete' || stage === 'delivered') && !completedAtSet && !!finishDate,
     email:         eml(p['Email']),
     phone:         phn(p['Phone']),
     desc:          txt(p['Order Description']),

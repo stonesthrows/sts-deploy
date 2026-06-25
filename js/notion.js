@@ -105,6 +105,23 @@ async function notionUpdateStage(notionId, stageId) {
 }
 
 // ════════════════════════════════════════════
+//  HEAL GUESSED DATES  —  orders the API flagged as having a guessed
+//  Completed At (order was marked Completed/Delivered in Notion directly,
+//  bypassing the app, so the date came from last_edited_time instead).
+//  Writes the guess back to Notion once so it's never re-guessed.
+// ════════════════════════════════════════════
+async function notionHealGuessedDates(orders) {
+  const guessed = orders.filter(o => o.dateGuessed);
+  for (const o of guessed) {
+    delete o.dateGuessed;
+    await notionUpdateOrder(o);
+  }
+  if (guessed.length) {
+    toast('Backfilled ' + guessed.length + ' missing completion date' + (guessed.length > 1 ? 's' : '') + ' (best guess from Notion)', '📅');
+  }
+}
+
+// ════════════════════════════════════════════
 //  SYNC  —  pull all Notion pages → merge into ORDERS
 //  Preserves: photos, completed status, completed registry.
 //  Called by the ↻ Sync Notion button in the Integrations modal.
@@ -180,6 +197,7 @@ async function notionSyncFromNotion() {
       }
     }
 
+    await notionHealGuessedDates(notionOrders);
     saveToStorage();
     renderKanban();
     renderCustomers();
@@ -303,6 +321,7 @@ async function notionStartupSync() {
     }
     localOnly.forEach(o => ORDERS.push(o));
 
+    await notionHealGuessedDates(notionOrders);
     saveToStorage();
     renderKanban();
     if (typeof renderProduction === 'function') renderProduction();
