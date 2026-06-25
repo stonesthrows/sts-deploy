@@ -1806,7 +1806,9 @@ function rqStopTimer(pid) {
   _rqSaveTimerState();
   _rqSessions.unshift(session);
   rqRenderSessions();
-  restockQueueRender();
+  // Stopping the timer means the work is done — clear the card from the
+  // queue instead of leaving it for a manual × removal.
+  _rqDeleteItemByPid(pid);
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
   _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
     session.items = pricedItems;
@@ -3384,6 +3386,16 @@ function rqDeleteItem(idx) {
   var items = _rqSortedItems();
   var item = items[idx];
   if (!item) return;
+  _rqDeleteItemObj(item);
+}
+
+function _rqDeleteItemByPid(pid) {
+  var item = NOTES_DATA.filter(function(n) { return n.notionPageId === pid; })[0];
+  if (!item) return;
+  _rqDeleteItemObj(item);
+}
+
+function _rqDeleteItemObj(item) {
   var pid = item.notionPageId;
   // Clean up match state
   if (pid) {
