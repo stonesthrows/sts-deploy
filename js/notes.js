@@ -1579,6 +1579,7 @@ function restockQueueRender() {
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
         + _rqTimerSizesHtml(safePid, timer.richMatch || match)
+        + _rqTimerPiecesInputsHtml(safePid, timer)
         + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
         + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
         + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
@@ -1679,6 +1680,15 @@ function rqStartTimer(pid, itemText, assigneeName) {
 function rqStopTimer(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
+  // Require every item/variant to have a piece count before the session can
+  // be saved — otherwise "Pieces Made" silently stays blank in Notion forever.
+  var missingRow = _rqLiveTimerRows(t).some(function(r) { return r.pieces == null; });
+  if (missingRow) {
+    toast('Enter pieces made before stopping the timer', '⚠');
+    var firstInput = document.querySelector('#rq-match-row-' + pid + ' .rq-variant-qty-inline, #rq-match-row-' + pid + ' .rq-variant-qty, .rq-timer-pieces.rq-pieces-missing .rq-piece-input');
+    if (firstInput) { firstInput.scrollIntoView({ behavior: 'smooth', block: 'center' }); firstInput.focus(); }
+    return;
+  }
   var stopBtn = document.getElementById('rq-stop-' + pid);
   if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = 'Saving…'; }
   clearInterval(t.tickInterval);
@@ -2158,6 +2168,37 @@ function _rqTimerSizesHtml(pid, match) {
     + '<div class="rq-timer-sizes-readonly">' + _rqReadSummaryHtml(match) + '</div>'
     + '<div class="rq-timer-sizes-edit"><div class="rq-match-row" id="rq-match-row-' + pid + '">' + _rqMatchRowInner(pid) + '</div></div>'
     + '</div>';
+}
+
+// Inline "pieces made" input shown while a timer runs, for items that don't
+// already get a live qty field from the parent/variant sizes table — this is
+// the only place those items can have a piece count before Stop & Save, so
+// rqStopTimer blocks on it being filled in.
+function _rqTimerPiecesInputsHtml(pid, timer) {
+  if (timer.richMatch && timer.richMatch.isParent) return '';
+  var items = timer.items || [];
+  if (!items.length) return '';
+  var rows = items.map(function(item, idx) {
+    if (item.isParent && item.selectedVariants && item.selectedVariants.length) return '';
+    var val = item.pieces != null ? item.pieces : '';
+    var label = (item.name || ('Item ' + (idx + 1))).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="rq-timer-pieces' + (val === '' ? ' rq-pieces-missing' : '') + '">'
+      + '<label>' + label + ' — pcs made</label>'
+      + '<input type="number" class="rq-piece-input" id="rq-pieces-' + pid + '-' + idx + '" min="0" step="1" placeholder="0" value="' + val + '"'
+      + ' onchange="_rqSetTimerItemPieces(\'' + pid + '\',' + idx + ',this.value)">'
+      + '</div>';
+  }).join('');
+  return rows ? '<div class="rq-timer-pieces-wrap">' + rows + '</div>' : '';
+}
+
+function _rqSetTimerItemPieces(pid, idx, raw) {
+  var t = _rqTimers[pid]; if (!t || !t.items || !t.items[idx]) return;
+  var v = (raw || '').trim() === '' ? null : parseInt(raw, 10);
+  t.items[idx].pieces = isNaN(v) ? null : v;
+  _rqSaveTimerState();
+  var input = document.getElementById('rq-pieces-' + pid + '-' + idx);
+  var wrap  = input && input.closest('.rq-timer-pieces');
+  if (wrap) wrap.classList.toggle('rq-pieces-missing', t.items[idx].pieces == null);
 }
 
 function rqStartTimerConfirm(pid) {
