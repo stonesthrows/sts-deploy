@@ -193,7 +193,7 @@ export async function onRequestGet(context) {
       var props = p.properties;
       return {
         notionPageId:  p.id,
-        itemName:      props['Item Name']  ? txt(props['Item Name'])  : (props['Session']?.title?.[0]?.plain_text || ''),
+        itemName:      txt(props['Item Name']) || props['Session']?.title?.[0]?.plain_text || '',
         sku:           txt(props['SKU']),
         category:      txt(props['Category']),
         employeeName:  txt(props['Employee']),
