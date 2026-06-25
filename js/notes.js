@@ -18,7 +18,7 @@ var BLOCK_MAP = {
 
 // ── Load ─────────────────────────────────────
 function loadNotes() {
-  ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
+  ['studio','todo','toorder','webapp','market'].forEach(function(key) {
     renderNotesList(key, []);
   });
   var spinner = document.getElementById('notes-loading');
@@ -32,7 +32,7 @@ function loadNotes() {
         return;
       }
       NOTES_DATA = res.data || [];
-      ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
+      ['studio','todo','toorder','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
     })
@@ -51,7 +51,7 @@ function refreshNotes() {
     .then(function(res) {
       if (!res.ok) return;
       NOTES_DATA = res.data || [];
-      ['studio','todo','toorder','restock','webapp','market'].forEach(function(key) {
+      ['studio','todo','toorder','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
       var queuePanel = document.getElementById('tab-to-restock');
@@ -163,8 +163,6 @@ function renderNotesList(key, items) {
     var pending = items.length - done;
     if (count) count.textContent = pending > 0 ? pending + ' left' : (items.length ? 'all done ✓' : '');
   }
-
-  if (key === 'restock') restockQueueRender();
 
   list.innerHTML = items.map(function(item, idx) {
     var saving = item._saving ? ' style="opacity:0.5"' : '';
@@ -427,164 +425,6 @@ function toOrderSuggestPick(id) {
   }
 }
 
-// ── Inventory Restock: Square item suggest dropdown ──────────
-// Mirrors the live-filter the Inventory tab uses against the real
-// Square catalog, so restock notes match actual item/variation names.
-var _restockCatalog = null;     // grouped [{ name, variations: [{ id, name }] }] once loaded
-var _restockCatalogLoading = false;
-var _restockCatalogError = null;
-var _restockMatches = [];       // last rendered suggestion list (indexes into _restockCatalog)
-
-function _restockSqFetch(path) {
-  // Same pattern as _rqSqCall (Restock Queue page): only attach a token if
-  // one happens to be saved locally — the /api/square proxy falls back to
-  // its own server-side credential otherwise, so this works on any device
-  // without per-browser Square setup.
-  var token = localStorage.getItem('sts-square-token') || '';
-  var payload = { path: path, method: 'GET' };
-  if (token) payload.token = token;
-  return fetch('/api/square', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(function(r) {
-    return r.json().then(function(json) {
-      if (!r.ok) {
-        var msg = (json.errors && json.errors[0] && (json.errors[0].detail || json.errors[0].code)) || JSON.stringify(json);
-        throw new Error(msg);
-      }
-      return json;
-    });
-  });
-}
-
-function _restockLoadCatalog() {
-  if (_restockCatalog || _restockCatalogLoading) return;
-  _restockCatalogLoading = true;
-  _restockCatalogError = null;
-
-  var groups = [];
-  function page(cursor) {
-    var path = '/v2/catalog/list?types=ITEM' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
-    _restockSqFetch(path).then(function(res) {
-      (res.objects || []).forEach(function(obj) {
-        if (obj.is_deleted) return;
-        var name = obj.item_data && obj.item_data.name;
-        if (!name) return;
-        var vars = (obj.item_data.variations || []).filter(function(v) { return !v.is_deleted; });
-        groups.push({
-          name: name,
-          variations: vars.map(function(v) {
-            return { id: v.id, name: (v.item_variation_data && v.item_variation_data.name) || '' };
-          }),
-        });
-      });
-      if (res.cursor) { page(res.cursor); }
-      else {
-        _restockCatalog = groups;
-        _restockCatalogLoading = false;
-        var input = document.getElementById('restock-input');
-        if (input) restockSuggest(input.value);
-      }
-    }).catch(function(err) {
-      _restockCatalogLoading = false;
-      _restockCatalogError = (err && err.message) || 'Failed to load Square catalog';
-      var input = document.getElementById('restock-input');
-      if (input) restockSuggest(input.value);
-    });
-  }
-  page(null);
-}
-
-function _restockEsc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function restockSuggest(value) {
-  var box = document.getElementById('restock-suggest');
-  if (!box) return;
-  var text = (value || '').trim();
-  if (text.length < 2) { box.innerHTML = ''; return; }
-
-  if (_restockCatalogError) {
-    box.innerHTML = '<div class="toorder-suggest-label">⚠ ' + _restockCatalogError + '</div>';
-    return;
-  }
-  if (!_restockCatalog) { _restockLoadCatalog(); box.innerHTML = '<div class="toorder-suggest-label">Loading Square catalog…</div>'; return; }
-
-  var q = text.toLowerCase();
-  _restockMatches = _restockCatalog.filter(function(item) {
-    if (item.name.toLowerCase().indexOf(q) !== -1) return true;
-    return item.variations.some(function(v) { return v.name.toLowerCase().indexOf(q) !== -1; });
-  }).slice(0, 6);
-
-  if (!_restockMatches.length) { box.innerHTML = ''; return; }
-
-  var html = '<div class="toorder-suggest-label">📦 Square catalog match:</div>';
-  _restockMatches.forEach(function(item, i) {
-    var meta = item.variations.length > 1 ? item.variations.length + ' sizes' : '';
-    html += '<div class="toorder-suggest-item" onclick="restockPickItem(' + i + ')">'
-          + '<span class="toorder-suggest-name">' + _restockEsc(item.name) + '</span>'
-          + (meta ? '<span class="toorder-suggest-sup">' + meta + '</span>' : '')
-          + '</div>';
-  });
-  box.innerHTML = html;
-}
-
-// ── Single-variation item: fill the input directly ───────────
-function restockPickItem(i) {
-  var item = _restockMatches[i];
-  if (!item) return;
-  var box = document.getElementById('restock-suggest');
-
-  if (item.variations.length <= 1) {
-    var input = document.getElementById('restock-input');
-    if (input) { input.value = item.name; input.focus(); }
-    if (box) box.innerHTML = '';
-    return;
-  }
-  _restockRenderSizePicker(item, i, box);
-}
-
-// ── Multi-variation item (e.g. ring sizes): pick a quantity per size ──
-function _restockRenderSizePicker(item, matchIdx, box) {
-  if (!box) return;
-  var html = '<div class="toorder-suggest-label">📦 Choose size(s) for <strong>' + _restockEsc(item.name) + '</strong></div>'
-    + '<div class="restock-size-list">';
-  item.variations.forEach(function(v, i) {
-    html += '<div class="restock-size-row">'
-      + '<span class="restock-size-name">' + (_restockEsc(v.name) || '(Default)') + '</span>'
-      + '<input type="number" class="restock-size-qty" id="restock-size-qty-' + i + '" min="0" max="99" placeholder="0">'
-      + '</div>';
-  });
-  html += '</div>'
-    + '<div class="restock-size-actions">'
-    + '<button type="button" class="btn btn-gold btn-sm" onclick="restockConfirmSizes(' + matchIdx + ')">Add</button>'
-    + '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'restock-suggest\').innerHTML=\'\'">Cancel</button>'
-    + '</div>';
-  box.innerHTML = html;
-}
-
-function restockConfirmSizes(i) {
-  var item = _restockMatches[i];
-  if (!item) return;
-  var box = document.getElementById('restock-suggest');
-  var input = document.getElementById('restock-input');
-
-  var parts = [];
-  item.variations.forEach(function(v, idx) {
-    var el = document.getElementById('restock-size-qty-' + idx);
-    var qty = el ? parseInt(el.value, 10) || 0 : 0;
-    if (qty > 0) parts.push((v.name || '(Default)') + ' (' + qty + ')');
-  });
-
-  if (!parts.length) { return; }
-
-  var text = item.name + ' – Sizes ' + parts.join(', ');
-  if (input) { input.value = text; input.focus(); }
-  if (box) box.innerHTML = '';
-}
-
 // ── Drag and drop between note cards ─────────
 function notesDragStart(event, key, idx) {
   var items = itemsFor(key);
@@ -622,7 +462,7 @@ function notesDrop(event, targetKey) {
 
   var newBlock = BLOCK_MAP[targetKey];
   item.block = newBlock;
-  ['studio','todo','toorder','restock','webapp','market'].forEach(function(k) {
+  ['studio','todo','toorder','webapp','market'].forEach(function(k) {
     renderNotesList(k, itemsFor(k));
   });
 
@@ -632,7 +472,7 @@ function notesDrop(event, targetKey) {
     body: JSON.stringify({ block: newBlock }),
   }).catch(function() {
     item.block = BLOCK_MAP[fromKey];
-    ['studio','todo','toorder','restock','webapp','market'].forEach(function(k) {
+    ['studio','todo','toorder','webapp','market'].forEach(function(k) {
       renderNotesList(k, itemsFor(k));
     });
     toast('Failed to move note', '⚠');
@@ -871,18 +711,32 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   return html;
 }
 
-function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn) {
+function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
+  stoneByVariantId = stoneByVariantId || {};
   return '<div class="rq-variant-grid">'
     + variants.map(function(v) {
         var qty = qtyByVariantId[v.id] || '';
         var safeVId = (v.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+        // Stone choice only makes sense once a size has been given a
+        // quantity — otherwise there's nothing for the stone to attach to,
+        // and the selection would just get dropped on the next render.
+        var stoneHtml = '';
+        if (stoneList && stoneList.length && qty) {
+          var curIdx = stoneByVariantId[v.id];
+          var opts = '<option value="">Stone…</option>' + stoneList.map(function(s) {
+            var sel = (curIdx === s.idx) ? ' selected' : '';
+            return '<option value="' + s.idx + '"' + sel + '>' + (s.name || '').replace(/</g, '&lt;') + '</option>';
+          }).join('');
+          stoneHtml = '<select class="rq-variant-stone-select" onchange="rqSetVariantStone(\'' + pid + '\',\'' + safeVId + '\',this.value)">' + opts + '</select>';
+        }
         return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
           + '<div class="rq-variant-chip-row">'
           + '<span>' + (v.name || '').replace(/</g, '&lt;') + '</span>'
           + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
           + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
           + '</div>'
+          + stoneHtml
           + _rqInvBadgeHtml(v.id)
           + '</div>';
       }).join('')
@@ -905,11 +759,38 @@ function rqSetInlineVariantQty(pid, variantId, value) {
   (match.selectedVariants || []).forEach(function(v) { byId[v.id] = v; });
   var variant = (match.variants || []).filter(function(v) { return v.id === variantId; })[0];
   if (!variant) return;
-  if (qty > 0) byId[variantId] = Object.assign({}, variant, { qty: qty });
-  else delete byId[variantId];
+  if (qty > 0) {
+    var prevStone = byId[variantId] && byId[variantId].stoneIdx;
+    byId[variantId] = Object.assign({}, variant, { qty: qty }, prevStone !== undefined ? { stoneIdx: prevStone } : {});
+  } else delete byId[variantId];
   var selectedVariants = (match.variants || [])
     .filter(function(v) { return byId[v.id]; })
     .map(function(v) { return byId[v.id]; });
+  if (usingRichMatch) {
+    timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
+    _rqSaveTimerState();
+  } else {
+    _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
+    _rqAmSave();
+  }
+  _rqSaveSizesFor(pid, selectedVariants);
+}
+
+// Records which stone (from the item's "Stone" modifier list, e.g. Double
+// Chevron (Stone Set)) was chosen for one already-quantified size. Only
+// meaningful once that size has a qty > 0 — see _rqVariantFlatHtml.
+function rqSetVariantStone(pid, variantId, stoneIdxStr) {
+  var timer = _rqTimers[pid];
+  var usingRichMatch = !!(timer && timer.richMatch);
+  var match = usingRichMatch ? timer.richMatch : _rqAutoMatches[pid];
+  if (!match || typeof match !== 'object' || !match.isParent) return;
+  var stoneIdx = stoneIdxStr === '' ? undefined : parseInt(stoneIdxStr, 10);
+  var selectedVariants = (match.selectedVariants || []).map(function(v) {
+    if (v.id !== variantId) return v;
+    var next = Object.assign({}, v);
+    if (stoneIdx === undefined) delete next.stoneIdx; else next.stoneIdx = stoneIdx;
+    return next;
+  });
   if (usingRichMatch) {
     timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
     _rqSaveTimerState();
@@ -1050,7 +931,15 @@ function _rqSaveSizes() {
 // cross-device store (dropping zero-qty entries) and saves.
 function _rqSaveSizesFor(pid, selectedVariants) {
   var map = {};
-  (selectedVariants || []).forEach(function(v) { if (v.qty > 0) map[v.id] = v.qty; });
+  (selectedVariants || []).forEach(function(v) {
+    if (v.qty > 0) {
+      map[v.id] = v.qty;
+      // Stone choice is stored under a "@s" sibling key (not nested in the
+      // qty value) so plain `saved[v.id] > 0` checks elsewhere keep working
+      // unchanged, and items without a Stone modifier cost nothing extra.
+      if (v.stoneIdx !== undefined && v.stoneIdx !== null) map[v.id + '@s'] = v.stoneIdx;
+    }
+  });
   if (Object.keys(map).length) _rqSizes[pid] = map;
   else delete _rqSizes[pid];
   _rqSaveSizes();
@@ -1064,7 +953,12 @@ function _rqResolveSelectedVariants(pid, match) {
   if (!saved || !Object.keys(saved).length) return null;
   var resolved = (match.variants || [])
     .filter(function(v) { return saved[v.id] > 0; })
-    .map(function(v) { return Object.assign({}, v, { qty: saved[v.id] }); });
+    .map(function(v) {
+      var out = Object.assign({}, v, { qty: saved[v.id] });
+      var s = saved[v.id + '@s'];
+      if (s !== undefined) out.stoneIdx = s;
+      return out;
+    });
   return resolved.length ? resolved : null;
 }
 
@@ -1138,11 +1032,16 @@ function _rqMatchRowInner(pid) {
   if (match.isParent) {
     var variants = match.variants || [];
     var qtyByVariantId = {};
-    (match.selectedVariants || []).forEach(function(v) { qtyByVariantId[v.id] = v.qty || ''; });
+    var stoneByVariantId = {};
+    (match.selectedVariants || []).forEach(function(v) {
+      qtyByVariantId[v.id] = v.qty || '';
+      if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
+    });
+    var stoneList = _rqStoneOptionsFor(match);
     var table = _rqBuildVariantTable(variants);
     var body = table
       ? _rqVariantTableHtml(safePid, table, qtyByVariantId, 'rqSetInlineVariantQty')
-      : _rqVariantFlatHtml(safePid, variants, qtyByVariantId);
+      : _rqVariantFlatHtml(safePid, variants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
@@ -1244,8 +1143,11 @@ function _rqReadSummaryHtml(match) {
   if (!sel.length) {
     return '<div class="rq-read-status">No sizes set yet</div>';
   }
+  var stoneList = _rqStoneOptionsFor(match);
   var rows = sel.map(function(v) {
     var name = (v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var stoneOpt = stoneList && v.stoneIdx !== undefined ? stoneList[v.stoneIdx] : null;
+    if (stoneOpt) name += ' · ' + (stoneOpt.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span>' + _rqInvBadgeHtml(v.id) + '</div>';
   }).join('');
   return '<div class="rq-read-list">' + rows + '</div>';
@@ -1290,20 +1192,25 @@ function _rqAutoMatchSingle(pid, rawText) {
     }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }) },
+      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
     }).then(function(fullData) {
       if (_rqAutoMatches[pid] !== '_loading_') return;
+      var modifierListsById = {};
+      (fullData.related_objects || []).forEach(function(o) {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
       var rows = localMatches.slice();
       (fullData.objects || []).forEach(function(obj) {
         if (obj.type !== 'ITEM') return;
         var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
         var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
         var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false });
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists });
         } else {
-          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length, modifierLists: modifierLists,
             variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
         }
       });
@@ -1373,20 +1280,25 @@ function _rqMatchEditSearch(pid, query) {
     if (!found.length) { _rqMatchEditRenderResults(pid, localMatches, query); return; }
     return _rqSqCall('/catalog/batch-retrieve', {
       method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }) },
+      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
     }).then(function(fullData) {
       if (!_rqMatchEdits[pid]) return;
+      var modifierListsById = {};
+      (fullData.related_objects || []).forEach(function(o) {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
       var rows = localMatches.slice();
       (fullData.objects || []).forEach(function(obj) {
         if (obj.type !== 'ITEM') return;
         var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
         var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
         var variations = obj.item_data ? (obj.item_data.variations || []) : [];
+        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku||'') : '', category: catName, isParent: false });
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku||'') : '', category: catName, isParent: false, modifierLists: modifierLists });
         } else {
-          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
+          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length, modifierLists: modifierLists,
             variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
         }
       });
@@ -1971,6 +1883,17 @@ function _rqBuildModifierLists(obj, modifierListsById) {
   return lists;
 }
 
+// Finds the "Stone" modifier list on a matched item (e.g. Double Chevron
+// (Stone Set)) and returns its options as { idx, name } — idx is the
+// option's position in the list, used (instead of the long Square modifier
+// id) to keep the per-size stone choice compact in the shared sizes store.
+function _rqStoneOptionsFor(match) {
+  var lists = (match && match.modifierLists) || [];
+  var stoneList = lists.filter(function(l) { return (l.name || '').toLowerCase() === 'stone'; })[0];
+  if (!stoneList) return null;
+  return stoneList.options.map(function(o, i) { return { idx: i, name: o.name }; });
+}
+
 function _rqDefaultModifierSelections(modifierLists) {
   var selected = {};
   (modifierLists || []).forEach(function(list) {
@@ -2192,8 +2115,12 @@ function _rqTimerRows(items) {
   (items || []).forEach(function(item) {
     var modSuffix = _rqModifierSuffix(item);
     if (item.isParent && item.selectedVariants && item.selectedVariants.length) {
+      var stoneList = _rqStoneOptionsFor(item);
       item.selectedVariants.forEach(function(v) {
-        var label = (item.name || '') + ' – ' + (v.name || '') + (modSuffix ? ' – ' + modSuffix : '');
+        var stoneOpt = stoneList && v.stoneIdx !== undefined ? stoneList[v.stoneIdx] : null;
+        var label = (item.name || '') + ' – ' + (v.name || '')
+          + (stoneOpt ? ' – ' + stoneOpt.name : '')
+          + (modSuffix ? ' – ' + modSuffix : '');
         rows.push({ label: label, squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null });
       });
     } else {
@@ -2211,8 +2138,10 @@ function _rqTimerRows(items) {
 function _rqLiveTimerRows(t) {
   if (t.richMatch && t.richMatch.isParent && t.richMatch.selectedVariants && t.richMatch.selectedVariants.length) {
     var baseName = t.richMatch.name || '';
+    var stoneList = _rqStoneOptionsFor(t.richMatch);
     return t.richMatch.selectedVariants.map(function(v) {
-      return { label: baseName + ' – ' + (v.name || ''), squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null };
+      var stoneOpt = stoneList && v.stoneIdx !== undefined ? stoneList[v.stoneIdx] : null;
+      return { label: baseName + ' – ' + (v.name || '') + (stoneOpt ? ' – ' + stoneOpt.name : ''), squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null };
     });
   }
   return _rqTimerRows(t.items || [{ name: t.itemText }]);
