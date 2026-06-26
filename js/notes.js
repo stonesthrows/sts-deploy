@@ -2599,9 +2599,9 @@ function _rqSessionEditRowHTML(store, i, s) {
     + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
     + '<div class="rq-edit-field"><label>Labor Rate</label><input class="rq-edit-input" type="number" min="0" step="0.5" placeholder="$/hr" id="rq-edit-rate-' + store + '-' + i + '" value="' + (s.laborRate != null ? s.laborRate : '') + '"></div>'
     + (s.items || []).map(function(it, ii) {
-        var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
         return '<div class="rq-edit-field">'
-          + '<label style="flex:1;width:auto;">' + safeLabel + '</label>'
+          + '<input class="rq-edit-input rq-name-input" type="text" style="flex:1;width:auto;" id="rq-edit-name-' + store + '-' + i + '-' + ii + '" value="' + safeLabel + '" placeholder="Item title">'
           + '<input class="rq-edit-input rq-piece-input" type="number" min="0" step="1" id="rq-edit-pcs-' + store + '-' + i + '-' + ii + '" placeholder="pcs" value="' + (it.pieces != null ? it.pieces : '') + '">'
           + '<input class="rq-edit-input rq-price-input" type="number" min="0" step="0.01" id="rq-edit-price-' + store + '-' + i + '-' + ii + '" placeholder="$ unit price" value="' + (it.unitPrice != null ? it.unitPrice : '') + '">'
           + '<button class="rq-item-remove" title="Re-link to Square item" onclick="rqEditOpenAdd(\'' + store + '\',' + i + ',' + ii + ')">⌕</button>'
@@ -2639,9 +2639,14 @@ function rqSaveEditSession(store, i) {
   s.laborRate = newRate;
   // Read per-item piece count + unit price edits; drop any row left blank
   var updatedItems = (s.items || []).map(function(it, ii) {
+    var nameInp = document.getElementById('rq-edit-name-' + store + '-' + i + '-' + ii);
     var pcsInp = document.getElementById('rq-edit-pcs-' + store + '-' + i + '-' + ii);
     var priceInp = document.getElementById('rq-edit-price-' + store + '-' + i + '-' + ii);
     var next = it;
+    if (nameInp) {
+      var rawName = nameInp.value.trim();
+      if (rawName) next = Object.assign({}, next, { name: rawName });
+    }
     if (pcsInp) {
       var rawPcs = pcsInp.value.trim();
       var pcs = rawPcs !== '' ? parseInt(rawPcs, 10) : null;
