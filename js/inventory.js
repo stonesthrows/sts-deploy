@@ -465,10 +465,6 @@ function _invRenderSub(sub) {
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
     const nameSafe   = _esc(name).replace(/'/g, '&#39;');
-    const lastAdded  = lastAddedCache[item.id];
-    const lastDateHtml = lastAdded
-      ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
-      : '';
     const vars = _invSortVars((item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id)));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
@@ -507,6 +503,10 @@ function _invRenderSub(sub) {
     vars.forEach((v, rowIdx) => {
       const varName   = v.item_variation_data?.name || '';
       const varId     = v.id;
+      const lastAdded = lastAddedCache[varId];
+      const lastDateHtml = lastAdded
+        ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
+        : '';
       const sqQty     = counts[varId] ?? null;
       const curQty    = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
       const badge     = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
@@ -1057,17 +1057,20 @@ function _invFindItemForVar(varId, sub) {
 function _invLogChanges(qtyMap, prevCounts, sub) {
   const cache = _invGetLastAdded();
   let changed = false;
+  const isoDate = new Date().toISOString().split('T')[0];
   Object.entries(qtyMap).forEach(([varId, newQty]) => {
     const prevQty  = prevCounts[varId] ?? 0;
     const delta    = parseInt(newQty) - prevQty;
+    if (delta === 0) return;
     const item     = _invFindItemForVar(varId, sub);
     if (!item) return;
     const itemId   = item.id;
     const itemName = item.item_data?.name || '';
     const varObj   = (item.item_data?.variations || []).find(v => v.id === varId);
     const varName  = varObj?.item_variation_data?.name || '';
-    const isoDate  = new Date().toISOString().split('T')[0];
-    cache[itemId] = { delta, isoDate, varName };
+    const existing = cache[varId];
+    const accDelta = (existing && existing.isoDate === isoDate) ? existing.delta + delta : delta;
+    cache[varId]   = { delta: accDelta, isoDate, varName, itemId, itemName };
     changed = true;
     fetch('/api/notion-inv-history', {
       method:  'POST',
@@ -1078,6 +1081,17 @@ function _invLogChanges(qtyMap, prevCounts, sub) {
   if (changed) localStorage.setItem('sts-inv-last-added', JSON.stringify(cache));
 }
 
+function _invFindVarIdByItemAndName(itemId, varName) {
+  for (const sub of Object.keys(_invData)) {
+    const data = _invData[sub];
+    const item = data?.items.find(i => i.id === itemId);
+    if (!item) continue;
+    const v = (item.item_data?.variations || []).find(vr => (vr.item_variation_data?.name || '') === varName);
+    if (v) return v.id;
+  }
+  return null;
+}
+
 async function _invWarmLastAdded() {
   try {
     const r = await fetch('/api/notion-inv-history');
@@ -1085,9 +1099,11 @@ async function _invWarmLastAdded() {
     const data = await r.json();
     const cache = _invGetLastAdded();
     let changed = false;
-    Object.entries(data).forEach(([itemId, entry]) => {
-      if (!cache[itemId] || entry.isoDate > cache[itemId].isoDate) {
-        cache[itemId] = entry;
+    Object.values(data).forEach(entry => {
+      const varId = _invFindVarIdByItemAndName(entry.itemId, entry.varName);
+      if (!varId) return;
+      if (!cache[varId] || entry.isoDate > cache[varId].isoDate) {
+        cache[varId] = { delta: entry.delta, isoDate: entry.isoDate, varName: entry.varName, itemId: entry.itemId };
         changed = true;
       }
     });

@@ -64,9 +64,9 @@ export async function onRequest({ request, env }) {
     return json({ ok: true });
   }
 
-  // ── GET — return last entry per item ID ─────────────────────────────────────
+  // ── GET — return last day's net delta per item+variation ────────────────────
   if (request.method === 'GET') {
-    const lastByItem = {};
+    const lastByVar = {}; // key: itemId::varName
     let cursor;
     let pages = 0;
     do {
@@ -82,22 +82,28 @@ export async function onRequest({ request, env }) {
       if (!r.ok) return json({ error: d.message || 'query failed' }, r.status);
       for (const page of (d.results || [])) {
         if (page.archived) continue;
-        const p   = page.properties;
-        const iid = p['Item ID']?.rich_text?.[0]?.plain_text || '';
-        if (!iid || lastByItem[iid]) continue;
-        lastByItem[iid] = {
-          varName:  p['Variation']?.rich_text?.[0]?.plain_text || '',
-          delta:    p['Delta']?.number ?? 0,
-          prevQty:  p['Previous Qty']?.number ?? 0,
-          newQty:   p['New Qty']?.number ?? 0,
-          isoDate:  p['Date']?.date?.start || page.created_time.split('T')[0],
-          category: p['Category']?.rich_text?.[0]?.plain_text || '',
-        };
+        const p      = page.properties;
+        const iid    = p['Item ID']?.rich_text?.[0]?.plain_text || '';
+        if (!iid) continue;
+        const vname  = p['Variation']?.rich_text?.[0]?.plain_text || '';
+        const key    = iid + '::' + vname;
+        const isoDate = p['Date']?.date?.start || page.created_time.split('T')[0];
+        const delta  = p['Delta']?.number ?? 0;
+        const existing = lastByVar[key];
+        if (!existing) {
+          lastByVar[key] = {
+            itemId: iid, varName: vname, delta, isoDate,
+            category: p['Category']?.rich_text?.[0]?.plain_text || '',
+          };
+        } else if (isoDate === existing.isoDate) {
+          // Same day as the most recent entry for this variation — accumulate.
+          existing.delta += delta;
+        }
       }
       cursor = d.has_more ? d.next_cursor : null;
       pages++;
     } while (cursor && pages < 10);
-    return json(lastByItem);
+    return json(lastByVar);
   }
 
   return new Response('Method not allowed', { status: 405, headers: CORS });
