@@ -38,6 +38,12 @@ const INV_PERM_CAT_IDS = {
   'pj-giftfill':   [],
 };
 
+// Square category IDs → Faux Nose Rings tab
+// No hardcoded categories yet — use ⚙ Manage Items to assign the matching Square items/categories.
+const INV_NOSERING_CAT_IDS = {
+  'nose-rings': [],
+};
+
 // Square category IDs → earring sub-tabs
 // Ear Cuffs root + all sub-categories; others are single category
 const INV_CAT_IDS = {
@@ -282,7 +288,7 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub];
+  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub] || INV_NOSERING_CAT_IDS[sub];
   if (!catIds) return;
 
   // Merge any extra categories/items added via the Inventory Manager
@@ -433,7 +439,7 @@ function _invRenderSub(sub) {
   if (!data) return;
 
   const { items, counts } = data;
-  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : INV_PERM_CAT_IDS[sub] ? 'invPermJewelrySearch' : 'invSearch';
+  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : INV_PERM_CAT_IDS[sub] ? 'invPermJewelrySearch' : INV_NOSERING_CAT_IDS[sub] ? 'invNoseRingSearch' : 'invSearch';
   const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
@@ -555,7 +561,7 @@ function _invRenderSub(sub) {
 }
 
 function _invSetPanelHtml(sub, html) {
-  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : INV_PERM_CAT_IDS[sub] ? 'inv-pjsub-' : 'inv-sub-';
+  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : INV_PERM_CAT_IDS[sub] ? 'inv-pjsub-' : INV_NOSERING_CAT_IDS[sub] ? 'inv-nrsub-' : 'inv-sub-';
   const panel = document.getElementById(prefix + sub);
   if (panel) panel.innerHTML = html;
 }
@@ -640,6 +646,7 @@ async function _invSaveCount(qtyMap, sub) {
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
   else if (INV_PERM_CAT_IDS[sub]) _invUpdatePermJewelryCountLabel();
+  else if (INV_NOSERING_CAT_IDS[sub]) _invUpdateNoseRingCountLabel();
   else _invUpdateCountLabel();
 }
 
@@ -886,6 +893,57 @@ async function invRefreshPermJewelry() {
 function _invUpdatePermJewelryCountLabel() {
   const data  = _invData[_invPermJewelryCurSub];
   const label = document.getElementById('invPermJewelryCountLabel');
+  if (!label) return;
+  if (!data) { label.textContent = ''; return; }
+  const total      = data.items.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+// ── Faux Nose Rings tab ───────────────────────
+
+let _invNoseRingCurSub = 'nose-rings';
+let _invNoseRingLoaded = false;
+
+async function invLoadNoseRings() {
+  if (_invData[_invNoseRingCurSub]) return;
+  await _invLoadSub(_invNoseRingCurSub);
+  _invNoseRingLoaded = true;
+}
+
+async function invUpdateAllNoseRings() {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+  const btn = document.getElementById('invNoseRingUpdateAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await _invSaveCount(Object.fromEntries(entries), _invNoseRingCurSub);
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshNoseRings() {
+  const btn = document.getElementById('invNoseRingRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  Object.keys(INV_NOSERING_CAT_IDS).forEach(sub => { delete _invData[sub]; });
+  _invDirty = {};
+  _invNoseRingLoaded = false;
+  await invLoadNoseRings();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+
+function invNoseRingFilter(val) {
+  _invRenderSub(_invNoseRingCurSub);
+}
+
+function _invUpdateNoseRingCountLabel() {
+  const data  = _invData[_invNoseRingCurSub];
+  const label = document.getElementById('invNoseRingCountLabel');
   if (!label) return;
   if (!data) { label.textContent = ''; return; }
   const total      = data.items.length;

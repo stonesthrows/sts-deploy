@@ -48,6 +48,12 @@ const _INVMGR_TABS = {
       { key: 'pj-giftfill',   label: 'Silver and Gold Fill Charms' },
     ],
   },
+  noserings: {
+    icon: '👃',
+    subs: [
+      { key: 'nose-rings', label: 'Faux Nose Rings' },
+    ],
+  },
 };
 
 let _invMgrState        = {};
@@ -143,6 +149,7 @@ function _invMgrBuildShell() {
           <button id="invMgrMainBtn-rings"       class="inv-ear-sub"        onclick="invMgrSwitchMain('rings')">💍 Rings</button>
           <button id="invMgrMainBtn-pendants"    class="inv-ear-sub"        onclick="invMgrSwitchMain('pendants')">📿 Pendants</button>
           <button id="invMgrMainBtn-permjewelry" class="inv-ear-sub"        onclick="invMgrSwitchMain('permjewelry')">🔗 Perm. Jewelry</button>
+          <button id="invMgrMainBtn-noserings"   class="inv-ear-sub"        onclick="invMgrSwitchMain('noserings')">👃 Nose Rings</button>
           <span style="margin-left:8px;font-size:11px;color:var(--text-dim);">← drop into a sub-tab below</span>
         </div>
 
@@ -184,6 +191,7 @@ async function _invMgrFetchCatalog() {
       ...Object.values(INV_RING_CAT_IDS).flat(),
       ...Object.values(INV_PENDANT_CAT_IDS).flat(),
       ...Object.values(INV_PERM_CAT_IDS).flat(),
+      ...Object.values(INV_NOSERING_CAT_IDS).flat(),
     ]);
 
     // Items/categories already assigned via this manager
@@ -373,6 +381,7 @@ function _invMgrClearInvCache() {
   if (typeof window._invRingLoaded       !== 'undefined') window._invRingLoaded       = false;
   if (typeof window._invPendantLoaded    !== 'undefined') window._invPendantLoaded    = false;
   if (typeof window._invPermJewelryLoaded !== 'undefined') window._invPermJewelryLoaded = false;
+  if (typeof window._invNoseRingLoaded    !== 'undefined') window._invNoseRingLoaded    = false;
 }
 
 function invMgrRestoreItem(itemId) {
@@ -401,7 +410,7 @@ function invMgrFilter(q) {
 
 function invMgrSwitchMain(main) {
   _invMgrCurMain = main;
-  ['earrings', 'rings', 'pendants', 'permjewelry'].forEach(m => {
+  ['earrings', 'rings', 'pendants', 'permjewelry', 'noserings'].forEach(m => {
     const btn = document.getElementById('invMgrMainBtn-' + m);
     if (btn) btn.classList.toggle('active', m === main);
   });
@@ -489,6 +498,7 @@ function invMgrSave() {
   if (typeof window._invRingLoaded !== 'undefined') window._invRingLoaded = false;
   if (typeof window._invPendantLoaded !== 'undefined') window._invPendantLoaded = false;
   if (typeof window._invPermJewelryLoaded !== 'undefined') window._invPermJewelryLoaded = false;
+  if (typeof window._invNoseRingLoaded    !== 'undefined') window._invNoseRingLoaded    = false;
 
   invMgrClose();
   toast('Saved. Switch sub-tabs to reload with new items.', '✓');

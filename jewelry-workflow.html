@@ -5050,6 +5050,7 @@
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
   <button id="inv-main-tab-permjewelry" class="inv-ear-sub"     onclick="invSwitchMain('permjewelry');if(!window._invPermJewelryLoaded)invLoadPermJewelry()">🔗 Permanent Jewelry</button>
+  <button id="inv-main-tab-noserings" class="inv-ear-sub"       onclick="invSwitchMain('noserings');if(!window._invNoseRingLoaded)invLoadNoseRings()">👃 Faux Nose Rings</button>
   <button class="btn btn-outline btn-sm" onclick="invMgrOpen()" style="margin-left:auto;font-size:12px;">⚙ Manage Items</button>
 </div>
 
@@ -5192,6 +5193,31 @@
 <div style="padding:0 16px 16px">
   <div id="inv-pjsub-pj-birthstone" class="inv-pj-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-pjsub-pj-giftfill"   class="inv-pj-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+</div>
+</div>
+
+<!-- Faux Nose Rings panel -->
+<div id="inv-main-noserings" class="inv-main-panel" style="display:none">
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">👃 Faux Nose Rings Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+  <input id="invNoseRingSearch" type="text" placeholder="Filter items…"
+    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    oninput="invNoseRingFilter(this.value)">
+  <button class="btn btn-gold btn-sm" id="invNoseRingUpdateAllBtn" onclick="invUpdateAllNoseRings()">Update All</button>
+  <button class="btn btn-outline btn-sm" id="invNoseRingRefreshBtn" onclick="invRefreshNoseRings()">↻ Refresh</button>
+</div>
+<div id="invNoseRingCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+
+<!-- Faux Nose Rings panel content -->
+<div style="padding:0 16px 16px">
+  <div id="inv-nrsub-nose-rings" class="inv-nosering-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
 </div>
 
