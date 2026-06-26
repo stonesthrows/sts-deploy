@@ -304,6 +304,12 @@
       color: var(--text);
     }
     .restock-size-name { flex: 1; min-width: 0; }
+    .restock-size-onhand {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
     .restock-qty-ctl {
       display: flex;
       align-items: center;
@@ -474,6 +480,7 @@
 
   // ── Restock add form: Square search → variant/size pick → submit ──
   const RESTOCK_BLOCK = 'Inventory Restock';
+  const RESTOCK_LOCATION_ID = 'D7EZ98V48F79A'; // Square location used for on-hand counts
   let _rsDebounce  = null;
   let _rsResults   = [];     // last search results
   let _rsSelected  = null;   // { id, name, isParent, variants:[{id,name}] } or single-variant item
@@ -584,10 +591,12 @@
     document.getElementById('restock-chip-label').textContent = item.name;
 
     const sizesBox = document.getElementById('restock-sizes');
+    let variantIds;
     if (item.isParent && item.variants.length) {
       sizesBox.innerHTML = item.variants.map(v => `
         <div class="restock-size-pill" id="rs-pill-${v.id}">
           <span class="restock-size-name">${(v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>
+          <span class="restock-size-onhand" id="rs-onhand-${v.id}"></span>
           <div class="restock-qty-ctl">
             <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
             <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value=""
@@ -597,6 +606,7 @@
         </div>
       `).join('');
       sizesBox.style.display = 'flex';
+      variantIds = item.variants.map(v => v.id);
     } else {
       // Single-variant item — show one qty control, defaulted to 1.
       const v = item.variants[0];
@@ -605,6 +615,7 @@
         sizesBox.innerHTML = `
           <div class="restock-size-pill" id="rs-pill-${v.id}">
             <span class="restock-size-name">Qty</span>
+            <span class="restock-size-onhand" id="rs-onhand-${v.id}"></span>
             <div class="restock-qty-ctl">
               <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
               <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value="1"
@@ -613,12 +624,30 @@
             </div>
           </div>`;
         sizesBox.style.display = 'flex';
+        variantIds = [v.id];
       } else {
         sizesBox.style.display = 'none';
         sizesBox.innerHTML = '';
       }
     }
     _rsUpdateSubmitState();
+    if (variantIds && variantIds.length) _rsLoadOnHandCounts(variantIds);
+  }
+
+  // Current Square on-hand counts, shown next to each size pill — read-only,
+  // mirrors the on-hand display in the desktop Inventory tab.
+  function _rsLoadOnHandCounts(variantIds) {
+    _rsSqCall('/inventory/counts/batch-retrieve', {
+      method: 'POST',
+      body: { catalog_object_ids: variantIds, location_ids: [RESTOCK_LOCATION_ID] },
+    }).then(data => {
+      const counts = {};
+      (data.counts || []).forEach(c => { counts[c.catalog_object_id] = parseInt(c.quantity, 10) || 0; });
+      variantIds.forEach(vid => {
+        const el = document.getElementById('rs-onhand-' + vid);
+        if (el) el.textContent = (counts[vid] || 0) + ' on hand';
+      });
+    }).catch(() => {});
   }
 
   function rsSetQty(variantId, value) {
