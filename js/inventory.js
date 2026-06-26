@@ -478,7 +478,7 @@ function _invRenderSub(sub) {
     const lowVarsForItem = [];
     vars.forEach(v => {
       const sqQty = counts[v.id] ?? null;
-      const curQty = _invDirty[v.id] !== undefined ? _invDirty[v.id] : (sqQty ?? 0);
+      const curQty = sqQty ?? 0;
       const threshold = _invGetThreshold(v.id);
       if (sqQty !== null && sqQty < threshold) {
         lowVarsForItem.push({ varId: v.id, varName: v.item_variation_data?.name || '', curQty, threshold });
@@ -514,7 +514,8 @@ function _invRenderSub(sub) {
         ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
         : '';
       const sqQty     = counts[varId] ?? null;
-      const curQty    = _invDirty[varId] !== undefined ? _invDirty[varId] : (sqQty ?? 0);
+      const curQty    = sqQty ?? 0;
+      const pendingAdd = _invDirty[varId] !== undefined ? _invDirty[varId] : 0;
       const badge     = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
       const badgeTxt  = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
       const dot       = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
@@ -534,7 +535,7 @@ function _invRenderSub(sub) {
         <div class="inv-stepper">
           <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
           <input class="inv-step-input" type="number" id="inv-inp-${varId}"
-            value="${curQty}" min="0"
+            value="${pendingAdd}" min="0"
             onchange="invMarkDirty('${varId}',this.value)"
             style="${dirty ? 'background:var(--accent-bg);' : ''}">
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
@@ -615,7 +616,13 @@ async function _invSaveCount(qtyMap, sub) {
     prevCounts[varId] = _invData[sub]?.counts[varId] ?? 0;
   });
 
-  const changes = Object.entries(qtyMap).map(([varId, qty]) => ({
+  // qtyMap values are amounts to ADD to current stock, not absolute totals
+  const absQtyMap = {};
+  Object.entries(qtyMap).forEach(([varId, addQty]) => {
+    absQtyMap[varId] = Math.max(0, prevCounts[varId] + (parseInt(addQty) || 0));
+  });
+
+  const changes = Object.entries(absQtyMap).map(([varId, qty]) => ({
     type: 'PHYSICAL_COUNT',
     physical_count: {
       catalog_object_id: varId,
@@ -635,12 +642,12 @@ async function _invSaveCount(qtyMap, sub) {
   });
 
   // Update local cache and clear dirty flags
-  Object.entries(qtyMap).forEach(([varId, qty]) => {
+  Object.entries(absQtyMap).forEach(([varId, qty]) => {
     if (_invData[sub]) _invData[sub].counts[varId] = qty;
     delete _invDirty[varId];
   });
 
-  _invLogChanges(qtyMap, prevCounts, sub);
+  _invLogChanges(absQtyMap, prevCounts, sub);
   _invRenderSub(sub);
   _invApplySplitCache(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
