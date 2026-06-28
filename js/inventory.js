@@ -1000,18 +1000,12 @@ function invConfirmLowStockAdd() {
 
   const text = varName ? `${itemName} – ${varName}` : itemName;
 
-  fetch('/api/notion-notes', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ text, block: 'Inventory Restock' }),
-  }).then(r => {
-    if (r.ok) {
-      toast(`Added "${text}" to Restock Queue ✓`, '✓');
-      if (typeof refreshNotes === 'function') refreshNotes();
-    } else {
-      toast('Failed to add to Restock Queue', '⚠');
-    }
-  }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
+  // Merges into the existing Restock Queue bar for this item (if any) instead
+  // of always spawning a new bar per variant — see rqQueueLowStockVariants.
+  rqQueueLowStockVariants(itemName, [{ id: varId, name: varName, qty: 3 }], (err) => {
+    if (err) toast('Failed to add to Restock Queue', '⚠');
+    else toast(`Added "${text}" to Restock Queue ✓`, '✓');
+  });
 
   invCloseLowStockModal();
 }
@@ -1063,32 +1057,24 @@ function invConfirmQueueAllLow() {
     _invSaveThreshold(lowVars[idx].varId, Math.max(1, parseInt(inp.value) || 6));
   });
 
-  // Build entry text from checked sizes only
-  const parts = [];
+  // Build the checked variant list (with qtys) for the shared sizes-merge
+  // helper — collects all checked sizes into one bar instead of one per size.
+  const variants = [];
   document.querySelectorAll('.inv-qal-check').forEach(chk => {
     if (!chk.checked) return;
     const idx = parseInt(chk.dataset.idx);
     const qty = Math.max(1, parseInt(document.querySelector(`.inv-qal-qty[data-idx="${idx}"]`).value) || 3);
-    parts.push(`${lowVars[idx].varName} (×${qty})`);
+    variants.push({ id: lowVars[idx].varId, name: lowVars[idx].varName, qty });
   });
 
   invCloseQueueAllLowModal();
 
-  if (!parts.length) return;
+  if (!variants.length) return;
 
-  const text = `${itemName} – ${parts.join(', ')}`;
-  fetch('/api/notion-notes', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ text, block: 'Inventory Restock' }),
-  }).then(r => {
-    if (r.ok) {
-      toast(`Added to Restock Queue ✓`, '✓');
-      if (typeof refreshNotes === 'function') refreshNotes();
-    } else {
-      toast('Failed to add to Restock Queue', '⚠');
-    }
-  }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
+  rqQueueLowStockVariants(itemName, variants, (err) => {
+    if (err) toast('Failed to add to Restock Queue', '⚠');
+    else toast(`Added to Restock Queue ✓`, '✓');
+  });
 }
 
 function _esc(s) {

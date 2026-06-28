@@ -963,6 +963,79 @@ function _rqResolveSelectedVariants(pid, match) {
   return resolved.length ? resolved : null;
 }
 
+// Merges low-stock variant quantities into an existing 'Inventory Restock'
+// bar for the same item name (case-insensitive, not-done), or creates one
+// new bar if none exists yet. Used by the Inventory tab's per-row "⚑ Queue"
+// button and its "Queue All Low" modal so that queuing several sizes of the
+// same item — one click at a time or all at once — never spawns a separate
+// bar per size. Always re-fetches notes/sizes fresh (rather than trusting
+// possibly-stale in-memory NOTES_DATA/_rqSizes) so two near-simultaneous
+// clicks, or a click from a device that hasn't loaded the queue tab, can't
+// race into duplicate bars. `variants` is [{ id, name, qty }, ...].
+function rqQueueLowStockVariants(itemName, variants, cb) {
+  var name = (itemName || '').trim();
+  if (!name || !variants || !variants.length) { if (cb) cb('itemName and variants required'); return; }
+  var norm = name.toLowerCase();
+
+  fetch('/api/notion-notes')
+    .then(function(r) { return r.json(); })
+    .then(function(notes) {
+      var list = Array.isArray(notes) ? notes : [];
+      NOTES_DATA = list;
+      var existing = list.find(function(n) {
+        return n.block === 'Inventory Restock' && !n.done && (n.text || '').trim().toLowerCase() === norm;
+      });
+      if (existing) {
+        _rqMergeVariantsIntoSizes(existing.notionPageId, variants, cb);
+        return;
+      }
+      fetch('/api/notion-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: name, block: 'Inventory Restock' }),
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          if (!res.ok) { if (cb) cb(res.data && res.data.error || 'create failed'); return; }
+          _rqMergeVariantsIntoSizes(res.data.notionPageId, variants, cb);
+        })
+        .catch(function() { if (cb) cb('network error'); });
+    })
+    .catch(function() { if (cb) cb('network error'); });
+}
+
+// Loads the cross-device sizes store fresh, bumps the given variant qtys for
+// one pid (additive, so repeated queuing of the same size accumulates rather
+// than overwrites), saves it back, and drops any cached auto-match for that
+// pid so the queue re-resolves its variant list/quantities from the store
+// next render instead of showing stale data.
+function _rqMergeVariantsIntoSizes(pid, variants, cb) {
+  fetch('/api/restock-sizes')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var sizes = (d && typeof d === 'object' && !d.error) ? d : {};
+      var map = Object.assign({}, sizes[pid] || {});
+      variants.forEach(function(v) {
+        if (!v || !v.id) return;
+        map[v.id] = (map[v.id] || 0) + Math.max(1, v.qty || 1);
+      });
+      sizes[pid] = map;
+      _rqSizes = sizes;
+      return fetch('/api/restock-sizes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sizes),
+      });
+    })
+    .then(function() {
+      delete _rqAutoMatches[pid];
+      _rqAmSave();
+      if (typeof refreshNotes === 'function') refreshNotes();
+      if (cb) cb(null, pid);
+    })
+    .catch(function() { if (cb) cb('network error'); });
+}
+
 // ── Auto-match localStorage helpers ──────────────────────────────────────────
 
 function _rqAmLoad() {
