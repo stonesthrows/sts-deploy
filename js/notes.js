@@ -1412,6 +1412,11 @@ function _rqSaveTimerState() {
     state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null };
   });
   localStorage.setItem('sts_rqTimers', JSON.stringify(state));
+  fetch('/api/rq-timer-state', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state),
+  }).catch(function() {});
 }
 
 function _rqRestoreTimers() {
@@ -1419,11 +1424,26 @@ function _rqRestoreTimers() {
     var saved = JSON.parse(localStorage.getItem('sts_rqTimers') || '{}');
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
-      if (_rqTimers[pid]) return; // already active
+      if (_rqTimers[pid]) return;
       _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch(e) {}
+  // Merge any timers started on other devices (phone) from server KV state
+  fetch('/api/rq-timer-state')
+    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(serverState) {
+      var added = false;
+      Object.keys(serverState || {}).forEach(function(pid) {
+        if (_rqTimers[pid]) return; // already active locally
+        var s = serverState[pid];
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
+        _rqStartTick(pid);
+        added = true;
+      });
+      if (added) restockQueueRender();
+    })
+    .catch(function() {});
 }
 
 function _rqStartTick(pid) {
