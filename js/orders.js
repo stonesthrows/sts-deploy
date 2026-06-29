@@ -309,7 +309,7 @@ function _setOrderFormEditMode(editing, name) {
   document.getElementById('order-form-back-btn').style.display  = editing ? '' : 'none';
   document.getElementById('order-form-foot-note').style.display = editing ? 'none' : '';
   document.getElementById('f-stage-row').style.display          = editing ? '' : 'none';
-  document.getElementById('f-paid-by-row').style.display        = editing ? '' : 'none';
+  dpUpdatePaidByLabel(); // shows Deposit Paid By only when editing AND a deposit is entered
   document.getElementById('f-fully-paid-row').style.display     = editing ? '' : 'none';
   document.getElementById('order-edit-actions').style.display   = editing ? 'flex' : 'none';
   const hint = document.getElementById('ot-hint');
@@ -646,11 +646,13 @@ function submitOrder() {
 
 
 function dpUpdatePaidByLabel() {
-  const label   = document.getElementById('f-paid-by-label');
-  const deposit = document.getElementById('f-deposit');
-  if (!label || !deposit) return;
+  const row       = document.getElementById('f-paid-by-row');
+  const deposit   = document.getElementById('f-deposit');
+  const editingId = document.getElementById('f-editing-id');
+  if (!row || !deposit) return;
   const hasDeposit = (parseFloat(deposit.value) || 0) > 0;
-  label.textContent = hasDeposit ? 'Deposit Paid By' : 'Paid By';
+  const editing    = editingId && editingId.value;
+  row.style.display = (editing && hasDeposit) ? '' : 'none';
   eoUpdateBalanceDue();
 }
 
@@ -896,6 +898,38 @@ function oiPrintDescription(o) {
     return labels.map((label, i) => 'Item ' + (i + 1) + ' - ' + label).join('\n');
   }
   return o.desc || '';
+}
+
+// Job Description box on the printed bag — drops the Square variation suffix
+// (material / size baked into the item name, e.g. "Spiral Rings — Silver - Size 10")
+// so the bag shows just the base item name. The item-line table further down
+// still uses oiPrintLabel's fuller text.
+function oiPrintJobDescShort(o) {
+  if (o.jobDescMode === 'square' && Array.isArray(o.items) && o.items.length) {
+    const labels = o.items.map(it => {
+      let base = (it.name || '').split(' — ')[0].trim();
+      const qty = parseInt(it.quantity, 10) || 1;
+      return qty > 1 ? qty + '× ' + base : base;
+    }).filter(Boolean);
+    if (labels.length <= 1) return labels.join('');
+    return labels.map((label, i) => 'Item ' + (i + 1) + ' - ' + label).join('\n');
+  }
+  return o.desc || '';
+}
+
+// Ring Size(s) box on the printed bag — strips any material/color prefix baked
+// into a Square variation suffix (e.g. "Silver - Size 10" → "Size 10").
+function oiPrintRingSizeShort(o) {
+  if (!Array.isArray(o.items) || !o.items.length) return o.ringSize || '';
+  const sizes = [];
+  o.items.forEach(it => {
+    if (it.ringSize) { sizes.push('Size ' + String(it.ringSize).trim()); return; }
+    if (it.type === 'square' && it.name) {
+      const m = it.name.match(/size\s*[\d.\/]+/i);
+      if (m) sizes.push(m[0].replace(/^size/i, 'Size'));
+    }
+  });
+  return sizes.filter(Boolean).join(', ') || (o.ringSize || '');
 }
 
 function oiRender() {
@@ -1751,7 +1785,7 @@ function printOrder(id) {
     city:      sa ? (sa.city    || '') : '',
     state:     sa ? (sa.state   || '') : '',
     zip:       sa ? (sa.zip     || '') : '',
-    desc:      oiPrintDescription(o),
+    desc:      oiPrintJobDescShort(o),
     notes:     o.notes       || '',
     materials: o.materials   || '',
     takeIn:    o.takeIn      || '',
@@ -1759,10 +1793,12 @@ function printOrder(id) {
     price:     o.price       || '',
     deposit:   o.deposit     || '',
     shipping:  o.shipping    || '',
-    ringSize:  o.ringSize    || '',
+    ringSize:  oiPrintRingSizeShort(o),
     pickup:    o.pickup      || '',
     source:    o.contactSource || '',
     stage:     o.stage       || '',
+    fullyPaid: o.fullyPaid   || '',
+    workedBy:  ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' })[o.stage] || '',
     items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
   });
   // Append print layout settings from localStorage
