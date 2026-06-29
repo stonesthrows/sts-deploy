@@ -128,12 +128,9 @@ function orderToProps(o) {
   if (o.customerNotes  != null) props['Notes for Customer'] = { rich_text: [{ text: { content: (o.customerNotes  || '').slice(0, 2000) } }] };
 
   // Order detail fields
-  // Ring Size is a Notion Number property — only send it when it parses
-  // cleanly (e.g. "7.5"); free-text sizes like "6.5 US" are dropped silently.
-  if (o.ringSize != null && o.ringSize !== '') {
-    const ringNum = parseFloat(o.ringSize);
-    if (!isNaN(ringNum)) props['Ring Size'] = { number: ringNum };
-  }
+  // Ring Size is a Notion text property — stores the full string as-is,
+  // including multi-item orders like "6, 7.5".
+  if (o.ringSize != null) props['Ring Size'] = { rich_text: [{ text: { content: (o.ringSize || '').slice(0, 2000) } }] };
   if (o.deposit    != null) props['Deposit']      = { number: o.deposit || null };
   if (o.takeIn)             props['Take-in Date'] = { date: { start: o.takeIn } };
   if (o.sketchDesc != null) props['Sketch Notes'] = { rich_text: [{ text: { content: (o.sketchDesc || '').slice(0, 2000) } }] };
@@ -204,7 +201,7 @@ function pageToOrder(page) {
     jobDesc:       txt(p['Job Description']),
     customerNotes: txt(p['Notes for Customer']),
     // Order detail fields
-    ringSize:      (num(p['Ring Size']) != null ? String(num(p['Ring Size'])) : ''),
+    ringSize:      txt(p['Ring Size']),
     deposit:       num(p['Deposit']),
     takeIn:        dt(p['Take-in Date']),
     sketchDesc:    txt(p['Sketch Notes']),

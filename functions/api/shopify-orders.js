@@ -41,7 +41,13 @@ export async function onRequestGet(context) {
           note
           totalPriceSet { shopMoney { amount } }
           lineItems(first: 15) {
-            nodes { title quantity variantTitle }
+            nodes {
+              title
+              quantity
+              variantTitle
+              originalUnitPriceSet { shopMoney { amount } }
+              variant { selectedOptions { name value } }
+            }
           }
           shippingAddress { firstName lastName address1 address2 city province country zip }
           displayFulfillmentStatus
@@ -70,6 +76,17 @@ export async function onRequestGet(context) {
   const orders = (data.data?.orders?.nodes || []).map(o => {
     const numericId = o.id.replace('gid://shopify/Order/', '');
 
+    const lineItems = o.lineItems.nodes.map(li => {
+      const sizeOpt = (li.variant?.selectedOptions || [])
+        .find(opt => /size/i.test(opt.name));
+      return {
+        title:    li.title,
+        quantity: li.quantity,
+        price:    parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || 0),
+        size:     sizeOpt ? sizeOpt.value : '',
+      };
+    });
+
     const linesSummary = o.lineItems.nodes
       .map(li => `${li.quantity}× ${li.title}${li.variantTitle ? ' — ' + li.variantTitle : ''}`)
       .join('\n');
@@ -96,6 +113,7 @@ export async function onRequestGet(context) {
       email:  o.email || '',
       price:  parseFloat(o.totalPriceSet?.shopMoney?.amount || 0),
       desc:   linesSummary,
+      lineItems,
       notes,
       createdAt:         o.createdAt,
       fulfillmentStatus: o.displayFulfillmentStatus,

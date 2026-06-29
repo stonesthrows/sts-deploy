@@ -11,6 +11,26 @@ function shopifyAppId(numericId) {
   return 'shopify-' + numericId;
 }
 
+// Maps Shopify's structured line items onto this app's Order Items / Order Description /
+// Ring Size shape: one manual item per distinct line item (with its own quantity and size),
+// an auto-generated description that mirrors those items, and the aggregated ring size string.
+function shopifyLineItemsToOrderFields(lineItems) {
+  const items = (lineItems || []).map(li => ({
+    type:         'manual',
+    name:         li.title,
+    price:        li.price || 0,
+    quantity:     li.quantity || 1,
+    ringSize:     li.size || '',
+    isRing:       !!li.size,
+    noSquareSize: !!li.size,
+  }));
+  const desc = items
+    .map(it => `${it.quantity}× ${it.name}${it.ringSize ? ' — Size ' + it.ringSize : ''}`)
+    .join('\n');
+  const ringSize = items.filter(it => it.ringSize).map(it => it.ringSize).join(', ');
+  return { items, desc, ringSize };
+}
+
 async function shopifySync() {
   const btn = document.getElementById('shopifySyncBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⟳'; }
@@ -47,12 +67,15 @@ async function shopifySync() {
 
     let imported = 0;
     for (const so of toImport) {
+      const { items, desc, ringSize } = shopifyLineItemsToOrderFields(so.lineItems);
       const order = {
         id:            shopifyAppId(so.shopifyOrderId),
         name:          so.name,
         email:         so.email,
         price:         so.price,
-        desc:          so.desc,
+        desc:          desc || so.desc,
+        items,
+        ringSize,
         notes:         so.notes,
         stage:         'intake-website',
         orderType:     'order',

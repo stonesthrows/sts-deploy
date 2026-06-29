@@ -798,7 +798,7 @@ function oiClearSquareSelection(idx) {
 }
 
 function oiRecalcTotal() {
-  const total = _oiItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0), 0);
+  const total = _oiItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1), 0);
   const priceEl = document.getElementById('f-price');
   if (priceEl) priceEl.value = total ? total.toFixed(2) : '';
 }
@@ -843,13 +843,19 @@ function oiSerialize() {
 // instead of just the bare catalog item name. Used only for the printed work order bag.
 function oiPrintLabel(it) {
   if (!it) return '';
-  if (it.type !== 'square') return it.name || '';
-  const modParts = (it.modifierLists || []).map(list => {
-    const optId = it.selectedModifierIds && it.selectedModifierIds[list.id];
-    const opt = (list.options || []).find(o => o.id === optId);
-    return opt ? opt.name : null;
-  }).filter(Boolean);
-  let label = modParts.length ? modParts.join(' ') + ' ' + (it.name || '') : (it.name || '');
+  let label;
+  if (it.type !== 'square') {
+    label = it.name || '';
+  } else {
+    const modParts = (it.modifierLists || []).map(list => {
+      const optId = it.selectedModifierIds && it.selectedModifierIds[list.id];
+      const opt = (list.options || []).find(o => o.id === optId);
+      return opt ? opt.name : null;
+    }).filter(Boolean);
+    label = modParts.length ? modParts.join(' ') + ' ' + (it.name || '') : (it.name || '');
+  }
+  const qty = parseInt(it.quantity, 10) || 1;
+  if (qty > 1) label = qty + '× ' + label;
   if (it.ringSize) label += ' - Size ' + it.ringSize;
   return label;
 }
@@ -934,9 +940,17 @@ function oiRowHtml(it, idx, hideTypeSelect) {
       </div>`;
     }
   } else {
-    body = `<div style="flex:1;display:flex;gap:8px;">
-      <input type="text" placeholder="Item name" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'name',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
-      <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+    const needsRingSize = it.isRing && it.noSquareSize;
+    body = `<div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;gap:8px;">
+        <input type="text" placeholder="Item name" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'name',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+        <input type="number" step="1" min="1" placeholder="Qty" value="${it.quantity || 1}" oninput="oiUpdateField(${idx},'quantity',parseInt(this.value,10)||1)" style="width:60px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+        <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+      </div>
+      ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
+        <input type="text" placeholder="e.g. 6.5" value="${(it.ringSize || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'ringSize',this.value)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
+      </div>` : ''}
     </div>`;
   }
 
@@ -1722,7 +1736,7 @@ function printOrder(id) {
     pickup:    o.pickup      || '',
     source:    o.contactSource || '',
     stage:     o.stage       || '',
-    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: it.price || 0 }))),
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
   });
   // Append print layout settings from localStorage
   try {

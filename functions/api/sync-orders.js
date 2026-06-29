@@ -9,6 +9,24 @@
 
 const LOOKBACK_DAYS = 14;
 
+// Mirrors js/shopify.js's shopifyLineItemsToOrderFields() — keeps the Notion-bound
+// Order Description / Ring Size in sync with the structured Shopify line items even
+// on the server-side auto-sync path (which talks to notion-pipeline, not local ORDERS).
+function shopifyLineItemsToOrderFields(lineItems) {
+  const items = (lineItems || []).map(li => ({
+    type:     'manual',
+    name:     li.title,
+    price:    li.price || 0,
+    quantity: li.quantity || 1,
+    ringSize: li.size || '',
+  }));
+  const desc = items
+    .map(it => `${it.quantity}× ${it.name}${it.ringSize ? ' — Size ' + it.ringSize : ''}`)
+    .join('\n');
+  const ringSize = items.filter(it => it.ringSize).map(it => it.ringSize).join(', ');
+  return { items, desc, ringSize };
+}
+
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -41,12 +59,15 @@ export async function onRequestGet(context) {
     } else {
       result.shopifyChecked = data.length;
       for (const so of data) {
+        const { items, desc, ringSize } = shopifyLineItemsToOrderFields(so.lineItems);
         const order = {
           id:            'shopify-' + so.shopifyOrderId,
           name:          so.name,
           email:         so.email,
           price:         so.price,
-          desc:          so.desc,
+          desc:          desc || so.desc,
+          items,
+          ringSize,
           notes:         so.notes,
           stage:         'intake-website',
           orderType:     'order',
