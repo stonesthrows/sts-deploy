@@ -1420,6 +1420,7 @@ function _rqSaveTimerState() {
 }
 
 function _rqRestoreTimers() {
+  var restoredAny = false;
   try {
     var saved = JSON.parse(localStorage.getItem('sts_rqTimers') || '{}');
     Object.keys(saved).forEach(function(pid) {
@@ -1427,8 +1428,11 @@ function _rqRestoreTimers() {
       if (_rqTimers[pid]) return;
       _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
       _rqStartTick(pid);
+      restoredAny = true;
     });
   } catch(e) {}
+  // Push any locally-restored timers to KV so other devices see them immediately
+  if (restoredAny) _rqSaveTimerState();
   // Merge any timers started on other devices (phone) from server KV state
   fetch('/api/rq-timer-state')
     .then(function(r) { return r.ok ? r.json() : {}; })
