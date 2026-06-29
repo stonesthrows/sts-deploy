@@ -10,7 +10,19 @@ const NOTION_API  = 'https://api.notion.com/v1';
 const NOTION_VER  = '2022-06-28';
 const DB_ID       = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 const SIZES_BLOCK = '__rq_sizes__';
-const MAX_LEN     = 2000; // Notion title rich_text segment limit
+// Notion title properties cap each rich_text segment at 2000 chars, but the
+// array itself can hold up to 100 segments — split into chunks instead of
+// capping at one segment's worth, or the store fills up after a couple
+// dozen items and every PUT (incl. unrelated items) starts failing.
+const MAX_LEN     = 100 * 2000;
+
+function toTitleChunks(str) {
+  const chunks = [];
+  for (let i = 0; i < str.length; i += 2000) {
+    chunks.push({ text: { content: str.slice(i, i + 2000) } });
+  }
+  return chunks.length ? chunks : [{ text: { content: '' } }];
+}
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -56,7 +68,7 @@ export async function onRequest({ request, env }) {
   if (request.method === 'GET') {
     const page = await findSizesPage(h);
     if (!page) return json({});
-    const raw = page.properties['Note']?.title?.[0]?.plain_text || '{}';
+    const raw = (page.properties['Note']?.title || []).map(t => t.plain_text).join('') || '{}';
     try { return json(JSON.parse(raw)); }
     catch (e) { return json({}); }
   }
@@ -78,7 +90,7 @@ export async function onRequest({ request, env }) {
         method: 'PATCH', headers: h,
         body: JSON.stringify({
           properties: {
-            'Note': { title: [{ text: { content } }] },
+            'Note': { title: toTitleChunks(content) },
           },
         }),
       });
@@ -88,7 +100,7 @@ export async function onRequest({ request, env }) {
         body: JSON.stringify({
           parent: { database_id: DB_ID },
           properties: {
-            'Note':  { title: [{ text: { content } }] },
+            'Note':  { title: toTitleChunks(content) },
             'Block': { select: { name: SIZES_BLOCK } },
             'Done':  { checkbox: false },
           },
