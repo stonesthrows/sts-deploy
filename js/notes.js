@@ -550,6 +550,18 @@ function _rqCollectInvVariantIds() {
       if (ids.indexOf(match.id) === -1) ids.push(match.id);
     }
   });
+  // Also collect variants from the add-panel's pending selection so stock
+  // counts are fetched and shown in the sizes table before the item is saved.
+  var pending = _rqAddPendingMatch;
+  if (pending && !pending.isCustom) {
+    if (pending.isParent) {
+      (pending.variants || []).forEach(function(v) {
+        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
+      });
+    } else if (pending.id && pending.id.indexOf('local-') !== 0 && pending.id.indexOf('custom-') !== 0) {
+      if (ids.indexOf(pending.id) === -1) ids.push(pending.id);
+    }
+  }
   return ids;
 }
 
@@ -571,11 +583,32 @@ function _rqFetchInvCountsNow() {
     });
     ids.forEach(function(id) { _rqInvIdsDone[id] = true; });
     restockQueueRender();
+    _rqRefreshAddPanel();
   }).catch(function() {
     // Mark these ids done anyway — badges render as "unset" rather than
     // retrying indefinitely on a flaky connection.
     ids.forEach(function(id) { _rqInvIdsDone[id] = true; });
   });
+}
+
+// Re-renders the add-panel sizes box after inventory counts arrive, so the
+// "Current Stock" row populates without the user having to re-select the item.
+function _rqRefreshAddPanel() {
+  var item = _rqAddPendingMatch;
+  if (!item || !item.isParent) return;
+  var sizesBox = document.getElementById('rq-add-sizes');
+  if (!sizesBox || sizesBox.style.display === 'none') return;
+  var table = _rqBuildVariantTable(item.variants);
+  var qtyByVariantId = {};
+  var stoneByVariantId = {};
+  (item.selectedVariants || []).forEach(function(v) {
+    qtyByVariantId[v.id] = v.qty || '';
+    if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
+  });
+  var stoneList = _rqStoneOptionsFor(item);
+  sizesBox.innerHTML = table
+    ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
+    : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
 }
 
 // Renders a small count badge for one variant id, reusing the Inventory
@@ -3424,6 +3457,7 @@ function _rqAddShowChip(item) {
       ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
       : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
     sizesBox.style.display = 'block';
+    _rqFetchInvCounts(); // fetch stock counts for this item's variants so the "Current Stock" row populates
   } else {
     sizesBox.style.display = 'none';
     sizesBox.innerHTML = '';
