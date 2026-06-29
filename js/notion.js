@@ -76,11 +76,19 @@ async function notionCreateOrder(order) {
 async function notionUpdateOrder(order) {
   if (!order.notionId) return;
   try {
-    await fetch(PIPELINE_PROXY, {
+    const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(order),
     });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      console.error('notionUpdateOrder failed', r.status, err);
+      if (typeof setConnStatus === 'function') setConnStatus(false);
+      if (typeof toast === 'function') toast('⚠ Notion sync failed: ' + (err.error || r.status) + ' — local change kept, but will be overwritten by the next sync until this is fixed', '⚠', 8000);
+    } else if (typeof setConnStatus === 'function') {
+      setConnStatus(true);
+    }
   } catch(e) {
     console.warn('notionUpdateOrder error', e);
   }

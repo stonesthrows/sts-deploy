@@ -4514,7 +4514,11 @@
           </div>
           <div class="fg">
             <label>Shipping ($)</label>
-            <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0">
+            <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+          </div>
+          <div class="fg">
+            <label>Balance Due ($)</label>
+            <input type="number" id="f-balance-due" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
           </div>
           <input type="hidden" id="f-items-json" value="[]">
           <div class="fg full">
@@ -4528,6 +4532,15 @@
           <div class="fg" id="f-paid-by-row" style="display:none;">
             <label id="f-paid-by-label">Paid By</label>
             <select id="f-paid-by">
+              <option value="">— Select —</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Square Invoice">Square Invoice</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+          <div class="fg" id="f-fully-paid-row" style="display:none;">
+            <label>Fully Paid</label>
+            <select id="f-fully-paid" onchange="eoUpdateBalanceDue()">
               <option value="">— Select —</option>
               <option value="Credit Card">Credit Card</option>
               <option value="Square Invoice">Square Invoice</option>

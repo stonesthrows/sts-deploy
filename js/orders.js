@@ -276,6 +276,8 @@ function openOrderCard(id) {
   document.getElementById('f-assignee').value      = o.assignee      || '';
   document.getElementById('f-materials').value     = o.materials     || '';
   document.getElementById('f-paid-by').value       = o.paidBy        || '';
+  document.getElementById('f-fully-paid').value    = o.fullyPaid     || '';
+  eoUpdateBalanceDue();
   document.getElementById('f-notes').value         = o.notes         || '';
   document.getElementById('f-customer-notes').value = o.customerNotes || '';
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
@@ -308,6 +310,7 @@ function _setOrderFormEditMode(editing, name) {
   document.getElementById('order-form-foot-note').style.display = editing ? 'none' : '';
   document.getElementById('f-stage-row').style.display          = editing ? '' : 'none';
   document.getElementById('f-paid-by-row').style.display        = editing ? '' : 'none';
+  document.getElementById('f-fully-paid-row').style.display     = editing ? '' : 'none';
   document.getElementById('order-edit-actions').style.display   = editing ? 'flex' : 'none';
   const hint = document.getElementById('ot-hint');
   if (hint) hint.style.display = editing ? 'none' : '';
@@ -419,6 +422,7 @@ function saveOrderEdit() {
   o.materials     = document.getElementById('f-materials').value.trim() || '';
   o.ringSize      = oiDeriveRingSizesText(o.items);
   o.paidBy        = document.getElementById('f-paid-by').value          || '';
+  o.fullyPaid     = document.getElementById('f-fully-paid').value       || '';
   o.notes         = document.getElementById('f-notes').value.trim()         || '';
   o.customerNotes = document.getElementById('f-customer-notes').value.trim() || '';
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
@@ -643,6 +647,22 @@ function dpUpdatePaidByLabel() {
   if (!label || !deposit) return;
   const hasDeposit = (parseFloat(deposit.value) || 0) > 0;
   label.textContent = hasDeposit ? 'Deposit Paid By' : 'Paid By';
+  eoUpdateBalanceDue();
+}
+
+function eoUpdateBalanceDue() {
+  const balanceEl = document.getElementById('f-balance-due');
+  if (!balanceEl) return;
+  const fullyPaid = document.getElementById('f-fully-paid');
+  if (fullyPaid && fullyPaid.value) {
+    balanceEl.value = '0.00';
+    return;
+  }
+  const price    = parseFloat(document.getElementById('f-price').value)    || 0;
+  const deposit  = parseFloat(document.getElementById('f-deposit').value)  || 0;
+  const shipping = parseFloat(document.getElementById('f-shipping').value) || 0;
+  const balance  = Math.max(price + shipping - deposit, 0);
+  balanceEl.value = balance.toFixed(2);
 }
 
 function toggleShippingAddress() {
@@ -669,6 +689,8 @@ function clearForm() {
   if (source) source.value = '';
   const assignee = document.getElementById('f-assignee');
   if (assignee) assignee.value = '';
+  const fullyPaid = document.getElementById('f-fully-paid');
+  if (fullyPaid) fullyPaid.value = '';
   const editingId = document.getElementById('f-editing-id');
   if (editingId) editingId.value = '';
   const submitBtn = document.getElementById('order-form-submit');
@@ -801,6 +823,7 @@ function oiRecalcTotal() {
   const total = _oiItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1), 0);
   const priceEl = document.getElementById('f-price');
   if (priceEl) priceEl.value = total ? total.toFixed(2) : '';
+  eoUpdateBalanceDue();
 }
 
 // Square ring category IDs (from inventory.js INV_RING_CAT_IDS) flattened into a lookup set,
