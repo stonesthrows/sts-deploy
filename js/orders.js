@@ -189,6 +189,15 @@ function renderKanban() {
   }).length);
 }
 
+// Shortens long pickup location names for the kanban card badge, which has
+// limited width. Stored value / dropdown / Notion property are unaffected.
+const PICKUP_BADGE_LABELS = {
+  "Sunset Valley Farmer's Market": "SV Farmer's Market",
+};
+function pickupBadgeLabel(pickup) {
+  return PICKUP_BADGE_LABELS[pickup] || pickup;
+}
+
 function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
   const hasPhoto = !!o.photo;
@@ -224,7 +233,7 @@ function cardHTML(o) {
       <div class="o-collapsed-summary">
         ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
           : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
-          : o.pickup ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
+          : o.pickup ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
         ${o.assignee ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
@@ -237,7 +246,7 @@ function cardHTML(o) {
         <div class="o-desc">${o.desc}</div>
         ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
         <div class="o-badges">
-          ${o.pickup        ? `<span class="o-badge pickup">📍 ${o.pickup}</span>` : ''}
+          ${o.pickup        ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
           ${o.contactSource ? `<span class="o-badge source">💬 ${o.contactSource}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
           ${o.assignee      ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
