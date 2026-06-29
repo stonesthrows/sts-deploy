@@ -672,12 +672,16 @@ function _rqBuildVariantTable(variants) {
   return { rows: rows, metals: metals, hasSizes: rows.some(function(r) { return r.size; }) };
 }
 
+function _rqEsc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
   var html = '<table class="rq-variant-table"><thead><tr><th class="rq-variant-corner"></th>';
   table.metals.forEach(function(metal) {
     var cols = table.rows.filter(function(r) { return r.metal === metal; });
-    html += '<th colspan="' + cols.length + '">' + _restockEsc(metal) + '</th>';
+    html += '<th colspan="' + cols.length + '">' + _rqEsc(metal) + '</th>';
   });
   html += '</tr>';
 
@@ -690,7 +694,7 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
         var size = cols[i].size;
         var span = 1;
         while (i + span < cols.length && cols[i + span].size === size) span++;
-        html += '<th colspan="' + span + '">' + (_restockEsc(size) || '—') + '</th>';
+        html += '<th colspan="' + span + '">' + (_rqEsc(size) || '—') + '</th>';
         i += span;
       }
     });
@@ -3205,13 +3209,16 @@ function rqSetAssignee(selectEl, idx) {
 function rqAddItem() {
   var input = document.getElementById('rq-add-input');
   if (!input) return;
-  var text = input.value.trim();
-  if (!text) return;
+  var rawText = input.value.trim();
+  if (!rawText) return;
   input.value = '';
 
   var pendingMatch = _rqAddPendingMatch;
   _rqAddPendingMatch = null;
   _rqAddLastResults = [];
+  // Use the actual matched item's name (not the raw search-box text) so the
+  // saved title is never the user's in-progress search string.
+  var text = (pendingMatch && pendingMatch.name) ? pendingMatch.name : rawText;
   if (_rqAddDebounce) { clearTimeout(_rqAddDebounce); _rqAddDebounce = null; }
   _rqAddHideDropdown();
   var chip = document.getElementById('rq-add-chip');

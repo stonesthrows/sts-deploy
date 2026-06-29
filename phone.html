@@ -22,9 +22,13 @@
       --accent-border:#E8D0A0;
       --card-bg:      #FFFFFF;
       --bdr:          #B0CDE0;
+      --bdr-light:    #C8DFEE;
+      --card-head-bg: #EBF5FB;
       --text:         #1A2E38;
       --text2:        #4A6878;
+      --text3:        #6A8898;
       --text-dim:     #7A9AAA;
+      --hover:        #EBF5FB;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
@@ -233,116 +237,100 @@
       display: block;
     }
 
-    /* ── Restock add form ── */
+    /* ── Restock add form ──
+       These class names (rq-add-*, rq-result-*, rq-variant-*, inv-badge)
+       are not phone.html's own — they're emitted verbatim by the shared
+       add-widget functions in js/notes.js (the same code the desktop
+       Restock Queue tab's "+ Add" bar runs), so this card behaves
+       identically to desktop. Styled here to fit the mobile card layout. */
     .restock-search-wrap { position: relative; }
-    .restock-results {
-      display: none;
-      position: fixed;   /* escapes .card's overflow:hidden so it isn't clipped */
-      z-index: 999;
-      background: var(--card-bg);
-      border: 1px solid var(--bdr);
-      border-radius: 8px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-      max-height: 60vh;
-      overflow-y: auto;
-    }
-    .restock-result {
-      padding: 10px 12px;
-      font-size: 13.5px;
-      color: var(--text);
-      cursor: pointer;
-      border-bottom: 1px solid #F4EFE8;
-    }
-    .restock-result:last-child { border-bottom: none; }
-    .restock-result:active { background: var(--accent-bg); }
-    .restock-result-sub { font-size: 11.5px; color: var(--text-dim); }
-    .restock-result-none { padding: 10px 12px; font-size: 13px; color: var(--text-dim); }
-    .restock-chip {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin: 0 14px;
-      padding: 8px 12px;
-      background: var(--accent-bg);
-      border: 1px solid var(--accent-border);
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .restock-chip-x {
-      cursor: pointer;
-      color: var(--text-dim);
-      font-size: 16px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    .restock-sizes {
+    .rq-setup-results {
       display: none;
       flex-direction: column;
-      gap: 6px;
-      margin: 10px 14px 0;
-      max-height: 40vh;
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--card-bg);
+      max-height: 50vh;
       overflow-y: auto;
     }
-    .restock-size-pill {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 7px 10px;
-      border: 1px solid var(--bdr);
-      border-radius: 10px;
-      font-size: 13.5px;
-      color: var(--text);
-      user-select: none;
+    .rq-add-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      z-index: 200; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
     }
-    .restock-size-pill.checked {
-      background: var(--accent-bg);
-      border-color: var(--accent);
-      color: var(--text);
+    .rq-result-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; cursor: pointer; gap: 12px;
+      border-bottom: 1px solid #F4EFE8;
     }
-    .restock-size-name { flex: 1; min-width: 0; }
-    .restock-size-onhand {
-      font-size: 11.5px;
-      color: var(--text-dim);
-      flex-shrink: 0;
-      white-space: nowrap;
+    .rq-result-item:last-child { border-bottom: none; }
+    .rq-result-item:active { background: var(--accent-bg); }
+    .rq-result-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .rq-result-meta { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+    .rq-result-none { padding: 10px 12px; font-size: 13px; color: var(--text-dim); }
+    .rq-match-loading {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--text-dim); font-style: italic; padding: 10px 12px;
     }
-    .restock-qty-ctl {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
+    .rq-match-spinner {
+      display: inline-block; width: 11px; height: 11px; flex-shrink: 0;
+      border: 2px solid var(--bdr); border-top-color: var(--accent);
+      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
     }
-    .restock-qty-ctl button {
-      width: 26px;
-      height: 26px;
-      border: 1px solid var(--bdr);
-      border-radius: 6px;
-      background: var(--card-bg);
-      color: var(--text2);
-      font-size: 16px;
-      line-height: 1;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    @keyframes rq-spin { to { transform: rotate(360deg); } }
+    .rq-add-chip {
+      display: none; align-items: center; justify-content: space-between; gap: 8px;
+      margin: 0 14px; padding: 8px 12px; background: var(--accent-bg);
+      border: 1px solid var(--accent-border); border-radius: 8px;
+      font-size: 13px; font-weight: 600; color: var(--text);
     }
-    .restock-qty-ctl button:active { background: var(--accent-bg); }
-    .restock-qty-ctl input {
-      width: 38px;
-      text-align: center;
-      border: 1px solid var(--bdr);
-      border-radius: 6px;
-      padding: 4px 2px;
-      font-size: 13.5px;
-      font-family: inherit;
-      color: var(--text);
-      outline: none;
+    .rq-add-chip span:first-child { overflow: hidden; text-overflow: ellipsis; }
+    .rq-add-chip-x { cursor: pointer; color: var(--text-dim); font-size: 16px; line-height: 1; flex-shrink: 0; }
+    .rq-add-sizes { margin: 10px 14px 0; max-height: 40vh; overflow-y: auto; }
+    /* Grouped metal × size table (multi-metal parent items) */
+    .rq-variant-table { border-collapse: collapse; font-size: 12px; margin-bottom: 2px; }
+    .rq-variant-table th {
+      border: 1px solid var(--bdr); padding: 4px 7px; background: var(--card-head-bg);
+      color: var(--text2); font-weight: 700; text-align: center; white-space: nowrap;
     }
-    .restock-qty-ctl input:focus { border-color: var(--accent); }
+    .rq-variant-table td { border: 1px solid var(--bdr); padding: 4px; text-align: center; }
+    .rq-variant-corner { border: none !important; background: transparent !important; }
+    .rq-variant-row-label { text-align: right !important; font-weight: 600; color: var(--text-dim); padding: 4px 9px !important; }
+    .rq-variant-inv-row td { padding-top: 5px; border-top: none; }
+    .rq-variant-inv-row .inv-badge { font-size: 10.5px; padding: 2px 5px; }
+    .rq-variant-qty {
+      width: 38px; padding: 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 12px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .rq-variant-qty:focus { border-color: var(--accent); outline: none; }
+    /* Flat chip grid (single-metal / few-variant items) */
+    .rq-variant-picker { padding: 6px 0 2px; }
+    .rq-variant-label { font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
+    .rq-variant-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rq-variant-chip {
+      display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+      border: 1px solid var(--bdr); border-radius: 6px; padding: 5px 8px 5px 10px;
+      font-size: 12.5px; color: var(--text2); background: #fff;
+    }
+    .rq-variant-chip-row { display: flex; align-items: center; gap: 6px; }
+    .rq-variant-chip .inv-badge { font-size: 10.5px; padding: 2px 6px; align-self: flex-start; }
+    .rq-variant-chip-on { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--accent) !important; font-weight: 700; }
+    .rq-variant-qty-inline {
+      width: 36px; padding: 2px 4px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 12.5px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .rq-variant-qty-inline:focus { border-color: var(--accent); outline: none; }
+    .rq-variant-stone-select {
+      width: 100%; padding: 2px 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 11.5px; font-family: inherit; color: var(--text); background: #fff;
+    }
+    .rq-variant-stone-select:focus { border-color: var(--accent); outline: none; }
+    /* On-hand stock badge, same styling/thresholds as the desktop Inventory tab */
+    .inv-badge { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+    .inv-badge.in-stock  { background: #f0fdf4; color: #16a34a; }
+    .inv-badge.low-stock { background: #fffbeb; color: #d97706; }
+    .inv-badge.no-stock  { background: #fef2f2; color: #dc2626; }
+    .inv-badge.unset     { background: var(--card-head-bg); color: var(--text-dim); font-weight: 400; font-style: italic; }
     .restock-submit-row { padding: 12px 14px 14px; }
     .restock-submit-btn {
       width: 100%;
@@ -402,17 +390,14 @@
         <span class="card-head-title">Add to Restock Queue</span>
       </div>
       <div class="add-row restock-search-wrap">
-        <input class="add-input" id="restock-search-input" type="text" placeholder="Search Square catalog…" autocomplete="off"
-          oninput="rsSearchInput(this.value)">
-        <div class="restock-results" id="restock-results"></div>
+        <input class="add-input" id="rq-add-input" type="text" placeholder="Search Square catalog…" autocomplete="off"
+          oninput="rqAddInputChange(this.value)" onkeydown="if(event.key==='Enter')rqAddItem()">
+        <div id="rq-add-results" class="rq-setup-results rq-add-dropdown"></div>
       </div>
-      <div class="restock-chip" id="restock-chip">
-        <span id="restock-chip-label"></span>
-        <span class="restock-chip-x" onclick="rsClearSelection()">✕</span>
-      </div>
-      <div class="restock-sizes" id="restock-sizes"></div>
+      <div id="rq-add-chip" class="rq-add-chip" style="display:none"></div>
+      <div id="rq-add-sizes" class="rq-add-sizes" style="display:none"></div>
       <div class="restock-submit-row">
-        <button class="restock-submit-btn" id="restock-submit-btn" disabled onclick="rsSubmit()">Submit</button>
+        <button class="restock-submit-btn" id="restock-submit-btn" disabled onclick="rqAddItem()">＋ Add</button>
       </div>
     </div>
   </div>
@@ -427,6 +412,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="js/notes.js?v=36"></script>
 <script>
   // ── Tab switching ──────────────────────────────
   function showTab(name) {
@@ -478,258 +464,29 @@
     _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
   }
 
-  // ── Restock add form: Square search → variant/size pick → submit ──
-  const RESTOCK_BLOCK = 'Inventory Restock';
-  const RESTOCK_LOCATION_ID = 'D7EZ98V48F79A'; // Square location used for on-hand counts
-  let _rsDebounce  = null;
-  let _rsResults   = [];     // last search results
-  let _rsSelected  = null;   // { id, name, isParent, variants:[{id,name}] } or single-variant item
-  let _rsSizesChecked = {};  // { variantId: true }
-
-  function _rsSqCall(path, opts) {
-    opts = opts || {};
-    const payload = { path: '/v2' + path, method: opts.method || 'GET' };
-    if (opts.body) payload.body = opts.body;
-    return fetch('/api/square', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then(r => r.json());
-  }
-
-  window.addEventListener('resize', () => {
-    const box = document.getElementById('restock-results');
-    if (box.style.display === 'block') _rsPositionResults();
+  // ── Restock add form ──
+  // This card runs the exact same add-widget functions as the desktop
+  // Restock Queue tab's "+ Add" bar (rqAddInputChange, rqAddItem, etc. —
+  // defined in js/notes.js, loaded above), driven against #rq-add-* element
+  // ids instead of duplicating the search/select/submit logic here. That's
+  // what guarantees identical behavior: one Notion page per item (not per
+  // size), the real matched item name as the title, and the same grouped
+  // metal x size table / stone picker for multi-variant items.
+  //
+  // notes.js normally loads _rqAutoMatches (localStorage) and _rqSizes
+  // (server) lazily, the first time the desktop queue list renders. There's
+  // no queue list on this page, so that lazy path never fires — without
+  // loading them explicitly first, _rqAmSet/_rqSaveSizesFor would each
+  // overwrite the shared store with only this page's one new item, wiping
+  // out every other item's saved match/sizes. Submit stays disabled until
+  // both have loaded.
+  var INV_LOCATION_ID = 'D7EZ98V48F79A'; // used by notes.js's on-hand-stock badges
+  _rqAmLoad();
+  _rqAmLoaded = true;
+  document.getElementById('restock-submit-btn').disabled = true;
+  _rqLoadSizes(function() {
+    document.getElementById('restock-submit-btn').disabled = false;
   });
-
-  function rsSearchInput(value) {
-    const q = (value || '').trim();
-    if (_rsDebounce) clearTimeout(_rsDebounce);
-    if (!q) { _rsHideResults(); return; }
-    _rsDebounce = setTimeout(() => _rsSearch(q), 350);
-  }
-
-  function _rsHideResults() {
-    const box = document.getElementById('restock-results');
-    box.style.display = 'none';
-    box.innerHTML = '';
-  }
-
-  // Fixed-position dropdown needs its coordinates computed from the input's
-  // on-screen position — it's no longer inside .card's box, so it can't rely
-  // on CSS top/left percentages.
-  function _rsPositionResults() {
-    const box   = document.getElementById('restock-results');
-    const input = document.getElementById('restock-search-input');
-    const rect  = input.getBoundingClientRect();
-    box.style.left  = rect.left + 'px';
-    box.style.width = rect.width + 'px';
-    box.style.top   = (rect.bottom + 4) + 'px';
-    box.style.maxHeight = (window.innerHeight - rect.bottom - 12) + 'px';
-  }
-
-  function _rsSearch(query) {
-    const box = document.getElementById('restock-results');
-    box.innerHTML = '<div class="restock-result-none">Searching…</div>';
-    box.style.display = 'block';
-    _rsPositionResults();
-
-    _rsSqCall('/catalog/search', {
-      method: 'POST',
-      body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
-    }).then(searchData => {
-      const found = searchData.objects || [];
-      if (!found.length) { _rsRenderResults([], query); return; }
-      return _rsSqCall('/catalog/batch-retrieve', {
-        method: 'POST',
-        body: { object_ids: found.map(o => o.id) },
-      }).then(batchData => {
-        const rows = [];
-        (batchData.objects || []).forEach(obj => {
-          if (obj.type !== 'ITEM') return;
-          const d = obj.item_data || {};
-          const vars = d.variations || [];
-          rows.push({
-            id: obj.id,
-            name: d.name || '',
-            isParent: vars.length > 1,
-            variants: vars.map(v => ({ id: v.id, name: (v.item_variation_data || {}).name || '' })),
-          });
-        });
-        _rsRenderResults(rows, query);
-      });
-    }).catch(() => _rsRenderResults([], query));
-  }
-
-  function _rsRenderResults(items, query) {
-    _rsResults = items;
-    const box = document.getElementById('restock-results');
-    const esc = t => (t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    if (!items.length) {
-      box.innerHTML = `<div class="restock-result-none">No match for "${esc(query)}"</div>`;
-      box.style.display = 'block';
-      return;
-    }
-    box.innerHTML = items.map((item, idx) => `
-      <div class="restock-result" onclick="rsSelectResult(${idx})">
-        ${esc(item.name)}
-        ${item.isParent ? `<div class="restock-result-sub">${item.variants.length} sizes</div>` : ''}
-      </div>
-    `).join('');
-    box.style.display = 'block';
-  }
-
-  function rsSelectResult(idx) {
-    const item = _rsResults[idx];
-    if (!item) return;
-    _rsSelected = item;
-    _rsSizesChecked = {};
-    document.getElementById('restock-search-input').value = '';
-    _rsHideResults();
-
-    document.getElementById('restock-chip').style.display = 'flex';
-    document.getElementById('restock-chip-label').textContent = item.name;
-
-    const sizesBox = document.getElementById('restock-sizes');
-    let variantIds;
-    if (item.isParent && item.variants.length) {
-      sizesBox.innerHTML = item.variants.map(v => `
-        <div class="restock-size-pill" id="rs-pill-${v.id}">
-          <span class="restock-size-name">${(v.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>
-          <span class="restock-size-onhand" id="rs-onhand-${v.id}"></span>
-          <div class="restock-qty-ctl">
-            <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
-            <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value=""
-              placeholder="0" onchange="rsSetQty('${v.id}',this.value)">
-            <button type="button" onclick="rsStepQty('${v.id}',1)">+</button>
-          </div>
-        </div>
-      `).join('');
-      sizesBox.style.display = 'flex';
-      variantIds = item.variants.map(v => v.id);
-    } else {
-      // Single-variant item — show one qty control, defaulted to 1.
-      const v = item.variants[0];
-      if (v) {
-        _rsSizesChecked[v.id] = 1;
-        sizesBox.innerHTML = `
-          <div class="restock-size-pill" id="rs-pill-${v.id}">
-            <span class="restock-size-name">Qty</span>
-            <span class="restock-size-onhand" id="rs-onhand-${v.id}"></span>
-            <div class="restock-qty-ctl">
-              <button type="button" onclick="rsStepQty('${v.id}',-1)">−</button>
-              <input type="number" inputmode="numeric" min="0" id="rs-qty-${v.id}" value="1"
-                onchange="rsSetQty('${v.id}',this.value)">
-              <button type="button" onclick="rsStepQty('${v.id}',1)">+</button>
-            </div>
-          </div>`;
-        sizesBox.style.display = 'flex';
-        variantIds = [v.id];
-      } else {
-        sizesBox.style.display = 'none';
-        sizesBox.innerHTML = '';
-      }
-    }
-    _rsUpdateSubmitState();
-    if (variantIds && variantIds.length) _rsLoadOnHandCounts(variantIds);
-  }
-
-  // Current Square on-hand counts, shown next to each size pill — read-only,
-  // mirrors the on-hand display in the desktop Inventory tab.
-  function _rsLoadOnHandCounts(variantIds) {
-    _rsSqCall('/inventory/counts/batch-retrieve', {
-      method: 'POST',
-      body: { catalog_object_ids: variantIds, location_ids: [RESTOCK_LOCATION_ID] },
-    }).then(data => {
-      const counts = {};
-      (data.counts || []).forEach(c => { counts[c.catalog_object_id] = parseInt(c.quantity, 10) || 0; });
-      variantIds.forEach(vid => {
-        const el = document.getElementById('rs-onhand-' + vid);
-        if (el) el.textContent = (counts[vid] || 0) + ' on hand';
-      });
-    }).catch(() => {});
-  }
-
-  function rsSetQty(variantId, value) {
-    const qty = Math.max(0, parseInt(value, 10) || 0);
-    const input = document.getElementById('rs-qty-' + variantId);
-    if (input) input.value = qty || '';
-    if (qty > 0) _rsSizesChecked[variantId] = qty;
-    else delete _rsSizesChecked[variantId];
-    const pill = document.getElementById('rs-pill-' + variantId);
-    if (pill) pill.classList.toggle('checked', qty > 0);
-    _rsUpdateSubmitState();
-  }
-
-  function rsStepQty(variantId, delta) {
-    const input = document.getElementById('rs-qty-' + variantId);
-    const current = (input && parseInt(input.value, 10)) || 0;
-    rsSetQty(variantId, current + delta);
-  }
-
-  function _rsUpdateSubmitState() {
-    const has = _rsSelected && Object.keys(_rsSizesChecked).length > 0;
-    document.getElementById('restock-submit-btn').disabled = !has;
-  }
-
-  function rsClearSelection() {
-    _rsSelected = null;
-    _rsSizesChecked = {};
-    document.getElementById('restock-chip').style.display = 'none';
-    document.getElementById('restock-sizes').style.display = 'none';
-    document.getElementById('restock-sizes').innerHTML = '';
-    _rsUpdateSubmitState();
-  }
-
-  function rsSubmit() {
-    if (!_rsSelected || !Object.keys(_rsSizesChecked).length) return;
-    const item = _rsSelected;
-    const variantIds = Object.keys(_rsSizesChecked);
-    const btn = document.getElementById('restock-submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
-
-    const variantById = {};
-    item.variants.forEach(v => { variantById[v.id] = v; });
-
-    Promise.all(variantIds.map(vid => {
-      const variant = variantById[vid];
-      const text = item.isParent ? `${item.name} — ${variant.name}` : item.name;
-      return fetch('/api/notion-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, block: RESTOCK_BLOCK }),
-      }).then(r => r.json().then(d => ({ ok: r.ok, data: d, vid })));
-    })).then(results => {
-      const failed = results.filter(r => !r.ok);
-      const okResults = results.filter(r => r.ok);
-      if (okResults.length) {
-        return fetch('/api/restock-sizes').then(r => r.json()).then(sizes => {
-          sizes = (sizes && typeof sizes === 'object' && !sizes.error) ? sizes : {};
-          okResults.forEach(r => {
-            const pid = r.data.notionPageId;
-            sizes[pid] = sizes[pid] || {};
-            sizes[pid][r.vid] = _rsSizesChecked[r.vid] || 1;
-          });
-          return fetch('/api/restock-sizes', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(sizes),
-          }).then(() => failed);
-        });
-      }
-      return failed;
-    }).then(failed => {
-      btn.textContent = 'Submit';
-      rsClearSelection();
-      if (failed && failed.length) toast(`Added ${variantIds.length - failed.length}/${variantIds.length} — some failed`, true);
-      else toast('Added to Restock Queue');
-    }).catch(() => {
-      btn.textContent = 'Submit';
-      _rsUpdateSubmitState();
-      toast('Failed to add item', true);
-    });
-  }
 </script>
 </body>
 </html>
