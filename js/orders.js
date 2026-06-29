@@ -407,7 +407,11 @@ function saveOrderEdit() {
   o.jobDescMode   = _jdMode;
   o.jobDesc       = jdGetJobDescValue();
   o.desc          = jdGetDescValue();
-  o.stage         = document.getElementById('f-stage').value;
+  // Guard against the dropdown silently resetting to "" when an order's
+  // stage has no matching <option> — losing the stage breaks Notion's
+  // required Stage select and makes the order vanish from every kanban column.
+  const stageVal = document.getElementById('f-stage').value;
+  if (stageVal) o.stage = stageVal;
   o.items         = _oiItems.map(it => ({ ...it }));
   o.price         = parseFloat(document.getElementById('f-price').value) || 0;
   o.deposit       = parseFloat(document.getElementById('f-deposit').value) || 0;
