@@ -58,7 +58,9 @@ export async function onRequestGet(context) {
       result.errors.push('shopify-orders: ' + (data?.error || r.status));
     } else {
       result.shopifyChecked = data.length;
-      for (const so of data) {
+      // Skip orders Shopify already marks fulfilled — same guard as the manual
+      // Sync Shopify button, to avoid re-importing old completed orders.
+      for (const so of data.filter(so => so.fulfillmentStatus !== 'FULFILLED')) {
         const { items, desc, ringSize } = shopifyLineItemsToOrderFields(so.lineItems);
         const order = {
           id:            'shopify-' + so.shopifyOrderId,

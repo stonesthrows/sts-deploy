@@ -37,7 +37,12 @@ async function shopifySync() {
   toast('Syncing Shopify orders…', '🛍️');
 
   try {
-    const since = localStorage.getItem(SHOPIFY_SYNC_KEY) || '2020-01-01';
+    // Cap the lookback at 30 days even if the last-sync marker is missing or
+    // stale — prevents a first run (or a cleared marker) from re-pulling
+    // years of already-fulfilled orders in as fresh intakes.
+    const maxLookback = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const stored = localStorage.getItem(SHOPIFY_SYNC_KEY);
+    const since = stored && stored > maxLookback ? stored : maxLookback;
     const r = await fetch(SHOPIFY_PROXY + '?since=' + encodeURIComponent(since));
 
     if (!r.ok) {
@@ -55,8 +60,11 @@ async function shopifySync() {
     // Build set of already-imported Shopify IDs
     const existingIds = new Set(ORDERS.map(o => o.id));
 
+    // Skip orders Shopify already marks fulfilled — a legitimate new intake
+    // shouldn't already be shipped, so this catches old/completed orders
+    // that would otherwise slip in even within the lookback window.
     const toImport = shopifyOrders.filter(
-      so => !existingIds.has(shopifyAppId(so.shopifyOrderId))
+      so => !existingIds.has(shopifyAppId(so.shopifyOrderId)) && so.fulfillmentStatus !== 'FULFILLED'
     );
 
     if (!toImport.length) {
