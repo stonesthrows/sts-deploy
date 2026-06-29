@@ -46,7 +46,6 @@ export async function onRequestGet(context) {
               quantity
               variantTitle
               originalUnitPriceSet { shopMoney { amount } }
-              variant { selectedOptions { name value } }
             }
           }
           shippingAddress { firstName lastName address1 address2 city province country zip }
@@ -76,14 +75,19 @@ export async function onRequestGet(context) {
   const orders = (data.data?.orders?.nodes || []).map(o => {
     const numericId = o.id.replace('gid://shopify/Order/', '');
 
+    // variantTitle is the variant's option values joined by " / " (e.g.
+    // "Size 7.5 / 4mm / Lined, High Polish") — no separate "Size" option is
+    // exposed without the read_products scope, so pull the size segment out
+    // of this text instead and strip the literal "Size" word from it.
     const lineItems = o.lineItems.nodes.map(li => {
-      const sizeOpt = (li.variant?.selectedOptions || [])
-        .find(opt => /size/i.test(opt.name));
+      const sizeSeg = (li.variantTitle || '').split('/')
+        .map(s => s.trim())
+        .find(seg => /size/i.test(seg));
       return {
         title:    li.title,
         quantity: li.quantity,
         price:    parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || 0),
-        size:     sizeOpt ? sizeOpt.value : '',
+        size:     sizeSeg ? sizeSeg.replace(/^size\s*/i, '').trim() : '',
       };
     });
 
