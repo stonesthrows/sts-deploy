@@ -951,7 +951,7 @@ async function stopTimer(tid) {
   finalizeNotionSession(session);
   const hasParent = items.some(it => it.isParent);
   const hasPieces = items.some(it => !it.isParent && !it.isLocal && it.pieces > 0);
-  if (hasParent || (hasPieces && CFG.sqToken)) { showInventoryModal(tid, session); } else { resetTimer(tid); }
+  if (hasParent || hasPieces) { showInventoryModal(tid, session); } else { resetTimer(tid); }
 }
 
 async function finalizeNotionSession(session) {
