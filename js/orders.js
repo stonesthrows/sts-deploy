@@ -92,20 +92,17 @@ function renderKanban() {
           </div>` : '';
 
       // Extra stages (e.g. Ship Out) rendered as sub-sections below pickup locations
+      // Cards hidden here — they appear in the Ready to Ship tab instead
       const extraStagesHTML = group.stages.slice(1).map(stage => {
-        const stageCards = ORDERS.filter(o =>
-          o.stage === stage.id &&
-          (showCompleted || !completedHidden.has(o.id))
-        );
         return `
-          <div class="k-sub-wrap ${stage.cls}${stageCards.length ? '' : ' k-sub-empty'}">
-            <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
+          <div class="k-sub-wrap ${stage.cls} k-sub-empty">
+            <div class="k-sub-head">${stage.label}<span class="k-sub-count">0</span></div>
             <div class="k-body"
                  data-stage-id="${stage.id}"
                  ondragover="dragOver(event)"
                  ondragleave="dragLeave(event)"
                  ondrop="drop(event,'${stage.id}')">
-              ${stageCards.length ? stageCards.map(cardHTML).join('') : '<div class="k-empty">Drop here</div>'}
+              <div class="k-empty">Drop here</div>
             </div>
           </div>`;
       }).join('');
