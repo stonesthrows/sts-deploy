@@ -12,7 +12,6 @@ var PROD_COLUMNS = [
   { key: 'Sunset Valley',             label: 'Sunset Valley',             icon: '🌅', color: '#b06abf' },
   { key: '__ship__',                  label: 'To be Shipped',             icon: '📦', color: '#457b9d' },
   { key: '__limbo__',                 label: 'In Limbo',                  icon: '❓', color: '#9A8860' },
-  { key: '__cancelled__',             label: 'Cancelled',                 icon: '🚫', color: '#C04848' },
 ];
 
 // Sub-cards inside the "To be Shipped" column, grouped by order source

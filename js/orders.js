@@ -58,7 +58,8 @@ function renderKanban() {
 
     if (group.pickupSections) {
       // ── Ready to Pickup/Ship: sub-sections by pickup location (stage[0] only) ──
-      const pickupCards = allCards.filter(o => o.stage === group.stages[0].id);
+      // Cards at ready-pick are hidden here — they appear in the Ready to Ship tab instead
+      const pickupCards = [];
       const subsHTML = PICKUP_LOCATIONS.map(loc => {
         const locCards = pickupCards.filter(o => o.pickup === loc);
         const stageId  = group.stages[0].id;
