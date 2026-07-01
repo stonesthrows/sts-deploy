@@ -4312,6 +4312,15 @@
               <option value="Other">Other</option>
             </select>
             <input type="text" id="hw-pkg-add-tracking" placeholder="Tracking number">
+            <select id="hw-pkg-add-status">
+              <option value="">— Status —</option>
+              <option value="Label Created">Label Created</option>
+              <option value="Picked Up">Picked Up</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Out for Delivery">Out for Delivery</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Received">Received</option>
+            </select>
             <button type="button" class="btn btn-gold btn-sm" onclick="_pkgAddManual()">Add package</button>
           </div>
           <div class="home-widget-body" id="hw-pkg-body">
@@ -7840,16 +7849,18 @@ function applyStatFilter(key) {
     const dir     = document.getElementById('hw-pkg-add-dir').value       || 'in';
     const carrier = (document.getElementById('hw-pkg-add-carrier').value  || '').trim();
     const tracking= (document.getElementById('hw-pkg-add-tracking').value || '').trim();
+    const status  = (document.getElementById('hw-pkg-add-status').value   || '').trim();
     if (!label) { toast('Enter a supplier or description', '⚠'); return; }
 
     const now = new Date().toISOString();
     const list = _pkgLoadManual();
-    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, date: now, trackingUpdatedAt: tracking ? now : null });
+    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, shipStatus: status || null, date: now, trackingUpdatedAt: now });
     _pkgSaveManual(list);
 
     document.getElementById('hw-pkg-add-label').value = '';
     document.getElementById('hw-pkg-add-carrier').value = '';
     document.getElementById('hw-pkg-add-tracking').value = '';
+    document.getElementById('hw-pkg-add-status').value = '';
     document.getElementById('hw-pkg-add-form').style.display = 'none';
 
     toast('Package added ✓', '✓');
@@ -7894,6 +7905,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'out', type: 'order', id: o.id, label: o.name || 'Order',
           carrier: o.trackingCarrier || '', tracking: o.trackingNumber || '',
+          status: o.shipStatus || null,
           date: o.deadline || null, updated: o.trackingUpdatedAt || null,
           onclick: `openOrderCard('${esc(o.id)}')`,
           editable: true, orderNumGuess: o.id.replace(/^(shopify|etsy)-/, ''),
@@ -7927,6 +7939,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'in', type: 'supplier', id: o.id, label: o.sup || 'Supplier order',
           carrier: o.carrier || '', tracking: o.trackingNumber || '',
+          status: o.shipStatus || null,
           date: o.shipped, updated: o.trackingUpdatedAt || null,
           onclick: `switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'));switchTab('order-history', document.querySelector('.sub-nav-tab[data-tab=order-history]'))`,
           editable: true, orderNumGuess: o.orderNum || '',
@@ -7938,6 +7951,7 @@ function applyStatFilter(key) {
       pkgs.push({
         dir: o.dir === 'out' ? 'out' : 'in', type: 'manual', id: o.id, label: o.label,
         carrier: o.carrier || '', tracking: o.tracking || '',
+        status: o.shipStatus || null,
         date: o.date || null, updated: o.trackingUpdatedAt || null,
         editable: true, removable: true,
       });
@@ -7956,15 +7970,23 @@ function applyStatFilter(key) {
     }
 
     const CARRIER_OPTS = ['USPS', 'UPS', 'FedEx', 'DHL', 'Other'];
+    const STATUS_OPTS  = ['Label Created', 'Picked Up', 'In Transit', 'Out for Delivery', 'Delivered', 'Received'];
 
     body.innerHTML = shown.map((p, i) => {
       const dirIcon  = p.dir === 'out' ? '📤' : '📥';
       const trackUrl = (typeof ssTrackingUrl === 'function') ? ssTrackingUrl(p.carrier, p.tracking) : null;
-      const dateStr    = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-      const updatedStr = p.updated ? `Updated ${relTime(p.updated)}` : '';
+      const dateStr  = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      const relStr   = p.updated ? relTime(p.updated) : '';
+      // Prefer the manually-set shipment status (e.g. "In Transit"), falling
+      // back to a plain "Updated Xh ago" when only the tracking # is known.
+      const statusText = p.status
+        ? (relStr ? `${p.status} · ${relStr}` : p.status)
+        : (p.updated ? `Updated ${relStr}` : dateStr);
       const rowId    = `hw-pkg-edit-${i}`;
-      const metaBits = p.tracking ? [p.carrier, p.tracking, updatedStr || dateStr].filter(Boolean) : (dateStr ? [dateStr] : []);
-      const metaText = p.tracking ? metaBits.join(' · ') : 'No tracking number yet';
+      const metaBits = p.tracking ? [p.carrier, p.tracking, statusText].filter(Boolean) : [];
+      const metaText = p.tracking
+        ? metaBits.join(' · ')
+        : (p.status ? `${p.status} — no tracking number yet` : 'No tracking number yet');
 
       const row = `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
         <span class="hw-pkg-dir">${dirIcon}</span>
@@ -7985,6 +8007,10 @@ function applyStatFilter(key) {
           ${CARRIER_OPTS.map(c => `<option value="${c}"${p.carrier === c ? ' selected' : ''}>${c}</option>`).join('')}
         </select>
         <input type="text" id="${rowId}-tracking" placeholder="Tracking number" value="${esc(p.tracking)}">
+        <select id="${rowId}-status">
+          <option value="">— Status —</option>
+          ${STATUS_OPTS.map(s => `<option value="${s}"${p.status === s ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
         ${p.type !== 'manual' ? `<button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>` : ''}
         <button type="button" class="btn btn-gold btn-sm" onclick="_pkgSaveTracking('${p.type}','${esc(p.id)}','${rowId}')">Save</button>
       </div>`;
@@ -8002,6 +8028,8 @@ function applyStatFilter(key) {
   window._pkgSaveTracking = function(type, id, rowId) {
     const carrier  = (document.getElementById(rowId + '-carrier').value  || '').trim();
     const tracking = (document.getElementById(rowId + '-tracking').value || '').trim();
+    const statusEl = document.getElementById(rowId + '-status');
+    const status   = statusEl ? (statusEl.value || '').trim() : '';
 
     const now = new Date().toISOString();
 
@@ -8010,7 +8038,8 @@ function applyStatFilter(key) {
       if (!o) return;
       o.trackingCarrier = carrier || null;
       o.trackingNumber  = tracking || null;
-      o.trackingUpdatedAt = tracking ? now : null;
+      o.shipStatus = status || null;
+      o.trackingUpdatedAt = now;
       if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
       if (typeof saveToStorage === 'function') saveToStorage();
       if (typeof renderKanban === 'function') renderKanban();
@@ -8019,7 +8048,8 @@ function applyStatFilter(key) {
       if (!o) return;
       o.carrier = carrier;
       o.trackingNumber = tracking;
-      o.trackingUpdatedAt = tracking ? now : null;
+      o.shipStatus = status || null;
+      o.trackingUpdatedAt = now;
       if (typeof ohCacheLocally === 'function') ohCacheLocally();
       if (typeof ohRender === 'function') ohRender();
       if (typeof ohSyncOrder === 'function') ohSyncOrder(o);
@@ -8029,7 +8059,8 @@ function applyStatFilter(key) {
       if (!o) return;
       o.carrier = carrier;
       o.tracking = tracking;
-      o.trackingUpdatedAt = tracking ? now : null;
+      o.shipStatus = status || null;
+      o.trackingUpdatedAt = now;
       _pkgSaveManual(list);
     } else {
       return;
