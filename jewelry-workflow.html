@@ -4321,6 +4321,10 @@
               <option value="Delivered">Delivered</option>
               <option value="Received">Received</option>
             </select>
+            <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;">
+              Expected by
+              <input type="date" id="hw-pkg-add-expected">
+            </label>
             <button type="button" class="btn btn-gold btn-sm" onclick="_pkgAddManual()">Add package</button>
           </div>
           <div class="home-widget-body" id="hw-pkg-body">
@@ -7864,17 +7868,19 @@ function applyStatFilter(key) {
     const carrier = (document.getElementById('hw-pkg-add-carrier').value  || '').trim();
     const tracking= (document.getElementById('hw-pkg-add-tracking').value || '').trim();
     const status  = (document.getElementById('hw-pkg-add-status').value   || '').trim();
+    const expected= (document.getElementById('hw-pkg-add-expected').value || '').trim();
     if (!label) { toast('Enter a supplier or description', '⚠'); return; }
 
     const now = new Date().toISOString();
     const list = _pkgLoadManual();
-    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, shipStatus: status || null, date: now, trackingUpdatedAt: now });
+    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, shipStatus: status || null, expectedDate: expected || null, date: now, trackingUpdatedAt: now });
     _pkgSaveManual(list);
 
     document.getElementById('hw-pkg-add-label').value = '';
     document.getElementById('hw-pkg-add-carrier').value = '';
     document.getElementById('hw-pkg-add-tracking').value = '';
     document.getElementById('hw-pkg-add-status').value = '';
+    document.getElementById('hw-pkg-add-expected').value = '';
     document.getElementById('hw-pkg-add-form').style.display = 'none';
 
     toast('Package added ✓', '✓');
@@ -7919,7 +7925,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'out', type: 'order', id: o.id, label: o.name || 'Order',
           carrier: o.trackingCarrier || '', tracking: o.trackingNumber || '',
-          status: o.shipStatus || null,
+          status: o.shipStatus || null, expected: o.expectedDate || null,
           date: o.deadline || null, updated: o.trackingUpdatedAt || null,
           onclick: `openOrderCard('${esc(o.id)}')`,
           editable: true, orderNumGuess: o.id.replace(/^(shopify|etsy)-/, ''),
@@ -7953,7 +7959,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'in', type: 'supplier', id: o.id, label: o.sup || 'Supplier order',
           carrier: o.carrier || '', tracking: o.trackingNumber || '',
-          status: o.shipStatus || null,
+          status: o.shipStatus || null, expected: o.expectedDate || null,
           date: o.shipped, updated: o.trackingUpdatedAt || null,
           onclick: `switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'));switchTab('order-history', document.querySelector('.sub-nav-tab[data-tab=order-history]'))`,
           editable: true, orderNumGuess: o.orderNum || '',
@@ -7965,7 +7971,7 @@ function applyStatFilter(key) {
       pkgs.push({
         dir: o.dir === 'out' ? 'out' : 'in', type: 'manual', id: o.id, label: o.label,
         carrier: o.carrier || '', tracking: o.tracking || '',
-        status: o.shipStatus || null,
+        status: o.shipStatus || null, expected: o.expectedDate || null,
         date: o.date || null, updated: o.trackingUpdatedAt || null,
         editable: true, removable: true,
       });
@@ -7996,11 +8002,22 @@ function applyStatFilter(key) {
       const statusText = p.status
         ? (relStr ? `${p.status} · ${relStr}` : p.status)
         : (p.updated ? `Updated ${relStr}` : dateStr);
+      // p.expected is a plain YYYY-MM-DD from a <input type=date> — parse as
+      // local calendar date, not UTC midnight, to avoid an off-by-one day.
+      const expDate = p.expected ? new Date(p.expected + 'T00:00:00') : null;
+      const isOverdue = expDate && !['Delivered', 'Received'].includes(p.status)
+        && expDate < new Date(new Date().toDateString());
+      const expText = expDate
+        ? `${isOverdue ? '⚠ ' : ''}Exp ${expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        : '';
       const rowId    = `hw-pkg-edit-${i}`;
-      const metaBits = p.tracking ? [p.carrier, p.tracking, statusText].filter(Boolean) : [];
-      const metaText = p.tracking
-        ? metaBits.join(' · ')
-        : (p.status ? `${p.status} — no tracking number yet` : 'No tracking number yet');
+      let metaText;
+      if (p.tracking) {
+        metaText = [p.carrier, p.tracking, statusText, expText].filter(Boolean).join(' · ');
+      } else {
+        const noTrackBits = [p.status, expText].filter(Boolean);
+        metaText = noTrackBits.length ? `${noTrackBits.join(' · ')} — no tracking number yet` : 'No tracking number yet';
+      }
 
       const row = `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
         <span class="hw-pkg-dir">${dirIcon}</span>
@@ -8025,6 +8042,10 @@ function applyStatFilter(key) {
           <option value="">— Status —</option>
           ${STATUS_OPTS.map(s => `<option value="${s}"${p.status === s ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
+        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;">
+          Expected by
+          <input type="date" id="${rowId}-expected" value="${p.expected ? esc(String(p.expected).slice(0, 10)) : ''}">
+        </label>
         ${p.type !== 'manual' ? `<button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>` : ''}
         <button type="button" class="btn btn-outline btn-sm" title="Pull live status from USPS" onclick="uspsCheckStatus('${rowId}', this)">📡</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="_pkgSaveTracking('${p.type}','${esc(p.id)}','${rowId}')">Save</button>
@@ -8045,6 +8066,8 @@ function applyStatFilter(key) {
     const tracking = (document.getElementById(rowId + '-tracking').value || '').trim();
     const statusEl = document.getElementById(rowId + '-status');
     const status   = statusEl ? (statusEl.value || '').trim() : '';
+    const expectedEl = document.getElementById(rowId + '-expected');
+    const expected    = expectedEl ? (expectedEl.value || '').trim() : '';
 
     const now = new Date().toISOString();
 
@@ -8054,6 +8077,7 @@ function applyStatFilter(key) {
       o.trackingCarrier = carrier || null;
       o.trackingNumber  = tracking || null;
       o.shipStatus = status || null;
+      o.expectedDate = expected || null;
       o.trackingUpdatedAt = now;
       if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
       if (typeof saveToStorage === 'function') saveToStorage();
@@ -8064,6 +8088,7 @@ function applyStatFilter(key) {
       o.carrier = carrier;
       o.trackingNumber = tracking;
       o.shipStatus = status || null;
+      o.expectedDate = expected || null;
       o.trackingUpdatedAt = now;
       if (typeof ohCacheLocally === 'function') ohCacheLocally();
       if (typeof ohRender === 'function') ohRender();
@@ -8075,6 +8100,7 @@ function applyStatFilter(key) {
       o.carrier = carrier;
       o.tracking = tracking;
       o.shipStatus = status || null;
+      o.expectedDate = expected || null;
       o.trackingUpdatedAt = now;
       _pkgSaveManual(list);
     } else {
