@@ -30,8 +30,8 @@ async function getToken(env) {
 
   const r = await fetch(USPS_OAUTH_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }),
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) return { token: null, error: data.error_description || data.error || `USPS OAuth failed (${r.status})` };
