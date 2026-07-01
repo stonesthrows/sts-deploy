@@ -7110,6 +7110,19 @@ function savePrintSetup() {
     </div>
 
     <div class="int-section">
+      <div class="int-section-title">USPS Live Tracking</div>
+      <p class="int-hint" style="margin-bottom:10px;">Used to pull real scan status (📡 button next to Tracking Number fields) directly from USPS. The Consumer Key/Secret are stored as <strong>server-side environment variables</strong> in Cloudflare Pages — not in your browser.</p>
+      <a href="https://developers.usps.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+        ↗ Open USPS Developer Portal
+      </a>
+      <p class="int-hint" style="margin-top:8px;">1. Sign into your USPS Business Account (or create one) via the Customer Onboarding Portal. 2. In the Developer Portal, go to Apps → Add App and enable the <strong>Tracking</strong> API. 3. Open your app's Credentials section to get the Consumer Key and Consumer Secret.</p>
+      <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;margin-top:6px;">
+        ↗ Open Cloudflare Pages Dashboard
+      </a>
+      <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>USPS_CONSUMER_KEY</code> and <code>USPS_CONSUMER_SECRET</code>.</p>
+    </div>
+
+    <div class="int-section">
       <div class="int-section-title">Square</div>
       <label for="int-square-token">Access Token</label>
       <input type="password" id="int-square-token" placeholder="EAAAl…">
@@ -7570,6 +7583,7 @@ function savePrintSetup() {
 <script src="js/etsy.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/shipstation.js"></script>
+<script src="js/usps.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
@@ -8012,6 +8026,7 @@ function applyStatFilter(key) {
           ${STATUS_OPTS.map(s => `<option value="${s}"${p.status === s ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
         ${p.type !== 'manual' ? `<button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>` : ''}
+        <button type="button" class="btn btn-outline btn-sm" title="Pull live status from USPS" onclick="uspsCheckStatus('${rowId}', this)">📡</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="_pkgSaveTracking('${p.type}','${esc(p.id)}','${rowId}')">Save</button>
       </div>`;
 
