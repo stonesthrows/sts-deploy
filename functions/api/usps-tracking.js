@@ -26,24 +26,24 @@ function mapStatus(statusCategory, status) {
 
 async function getToken(env) {
   const clientId = env.USPS_CONSUMER_KEY, clientSecret = env.USPS_CONSUMER_SECRET;
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) return { token: null, error: 'USPS_CONSUMER_KEY / USPS_CONSUMER_SECRET not set' };
 
   const r = await fetch(USPS_OAUTH_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }),
   });
-  if (!r.ok) return null;
   const data = await r.json().catch(() => ({}));
-  return data.access_token || null;
+  if (!r.ok) return { token: null, error: data.error_description || data.error || `USPS OAuth failed (${r.status})` };
+  return { token: data.access_token || null, error: data.access_token ? null : 'No access_token in USPS OAuth response' };
 }
 
 export async function onRequestGet(context) {
   const trackingNumber = new URL(context.request.url).searchParams.get('trackingNumber');
   if (!trackingNumber) return jsonResponse({ error: 'trackingNumber query param required' }, 400);
 
-  const token = await getToken(context.env);
-  if (!token) return jsonResponse({ error: 'USPS_CONSUMER_KEY / USPS_CONSUMER_SECRET not set or invalid' }, 500);
+  const { token, error: tokenError } = await getToken(context.env);
+  if (!token) return jsonResponse({ error: tokenError || 'USPS OAuth failed' }, 500);
 
   const r = await fetch(USPS_TRACKING_URL + encodeURIComponent(trackingNumber), {
     headers: { 'Authorization': 'Bearer ' + token },
