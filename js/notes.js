@@ -1204,6 +1204,45 @@ function _rqRunAutoMatchQueue(jobs) {
   for (var i = 0; i < Math.min(CONCURRENCY, jobs.length); i++) next();
 }
 
+// ── Shared Square catalog search helper ──────────────────────────────────────
+// Calls search → batch-retrieve and parses results into the standard row shape.
+// Returns a Promise<rows[]> (empty array on no results or network error).
+// Does not know about: spinners, stale checks, local items, or result rendering
+// — those stay in each caller.
+function _rqSqSearchExpand(query) {
+  return _rqSqCall('/catalog/search', {
+    method: 'POST',
+    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
+  }).then(function(searchData) {
+    var found = searchData.objects || [];
+    if (!found.length) return [];
+    return _rqSqCall('/catalog/batch-retrieve', {
+      method: 'POST',
+      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
+    }).then(function(fullData) {
+      var modifierListsById = {};
+      (fullData.related_objects || []).forEach(function(o) {
+        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+      });
+      var rows = [];
+      (fullData.objects || []).forEach(function(obj) {
+        if (obj.type !== 'ITEM') return;
+        var d = obj.item_data || {};
+        var variations = d.variations || [];
+        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
+        if (variations.length <= 1) {
+          var v = variations[0] ? variations[0].item_variation_data : null;
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: d.name || 'Unnamed', sku: v ? (v.sku || '') : '', category: d.category_name || '', isParent: false, modifierLists: modifierLists });
+        } else {
+          rows.push({ id: obj.id, name: d.name || 'Unnamed', category: d.category_name || '', isParent: true, variantCount: variations.length, modifierLists: modifierLists,
+            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' }; }) });
+        }
+      });
+      return rows;
+    });
+  }).catch(function() { return []; });
+}
+
 function _rqAutoMatchSingle(pid, rawText) {
   if (!pid) return Promise.resolve();
   var query = _rqShortName(rawText || '');
@@ -1218,54 +1257,23 @@ function _rqAutoMatchSingle(pid, rawText) {
   // device without a saved token — e.g. a phone that's never opened
   // Integrations — show "No Square match" even though the server-side
   // credential would have matched it fine).
-  return _rqSqCall('/catalog/search', {
-    method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
-  }).then(function(searchData) {
+  return _rqSqSearchExpand(query).then(function(squareRows) {
     if (_rqAutoMatches[pid] !== '_loading_') return;
-    var found = searchData.objects || [];
-    if (!found.length) {
-      if (localMatches.length) { _rqAmSet(pid, localMatches[0]); return; }
+    var rows = localMatches.concat(squareRows);
+    if (!rows.length) {
       _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); return;
     }
-    return _rqSqCall('/catalog/batch-retrieve', {
-      method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
-    }).then(function(fullData) {
-      if (_rqAutoMatches[pid] !== '_loading_') return;
-      var modifierListsById = {};
-      (fullData.related_objects || []).forEach(function(o) {
-        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
-      });
-      var rows = localMatches.slice();
-      (fullData.objects || []).forEach(function(obj) {
-        if (obj.type !== 'ITEM') return;
-        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
-        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
-        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
-        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
-        if (variations.length <= 1) {
-          var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists });
-        } else {
-          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length, modifierLists: modifierLists,
-            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
-        }
-      });
-      if (rows.length) {
-        var best = rows[0];
-        if (best.isParent) {
-          // Cross-device saved sizes (restock-sizes) take priority over
-          // anything parsed from the note text — that's only a one-time
-          // seed for brand-new notes that haven't been saved anywhere yet.
-          var fromStore = _rqResolveSelectedVariants(pid, best);
-          var selectedVariants = fromStore || _rqMatchSizesToVariants(best.variants, rawText);
-          best = Object.assign({}, best, { selectedVariants: selectedVariants });
-          if (!fromStore && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
-        }
-        _rqAmSet(pid, best);
-      } else { _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid); }
-    });
+    var best = rows[0];
+    if (best.isParent) {
+      // Cross-device saved sizes (restock-sizes) take priority over
+      // anything parsed from the note text — that's only a one-time
+      // seed for brand-new notes that haven't been saved anywhere yet.
+      var fromStore = _rqResolveSelectedVariants(pid, best);
+      var selectedVariants = fromStore || _rqMatchSizesToVariants(best.variants, rawText);
+      best = Object.assign({}, best, { selectedVariants: selectedVariants });
+      if (!fromStore && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
+    }
+    _rqAmSet(pid, best);
   }).catch(function() {
     if (_rqAutoMatches[pid] === '_loading_') {
       _rqAutoMatches[pid] = '_none_'; _rqAmSave(); _rqUpdateMatchRow(pid);
@@ -1309,39 +1317,9 @@ function _rqMatchEditSearch(pid, query) {
   var spinner = document.getElementById('rq-me-spinner-' + safePid);
   if (spinner) spinner.style.display = 'block';
   var localMatches = _rqLocalSearch(query);
-  _rqSqCall('/catalog/search', {
-    method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
-  }).then(function(searchData) {
+  _rqSqSearchExpand(query).then(function(squareRows) {
     if (!_rqMatchEdits[pid]) return;
-    var found = searchData.objects || [];
-    if (!found.length) { _rqMatchEditRenderResults(pid, localMatches, query); return; }
-    return _rqSqCall('/catalog/batch-retrieve', {
-      method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
-    }).then(function(fullData) {
-      if (!_rqMatchEdits[pid]) return;
-      var modifierListsById = {};
-      (fullData.related_objects || []).forEach(function(o) {
-        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
-      });
-      var rows = localMatches.slice();
-      (fullData.objects || []).forEach(function(obj) {
-        if (obj.type !== 'ITEM') return;
-        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
-        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
-        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
-        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
-        if (variations.length <= 1) {
-          var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku||'') : '', category: catName, isParent: false, modifierLists: modifierLists });
-        } else {
-          rows.push({ id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length, modifierLists: modifierLists,
-            variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name||'') : '', sku: vd ? (vd.sku||'') : '' }; }) });
-        }
-      });
-      _rqMatchEditRenderResults(pid, rows, query);
-    });
+    _rqMatchEditRenderResults(pid, localMatches.concat(squareRows), query);
   }).catch(function() {
     if (_rqMatchEdits[pid]) _rqMatchEditRenderResults(pid, localMatches, query);
   }).then(function() {
@@ -3007,95 +2985,39 @@ function _rqRenderReportBody(sessions) {
 }
 
 function rqSyncShiftsForSession(store, i) {
+  // Reconciliation itself (Square shift lookup + timeline math + Notion write)
+  // lives server-side in /api/square-sync now — this just triggers it for one
+  // session and reflects the result locally. See docs/adr/0002.
   var sessions = store === 'report' ? _rqReportSessions : _rqSessions;
   var s = sessions && sessions[i]; if (!s || !s.startTime || !s.stopTime) return Promise.resolve(false);
+  if (!s.notionPageId) { toast('Timeline sync needs a linked Notion page', '⚠'); return Promise.resolve(false); }
   var btn = document.getElementById('rq-sync-btn-' + store + '-' + i);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   var render = function() { if (store === 'report') { _rqRenderReportBody(_rqReportSessions); } else { rqRenderSessions(); } };
-  return new Promise(function(resolve) {
-  var empName = (s.employee && s.employee.name) || '';
-  var KNOWN = { 'Vanessa': 'TMAMWG-ZS9lqZWKm', 'Vanessa Bigley': 'TMAMWG-ZS9lqZWKm',
-                'Stevie': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana Schafer': 'Q5gZGbDStWUysIE3CKhJ' };
-  var empId = (s.employee && s.employee.id) || KNOWN[empName] || '';
-
-  function doSync(empId) {
-    if (!empId) {
-      toast('Unknown employee: ' + (empName || '?'), '⚠');
+  return fetch('/api/square-sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pageId: s.notionPageId }),
+  }).then(function(r) { return r.json().then(function(data) { return { r: r, data: data }; }); })
+    .then(function(res) {
+      var r = res.r, data = res.data;
       if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync'; }
-      resolve(false);
-      return;
-    }
-    var pStartMs = new Date(s.startTime).getTime();
-    var pStopMs  = new Date(s.stopTime).getTime();
-    var sqLoc    = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
-    _rqSqCall('/labor/shifts/search', {
-      method: 'POST',
-      body: { query: { filter: { team_member_ids: [empId], location_ids: [sqLoc] } }, limit: 100 },
-    }).then(function(data) {
-      var shifts = (data.shifts || []).filter(function(sh) {
-        var cin = new Date(sh.start_at).getTime(), cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
-        return cin < pStopMs && cout > pStartMs;
-      });
-      var fTime = function(ms) { return new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); };
-      var fDay  = function(ms) { return new Date(ms).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}); };
-      var events = [{ time: pStartMs, type: 'start' }];
-      shifts.sort(function(a,b){ return new Date(a.start_at)-new Date(b.start_at); }).forEach(function(sh) {
-        var cin = new Date(sh.start_at).getTime(), cout = sh.end_at ? new Date(sh.end_at).getTime() : pStopMs;
-        if (cin  > pStartMs && cin  < pStopMs) events.push({ time: cin,  type: 'in'  });
-        if (cout > pStartMs && cout < pStopMs) events.push({ time: cout, type: 'out' });
-      });
-      events.push({ time: pStopMs, type: 'stop' });
-      var byDay = {};
-      events.forEach(function(e) { var d = fDay(e.time); (byDay[d]=byDay[d]||[]).push(e); });
-      var block = '— Session Timeline —\n' + Object.keys(byDay).map(function(day) {
-        return day + '\n' + byDay[day].map(function(e) {
-          var lbl = e.type==='start'?'▶ Timer Start':e.type==='stop'?'⏹ Timer Stop':e.type==='in'?'  ▶ Clock In':'  ⏸ Clock Out';
-          return '  ' + lbl + ': ' + fTime(e.time);
-        }).join('\n');
-      }).join('\n');
-      var workedMs = 0;
-      shifts.forEach(function(sh) {
-        var cin = Math.max(new Date(sh.start_at).getTime(), pStartMs);
-        var cout = Math.min(sh.end_at ? new Date(sh.end_at).getTime() : pStopMs, pStopMs);
-        if (cout > cin) workedMs += (cout - cin);
-      });
-      var totalMs = pStopMs - pStartMs;
-      var dedMs   = Math.max(0, totalMs - workedMs) + 15 * 60000;
-      s.totalMs = totalMs; s.netMs = Math.max(0, totalMs - dedMs);
-      var baseNotes = (s.notes || '').replace(/— Session Timeline —[\s\S]*$/, '').trim();
-      s.notes = [baseNotes, block].filter(Boolean).join('\n\n');
-      render();
-      if (!s.notionPageId) { toast('Timeline saved locally', '✓'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } resolve(true); return; }
-      fetch('/api/notion-timesession', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageId: s.notionPageId, notes: s.notes,
-          totalMin: parseFloat((totalMs/60000).toFixed(2)),
-          dedMin:   parseFloat((dedMs/60000).toFixed(2)),
-          netMin:   parseFloat((s.netMs/60000).toFixed(2)) }),
-      }).then(function(r) {
-        toast(r.ok ? 'Timeline & times synced ✓' : 'Notion sync failed', r.ok ? '✓' : '⚠');
-        if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
-        resolve(!!r.ok);
-      }).catch(function() { toast('Network error', '⚠'); if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; } resolve(false); });
-    }).catch(function(e) {
-      toast('Square sync failed: ' + (e.message||e), '⚠');
-      if (btn) { btn.disabled=false; btn.textContent='⟳ Sync'; }
-      resolve(false);
-    });
-  }
-
-  if (empId) { doSync(empId); return; }
-  _rqSqCall('/team-members?location_ids=' + (localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A'))
-    .then(function(data) {
-      var members = (data.team_members || []).filter(function(m) { return m.status === 'ACTIVE'; });
-      var match = members.find(function(m) {
-        var fn = m.display_name || [m.given_name, m.family_name].filter(Boolean).join(' ');
-        return fn === empName || fn.split(' ')[0] === empName;
-      });
-      doSync(match ? match.id : '');
+      if (!r.ok) { toast('Sync error: ' + (data.error || r.status), '⚠'); return false; }
+      if (data.status === 'synced') {
+        s.notes = data.notes; s.totalMs = data.totalMs; s.netMs = data.netMs;
+        render();
+        toast('Timeline & times synced ✓', '✓');
+        return true;
+      }
+      if (data.status === 'pending') { toast('No Square shift found yet — will keep retrying automatically', '⚠'); return false; }
+      if (data.status === 'failed') { toast('Sync failed: ' + (data.reason || 'no matching Square shift'), '⚠'); return false; }
+      toast('Nothing to sync', '⚠');
+      return false;
     })
-    .catch(function() { doSync(''); });
-  });
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '⟳ Sync'; }
+      toast('Network error', '⚠');
+      return false;
+    });
 }
 
 function _rqSessionMissingShiftSync(s) {
@@ -3340,36 +3262,9 @@ function _rqAddSearch(query) {
   box.innerHTML = '<div class="rq-match-loading"><span class="rq-match-spinner"></span>Searching…</div>';
   box.style.display = 'flex';
   var localMatches = _rqLocalSearch(query);
-  _rqSqCall('/catalog/search', {
-    method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20 },
-  }).then(function(searchData) {
-    var found = searchData.objects || [];
-    if (!found.length) { _rqAddRenderResults(localMatches, query); return; }
-    return _rqSqCall('/catalog/batch-retrieve', {
-      method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
-    }).then(function(batchData) {
-      var modifierListsById = {};
-      (batchData.related_objects || []).forEach(function(o) {
-        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
-      });
-      var rows = [];
-      (batchData.objects || []).forEach(function(obj) {
-        if (obj.type !== 'ITEM') return;
-        var d = obj.item_data || {};
-        var vars = d.variations || [];
-        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
-        if (vars.length > 1) {
-          rows.push({ id: obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: true, variantCount: vars.length, modifierLists: modifierLists, variants: vars.map(function(v) { return { id: v.id, name: (v.item_variation_data || {}).name || '' }; }) });
-        } else {
-          var vd = vars[0] ? (vars[0].item_variation_data || {}) : {};
-          rows.push({ id: vars[0] ? vars[0].id : obj.id, name: d.name || '', category: ((d.categories || [])[0] || {}).name || '', isParent: false, sku: vd.sku || '', modifierLists: modifierLists });
-        }
-      });
-      if (!rows.length) rows = localMatches;
-      _rqAddRenderResults(rows, query);
-    });
+  _rqSqSearchExpand(query).then(function(squareRows) {
+    // Add bar shows Square results when available, local items only as fallback
+    _rqAddRenderResults(squareRows.length ? squareRows : localMatches, query);
   }).catch(function() {
     _rqAddRenderResults(localMatches, query);
   });

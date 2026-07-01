@@ -55,7 +55,13 @@ A Sat–Sun market event identified by its Saturday date key (e.g. `2026-05-30`)
 The list of inventory items that need to be made. Lives under the "To Restock" sub-tab. Each item maps (optionally) to a Square catalog item. Items can be assigned to an employee and reordered by priority.
 
 **Production Session**
-A timed work block recorded against a single Restock Queue item. Has a start time, stop time, employee, one or more items being made, and a piece count. Saved to Notion for time-tracking records.
+A timed work block recorded against a single Restock Queue item. Has a start time, stop time, employee, one or more items being made, and a piece count. Saved to Notion for time-tracking records. This is the same underlying Notion record as a **Session** in the Timer tab (`time-tracker.html`) — Timer is the interface used to start/stop/edit it day-to-day; Production Report is the read-only cost/value view of the same records. Not every Session is necessarily tied to a Restock Queue item, but in practice the terms are used interchangeably in this codebase.
+
+**Square Synced** (Notion property, STS Work Sessions database)
+A checkbox marking whether a Production Session's clock in/out times have been reconciled against Square's `/labor/shifts` data. Set automatically by a scheduled Cloudflare Worker (see ADR 0002) — never requires manual syncing under normal operation. A Production Session becomes eligible for reconciliation once its stop time has passed, since Square's shift record may not exist yet at the moment the session is stopped.
+
+**Square Sync Failed** (Production Session state)
+The state a Production Session enters if no matching Square shift is found within 48 hours of its stop time. Distinct from `Square Synced = false` (still pending, still being retried) — once flagged, automatic retries stop and the session needs manual attention (e.g. the employee never clocked in/out on Square, or clocked in under a different time window). Surfaced passively in Production Report; no active notification is sent.
 
 **Pieces Made**
 The number of pieces produced during a Production Session. Tracked per catalog item (or variant). This is a production count — it records what was made, not necessarily what was added to Square Inventory. The two may differ (e.g., some pieces go to display, samples, or gifts). For parent/variant items (e.g., rings), pieces are tracked per selected variant — not as a single total for the parent. Piece counts are entered while the timer is running, not at setup time.

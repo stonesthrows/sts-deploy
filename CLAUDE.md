@@ -10,6 +10,7 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 - `clickup.js` is **retired** — replaced by `notion.js`. Do not edit or restore it.
 - **Dropped experiment:** `crm.html` + `crm/` folder — started but not in active use
 - Related MCP servers (separate folders, not part of deploy): `triplog-mcp-http` (active), `triplog-mcp` (superseded), `triplog-proxy`
+- `square-sync-trigger` (separate folder, not part of deploy): standalone Cloudflare Worker, Cron Trigger only, pings `/api/square-sync` on `sts-deploy.pages.dev` every 15 min. No secrets of its own. See [docs/adr/0002](docs/adr/0002-square-sync-via-scheduled-worker.md).
 
 ## Tech Stack
 - Vanilla HTML, CSS, JavaScript (no framework, no build step)
