@@ -4292,7 +4292,27 @@
         <div class="home-widget">
           <div class="home-widget-head">
             <span>📦 Packages</span>
-            <button class="home-widget-link" onclick="_homeRefreshPackages()" title="Refresh">↻</button>
+            <span style="display:flex;gap:10px;align-items:center;">
+              <button class="home-widget-link" onclick="_pkgToggleAddForm()" title="Add a package tracking number manually">+ New</button>
+              <button class="home-widget-link" onclick="_homeRefreshPackages()" title="Refresh">↻</button>
+            </span>
+          </div>
+          <div class="hw-pkg-edit-form" id="hw-pkg-add-form" style="display:none;padding:8px 14px;">
+            <select id="hw-pkg-add-dir" style="width:56px;">
+              <option value="in">📥 In</option>
+              <option value="out">📤 Out</option>
+            </select>
+            <input type="text" id="hw-pkg-add-label" placeholder="Supplier / description" style="flex:1 1 100%;min-width:120px;">
+            <select id="hw-pkg-add-carrier">
+              <option value="">— Carrier —</option>
+              <option value="USPS">USPS</option>
+              <option value="UPS">UPS</option>
+              <option value="FedEx">FedEx</option>
+              <option value="DHL">DHL</option>
+              <option value="Other">Other</option>
+            </select>
+            <input type="text" id="hw-pkg-add-tracking" placeholder="Tracking number">
+            <button type="button" class="btn btn-gold btn-sm" onclick="_pkgAddManual()">Add package</button>
           </div>
           <div class="home-widget-body" id="hw-pkg-body">
             <div class="hw-loading">Loading…</div>
@@ -7796,9 +7816,54 @@ function applyStatFilter(key) {
     dashSquareLoad();
   };
 
-  // Packages widget — gathers in-transit shipments from three sources:
+  // Manually-logged packages — a lightweight, localStorage-only list for
+  // tracking numbers that don't correspond to an ORDERS/ohOrders record
+  // (e.g. a supplier order placed outside the normal intake flow). Not
+  // synced to Notion or looked up via ShipStation — purely a sticky note.
+  const PKG_MANUAL_KEY = 'sts-manual-packages';
+  function _pkgLoadManual() {
+    try { return JSON.parse(localStorage.getItem(PKG_MANUAL_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function _pkgSaveManual(list) {
+    try { localStorage.setItem(PKG_MANUAL_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  window._pkgToggleAddForm = function() {
+    const el = document.getElementById('hw-pkg-add-form');
+    if (!el) return;
+    el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
+    if (el.style.display === 'flex') document.getElementById('hw-pkg-add-label').focus();
+  };
+
+  window._pkgAddManual = function() {
+    const label   = (document.getElementById('hw-pkg-add-label').value    || '').trim();
+    const dir     = document.getElementById('hw-pkg-add-dir').value       || 'in';
+    const carrier = (document.getElementById('hw-pkg-add-carrier').value  || '').trim();
+    const tracking= (document.getElementById('hw-pkg-add-tracking').value || '').trim();
+    if (!label) { toast('Enter a supplier or description', '⚠'); return; }
+
+    const list = _pkgLoadManual();
+    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, date: new Date().toISOString() });
+    _pkgSaveManual(list);
+
+    document.getElementById('hw-pkg-add-label').value = '';
+    document.getElementById('hw-pkg-add-carrier').value = '';
+    document.getElementById('hw-pkg-add-tracking').value = '';
+    document.getElementById('hw-pkg-add-form').style.display = 'none';
+
+    toast('Package added ✓', '✓');
+    _homeRefreshPackages();
+  };
+
+  window._pkgRemoveManual = function(id) {
+    _pkgSaveManual(_pkgLoadManual().filter(p => p.id !== id));
+    _homeRefreshPackages();
+  };
+
+  // Packages widget — gathers in-transit shipments from four sources:
   //   outgoing custom orders (ORDERS, pickup='To be Shipped'), outgoing
-  //   Shopify orders (SHOPIFY_ORDERS), and incoming supplier orders (ohOrders).
+  //   Shopify orders (SHOPIFY_ORDERS), incoming supplier orders (ohOrders),
+  //   and manually-logged packages (localStorage, see _pkgLoadManual above).
   // No live carrier API for delivery status — a shipped order is treated as
   // "delivered" once a Delivered date/status is recorded, or (for outgoing
   // orders where that's never set) after a 10-day rolling window.
@@ -7857,6 +7922,15 @@ function applyStatFilter(key) {
       });
     }
 
+    _pkgLoadManual().forEach(o => {
+      pkgs.push({
+        dir: o.dir === 'out' ? 'out' : 'in', type: 'manual', id: o.id, label: o.label,
+        carrier: o.carrier || '', tracking: o.tracking || '',
+        date: o.date || null,
+        editable: true, removable: true,
+      });
+    });
+
     // Packages missing a tracking number float to the top so they're easy to fill in.
     pkgs.sort((a, b) => {
       if (!a.tracking !== !b.tracking) return a.tracking ? 1 : -1;
@@ -7887,6 +7961,7 @@ function applyStatFilter(key) {
         </span>
         ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="home-widget-link">Track →</a>` : ''}
         ${p.editable ? `<button type="button" class="hw-pkg-edit-toggle" title="${p.tracking ? 'Edit tracking' : 'Add tracking'}" onclick="event.stopPropagation();_pkgToggleEdit('${rowId}')">${p.tracking ? '✎' : '+ Add'}</button>` : ''}
+        ${p.removable ? `<button type="button" class="hw-pkg-edit-toggle" title="Remove" onclick="event.stopPropagation();_pkgRemoveManual('${esc(p.id)}')">✕</button>` : ''}
       </div>`;
 
       if (!p.editable) return row;
@@ -7897,7 +7972,7 @@ function applyStatFilter(key) {
           ${CARRIER_OPTS.map(c => `<option value="${c}"${p.carrier === c ? ' selected' : ''}>${c}</option>`).join('')}
         </select>
         <input type="text" id="${rowId}-tracking" placeholder="Tracking number" value="${esc(p.tracking)}">
-        <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>
+        ${p.type !== 'manual' ? `<button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>` : ''}
         <button type="button" class="btn btn-gold btn-sm" onclick="_pkgSaveTracking('${p.type}','${esc(p.id)}','${rowId}')">Save</button>
       </div>`;
 
@@ -7931,6 +8006,13 @@ function applyStatFilter(key) {
       if (typeof ohCacheLocally === 'function') ohCacheLocally();
       if (typeof ohRender === 'function') ohRender();
       if (typeof ohSyncOrder === 'function') ohSyncOrder(o);
+    } else if (type === 'manual') {
+      const list = _pkgLoadManual();
+      const o = list.find(x => x.id === id);
+      if (!o) return;
+      o.carrier = carrier;
+      o.tracking = tracking;
+      _pkgSaveManual(list);
     } else {
       return;
     }
