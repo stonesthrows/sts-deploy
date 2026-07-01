@@ -7842,8 +7842,9 @@ function applyStatFilter(key) {
     const tracking= (document.getElementById('hw-pkg-add-tracking').value || '').trim();
     if (!label) { toast('Enter a supplier or description', '⚠'); return; }
 
+    const now = new Date().toISOString();
     const list = _pkgLoadManual();
-    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, date: new Date().toISOString() });
+    list.push({ id: 'manual_' + Date.now().toString(36), label, dir, carrier, tracking, date: now, trackingUpdatedAt: tracking ? now : null });
     _pkgSaveManual(list);
 
     document.getElementById('hw-pkg-add-label').value = '';
@@ -7872,6 +7873,17 @@ function applyStatFilter(key) {
     if (!body) return;
     const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const daysAgo = d => d ? Math.floor((Date.now() - new Date(d)) / 86400000) : null;
+    const relTime = iso => {
+      if (!iso) return '';
+      const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h ago';
+      const days = Math.floor(hrs / 24);
+      if (days < 7) return days + 'd ago';
+      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
 
     const pkgs = [];
 
@@ -7882,7 +7894,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'out', type: 'order', id: o.id, label: o.name || 'Order',
           carrier: o.trackingCarrier || '', tracking: o.trackingNumber || '',
-          date: o.deadline || null,
+          date: o.deadline || null, updated: o.trackingUpdatedAt || null,
           onclick: `openOrderCard('${esc(o.id)}')`,
           editable: true, orderNumGuess: o.id.replace(/^(shopify|etsy)-/, ''),
         });
@@ -7897,7 +7909,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'out', type: 'shopify', label: (o.customerName || o.name || 'Order'),
           carrier: o.tracking.company || '', tracking: o.tracking.number,
-          date: o.tracking.shippedAt || null,
+          date: o.tracking.shippedAt || null, updated: o.tracking.shippedAt || null,
           editable: false,
         });
       });
@@ -7915,7 +7927,7 @@ function applyStatFilter(key) {
         pkgs.push({
           dir: 'in', type: 'supplier', id: o.id, label: o.sup || 'Supplier order',
           carrier: o.carrier || '', tracking: o.trackingNumber || '',
-          date: o.shipped,
+          date: o.shipped, updated: o.trackingUpdatedAt || null,
           onclick: `switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'));switchTab('order-history', document.querySelector('.sub-nav-tab[data-tab=order-history]'))`,
           editable: true, orderNumGuess: o.orderNum || '',
         });
@@ -7926,7 +7938,7 @@ function applyStatFilter(key) {
       pkgs.push({
         dir: o.dir === 'out' ? 'out' : 'in', type: 'manual', id: o.id, label: o.label,
         carrier: o.carrier || '', tracking: o.tracking || '',
-        date: o.date || null,
+        date: o.date || null, updated: o.trackingUpdatedAt || null,
         editable: true, removable: true,
       });
     });
@@ -7948,9 +7960,10 @@ function applyStatFilter(key) {
     body.innerHTML = shown.map((p, i) => {
       const dirIcon  = p.dir === 'out' ? '📤' : '📥';
       const trackUrl = (typeof ssTrackingUrl === 'function') ? ssTrackingUrl(p.carrier, p.tracking) : null;
-      const dateStr  = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      const dateStr    = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      const updatedStr = p.updated ? `Updated ${relTime(p.updated)}` : '';
       const rowId    = `hw-pkg-edit-${i}`;
-      const metaBits = p.tracking ? [p.carrier, p.tracking, dateStr].filter(Boolean) : (dateStr ? [dateStr] : []);
+      const metaBits = p.tracking ? [p.carrier, p.tracking, updatedStr || dateStr].filter(Boolean) : (dateStr ? [dateStr] : []);
       const metaText = p.tracking ? metaBits.join(' · ') : 'No tracking number yet';
 
       const row = `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
@@ -7990,11 +8003,14 @@ function applyStatFilter(key) {
     const carrier  = (document.getElementById(rowId + '-carrier').value  || '').trim();
     const tracking = (document.getElementById(rowId + '-tracking').value || '').trim();
 
+    const now = new Date().toISOString();
+
     if (type === 'order') {
       const o = (typeof ORDERS !== 'undefined') ? ORDERS.find(x => x.id === id) : null;
       if (!o) return;
       o.trackingCarrier = carrier || null;
       o.trackingNumber  = tracking || null;
+      o.trackingUpdatedAt = tracking ? now : null;
       if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
       if (typeof saveToStorage === 'function') saveToStorage();
       if (typeof renderKanban === 'function') renderKanban();
@@ -8003,6 +8019,7 @@ function applyStatFilter(key) {
       if (!o) return;
       o.carrier = carrier;
       o.trackingNumber = tracking;
+      o.trackingUpdatedAt = tracking ? now : null;
       if (typeof ohCacheLocally === 'function') ohCacheLocally();
       if (typeof ohRender === 'function') ohRender();
       if (typeof ohSyncOrder === 'function') ohSyncOrder(o);
@@ -8012,6 +8029,7 @@ function applyStatFilter(key) {
       if (!o) return;
       o.carrier = carrier;
       o.tracking = tracking;
+      o.trackingUpdatedAt = tracking ? now : null;
       _pkgSaveManual(list);
     } else {
       return;
