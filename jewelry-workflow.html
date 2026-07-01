@@ -3974,6 +3974,16 @@
   .hw-cal-title { font-weight: 600; color: var(--text); }
   .hw-cal-time  { color: var(--text-dim); font-size: 11px; margin-top: 1px; }
 
+  .hw-pkg-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
+  }
+  .hw-pkg-row:last-child { border-bottom: none; }
+  .hw-pkg-dir  { font-size: 15px; flex-shrink: 0; }
+  .hw-pkg-info { flex: 1; min-width: 0; }
+  .hw-pkg-label { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-pkg-meta  { color: var(--text-dim); font-size: 11px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   .home-stage-card {
     background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden;
     margin-bottom: 0;
@@ -4265,6 +4275,17 @@
           </div>
         </div>
 
+        <!-- Packages widget -->
+        <div class="home-widget">
+          <div class="home-widget-head">
+            <span>📦 Packages</span>
+            <button class="home-widget-link" onclick="_homeRefreshPackages()" title="Refresh">↻</button>
+          </div>
+          <div class="home-widget-body" id="hw-pkg-body">
+            <div class="hw-loading">Loading…</div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -4465,6 +4486,25 @@
           <div class="fg" id="addr-country-fg">
             <label>Country</label>
             <input type="text" id="f-addr-country" placeholder="United States" value="United States">
+          </div>
+          <div class="fg" id="tracking-carrier-fg">
+            <label>Carrier</label>
+            <select id="f-tracking-carrier">
+              <option value="">— Select —</option>
+              <option value="USPS">USPS</option>
+              <option value="UPS">UPS</option>
+              <option value="FedEx">FedEx</option>
+              <option value="DHL">DHL</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg" id="tracking-number-fg">
+            <label>Tracking Number</label>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="f-tracking-number" placeholder="9400150106151262058002" style="flex:1;">
+              <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation"
+                      onclick="orderLookupTracking(this)">🔎</button>
+            </div>
           </div>
           <div class="fg">
             <label>Take In Date</label>
@@ -7019,6 +7059,15 @@ function savePrintSetup() {
     </div>
 
     <div class="int-section">
+      <div class="int-section-title">ShipStation</div>
+      <p class="int-hint" style="margin-bottom:10px;">Used to look up tracking numbers by order # (🔎 button next to Tracking Number fields). The API key/secret are stored as <strong>server-side environment variables</strong> in Cloudflare Pages — not in your browser.</p>
+      <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+        ↗ Open Cloudflare Pages Dashboard
+      </a>
+      <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>SHIPSTATION_API_KEY</code> and <code>SHIPSTATION_API_SECRET</code>. Get both at ShipStation → Account Settings → API Settings.</p>
+    </div>
+
+    <div class="int-section">
       <div class="int-section-title">Square</div>
       <label for="int-square-token">Access Token</label>
       <input type="password" id="int-square-token" placeholder="EAAAl…">
@@ -7149,6 +7198,7 @@ function savePrintSetup() {
           <div class="dm-ext-card"><div class="dm-ext-icon">📁</div><div class="dm-ext-name">Google Drive</div><div class="dm-ext-detail">"STS Order Bag Visual Reads" folder</div></div>
           <div class="dm-ext-card"><div class="dm-ext-icon">📅</div><div class="dm-ext-name">Google Calendar</div><div class="dm-ext-detail">Events &amp; calendar view</div></div>
           <div class="dm-ext-card"><div class="dm-ext-icon">🤖</div><div class="dm-ext-name">Anthropic</div><div class="dm-ext-detail">PDF OCR &amp; bag scan vision (claude-opus-4-8)</div></div>
+          <div class="dm-ext-card"><div class="dm-ext-icon">🚢</div><div class="dm-ext-name">ShipStation</div><div class="dm-ext-detail">Tracking number lookup by order #</div></div>
         </div>
       </div>
 
@@ -7215,6 +7265,27 @@ function savePrintSetup() {
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Delivered</label>
         <input id="ohMDelivered" type="date" style="width:100%">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Carrier</label>
+        <select id="ohMCarrier" style="width:100%">
+          <option value="">— Select —</option>
+          <option>USPS</option>
+          <option>UPS</option>
+          <option>FedEx</option>
+          <option>DHL</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Tracking Number</label>
+        <div style="display:flex;gap:6px;">
+          <input id="ohMTracking" type="text" placeholder="Tracking #" style="width:100%">
+          <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation"
+                  onclick="ohLookupTracking(this)">🔎</button>
+        </div>
       </div>
     </div>
     <div style="margin-top:6px;">
@@ -7456,6 +7527,7 @@ function savePrintSetup() {
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>
 <script src="js/drive.js"></script>
+<script src="js/shipstation.js"></script>
 <script src="js/gmail.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
@@ -7704,8 +7776,93 @@ function applyStatFilter(key) {
     // Calendar widget — pull from existing calendar if loaded
     _homeRefreshCalendar();
 
+    // Packages widget — in-transit shipments (outgoing + incoming)
+    _homeRefreshPackages();
+
     // Square weekend sales widget
     dashSquareLoad();
+  };
+
+  // Packages widget — gathers in-transit shipments from three sources:
+  //   outgoing custom orders (ORDERS, pickup='To be Shipped'), outgoing
+  //   Shopify orders (SHOPIFY_ORDERS), and incoming supplier orders (ohOrders).
+  // No live carrier API for delivery status — a shipped order is treated as
+  // "delivered" once a Delivered date/status is recorded, or (for outgoing
+  // orders where that's never set) after a 10-day rolling window.
+  window._homeRefreshPackages = function() {
+    const body = document.getElementById('hw-pkg-body');
+    if (!body) return;
+    const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const daysAgo = d => d ? Math.floor((Date.now() - new Date(d)) / 86400000) : null;
+
+    const pkgs = [];
+
+    if (typeof ORDERS !== 'undefined') {
+      ORDERS.forEach(o => {
+        if (o.pickup !== 'To be Shipped' || !o.trackingNumber) return;
+        if (['complete', 'delivered', 'cancelled'].includes(o.stage)) return;
+        pkgs.push({
+          dir: 'out', label: o.name || 'Order',
+          carrier: o.trackingCarrier || '', tracking: o.trackingNumber,
+          date: o.deadline || null,
+          onclick: `openOrderCard('${esc(o.id)}')`,
+        });
+      });
+    }
+
+    if (typeof SHOPIFY_ORDERS !== 'undefined') {
+      SHOPIFY_ORDERS.forEach(o => {
+        if (!o.tracking || !o.tracking.number) return;
+        const age = daysAgo(o.tracking.shippedAt);
+        if (age != null && age > 10) return; // assume delivered
+        pkgs.push({
+          dir: 'out', label: (o.customerName || o.name || 'Order'),
+          carrier: o.tracking.company || '', tracking: o.tracking.number,
+          date: o.tracking.shippedAt || null,
+        });
+      });
+    }
+
+    // ohOrders (Supplies → Order History) only loads once that tab has been
+    // visited this session — pull the localStorage cache in if it hasn't,
+    // so incoming packages still show up without requiring a tab visit.
+    if (typeof ohOrders !== 'undefined' && !ohOrders.length && !window._ohDone && typeof ohLoadCache === 'function') {
+      ohLoadCache();
+    }
+    if (typeof ohOrders !== 'undefined') {
+      ohOrders.forEach(o => {
+        if (!o.shipped || o.delivered || o.status === 'Delivered') return;
+        pkgs.push({
+          dir: 'in', label: o.sup || 'Supplier order',
+          carrier: o.carrier || '', tracking: o.trackingNumber || '',
+          date: o.shipped,
+          onclick: `switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'));switchTab('order-history', document.querySelector('.sub-nav-tab[data-tab=order-history]'))`,
+        });
+      });
+    }
+
+    pkgs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    const shown = pkgs.slice(0, 8);
+
+    if (!shown.length) {
+      body.innerHTML = '<div class="hw-loading">No packages in transit.</div>';
+      return;
+    }
+
+    body.innerHTML = shown.map(p => {
+      const dirIcon  = p.dir === 'out' ? '📤' : '📥';
+      const trackUrl = (typeof ssTrackingUrl === 'function') ? ssTrackingUrl(p.carrier, p.tracking) : null;
+      const dateStr  = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      const metaBits = [p.carrier, p.tracking, dateStr].filter(Boolean);
+      return `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
+        <span class="hw-pkg-dir">${dirIcon}</span>
+        <span class="hw-pkg-info">
+          <div class="hw-pkg-label">${esc(p.label)}</div>
+          <div class="hw-pkg-meta">${esc(metaBits.join(' · '))}</div>
+        </span>
+        ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="home-widget-link">Track →</a>` : ''}
+      </div>`;
+    }).join('');
   };
 
   function _homeRefreshCalendar() {

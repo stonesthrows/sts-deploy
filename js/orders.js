@@ -277,6 +277,8 @@ function openOrderCard(id) {
   document.getElementById('f-deadline').value      = o.deadline      || '';
   document.getElementById('f-takein').value        = o.takeIn        || '';
   document.getElementById('f-pickup').value        = o.pickup        || '';
+  document.getElementById('f-tracking-number').value  = o.trackingNumber  || '';
+  document.getElementById('f-tracking-carrier').value = o.trackingCarrier || '';
   document.getElementById('f-email').value         = o.email         || '';
   document.getElementById('f-phone').value         = fmtPhone(o.phone);
   document.getElementById('f-source').value        = o.contactSource || '';
@@ -426,6 +428,8 @@ function saveOrderEdit() {
   o.deadline      = document.getElementById('f-deadline').value || null;
   o.takeIn        = document.getElementById('f-takein').value   || null;
   o.pickup        = document.getElementById('f-pickup').value   || null;
+  o.trackingNumber  = document.getElementById('f-tracking-number').value.trim()  || null;
+  o.trackingCarrier = document.getElementById('f-tracking-carrier').value       || null;
   o.email         = document.getElementById('f-email').value.trim();
   o.phone         = document.getElementById('f-phone').value.trim();
   o.contactSource = document.getElementById('f-source').value    || null;
@@ -557,6 +561,8 @@ function submitOrder() {
   const deadline   = document.getElementById('f-deadline').value || null;
   const takeIn        = document.getElementById('f-takein').value || null;
   const pickup        = document.getElementById('f-pickup').value || null;
+  const trackingNumber  = document.getElementById('f-tracking-number').value.trim()  || null;
+  const trackingCarrier = document.getElementById('f-tracking-carrier').value       || null;
   const addrStreet  = document.getElementById('f-addr-street').value.trim();
   const addrStreet2 = document.getElementById('f-addr-street2').value.trim();
   const addrCity    = document.getElementById('f-addr-city').value.trim();
@@ -591,6 +597,8 @@ function submitOrder() {
     phone:     document.getElementById('f-phone').value.trim(),
     takeIn:        takeIn,
     pickup:        pickup,
+    trackingNumber:  trackingNumber,
+    trackingCarrier: trackingCarrier,
     shippingAddress: shippingAddress,
     addrStreet, addrStreet2, addrCity, addrState, addrZip, addrCountry,
     contactSource: contactSource,
@@ -678,10 +686,21 @@ function eoUpdateBalanceDue() {
   balanceEl.value = balance.toFixed(2);
 }
 
+function orderLookupTracking(btn) {
+  const id = document.getElementById('f-editing-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  ssLookupTracking({
+    numberField:  'f-tracking-number',
+    carrierField: 'f-tracking-carrier',
+    orderNumberGuess: o ? (o.id.replace(/^(shopify|etsy)-/, '')) : '',
+    button: btn,
+  });
+}
+
 function toggleShippingAddress() {
   const pickup    = document.getElementById('f-pickup');
   const isShipped = pickup && pickup.value === 'To be Shipped';
-  ['addr-street-fg', 'addr-street2-fg', 'addr-city-fg', 'addr-state-fg', 'addr-zip-fg', 'addr-country-fg'].forEach(id => {
+  ['addr-street-fg', 'addr-street2-fg', 'addr-city-fg', 'addr-state-fg', 'addr-zip-fg', 'addr-country-fg', 'tracking-carrier-fg', 'tracking-number-fg'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isShipped ? '' : 'none';
   });
@@ -689,7 +708,7 @@ function toggleShippingAddress() {
 
 function clearForm() {
   ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-deposit','f-shipping','f-notes','f-customer-notes','f-sketch',
-   'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country']
+   'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country','f-tracking-number','f-tracking-carrier']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
