@@ -3983,6 +3983,19 @@
   .hw-pkg-info { flex: 1; min-width: 0; }
   .hw-pkg-label { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hw-pkg-meta  { color: var(--text-dim); font-size: 11px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-pkg-edit-toggle { flex-shrink: 0; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .hw-pkg-edit-toggle:hover { color: var(--accent); }
+  .hw-pkg-edit-form {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 6px 0 8px; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
+  }
+  .hw-pkg-edit-form:last-child { border-bottom: none; }
+  .hw-pkg-edit-form select, .hw-pkg-edit-form input[type=text] {
+    font-size: 11px; padding: 4px 6px; border-radius: 5px;
+    border: 1px solid var(--bdr); background: var(--bg2); color: var(--text);
+  }
+  .hw-pkg-edit-form select { width: 78px; flex-shrink: 0; }
+  .hw-pkg-edit-form input[type=text] { flex: 1; min-width: 90px; }
 
   .home-stage-card {
     background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden;
@@ -7799,13 +7812,14 @@ function applyStatFilter(key) {
 
     if (typeof ORDERS !== 'undefined') {
       ORDERS.forEach(o => {
-        if (o.pickup !== 'To be Shipped' || !o.trackingNumber) return;
+        if (o.pickup !== 'To be Shipped') return;
         if (['complete', 'delivered', 'cancelled'].includes(o.stage)) return;
         pkgs.push({
-          dir: 'out', label: o.name || 'Order',
-          carrier: o.trackingCarrier || '', tracking: o.trackingNumber,
+          dir: 'out', type: 'order', id: o.id, label: o.name || 'Order',
+          carrier: o.trackingCarrier || '', tracking: o.trackingNumber || '',
           date: o.deadline || null,
           onclick: `openOrderCard('${esc(o.id)}')`,
+          editable: true, orderNumGuess: o.id.replace(/^(shopify|etsy)-/, ''),
         });
       });
     }
@@ -7816,9 +7830,10 @@ function applyStatFilter(key) {
         const age = daysAgo(o.tracking.shippedAt);
         if (age != null && age > 10) return; // assume delivered
         pkgs.push({
-          dir: 'out', label: (o.customerName || o.name || 'Order'),
+          dir: 'out', type: 'shopify', label: (o.customerName || o.name || 'Order'),
           carrier: o.tracking.company || '', tracking: o.tracking.number,
           date: o.tracking.shippedAt || null,
+          editable: false,
         });
       });
     }
@@ -7833,15 +7848,20 @@ function applyStatFilter(key) {
       ohOrders.forEach(o => {
         if (!o.shipped || o.delivered || o.status === 'Delivered') return;
         pkgs.push({
-          dir: 'in', label: o.sup || 'Supplier order',
+          dir: 'in', type: 'supplier', id: o.id, label: o.sup || 'Supplier order',
           carrier: o.carrier || '', tracking: o.trackingNumber || '',
           date: o.shipped,
           onclick: `switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'));switchTab('order-history', document.querySelector('.sub-nav-tab[data-tab=order-history]'))`,
+          editable: true, orderNumGuess: o.orderNum || '',
         });
       });
     }
 
-    pkgs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    // Packages missing a tracking number float to the top so they're easy to fill in.
+    pkgs.sort((a, b) => {
+      if (!a.tracking !== !b.tracking) return a.tracking ? 1 : -1;
+      return new Date(b.date || 0) - new Date(a.date || 0);
+    });
     const shown = pkgs.slice(0, 8);
 
     if (!shown.length) {
@@ -7849,20 +7869,74 @@ function applyStatFilter(key) {
       return;
     }
 
-    body.innerHTML = shown.map(p => {
+    const CARRIER_OPTS = ['USPS', 'UPS', 'FedEx', 'DHL', 'Other'];
+
+    body.innerHTML = shown.map((p, i) => {
       const dirIcon  = p.dir === 'out' ? '📤' : '📥';
       const trackUrl = (typeof ssTrackingUrl === 'function') ? ssTrackingUrl(p.carrier, p.tracking) : null;
       const dateStr  = p.date ? new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-      const metaBits = [p.carrier, p.tracking, dateStr].filter(Boolean);
-      return `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
+      const rowId    = `hw-pkg-edit-${i}`;
+      const metaBits = p.tracking ? [p.carrier, p.tracking, dateStr].filter(Boolean) : (dateStr ? [dateStr] : []);
+      const metaText = p.tracking ? metaBits.join(' · ') : 'No tracking number yet';
+
+      const row = `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
         <span class="hw-pkg-dir">${dirIcon}</span>
         <span class="hw-pkg-info">
           <div class="hw-pkg-label">${esc(p.label)}</div>
-          <div class="hw-pkg-meta">${esc(metaBits.join(' · '))}</div>
+          <div class="hw-pkg-meta">${esc(metaText)}</div>
         </span>
         ${trackUrl ? `<a href="${trackUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="home-widget-link">Track →</a>` : ''}
+        ${p.editable ? `<button type="button" class="hw-pkg-edit-toggle" title="${p.tracking ? 'Edit tracking' : 'Add tracking'}" onclick="event.stopPropagation();_pkgToggleEdit('${rowId}')">${p.tracking ? '✎' : '+ Add'}</button>` : ''}
       </div>`;
+
+      if (!p.editable) return row;
+
+      const editForm = `<div class="hw-pkg-edit-form" id="${rowId}" style="display:none;" onclick="event.stopPropagation()">
+        <select id="${rowId}-carrier">
+          <option value="">— Carrier —</option>
+          ${CARRIER_OPTS.map(c => `<option value="${c}"${p.carrier === c ? ' selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <input type="text" id="${rowId}-tracking" placeholder="Tracking number" value="${esc(p.tracking)}">
+        <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation" onclick="ssLookupTracking({numberField:'${rowId}-tracking',carrierField:'${rowId}-carrier',orderNumberGuess:'${esc(p.orderNumGuess || '')}',button:this})">🔎</button>
+        <button type="button" class="btn btn-gold btn-sm" onclick="_pkgSaveTracking('${p.type}','${esc(p.id)}','${rowId}')">Save</button>
+      </div>`;
+
+      return row + editForm;
     }).join('');
+  };
+
+  window._pkgToggleEdit = function(rowId) {
+    const el = document.getElementById(rowId);
+    if (!el) return;
+    el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
+  };
+
+  window._pkgSaveTracking = function(type, id, rowId) {
+    const carrier  = (document.getElementById(rowId + '-carrier').value  || '').trim();
+    const tracking = (document.getElementById(rowId + '-tracking').value || '').trim();
+
+    if (type === 'order') {
+      const o = (typeof ORDERS !== 'undefined') ? ORDERS.find(x => x.id === id) : null;
+      if (!o) return;
+      o.trackingCarrier = carrier || null;
+      o.trackingNumber  = tracking || null;
+      if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
+      if (typeof saveToStorage === 'function') saveToStorage();
+      if (typeof renderKanban === 'function') renderKanban();
+    } else if (type === 'supplier') {
+      const o = (typeof ohOrders !== 'undefined') ? ohOrders.find(x => x.id === id) : null;
+      if (!o) return;
+      o.carrier = carrier;
+      o.trackingNumber = tracking;
+      if (typeof ohCacheLocally === 'function') ohCacheLocally();
+      if (typeof ohRender === 'function') ohRender();
+      if (typeof ohSyncOrder === 'function') ohSyncOrder(o);
+    } else {
+      return;
+    }
+
+    toast('Tracking saved ✓', '✓');
+    _homeRefreshPackages();
   };
 
   function _homeRefreshCalendar() {
