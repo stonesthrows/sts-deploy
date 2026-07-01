@@ -7788,13 +7788,15 @@ function applyStatFilter(key) {
       }).length);
       set('hkpi-ready',  active.filter(o => o.stage === 'ready-pick' || o.stage === 'ship-out').length);
 
-      // Orders flat list — sorted by deadline, capped at 8
+      // Orders flat list — sorted by deadline, capped at 8. Ready-to-pick-up
+      // orders are excluded — they're done and waiting on the customer, not
+      // active studio work.
       const stageGrid = document.getElementById('hw-stage-grid');
       if (stageGrid && typeof STAGES !== 'undefined') {
         const stageLabelMap = {};
         STAGES.forEach(s => { stageLabelMap[s.id] = s.label; });
         const typeIcon = { repair: '🔧', estimate: '📋' };
-        const sorted = active.slice().sort((a, b) => {
+        const sorted = active.filter(o => o.stage !== 'ready-pick').sort((a, b) => {
           if (!a.deadline && !b.deadline) return 0;
           if (!a.deadline) return 1;
           if (!b.deadline) return -1;
