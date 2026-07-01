@@ -104,6 +104,8 @@ function orderToProps(o) {
   if (o.orderType)    props['Order Type']     = { select: { name: ORDER_TYPE_TO_NOTION[o.orderType] || 'Custom Order' } };
   if (o.contactSource) props['Contact Source'] = { select: { name: o.contactSource } };
   if (o.pickup)       props['Pickup Location'] = { select: { name: o.pickup } };
+  if (o.trackingNumber != null) props['Tracking Number'] = { rich_text: [{ text: { content: (o.trackingNumber || '').slice(0, 2000) } }] };
+  if (o.trackingCarrier)        props['Carrier']          = { select: { name: o.trackingCarrier } };
   if (o.assignee != null) props['Assignee']     = o.assignee ? { select: { name: o.assignee } } : { select: null };
   if (o.paidBy)       props['Paid By']         = { select: { name: o.paidBy } };
   if (o.contactedAt)  props['Contacted At']    = { date: { start: o.contactedAt.slice(0, 10) } };
@@ -197,6 +199,8 @@ function pageToOrder(page) {
     addrState:     txt(p['State']),
     addrZip:       (num(p['Zip']) != null ? String(num(p['Zip'])) : ''),
     addrCountry:   txt(p['Country']),
+    trackingNumber:  txt(p['Tracking Number']),
+    trackingCarrier: sel(p['Carrier']) || null,
     // Estimate / job fields
     jobDesc:       txt(p['Job Description']),
     customerNotes: txt(p['Notes for Customer']),

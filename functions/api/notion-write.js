@@ -32,15 +32,20 @@ function notionHdrs(token) {
 function orderToProps(o) {
   var label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' - ') || 'Order';
   var props = {
-    'Order Label':    { title:     [{ text: { content: label } }] },
-    'App ID':         { rich_text: [{ text: { content: o.id       || '' } }] },
-    'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
-    'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
-    'Notes':          { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
-    'Amount':         o.amt != null ? { number: o.amt } : { number: null },
+    'Order Label':     { title:     [{ text: { content: label } }] },
+    'App ID':          { rich_text: [{ text: { content: o.id       || '' } }] },
+    'Order Number':    { rich_text: [{ text: { content: o.orderNum || '' } }] },
+    'Invoice Number':  { rich_text: [{ text: { content: o.invNum   || '' } }] },
+    'Notes':           { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
+    'Tracking Number': { rich_text: [{ text: { content: o.trackingNumber || '' } }] },
+    'Amount':          o.amt != null ? { number: o.amt } : { number: null },
   };
-  if (o.date) props['Date'] = { date: { start: o.date } };
-  if (o.sup)  props['Supplier'] = { select: { name: o.sup } };
+  if (o.date)      props['Date']           = { date: { start: o.date } };
+  if (o.sup)       props['Supplier']       = { select: { name: o.sup } };
+  if (o.status)    props['Status']         = { select: { name: o.status } };
+  if (o.carrier)   props['Carrier']        = { select: { name: o.carrier } };
+  if (o.shipped)   props['Shipped Date']   = { date: { start: o.shipped } };
+  if (o.delivered) props['Delivered Date'] = { date: { start: o.delivered } };
   return props;
 }
 

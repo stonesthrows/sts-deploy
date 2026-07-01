@@ -361,6 +361,8 @@ function ohOpenModal(id) {
     document.getElementById('ohMStatus').value    = ord.status    || 'Processing';
     document.getElementById('ohMShipped').value   = ord.shipped   || '';
     document.getElementById('ohMDelivered').value = ord.delivered || '';
+    document.getElementById('ohMCarrier').value   = ord.carrier   || '';
+    document.getElementById('ohMTracking').value  = ord.trackingNumber || '';
     document.getElementById('ohMNotes').value     = ord.notes     || '';
     var delBtn = document.getElementById('ohModalDelete');
     if (delBtn) delBtn.style.display = '';
@@ -383,6 +385,8 @@ function ohOpenModal(id) {
     document.getElementById('ohMStatus').value    = 'Processing';
     document.getElementById('ohMShipped').value   = '';
     document.getElementById('ohMDelivered').value = '';
+    document.getElementById('ohMCarrier').value   = '';
+    document.getElementById('ohMTracking').value  = '';
     document.getElementById('ohMNotes').value     = '';
     var delBtn2 = document.getElementById('ohModalDelete');
     if (delBtn2) delBtn2.style.display = 'none';
@@ -396,25 +400,31 @@ function ohCloseModal() {
   ohEditId = null;
 }
 function ohModalSave() {
-  var date     = (document.getElementById('ohMDate').value     || '').trim();
-  var sup      = (document.getElementById('ohMSup').value      || '').trim();
-  var orderNum = (document.getElementById('ohMOrderNum').value || '').trim();
-  var invNum   = (document.getElementById('ohMInvNum').value   || '').trim();
-  var amtRaw   = (document.getElementById('ohMAmt').value      || '').trim();
-  var notes    = (document.getElementById('ohMNotes').value    || '').trim();
-  var amt      = ohParseAmt(amtRaw);
+  var date      = (document.getElementById('ohMDate').value      || '').trim();
+  var sup       = (document.getElementById('ohMSup').value       || '').trim();
+  var orderNum  = (document.getElementById('ohMOrderNum').value  || '').trim();
+  var invNum    = (document.getElementById('ohMInvNum').value    || '').trim();
+  var amtRaw    = (document.getElementById('ohMAmt').value       || '').trim();
+  var status    = (document.getElementById('ohMStatus').value    || '').trim();
+  var shipped   = (document.getElementById('ohMShipped').value   || '').trim();
+  var delivered = (document.getElementById('ohMDelivered').value || '').trim();
+  var carrier   = (document.getElementById('ohMCarrier').value   || '').trim();
+  var tracking  = (document.getElementById('ohMTracking').value  || '').trim();
+  var notes     = (document.getElementById('ohMNotes').value     || '').trim();
+  var amt       = ohParseAmt(amtRaw);
   var saved;
+  var fields = { date: date, sup: sup, orderNum: orderNum, invNum: invNum, amt: amt,
+    status: status, shipped: shipped, delivered: delivered, carrier: carrier,
+    trackingNumber: tracking, notes: notes };
 
   if (ohEditId) {
     ohOrders = ohOrders.map(function(o){
       if (o.id !== ohEditId) return o;
-      saved = Object.assign({}, o, { date: date, sup: sup, orderNum: orderNum,
-        invNum: invNum, amt: amt, notes: notes });
+      saved = Object.assign({}, o, fields);
       return saved;
     });
   } else {
-    saved = { id: 'oh_' + Date.now().toString(36), date: date, sup: sup,
-      orderNum: orderNum, invNum: invNum, amt: amt, notes: notes };
+    saved = Object.assign({ id: 'oh_' + Date.now().toString(36) }, fields);
     ohOrders.push(saved);
   }
   ohCacheLocally();
@@ -423,6 +433,16 @@ function ohModalSave() {
   toast('Order saved');
   if (saved) ohSyncOrder(saved);
 }
+function ohLookupTracking(btn) {
+  var orderNum = (document.getElementById('ohMOrderNum').value || '').trim();
+  ssLookupTracking({
+    numberField:  'ohMTracking',
+    carrierField: 'ohMCarrier',
+    orderNumberGuess: orderNum,
+    button: btn,
+  });
+}
+
 function ohDeleteOrder(id) {
   if (!confirm('Delete this order record?')) return;
   var target = ohOrders.find(function(o){ return o.id === id; });

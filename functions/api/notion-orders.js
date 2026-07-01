@@ -32,14 +32,19 @@ function notionHdrs(token) {
 function orderToProps(o) {
   const label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' — ') || 'Order';
   return {
-    'Order Label':    { title:     [{ text: { content: label } }] },
-    'App ID':         { rich_text: [{ text: { content: o.id       || '' } }] },
-    'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
-    'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
-    'Notes':          { rich_text: [{ text: { content: (o.notes   || '').slice(0, 2000) } }] },
-    'Date':           o.date ? { date: { start: o.date } } : { date: null },
-    'Supplier':       o.sup  ? { select: { name: o.sup } } : { select: null },
-    'Amount':         o.amt  != null ? { number: o.amt } : { number: null },
+    'Order Label':     { title:     [{ text: { content: label } }] },
+    'App ID':          { rich_text: [{ text: { content: o.id       || '' } }] },
+    'Order Number':    { rich_text: [{ text: { content: o.orderNum || '' } }] },
+    'Invoice Number':  { rich_text: [{ text: { content: o.invNum   || '' } }] },
+    'Notes':           { rich_text: [{ text: { content: (o.notes   || '').slice(0, 2000) } }] },
+    'Tracking Number': { rich_text: [{ text: { content: o.trackingNumber || '' } }] },
+    'Date':            o.date     ? { date: { start: o.date } }      : { date: null },
+    'Shipped Date':    o.shipped  ? { date: { start: o.shipped } }   : { date: null },
+    'Delivered Date':  o.delivered ? { date: { start: o.delivered } } : { date: null },
+    'Supplier':        o.sup     ? { select: { name: o.sup } }     : { select: null },
+    'Status':          o.status  ? { select: { name: o.status } }  : { select: null },
+    'Carrier':         o.carrier ? { select: { name: o.carrier } } : { select: null },
+    'Amount':          o.amt  != null ? { number: o.amt } : { number: null },
   };
 }
 
@@ -51,14 +56,19 @@ function pageToOrder(page) {
   const num = (prop) => (prop?.number != null ? prop.number : null);
   const appId = txt(p['App ID']);
   return {
-    id:           appId || ('n_' + page.id.replace(/-/g, '')),
-    notionPageId: page.id,
-    date:         dt (p['Date']),
-    sup:          sel(p['Supplier']),
-    orderNum:     txt(p['Order Number']),
-    invNum:       txt(p['Invoice Number']),
-    amt:          num(p['Amount']),
-    notes:        txt(p['Notes']),
+    id:             appId || ('n_' + page.id.replace(/-/g, '')),
+    notionPageId:   page.id,
+    date:           dt (p['Date']),
+    sup:            sel(p['Supplier']),
+    orderNum:       txt(p['Order Number']),
+    invNum:         txt(p['Invoice Number']),
+    amt:            num(p['Amount']),
+    notes:          txt(p['Notes']),
+    status:         sel(p['Status']) || null,
+    shipped:        dt (p['Shipped Date'])   || null,
+    delivered:      dt (p['Delivered Date']) || null,
+    trackingNumber: txt(p['Tracking Number']),
+    carrier:        sel(p['Carrier']) || null,
   };
 }
 
