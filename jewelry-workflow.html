@@ -3563,9 +3563,33 @@
     /* Gmail floating pull panel: full width */
     .gmail-panel { width: calc(100vw - 24px); right: 12px; left: 12px; top: 80px; }
 
-    /* Order materials: 2-col → 1-col */
-    .materials-layout { grid-template-columns: 1fr; }
-    .mat-order-panel { position: static; }
+    /* Order Materials: stacked mobile layout — search top, order below,
+       catalog (browse-by-category) collapsed until a search is active. */
+    .sot-layout { flex-direction: column; height: auto; overflow: visible; }
+    .sot-catalog { display: contents; }
+    .sot-search-wrap { order: 1; }
+    .sot-rg-panel { order: 2; }
+    .sot-order { order: 3; width: 100%; flex: none; overflow: visible; }
+    #sotCatalogInner,
+    #sotAddSupBtn,
+    #sotAddSupForm { display: none; }
+    #sotCatalogInner { order: 4; }
+    #sotAddSupBtn { order: 5; }
+    #sotAddSupForm { order: 6; }
+    .sot-catalog.sot-searching #sotCatalogInner { display: block; }
+    .sot-catalog.sot-searching #sotAddSupBtn { display: block; }
+    .sot-catalog.sot-searching #sotAddSupForm.open { display: block; }
+    .sot-order-scroll { flex: none; overflow: visible; padding-bottom: 110px; }
+    .sot-order-foot { position: static; flex-shrink: 0; }
+    .sot-foot-row {
+      position: fixed; left: 0; right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      z-index: 400;
+      background: #fff;
+      padding: 10px 14px;
+      border-top: 1px solid #E4DDD4;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
 
     /* Production: 2-col → 1-col */
     .prod-grid { grid-template-columns: 1fr; }

@@ -1456,6 +1456,8 @@ function sotToggleCat(key) {
 function sotSearch(val) {
   sotFilter = val;
   sotCheckRgPanel(val);
+  var catalogEl = document.getElementById('sotCatalog');
+  if (catalogEl) catalogEl.classList.toggle('sot-searching', !!val.trim());
   sotRenderCatalog();
 }
 function sotCheckRgPanel(val) {
