@@ -1030,6 +1030,7 @@ var sotCatCollapsed = {};
 var sotCustomSuppliers = [];
 var sotNotionPageId = null;
 var sotNotionTimer  = null;
+var sotUpdatedAt    = 0;
 
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
@@ -1064,14 +1065,21 @@ function sotWeekRange() {
 }
 
 // ── Persistence ──────────────────────────────────────────────
-function sotSave() {
+// sotUpdatedAt stamps every local edit so sotLoadNotion() can tell
+// which device's copy is newer instead of guessing from item counts.
+function sotSaveLocal() {
   try {
     localStorage.setItem('sot_order_v1', JSON.stringify({order: sotOrder}));
     localStorage.setItem('sot_custom_v1', JSON.stringify({
       custom: sotCustom,
       suppliers: sotCustomSuppliers
     }));
+    localStorage.setItem('sot_updated_at_v1', String(sotUpdatedAt));
   } catch(e) {}
+}
+function sotSave() {
+  sotUpdatedAt = Date.now();
+  sotSaveLocal();
   sotScheduleNotionSave();
 }
 function sotLoad() {
@@ -1099,11 +1107,14 @@ function sotLoad() {
     }
     var rawN = localStorage.getItem('sot_notes_v1');
     if (rawN) sotNotesTxt = rawN;
+    sotUpdatedAt = Number(localStorage.getItem('sot_updated_at_v1')) || 0;
   } catch(e) {}
 }
 function sotSaveNotes() {
   sotNotesTxt = (document.getElementById('sotNotes')||{}).value || '';
+  sotUpdatedAt = Date.now();
   try { localStorage.setItem('sot_notes_v1', sotNotesTxt); } catch(e) {}
+  sotSaveLocal();
   sotScheduleNotionSave();
 }
 
@@ -1135,6 +1146,9 @@ async function sotSaveNotion() {
     weekLabel:    sotWeekRange(),
     items:        JSON.stringify(sotOrder),
     notes:        sotNotesTxt,
+    custom:       JSON.stringify(sotCustom),
+    customSuppliers: JSON.stringify(sotCustomSuppliers),
+    updatedAt:    sotUpdatedAt,
     notionPageId: sotNotionPageId || undefined,
   };
 
@@ -1153,26 +1167,29 @@ async function sotSaveNotion() {
   }
 }
 
+// Last-write-wins: whichever device saved most recently becomes the
+// shared state. Only applies remote data when it's strictly newer
+// than what this device already knows about.
 async function sotLoadNotion() {
   try {
     var r = await fetch('/api/notion-sot');
     var d = await r.json();
     if (!d.found) return;
     sotNotionPageId = d.notionPageId;
-    var remoteOrder = JSON.parse(d.items || '{}');
-    var remoteNotes = d.notes || '';
-    // Only overwrite local if remote has more items
-    if (Object.keys(remoteOrder).length >= Object.keys(sotOrder).length) {
-      sotOrder = remoteOrder;
-      if (remoteNotes) {
-        sotNotesTxt = remoteNotes;
-        var el = document.getElementById('sotNotes');
-        if (el) el.value = remoteNotes;
-      }
-      sotSave();
-      sotRenderCatalog();
-      sotRenderOrder();
-    }
+    var remoteUpdatedAt = Number(d.updatedAt) || 0;
+    if (remoteUpdatedAt <= sotUpdatedAt) return;
+
+    sotOrder = JSON.parse(d.items || '{}');
+    sotCustom = JSON.parse(d.custom || '[]');
+    sotCustomSuppliers = JSON.parse(d.customSuppliers || '[]');
+    sotNotesTxt = d.notes || '';
+    var el = document.getElementById('sotNotes');
+    if (el) el.value = sotNotesTxt;
+
+    sotUpdatedAt = remoteUpdatedAt;
+    sotSaveLocal();
+    sotRenderCatalog();
+    sotRenderOrder();
   } catch(e) {}
 }
 

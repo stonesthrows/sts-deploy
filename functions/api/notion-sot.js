@@ -53,7 +53,7 @@ export async function onRequestGet(context) {
     method: 'POST',
     headers: notionHdrs(token),
     body: JSON.stringify({
-      filter: { property: 'Week', rich_text: { equals: key } },
+      filter: { property: 'Week', title: { starts_with: key } },
       page_size: 1,
     }),
   });
@@ -65,13 +65,18 @@ export async function onRequestGet(context) {
   var page = (data.results || [])[0];
   if (!page) return jsonResp({ found: false });
 
-  var itemsRaw = ((page.properties.Items || {}).rich_text || [])[0];
-  var notesRaw = ((page.properties.Notes || {}).rich_text || [])[0];
+  var itemsRaw  = ((page.properties.Items || {}).rich_text || [])[0];
+  var notesRaw  = ((page.properties.Notes || {}).rich_text || [])[0];
+  var customRaw = ((page.properties.Custom || {}).rich_text || [])[0];
+  var supRaw    = ((page.properties.CustomSuppliers || {}).rich_text || [])[0];
   return jsonResp({
     found: true,
     notionPageId: page.id,
     items: itemsRaw ? itemsRaw.plain_text : '{}',
     notes: notesRaw ? notesRaw.plain_text : '',
+    custom: customRaw ? customRaw.plain_text : '[]',
+    customSuppliers: supRaw ? supRaw.plain_text : '[]',
+    updatedAt: (page.properties.Updated || {}).number || 0,
   });
 }
 
@@ -81,17 +86,22 @@ export async function onRequestPost(context) {
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
   if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set' }, 500);
 
-  var body = await context.request.json();
-  var key   = body.weekKey   || weekKey();
-  var items = body.items     || '{}';
-  var notes = body.notes     || '';
-  var weekLabel = body.weekLabel || key;
+  var body   = await context.request.json();
+  var key    = body.weekKey   || weekKey();
+  var items  = body.items     || '{}';
+  var notes  = body.notes     || '';
+  var custom = body.custom    || '[]';
+  var sups   = body.customSuppliers || '[]';
+  var weekLabel  = body.weekLabel || key;
+  var updatedAt  = Number(body.updatedAt) || Date.now();
 
   var props = {
-    'Title':  { title:     [{ text: { content: 'SOT – Week of ' + weekLabel } }] },
-    'Week':   { rich_text: [{ text: { content: key } }] },
+    'Week':   { title:     [{ text: { content: key + ' — ' + weekLabel } }] },
     'Items':  { rich_text: [{ text: { content: items.slice(0, 2000) } }] },
     'Notes':  { rich_text: [{ text: { content: notes.slice(0, 2000) } }] },
+    'Custom': { rich_text: [{ text: { content: custom.slice(0, 2000) } }] },
+    'CustomSuppliers': { rich_text: [{ text: { content: sups.slice(0, 2000) } }] },
+    'Updated': { number: updatedAt },
   };
 
   var hdrs = notionHdrs(token);
