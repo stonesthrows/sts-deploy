@@ -29,6 +29,13 @@ function notionHdrs(token) {
   };
 }
 
+// Accepts a raw ID, a dashed UUID, or a full Notion page/database URL
+// and pulls out the 32-hex-char database ID from wherever it's hiding.
+function extractDbId(raw) {
+  var m = String(raw || '').match(/[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}/);
+  return m ? m[0].replace(/-/g, '') : null;
+}
+
 // Monday ISO date string → stable week key
 function weekKey() {
   var now = new Date();
@@ -44,9 +51,9 @@ export async function onRequestOptions() {
 
 export async function onRequestGet(context) {
   var token = context.env.NOTION_TOKEN;
-  var dbId  = context.env.NOTION_SOT_DB;
+  var dbId  = extractDbId(context.env.NOTION_SOT_DB);
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
-  if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set' }, 500);
+  if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set or not a valid database ID' }, 500);
 
   var key = weekKey();
   var r = await fetch(NOTION_API + '/databases/' + dbId + '/query', {
@@ -82,9 +89,9 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   var token = context.env.NOTION_TOKEN;
-  var dbId  = context.env.NOTION_SOT_DB;
+  var dbId  = extractDbId(context.env.NOTION_SOT_DB);
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
-  if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set' }, 500);
+  if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set or not a valid database ID' }, 500);
 
   var body   = await context.request.json();
   var key    = body.weekKey   || weekKey();
