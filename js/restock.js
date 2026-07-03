@@ -66,16 +66,9 @@ function _rqCollectInvVariantIds() {
     var match = pid ? _rqAutoMatches[pid] : null;
     if (!match || typeof match !== 'object' || match.isCustom) return;
     if (match.isParent) {
-      // Modifier-list-driven items (see _rqNormalizeSizeModifierItem) have
-      // exactly one real Square-tracked id (baseSquareId) — their "variants"
-      // are synthetic size-modifier options, not inventory-trackable ids.
-      if (match.baseSquareId) {
-        if (ids.indexOf(match.baseSquareId) === -1) ids.push(match.baseSquareId);
-      } else {
-        (match.variants || []).forEach(function(v) {
-          if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
-        });
-      }
+      (match.variants || []).forEach(function(v) {
+        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
+      });
     } else if (match.id && match.id.indexOf('local-') !== 0 && match.id.indexOf('custom-') !== 0) {
       if (ids.indexOf(match.id) === -1) ids.push(match.id);
     }
@@ -85,13 +78,9 @@ function _rqCollectInvVariantIds() {
   var pending = _rqAddPendingMatch;
   if (pending && !pending.isCustom) {
     if (pending.isParent) {
-      if (pending.baseSquareId) {
-        if (ids.indexOf(pending.baseSquareId) === -1) ids.push(pending.baseSquareId);
-      } else {
-        (pending.variants || []).forEach(function(v) {
-          if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
-        });
-      }
+      (pending.variants || []).forEach(function(v) {
+        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
+      });
     } else if (pending.id && pending.id.indexOf('local-') !== 0 && pending.id.indexOf('custom-') !== 0) {
       if (ids.indexOf(pending.id) === -1) ids.push(pending.id);
     }
@@ -445,12 +434,8 @@ function _rqReconcileSizes() {
     var match = _rqAutoMatches[pid];
     if (!match || typeof match !== 'object' || !match.isParent) return;
     var resolved = _rqResolveSelectedVariants(pid, match);
-    var resolvedMods = _rqResolveSelectedModifiers(pid);
-    if (resolved || resolvedMods) {
-      var patch = {};
-      if (resolved) patch.selectedVariants = resolved;
-      if (resolvedMods) patch.selectedModifierIds = resolvedMods;
-      _rqAutoMatches[pid] = Object.assign({}, match, patch);
+    if (resolved) {
+      _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: resolved });
       changed = true;
     }
   });
@@ -535,12 +520,8 @@ function _rqSaveSizes() {
 }
 
 // Writes the chosen variant quantities for one item into the shared
-// cross-device store (dropping zero-qty entries) and saves. `selectedModifierIds`
-// is optional — pass it to set/update the item's Style/Metal-type choice
-// (stored under a top-level '@mods' sibling key); omit it to leave whatever
-// was already saved for this pid untouched (so a plain size-qty edit doesn't
-// clobber a modifier choice set elsewhere, and vice versa).
-function _rqSaveSizesFor(pid, selectedVariants, selectedModifierIds) {
+// cross-device store (dropping zero-qty entries) and saves.
+function _rqSaveSizesFor(pid, selectedVariants) {
   var map = {};
   (selectedVariants || []).forEach(function(v) {
     if (v.qty > 0) {
@@ -551,11 +532,6 @@ function _rqSaveSizesFor(pid, selectedVariants, selectedModifierIds) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) map[v.id + '@s'] = v.stoneIdx;
     }
   });
-  if (selectedModifierIds !== undefined) {
-    if (selectedModifierIds && Object.keys(selectedModifierIds).length) map['@mods'] = JSON.stringify(selectedModifierIds);
-  } else if (_rqSizes[pid] && _rqSizes[pid]['@mods']) {
-    map['@mods'] = _rqSizes[pid]['@mods'];
-  }
   if (Object.keys(map).length) _rqSizes[pid] = map;
   else delete _rqSizes[pid];
   _rqSaveSizes();
@@ -576,17 +552,6 @@ function _rqResolveSelectedVariants(pid, match) {
       return out;
     });
   return resolved.length ? resolved : null;
-}
-
-// Companion to _rqResolveSelectedVariants — resolves the saved Style/Metal
-// modifier choice (the '@mods' sibling key) for a pid. Returns null if none
-// was ever saved (e.g. plain variation items, or modifier items nobody's
-// picked a Style/Metal for yet).
-function _rqResolveSelectedModifiers(pid) {
-  var saved = _rqSizes[pid];
-  var raw = saved && saved['@mods'];
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
 // ── Auto-match localStorage helpers ──────────────────────────────────────────
@@ -669,23 +634,11 @@ function _rqMatchRowInner(pid) {
     var body = table
       ? _rqVariantTableHtml(safePid, table, qtyByVariantId, 'rqSetInlineVariantQty')
       : _rqVariantFlatHtml(safePid, variants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
-    // Modifier-list-driven items (e.g. Chevron Stackers — see
-    // _rqNormalizeSizeModifierItem) carry their remaining modifiers (Style,
-    // Metal, ...) here as ordinary single-select dropdowns. Picking one
-    // option is exactly how you "ignore" the other (e.g. pick Double,
-    // ignore Regular) — the size grid above then applies to that choice.
-    var modifierRows = _rqMatchModifierDropdownsHtml(safePid, match);
-    // Real Square variations get no header badge here (their per-variant
-    // stock shows in the grid below instead); a modifier-only item has
-    // exactly one Square-tracked id (baseSquareId) worth showing up top.
-    var invBadge = match.baseSquareId ? _rqInvBadgeHtml(match.baseSquareId) : '';
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
-      + invBadge
       + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change item</button>'
       + '</div>'
-      + modifierRows
       + body;
   }
 
@@ -696,56 +649,6 @@ function _rqMatchRowInner(pid) {
     + _rqInvBadgeHtml(match.id)
     + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change</button>'
     + '</div>';
-}
-
-// One dropdown per remaining modifier list (Style, Metal, ...) on a matched
-// queue row — same markup/behavior as the "start timer" setup wizard's
-// _rqSelectedHTML, just persisted onto _rqAutoMatches[pid] instead of a
-// setup's selectedItems entry. Returns '' when the match has none.
-function _rqMatchModifierDropdownsHtml(safePid, match) {
-  // "Stone" already gets its own dedicated per-size picker inside the size
-  // grid (see _rqStoneOptionsFor / stoneHtml in _rqVariantFlatHtml) — skip
-  // it here so real-variant items with a Stone modifier (e.g. Double
-  // Chevron earrings) don't get a second, conflicting control for it.
-  var lists = (match.modifierLists || []).filter(function(l) { return (l.name || '').toLowerCase() !== 'stone'; });
-  if (!lists.length) return '';
-  var selected = match.selectedModifierIds || {};
-  return lists.map(function(list) {
-    var safeListId = (list.id || '').replace(/'/g,'').replace(/\\/g,'\\\\');
-    var opts = list.options.map(function(o) {
-      var sel = selected[list.id] === o.id ? ' selected' : '';
-      return '<option value="' + o.id + '"' + sel + '>' + (o.name || '').replace(/</g,'&lt;') + (o.price ? ' (+$' + o.price.toFixed(2) + ')' : '') + '</option>';
-    }).join('');
-    return '<div style="display:flex;align-items:center;gap:6px;margin:4px 0;">'
-      + '<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);flex-shrink:0;">' + (list.name || '').replace(/</g,'&lt;') + '</label>'
-      + '<select onchange="rqSetMatchModifier(\'' + safePid + '\',\'' + safeListId + '\', this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex:1;max-width:200px;">'
-      + opts
-      + '</select>'
-      + '</div>';
-  }).join('');
-}
-
-// Sets which modifier option (e.g. Style=Double, Metal=Silver) applies to
-// this queue row's matched item. Mirrors rqSetInlineVariantQty's split
-// between the live timer's richMatch and the plain auto-match cache.
-function rqSetMatchModifier(pid, listId, modifierId) {
-  var timer = _rqTimers[pid];
-  var usingRichMatch = !!(timer && timer.richMatch);
-  var match = usingRichMatch ? timer.richMatch : _rqAutoMatches[pid];
-  if (!match || typeof match !== 'object') return;
-  var selectedModifierIds = Object.assign({}, match.selectedModifierIds, {});
-  selectedModifierIds[listId] = modifierId;
-  if (usingRichMatch) {
-    timer.richMatch = Object.assign({}, match, { selectedModifierIds: selectedModifierIds });
-    _rqSaveTimerState();
-  } else {
-    _rqAutoMatches[pid] = Object.assign({}, match, { selectedModifierIds: selectedModifierIds });
-    _rqAmSave();
-  }
-  // Persist alongside the size quantities so the choice survives across
-  // devices too, not just this browser's localStorage auto-match cache.
-  _rqSaveSizesFor(pid, match.selectedVariants, selectedModifierIds);
-  _rqUpdateMatchRow(pid);
 }
 
 // ── Tap-to-expand bar ────────────────────────────────────────────────────────
@@ -829,24 +732,17 @@ function _rqReadSummaryHtml(match) {
     return '<div class="rq-read-status">✓ ' + safeName + ' ' + _rqInvBadgeHtml(match.id) + '</div>';
   }
   var sel = match.selectedVariants || [];
-  // Style/Metal-type modifier choice (Chevron Stacker style items) has no
-  // per-size representation — show it once above the size list instead.
-  var modSuffix = _rqModifierSuffix(match);
-  var modHeader = modSuffix ? '<div class="rq-read-status">' + _rqEsc(modSuffix) + '</div>' : '';
   if (!sel.length) {
-    return modHeader + '<div class="rq-read-status">No sizes set yet</div>';
+    return '<div class="rq-read-status">No sizes set yet</div>';
   }
   var stoneList = _rqStoneOptionsFor(match);
-  // Synthesized size-modifier "variants" have no individually-tracked Square
-  // stock (see _rqNormalizeSizeModifierItem) — only real Square variations do.
-  var hasPerSizeStock = !match.baseSquareId;
   var rows = sel.map(function(v) {
     var name = _rqEsc(v.name);
     var stoneOpt = stoneList && v.stoneIdx !== undefined ? stoneList[v.stoneIdx] : null;
     if (stoneOpt) name += ' · ' + _rqEsc(stoneOpt.name);
-    return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span>' + (hasPerSizeStock ? _rqInvBadgeHtml(v.id) : '') + '</div>';
+    return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span>' + _rqInvBadgeHtml(v.id) + '</div>';
   }).join('');
-  return modHeader + '<div class="rq-read-list">' + rows + '</div>';
+  return '<div class="rq-read-list">' + rows + '</div>';
 }
 
 // Runs auto-match jobs with limited concurrency via promise chaining (not
@@ -890,7 +786,7 @@ function _rqSqSearchExpand(query) {
         var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push(_rqNormalizeSizeModifierItem({ id: variations[0] ? variations[0].id : obj.id, name: d.name || 'Unnamed', sku: v ? (v.sku || '') : '', category: d.category_name || '', isParent: false, modifierLists: modifierLists }));
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: d.name || 'Unnamed', sku: v ? (v.sku || '') : '', category: d.category_name || '', isParent: false, modifierLists: modifierLists });
         } else {
           rows.push({ id: obj.id, name: d.name || 'Unnamed', category: d.category_name || '', isParent: true, variantCount: variations.length, modifierLists: modifierLists,
             variants: variations.map(function(vv) { var vd = vv.item_variation_data; return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' }; }) });
@@ -928,14 +824,7 @@ function _rqAutoMatchSingle(pid, rawText) {
       // seed for brand-new notes that haven't been saved anywhere yet.
       var fromStore = _rqResolveSelectedVariants(pid, best);
       var selectedVariants = fromStore || _rqMatchSizesToVariants(best.variants, rawText);
-      // Give a brand-new modifier-size item (Chevron Stacker etc.) a real
-      // starting Style/Metal choice instead of leaving selectedModifierIds
-      // empty — otherwise the dropdown *looks* set (browser shows the first
-      // option) but _rqModifierSuffix/labels wouldn't reflect it until the
-      // user happens to touch the control.
-      var savedModifierIds = _rqResolveSelectedModifiers(pid)
-        || (best.baseSquareId ? _rqDefaultModifierSelections(best.modifierLists) : null);
-      best = Object.assign({}, best, { selectedVariants: selectedVariants }, savedModifierIds ? { selectedModifierIds: savedModifierIds } : {});
+      best = Object.assign({}, best, { selectedVariants: selectedVariants });
       if (!fromStore && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
     }
     _rqAmSet(pid, best);
@@ -1590,27 +1479,6 @@ function _rqBuildModifierLists(obj, modifierListsById) {
   return lists;
 }
 
-// Some catalog items (e.g. Stackable rings) have no real Square size
-// variations — size is just another modifier list, alongside things like
-// Style/Metal. Rewriting such a row into the same { isParent, variants }
-// shape used by real variation items lets it reuse the entire existing
-// per-size quantity grid / cross-device sizes store / timer pipeline
-// unchanged, instead of needing a second parallel set of features. The
-// remaining modifier lists (Style, Metal, ...) stay on the row and are
-// rendered as ordinary single-select dropdowns — that single-select *is*
-// the "ignore Regular, only order Double" mechanism.
-function _rqNormalizeSizeModifierItem(row) {
-  var lists = row.modifierLists || [];
-  var sizeList = lists.filter(function(l) { return (l.name || '').toLowerCase() === 'size'; })[0];
-  if (!sizeList || row.isParent) return row;
-  return Object.assign({}, row, {
-    isParent: true,
-    baseSquareId: row.id, // the one real Square catalog id — Square has no per-size stock for these
-    variants: sizeList.options.map(function(o) { return { id: o.id, name: o.name, squareId: row.id }; }),
-    modifierLists: lists.filter(function(l) { return l !== sizeList; }),
-  });
-}
-
 // Finds the "Stone" modifier list on a matched item (e.g. Double Chevron
 // (Stone Set)) and returns its options as { idx, name } — idx is the
 // option's position in the list, used (instead of the long Square modifier
@@ -1666,7 +1534,7 @@ function _rqSearchCatalog(pid, query, autoSelect) {
         var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
         if (variations.length <= 1) {
           var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push(_rqNormalizeSizeModifierItem({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists }));
+          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists });
         } else {
           rows.push({
             id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
@@ -1849,7 +1717,7 @@ function _rqTimerRows(items) {
         var label = (item.name || '') + ' – ' + (v.name || '')
           + (stoneOpt ? ' – ' + stoneOpt.name : '')
           + (modSuffix ? ' – ' + modSuffix : '');
-        rows.push({ label: label, squareId: v.squareId || v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null });
+        rows.push({ label: label, squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null });
       });
     } else {
       var label = (item.name || '') + (modSuffix ? ' – ' + modSuffix : '');
@@ -1867,11 +1735,9 @@ function _rqLiveTimerRows(t) {
   if (t.richMatch && t.richMatch.isParent && t.richMatch.selectedVariants && t.richMatch.selectedVariants.length) {
     var baseName = t.richMatch.name || '';
     var stoneList = _rqStoneOptionsFor(t.richMatch);
-    var modSuffix = _rqModifierSuffix(t.richMatch);
     return t.richMatch.selectedVariants.map(function(v) {
       var stoneOpt = stoneList && v.stoneIdx !== undefined ? stoneList[v.stoneIdx] : null;
-      var label = baseName + ' – ' + (v.name || '') + (stoneOpt ? ' – ' + stoneOpt.name : '') + (modSuffix ? ' – ' + modSuffix : '');
-      return { label: label, squareId: v.squareId || v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null };
+      return { label: baseName + ' – ' + (v.name || '') + (stoneOpt ? ' – ' + stoneOpt.name : ''), squareId: v.id || '', isCustom: false, pieces: v.qty != null ? v.qty : null };
     });
   }
   return _rqTimerRows(t.items || [{ name: t.itemText }]);
