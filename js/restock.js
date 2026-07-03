@@ -301,43 +301,44 @@ function _rqEsc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// One small table per metal, stacked vertically (rather than one wide table
+// with metals side by side) — a metal group with 15-20 sizes no longer
+// forces the others off-screen into horizontal scroll.
 function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
-  var html = '<table class="rq-variant-table"><thead><tr><th class="rq-variant-corner"></th>';
-  table.metals.forEach(function(metal) {
-    var cols = table.rows.filter(function(r) { return r.metal === metal; });
-    html += '<th colspan="' + cols.length + '">' + _rqEsc(metal) + '</th>';
-  });
-  html += '</tr>';
-
-  if (table.hasSizes) {
-    html += '<tr><th class="rq-variant-row-label">Size</th>';
-    table.metals.forEach(function(metal) {
-      var cols = table.rows.filter(function(r) { return r.metal === metal; });
-      var i = 0;
-      while (i < cols.length) {
-        var size = cols[i].size;
-        var span = 1;
-        while (i + span < cols.length && cols[i + span].size === size) span++;
-        html += '<th colspan="' + span + '">' + (_rqEsc(size) || '—') + '</th>';
-        i += span;
-      }
-    });
-    html += '</tr>';
-  }
-  html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
-  table.rows.forEach(function(r) {
-    var qty = qtyByVariantId[r.variant.id] || '';
-    var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
-    html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-      + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
-  });
-  html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Current Stock</th>';
-  table.rows.forEach(function(r) {
-    html += '<td>' + _rqInvBadgeHtml(r.variant.id) + '</td>';
-  });
-  html += '</tr></tbody></table>';
-  return html;
+  return '<div class="rq-variant-table-stack">'
+    + table.metals.map(function(metal) {
+        var cols = table.rows.filter(function(r) { return r.metal === metal; });
+        var html = '<div class="rq-variant-table-group">'
+          + '<div class="rq-variant-table-metal">' + _rqEsc(metal) + '</div>'
+          + '<table class="rq-variant-table"><thead>';
+        if (table.hasSizes) {
+          html += '<tr><th class="rq-variant-row-label">Size</th>';
+          var i = 0;
+          while (i < cols.length) {
+            var size = cols[i].size;
+            var span = 1;
+            while (i + span < cols.length && cols[i + span].size === size) span++;
+            html += '<th colspan="' + span + '">' + (_rqEsc(size) || '—') + '</th>';
+            i += span;
+          }
+          html += '</tr>';
+        }
+        html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
+        cols.forEach(function(r) {
+          var qty = qtyByVariantId[r.variant.id] || '';
+          var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+          html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
+            + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
+        });
+        html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Current Stock</th>';
+        cols.forEach(function(r) {
+          html += '<td>' + _rqInvBadgeHtml(r.variant.id) + '</td>';
+        });
+        html += '</tr></tbody></table></div>';
+        return html;
+      }).join('')
+    + '</div>';
 }
 
 function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v104-restock-style-filter -->
+<!-- deploy-version: v105-restock-stacked-metal-tables -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2705,13 +2705,18 @@
     }
     .rq-variant-stone-select:focus { border-color: var(--accent); outline: none; }
     /* ── Grouped variant table (e.g. Metal x Size x Gauge) ── */
+    .rq-variant-table-stack { display: flex; flex-direction: column; gap: 8px; }
+    .rq-variant-table-group { display: flex; flex-direction: column; }
+    .rq-variant-table-metal {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+      color: var(--text3); margin-bottom: 3px;
+    }
     .rq-variant-table { border-collapse: collapse; font-size: 11px; margin-bottom: 2px; }
     .rq-variant-table th {
       border: 1px solid var(--bdr); padding: 3px 6px; background: var(--card-head-bg);
       color: var(--text2); font-weight: 700; text-align: center; white-space: nowrap;
     }
     .rq-variant-table td { border: 1px solid var(--bdr); padding: 3px; text-align: center; }
-    .rq-variant-corner { border: none !important; background: transparent !important; }
     .rq-variant-row-label {
       text-align: right !important; font-weight: 600; color: var(--text3);
       padding: 3px 8px !important;
@@ -7625,7 +7630,7 @@ function savePrintSetup() {
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=2"></script>
+<script src="js/restock.js?v=3"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
