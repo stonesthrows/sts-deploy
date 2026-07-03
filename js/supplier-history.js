@@ -977,6 +977,130 @@ async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
   }
 }
 
+// ── Relink receipts (one-time recovery) ────────
+// Re-scans every receipt in the Drive folder (ignoring the "seen" list) and
+// tries to reattach each one to an existing order that lost its driveFileId
+// link, matching by date + amount. Falls back to normal import for receipts
+// that don't match any existing order. Recovers orders affected by the old
+// sync bug where driveFileId wasn't persisted to Notion.
+function ohRelinkReceipts(btn) {
+  var clientId = localStorage.getItem('sts-google-client-id');
+  if (!clientId) { openIntegrationsModal(); toast('Set up your Google Client ID in Integrations first', 'ℹ'); return; }
+  var anthropicKey = localStorage.getItem('sts-anthropic-key');
+  if (!anthropicKey) { openIntegrationsModal(); toast('Enter your Anthropic API key in Integrations to read receipts', 'ℹ'); return; }
+  if (!confirm('This re-scans every receipt in the STS Receipts Drive folder with Claude Vision to reattach lost receipt links. It may take a while for large folders. Continue?')) return;
+  var token = getGoogleToken();
+  if (!token) { triggerGoogleOAuth(clientId, function(){ ohRelinkReceipts(btn); }); return; }
+  ohRunRelinkReceipts(btn, token, anthropicKey);
+}
+
+async function ohRunRelinkReceipts(btn, token, anthropicKey) {
+  if (btn) { btn.disabled = true; btn.textContent = '🔗 Scanning…'; }
+  try {
+    var q = "name='" + OH_RECEIPTS_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+    var fr = await fetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    if (fr.status === 401) { clearGoogleToken(); toast('Google session expired — click Relink Receipts to reconnect', '⚠'); return; }
+    var fd = await fr.json();
+    if (!fd.files || !fd.files.length) { toast('Drive folder "' + OH_RECEIPTS_FOLDER + '" not found', '⚠'); return; }
+    var folderId = fd.files[0].id;
+
+    var fq = "'" + folderId + "' in parents and trashed=false and (mimeType contains 'image/' or mimeType='application/pdf')";
+    var filesR = await fetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(fq)
+      + '&fields=files(id,name,mimeType,createdTime)&orderBy=createdTime+desc&pageSize=100',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    var filesD = await filesR.json();
+    var allFiles = filesD.files || [];
+    if (!allFiles.length) { toast('No receipts found in Drive', 'ℹ'); return; }
+
+    var linkedFileIds = new Set(ohOrders.filter(function(o){ return o.driveFileId; }).map(function(o){ return o.driveFileId; }));
+    var candidates = allFiles.filter(function(f){ return !linkedFileIds.has(f.id); });
+    if (!candidates.length) { toast('Every receipt is already linked to an order', 'ℹ'); return; }
+
+    var relinked = 0, added = 0, skipped = 0;
+    var changed = [];
+    var seen = [];
+    try { seen = JSON.parse(localStorage.getItem(OH_RECEIPTS_SEEN) || '[]'); } catch(e) {}
+
+    for (var i = 0; i < candidates.length; i++) {
+      var file = candidates[i];
+      if (btn) btn.textContent = '🔗 ' + (i + 1) + '/' + candidates.length + '…';
+      try {
+        var imgR = await fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media',
+          { headers: { 'Authorization': 'Bearer ' + token } });
+        var blob   = await imgR.blob();
+        var base64 = await ohBlobToBase64(blob);
+        var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
+        if (data) {
+          var amt  = data.amount != null ? parseFloat(data.amount) : null;
+          var date = data.date || '';
+          var match = null, ambiguous = false;
+          if (amt != null) {
+            var matches = ohOrders.filter(function(o) {
+              return !o.driveFileId && o.amt != null && Math.abs(parseFloat(o.amt) - amt) < 0.01
+                && (!date || o.date === date);
+            });
+            if (matches.length === 1) match = matches[0];
+            else if (matches.length > 1) ambiguous = true; // multiple candidates — don't guess, leave for manual review
+          }
+          if (ambiguous) {
+            skipped++;
+          } else if (match) {
+            match.driveFileId = file.id;
+            if ((!match.lineItems || !match.lineItems.length) && Array.isArray(data.line_items)) {
+              var lineItems = data.line_items.map(function(li) {
+                return {
+                  desc:     li.description || '',
+                  category: OH_CATS.indexOf(li.category) >= 0 ? li.category : 'Other',
+                  amt:      li.amount != null ? parseFloat(li.amount) : null,
+                };
+              }).filter(function(li){ return li.amt != null; });
+              if (lineItems.length) match.lineItems = lineItems;
+            }
+            changed.push(match);
+            relinked++;
+          } else {
+            var order = {
+              id:          'rec_' + file.id.slice(0, 12),
+              date:        date,
+              sup:         ohNormalizeSup(data.supplier || '') || 'Unknown',
+              orderNum:    data.order_number   || '',
+              invNum:      data.invoice_number || '',
+              amt:         amt,
+              notes:       data.notes || file.name,
+              driveFileId: file.id,
+              lineItems:   [],
+            };
+            var existing = ohFilterExisting([order]);
+            if (existing.length) {
+              ohOrders.push(order);
+              changed.push(order);
+              added++;
+            } else {
+              skipped++;
+            }
+          }
+        }
+        if (seen.indexOf(file.id) < 0) seen.push(file.id);
+      } catch(e) { console.warn('Relink error', file.name, e); }
+    }
+
+    localStorage.setItem(OH_RECEIPTS_SEEN, JSON.stringify(seen));
+    if (changed.length) {
+      ohCacheLocally();
+      ohRebuildYearDropdown();
+      ohRender();
+      ohBatchSync(changed);
+    }
+    toast('Relinked ' + relinked + ', added ' + added + ' new, skipped ' + skipped + ' ambiguous', '🔗');
+  } catch(e) {
+    console.error('Relink error:', e);
+    toast('Error relinking receipts — see console', '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔗 Relink Receipts'; }
+  }
+}
+
 async function ohReceiptVision(base64, mimeType, key) {
   var isPdf = mimeType === 'application/pdf';
   var source = isPdf
