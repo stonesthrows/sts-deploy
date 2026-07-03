@@ -3549,6 +3549,32 @@
   .oh-li-row .oh-li-amt  { flex: 1.3; margin-bottom: 0 !important; }
   .oh-li-remove { background: none; border: none; cursor: pointer; color: #b91c1c; font-size: 13px; padding: 4px 2px; flex-shrink: 0; }
   #ohLineItemsSummary { font-size: 11px; color: var(--text-dim); margin: 4px 0 8px; min-height: 14px; }
+  .oh-receipt-btn { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px; margin-right: 4px; }
+  .oh-receipt-modal-bg { z-index: 600; }
+  .oh-receipt-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px;
+    width: 90vw;
+    max-width: 820px;
+    height: 88vh;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+  }
+  .oh-receipt-modal-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+  .oh-receipt-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--text-dim); padding: 2px 6px; }
+  .oh-receipt-close:hover { color: var(--text); }
+  #ohReceiptFrame { flex: 1; width: 100%; border: none; border-radius: 8px; background: #f4f4f4; }
   .oh-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .oh-title { font-size: 15px; font-weight: 700; }
   .oh-refresh-lbl { font-size: 11px; color: var(--text-dim); }
@@ -7463,10 +7489,10 @@ function savePrintSetup() {
       <input id="ohMNotes" type="text" placeholder="Notes…" style="width:100%">
     </div>
     <div style="margin-top:10px;">
-      <a id="ohModalReceiptLink" href="#" target="_blank" rel="noopener"
-         style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--accent);text-decoration:none;">
-        🧾 View receipt in Google Drive
-      </a>
+      <button type="button" id="ohModalReceiptLink" onclick="ohShowReceipt(ohModalReceiptDriveId)"
+         style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;">
+        🧾 View receipt
+      </button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
       <button id="ohModalDelete" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="ohDeleteOrder(ohEditId)">Delete</button>
@@ -7475,6 +7501,20 @@ function savePrintSetup() {
         <button id="ohModalSave" class="btn btn-gold btn-sm">Save</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ RECEIPT VIEWER POPUP ═══════════════════ -->
+<div id="ohReceiptModalBg" class="sot-modal-bg oh-receipt-modal-bg">
+  <div class="oh-receipt-modal">
+    <div class="oh-receipt-modal-hdr">
+      <span>🧾 Receipt</span>
+      <div style="display:flex;gap:14px;align-items:center;">
+        <a id="ohReceiptOpenLink" href="#" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);">Open in Drive ↗</a>
+        <button type="button" id="ohReceiptCloseBtn" class="oh-receipt-close" title="Close">✕</button>
+      </div>
+    </div>
+    <iframe id="ohReceiptFrame" src="about:blank" allow="autoplay"></iframe>
   </div>
 </div>
 

@@ -54,6 +54,7 @@ var ohEditId          = null;
 var ohSelected        = new Set();
 var ohCollapsedSups   = new Set();
 var ohModalLineItems  = [];
+var ohModalReceiptDriveId = null;
 
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
@@ -497,6 +498,28 @@ function ohWireAddBtn() {
     ohModalLineItems.push({ desc: '', category: 'Materials', amt: null });
     ohRenderLineItems();
   });
+  var receiptBg = document.getElementById('ohReceiptModalBg');
+  if (receiptBg) receiptBg.addEventListener('click', function(e){ if (e.target === receiptBg) ohCloseReceiptModal(); });
+  var receiptCloseBtn = document.getElementById('ohReceiptCloseBtn');
+  if (receiptCloseBtn) receiptCloseBtn.addEventListener('click', ohCloseReceiptModal);
+}
+
+// ── Receipt viewer popup ──────────────────────
+function ohShowReceipt(driveFileId) {
+  if (!driveFileId) return;
+  var bg    = document.getElementById('ohReceiptModalBg');
+  var frame = document.getElementById('ohReceiptFrame');
+  var open  = document.getElementById('ohReceiptOpenLink');
+  if (!bg || !frame) return;
+  frame.src = 'https://drive.google.com/file/d/' + driveFileId + '/preview';
+  if (open) open.href = 'https://drive.google.com/file/d/' + driveFileId + '/view';
+  bg.classList.add('open');
+}
+function ohCloseReceiptModal() {
+  var bg    = document.getElementById('ohReceiptModalBg');
+  var frame = document.getElementById('ohReceiptFrame');
+  if (bg) bg.classList.remove('open');
+  if (frame) frame.src = 'about:blank';
 }
 
 // ── Line items (tax categorization) ───────────
@@ -588,15 +611,9 @@ function ohOpenModal(id) {
     ohRenderLineItems();
     var delBtn = document.getElementById('ohModalDelete');
     if (delBtn) delBtn.style.display = '';
+    ohModalReceiptDriveId = ord.driveFileId || null;
     var recLink = document.getElementById('ohModalReceiptLink');
-    if (recLink) {
-      if (ord.driveFileId) {
-        recLink.href = 'https://drive.google.com/file/d/' + ord.driveFileId + '/view';
-        recLink.style.display = 'inline-flex';
-      } else {
-        recLink.style.display = 'none';
-      }
-    }
+    if (recLink) recLink.style.display = ord.driveFileId ? 'inline-flex' : 'none';
   } else {
     title.textContent = 'Add Order';
     document.getElementById('ohMDate').value      = new Date().toISOString().slice(0,10);
@@ -612,6 +629,9 @@ function ohOpenModal(id) {
     document.getElementById('ohMNotes').value     = '';
     ohModalLineItems = [];
     ohRenderLineItems();
+    ohModalReceiptDriveId = null;
+    var recLink2 = document.getElementById('ohModalReceiptLink');
+    if (recLink2) recLink2.style.display = 'none';
     var delBtn2 = document.getElementById('ohModalDelete');
     if (delBtn2) delBtn2.style.display = 'none';
   }
@@ -767,7 +787,7 @@ function ohRender() {
         + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
         + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
         + '<td style="white-space:nowrap">'
-        +   (o.driveFileId ? '<a href="https://drive.google.com/file/d/' + o.driveFileId + '/view" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View receipt" style="text-decoration:none;margin-right:4px;">🧾</a>' : '')
+        +   (o.driveFileId ? '<button type="button" class="oh-receipt-btn" onclick="event.stopPropagation();ohShowReceipt(\'' + o.driveFileId + '\')" title="View receipt">🧾</button>' : '')
         +   '<button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button>'
         + '</td>'
         + '</tr>';
