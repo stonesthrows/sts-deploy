@@ -151,6 +151,22 @@ function _rqInvBadgeHtml(variantId) {
   return '<span class="inv-badge ' + cls + '">' + label + '</span>';
 }
 
+// Number-only stock badge (full text moves to a hover title) for the
+// grouped variant table — with 15-20+ size columns per metal, "not
+// tracked"/"out of stock" badges were by far the widest thing in each
+// column and the main reason the table needed horizontal scrolling.
+function _rqInvBadgeCompactHtml(variantId) {
+  if (!variantId || variantId.indexOf('local-') === 0 || variantId.indexOf('custom-') === 0) {
+    return '<span class="inv-badge inv-badge-compact unset" title="Not tracked in Square">—</span>';
+  }
+  if (!_rqInvIdsDone[variantId]) return '';
+  var qty = _rqInvCounts[variantId];
+  var cls = (qty === undefined) ? 'unset' : qty === 0 ? 'no-stock' : qty <= 2 ? 'low-stock' : 'in-stock';
+  var label = (qty === undefined) ? 'not tracked' : qty === 0 ? 'out of stock' : qty + ' in stock';
+  var text = (qty === undefined) ? '—' : String(qty);
+  return '<span class="inv-badge inv-badge-compact ' + cls + '" title="' + label + '">' + text + '</span>';
+}
+
 // Parses the "Sizes 5 (2), 5.5 (1), 6.5 (3)" suffix produced by the
 // Inventory Restock size picker (notes.js restockConfirmSizes), so the
 // Restock Queue's auto-match can pre-select the same sizes/quantities
@@ -291,10 +307,27 @@ function _rqBuildVariantTable(variants) {
   rows.sort(function(a, b) {
     var ma = metals.indexOf(a.metal), mb = metals.indexOf(b.metal);
     if (ma !== mb) return ma - mb;
-    return (a.size || '').localeCompare(b.size || '');
+    return _rqSizeCompare(a.size, b.size);
   });
 
   return { rows: rows, metals: metals, hasSizes: rows.some(function(r) { return r.size; }) };
+}
+
+// Numeric compare for size tokens ("Size 10" vs "Size 2") — plain string
+// sort put "10", "10.5", "11"... before "2" since "1" < "2" as characters.
+// Falls back to a string compare when either side has no digits (e.g. "Sm"/"Lg").
+function _rqSizeCompare(a, b) {
+  var na = parseFloat((a || '').replace(/[^\d.]/g, ''));
+  var nb = parseFloat((b || '').replace(/[^\d.]/g, ''));
+  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+  return (a || '').localeCompare(b || '');
+}
+
+// Strips a leading "Size"/"Sz" label down to just the number ("Size 6.5" ->
+// "6.5") so grouped-table column headers stay narrow enough to fit several
+// metal x size tables on screen without horizontal scrolling.
+function _rqShortSizeLabel(size) {
+  return (size || '').replace(/^(size|sz)\s*/i, '');
 }
 
 function _rqEsc(s) {
@@ -319,7 +352,7 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
             var size = cols[i].size;
             var span = 1;
             while (i + span < cols.length && cols[i + span].size === size) span++;
-            html += '<th colspan="' + span + '">' + (_rqEsc(size) || '—') + '</th>';
+            html += '<th colspan="' + span + '">' + (_rqEsc(_rqShortSizeLabel(size)) || '—') + '</th>';
             i += span;
           }
           html += '</tr>';
@@ -331,9 +364,9 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
           html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
             + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
         });
-        html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Current Stock</th>';
+        html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Stock</th>';
         cols.forEach(function(r) {
-          html += '<td>' + _rqInvBadgeHtml(r.variant.id) + '</td>';
+          html += '<td>' + _rqInvBadgeCompactHtml(r.variant.id) + '</td>';
         });
         html += '</tr></tbody></table></div>';
         return html;
@@ -399,7 +432,7 @@ function rqSetInlineVariantQty(pid, variantId, value) {
     .map(function(v) { return byId[v.id]; });
   if (usingRichMatch) {
     timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
-    _rqSaveTimerState();
+    _rqPersistTimer(pid);
   } else {
     _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
     _rqAmSave();
@@ -424,7 +457,7 @@ function rqSetVariantStone(pid, variantId, stoneIdxStr) {
   });
   if (usingRichMatch) {
     timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
-    _rqSaveTimerState();
+    _rqPersistTimer(pid);
   } else {
     _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
     _rqAmSave();
@@ -1043,45 +1076,88 @@ function _rqFmtTime(ms) {
   return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function _rqSaveTimerState() {
+// Stable per-browser id, so a device can tell which shared timers are ITS OWN
+// (safe to re-assert) versus ones it merely received from another device
+// (must never be re-pushed, or a stale zombie gets resurrected).
+function _rqDeviceId() {
+  var id = '';
+  try { id = localStorage.getItem('sts-rq-device') || ''; } catch (e) {}
+  if (!id) {
+    id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try { localStorage.setItem('sts-rq-device', id); } catch (e) {}
+  }
+  return id;
+}
+
+function _rqTimerPayload(pid) {
+  var t = _rqTimers[pid];
+  if (!t) return null;
+  return {
+    startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId,
+    itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null,
+    deviceId: t.deviceId || null,
+  };
+}
+
+// Persist the full local view to localStorage only (device-local, for instant
+// restore on reload). NEVER pushes the whole blob to KV — that was the clobber.
+function _rqWriteLocal() {
   var state = {};
-  Object.keys(_rqTimers).forEach(function(pid) {
-    var t = _rqTimers[pid];
-    state[pid] = { startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId, itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null };
-  });
-  localStorage.setItem('sts_rqTimers', JSON.stringify(state));
+  Object.keys(_rqTimers).forEach(function(pid) { state[pid] = _rqTimerPayload(pid); });
+  try { localStorage.setItem('sts_rqTimers', JSON.stringify(state)); } catch (e) {}
+}
+
+// Add/update ONE timer in the shared KV union (start or mid-run edit).
+function _rqPersistTimer(pid) {
+  _rqWriteLocal();
+  var payload = _rqTimerPayload(pid);
+  if (!payload) return;
+  var obj = {}; obj[pid] = payload;
   fetch('/api/rq-timer-state', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state),
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upsert: obj }),
+  }).catch(function() {});
+}
+
+// Remove ONE timer from the shared KV union (stop). Call AFTER deleting it
+// from _rqTimers so _rqWriteLocal drops it from localStorage too.
+function _rqUnpersistTimer(pid) {
+  _rqWriteLocal();
+  fetch('/api/rq-timer-state', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ remove: pid }),
   }).catch(function() {});
 }
 
 function _rqRestoreTimers() {
-  var restoredAny = false;
   try {
     var saved = JSON.parse(localStorage.getItem('sts_rqTimers') || '{}');
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return;
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
       _rqStartTick(pid);
-      restoredAny = true;
     });
-  } catch(e) {}
-  // Push any locally-restored timers to KV so other devices see them immediately
-  if (restoredAny) _rqSaveTimerState();
-  // Merge any timers started on other devices (phone) from server KV state
+  } catch (e) {}
+  // Read-only merge of other devices' timers from the shared KV union. We do
+  // NOT blind-push our local view (that was the clobber). We only re-assert
+  // timers WE started that KV is missing — self-healing our own timers without
+  // ever resurrecting a zombie we merely received from another device.
   fetch('/api/rq-timer-state')
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(serverState) {
+      serverState = serverState || {};
       var added = false;
-      Object.keys(serverState || {}).forEach(function(pid) {
+      Object.keys(serverState).forEach(function(pid) {
         if (_rqTimers[pid]) return; // already active locally
         var s = serverState[pid];
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, notes: '', tickInterval: null };
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
         _rqStartTick(pid);
         added = true;
+      });
+      var myId = _rqDeviceId();
+      Object.keys(_rqTimers).forEach(function(pid) {
+        if (_rqTimers[pid].deviceId === myId && !serverState[pid]) _rqPersistTimer(pid);
       });
       if (added) restockQueueRender();
     })
@@ -1384,7 +1460,7 @@ function rqStopTimer(pid) {
     error: null,
   };
   delete _rqTimers[pid];
-  _rqSaveTimerState();
+  _rqUnpersistTimer(pid);
   _rqSessions.unshift(session);
   rqRenderSessions();
   // Stopping the timer means the work is done — clear the card from the
@@ -1463,7 +1539,7 @@ function rqApplyAdjustStart(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
   t.startTime = d.getTime();
-  _rqSaveTimerState();
+  _rqPersistTimer(pid);
   if (t.sessionNotionPageId) {
     fetch('/api/notion-timesession', {
       method: 'PATCH',
@@ -1853,7 +1929,7 @@ function _rqSetTimerItemPieces(pid, idx, raw) {
   var t = _rqTimers[pid]; if (!t || !t.items || !t.items[idx]) return;
   var v = (raw || '').trim() === '' ? null : parseInt(raw, 10);
   t.items[idx].pieces = isNaN(v) ? null : v;
-  _rqSaveTimerState();
+  _rqPersistTimer(pid);
   var input = document.getElementById('rq-pieces-' + pid + '-' + idx);
   var wrap  = input && input.closest('.rq-timer-pieces');
   if (wrap) wrap.classList.toggle('rq-pieces-missing', t.items[idx].pieces == null);
@@ -1883,10 +1959,11 @@ function rqStartTimerConfirm(pid) {
     itemText: primaryItem.name || '',
     items: items,
     richMatch: richMatch,
+    deviceId: _rqDeviceId(),
     notes: '',
     tickInterval: null,
   };
-  _rqSaveTimerState();
+  _rqPersistTimer(pid);
   _rqStartTick(pid);
   // Create Notion session
   fetch('/api/notion-timesession', {
@@ -1905,7 +1982,7 @@ function rqStartTimerConfirm(pid) {
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.notionPageId && _rqTimers[pid]) {
       _rqTimers[pid].sessionNotionPageId = d.notionPageId;
-      _rqSaveTimerState();
+      _rqPersistTimer(pid);
     }
   }).catch(function() {});
   restockQueueRender();
