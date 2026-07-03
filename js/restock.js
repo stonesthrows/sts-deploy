@@ -121,7 +121,9 @@ function _rqRefreshAddPanel() {
   if (!item || !item.isParent) return;
   var sizesBox = document.getElementById('rq-add-sizes');
   if (!sizesBox || sizesBox.style.display === 'none') return;
-  var table = _rqBuildVariantTable(item.variants);
+  var styleFilter = _rqApplyStyleFilter('add', item.variants);
+  var filteredVariants = styleFilter.variants;
+  var table = _rqBuildVariantTable(filteredVariants);
   var qtyByVariantId = {};
   var stoneByVariantId = {};
   (item.selectedVariants || []).forEach(function(v) {
@@ -129,9 +131,9 @@ function _rqRefreshAddPanel() {
     if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
   });
   var stoneList = _rqStoneOptionsFor(item);
-  sizesBox.innerHTML = table
+  sizesBox.innerHTML = styleFilter.filterTabsHtml + (table
     ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
-    : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
+    : _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone'));
 }
 
 // Renders a small count badge for one variant id, reusing the Inventory
@@ -191,11 +193,78 @@ function _rqMatchSizesToVariants(variants, rawText) {
 // unreadable once an item has 6-8+ variations (e.g. Double Hoop Faux Nose Ring).
 function _rqClassifyToken(tok) {
   var t = (tok || '').trim();
-  if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)$/i.test(t)) return 'metal';
+  // "Silver & Gold Fill" (a combined-metal option, e.g. on Chevron Stacker's
+  // Double style) needs to match too — otherwise one unparseable row forces
+  // the whole item into the flat chip fallback (see _rqBuildVariantTable).
+  if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)(\s*&\s*(silver|gold[\s-]?fill|gold|rose[\s-]?gold))?$/i.test(t)) return 'metal';
   if (/^(xs|sm|small|med|medium|lg|large|xl|xxl)$/i.test(t)) return 'size';
   // Ring sizes — plain numbers (incl. half sizes) or "Size 7" / "Sz 7.5".
   if (/^(size|sz)?\s*\d+(\.\d+)?$/i.test(t)) return 'size';
   return 'other';
+}
+
+// Detects a leading "Style" token on variant names shaped like
+// "{Style}, {Metal}, Size {N}" — e.g. Chevron Stacker's "Regular, Silver,
+// Size 11" vs "Double, Silver, Size 11". The first token counts as a style
+// only when it's neither a metal nor a size itself, and the remaining
+// tokens do resolve to a metal and a size — so plain "Metal, Size" items
+// (no style prefix) correctly return null.
+function _rqStyleTokenFor(name) {
+  var tokens = (name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  if (tokens.length < 3) return null;
+  if (_rqClassifyToken(tokens[0]) !== 'other') return null;
+  var rest = tokens.slice(1);
+  var hasMetal = rest.some(function(t) { return _rqClassifyToken(t) === 'metal'; });
+  var hasSize  = rest.some(function(t) { return _rqClassifyToken(t) === 'size'; });
+  return (hasMetal && hasSize) ? tokens[0] : null;
+}
+
+// Distinct Style values across a parent item's variants, first-seen order —
+// null unless there are 2+ (a single style isn't worth a filter bar).
+function _rqStylesFor(variants) {
+  var styles = [];
+  (variants || []).forEach(function(v) {
+    var s = _rqStyleTokenFor(v.name);
+    if (s && styles.indexOf(s) === -1) styles.push(s);
+  });
+  return styles.length >= 2 ? styles : null;
+}
+
+// Which Style tab is active per queue row — a view-only filter (not saved
+// data: every Style+Metal+Size combo is still its own real Square variant
+// id, so quantities entered under a hidden style stay set, just out of
+// view, exactly like switching browser tabs). Resets on reload; that's fine
+// since it's just decluttering the list, not a choice that needs to stick.
+var _rqStyleFilter = {};
+
+function rqSetStyleFilter(pid, style) {
+  _rqStyleFilter[pid] = style || '';
+  // The add-item panel isn't a queue row (no rq-match-row-* element yet —
+  // the item hasn't been saved as a note), so it needs its own refresh path.
+  if (pid === 'add') { _rqRefreshAddPanel(); return; }
+  _rqUpdateMatchRow(pid);
+}
+
+function _rqStyleFilterTabsHtml(pid, styles, current) {
+  var safePid = pid.replace(/[^a-zA-Z0-9_-]/g, '');
+  var tabs = [''].concat(styles); // '' = "All"
+  return '<div class="rq-style-filter">'
+    + tabs.map(function(s) {
+        var active = (current || '') === s ? ' rq-style-tab-active' : '';
+        var safeStyle = s.replace(/'/g, '');
+        return '<button type="button" class="rq-style-tab' + active + '" onclick="rqSetStyleFilter(\'' + safePid + '\',\'' + safeStyle + '\')">' + _rqEsc(s || 'All') + '</button>';
+      }).join('')
+    + '</div>';
+}
+
+// Narrows a parent item's variants down to the active Style tab (or leaves
+// them alone under "All" / when the item has no Style prefix at all).
+function _rqApplyStyleFilter(pid, variants) {
+  var styles = _rqStylesFor(variants);
+  if (!styles) return { variants: variants, filterTabsHtml: '' };
+  var current = _rqStyleFilter[pid] || '';
+  var filtered = current ? variants.filter(function(v) { return _rqStyleTokenFor(v.name) === current; }) : variants;
+  return { variants: filtered, filterTabsHtml: _rqStyleFilterTabsHtml(pid, styles, current) };
 }
 
 function _rqBuildVariantTable(variants) {
@@ -623,6 +692,8 @@ function _rqMatchRowInner(pid) {
   // no extra "Pick sizes" click needed once you're already in edit mode ──
   if (match.isParent) {
     var variants = match.variants || [];
+    var styleFilter = _rqApplyStyleFilter(pid, variants);
+    var filteredVariants = styleFilter.variants;
     var qtyByVariantId = {};
     var stoneByVariantId = {};
     (match.selectedVariants || []).forEach(function(v) {
@@ -630,15 +701,16 @@ function _rqMatchRowInner(pid) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
     });
     var stoneList = _rqStoneOptionsFor(match);
-    var table = _rqBuildVariantTable(variants);
+    var table = _rqBuildVariantTable(filteredVariants);
     var body = table
       ? _rqVariantTableHtml(safePid, table, qtyByVariantId, 'rqSetInlineVariantQty')
-      : _rqVariantFlatHtml(safePid, variants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
+      : _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
       + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change item</button>'
       + '</div>'
+      + styleFilter.filterTabsHtml
       + body;
   }
 
@@ -2886,7 +2958,9 @@ function _rqAddShowChip(item) {
   var sizesBox = document.getElementById('rq-add-sizes');
   if (!sizesBox) return;
   if (item.isParent) {
-    var table = _rqBuildVariantTable(item.variants);
+    var styleFilter = _rqApplyStyleFilter('add', item.variants);
+    var filteredVariants = styleFilter.variants;
+    var table = _rqBuildVariantTable(filteredVariants);
     var qtyByVariantId = {};
     var stoneByVariantId = {};
     (item.selectedVariants || []).forEach(function(v) {
@@ -2894,9 +2968,9 @@ function _rqAddShowChip(item) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
     });
     var stoneList = _rqStoneOptionsFor(item);
-    sizesBox.innerHTML = table
+    sizesBox.innerHTML = styleFilter.filterTabsHtml + (table
       ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
-      : _rqVariantFlatHtml('add', item.variants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
+      : _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone'));
     sizesBox.style.display = 'block';
     _rqFetchInvCounts(); // fetch stock counts for this item's variants so the "Current Stock" row populates
   } else {

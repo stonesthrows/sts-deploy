@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v103-usps-live-tracking -->
+<!-- deploy-version: v104-restock-style-filter -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2671,6 +2671,15 @@
     .rq-match-x { color: #A0402A; font-size: 10px; flex-shrink: 0; }
     .rq-match-link { text-decoration: underline; text-underline-offset: 2px; }
     .rq-match-panel { padding: 6px 0 2px; }
+    /* ── Style filter tabs (e.g. Regular vs Double Chevron Stacker) ── */
+    .rq-style-filter { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+    .rq-style-tab {
+      background: none; border: 1px solid var(--bdr); border-radius: 999px;
+      color: var(--text3); font-size: 10px; font-weight: 600; letter-spacing: 0.03em;
+      padding: 3px 10px; cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
+    }
+    .rq-style-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .rq-style-tab-active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
     /* ── Variant picker ── */
     .rq-variant-picker { padding: 6px 0 2px; }
     .rq-variant-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
@@ -7616,7 +7625,7 @@ function savePrintSetup() {
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=1"></script>
+<script src="js/restock.js?v=2"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
