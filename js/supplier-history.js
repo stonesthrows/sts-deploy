@@ -20,6 +20,7 @@ var ohCollapsedSups = new Set();
 function ohInit() {
   ohLoadCache();
   ohMigrateSupplierNames();
+  ohMigrateNotionDb();
   ohRebuildYearDropdown();
   ohWireFilters();
   ohWireAddBtn();
@@ -50,6 +51,20 @@ function ohMigrateSupplierNames() {
     if (normalized && normalized !== o.sup) { o.sup = normalized; changed = true; }
   });
   if (changed) ohCacheLocally();
+}
+
+// One-time migration: cached notionPageId values point into the old
+// (now-deleted) Notion database. Strip them so saves create fresh pages
+// in the current database instead of PATCHing dead ones.
+var OH_DB_MIGRATION_KEY = 'oh-notion-db-migrated-v2';
+function ohMigrateNotionDb() {
+  if (localStorage.getItem(OH_DB_MIGRATION_KEY)) return;
+  var changed = false;
+  ohOrders.forEach(function(o) {
+    if (o.notionPageId) { delete o.notionPageId; changed = true; }
+  });
+  if (changed) ohCacheLocally();
+  localStorage.setItem(OH_DB_MIGRATION_KEY, '1');
 }
 
 function ohDedupeExisting() {
