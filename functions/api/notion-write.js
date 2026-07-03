@@ -6,7 +6,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const DB_ID      = 'af5b304b-7308-4981-8bda-4422c85c943a';
+const DB_ID      = '3929d8fb-1b0f-8043-9425-d24d2bec3544';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -32,20 +32,15 @@ function notionHdrs(token) {
 function orderToProps(o) {
   var label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' - ') || 'Order';
   var props = {
-    'Order Label':     { title:     [{ text: { content: label } }] },
-    'App ID':          { rich_text: [{ text: { content: o.id       || '' } }] },
-    'Order Number':    { rich_text: [{ text: { content: o.orderNum || '' } }] },
-    'Invoice Number':  { rich_text: [{ text: { content: o.invNum   || '' } }] },
-    'Notes':           { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
-    'Tracking Number': { rich_text: [{ text: { content: o.trackingNumber || '' } }] },
-    'Amount':          o.amt != null ? { number: o.amt } : { number: null },
+    'Order Label':    { title:     [{ text: { content: label } }] },
+    'App ID':         { rich_text: [{ text: { content: o.id       || '' } }] },
+    'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
+    'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
+    'Notes':          { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
+    'Amount':         o.amt != null ? { number: o.amt } : { number: null },
   };
-  if (o.date)      props['Date']           = { date: { start: o.date } };
-  if (o.sup)       props['Supplier']       = { select: { name: o.sup } };
-  if (o.status)    props['Status']         = { select: { name: o.status } };
-  if (o.carrier)   props['Carrier']        = { select: { name: o.carrier } };
-  if (o.shipped)   props['Shipped Date']   = { date: { start: o.shipped } };
-  if (o.delivered) props['Delivered Date'] = { date: { start: o.delivered } };
+  if (o.date) props['Date']     = { date: { start: o.date } };
+  if (o.sup)  props['Supplier'] = { select: { name: o.sup } };
   return props;
 }
 
