@@ -55,6 +55,7 @@ var ohSelected        = new Set();
 var ohCollapsedSups   = new Set();
 var ohModalLineItems  = [];
 var ohModalReceiptDriveId = null;
+var ohRowExpandedId   = null;
 
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
@@ -499,7 +500,7 @@ function ohDeleteSelected() {
   toast('Deleted ' + n + ' order' + (n !== 1 ? 's' : ''), '🗑');
 }
 
-// ── Add / Edit modal ──────────────────────────
+// ── Add modal / inline edit ───────────────────
 function ohWireAddBtn() {
   var btn = document.getElementById('ohAddBtn');
   if (btn) btn.addEventListener('click', function(){ ohOpenModal(null); });
@@ -508,7 +509,7 @@ function ohWireAddBtn() {
   var saveBtn = document.getElementById('ohModalSave');
   if (saveBtn) saveBtn.addEventListener('click', ohModalSave);
   var cancelBtn = document.getElementById('ohModalCancel');
-  if (cancelBtn) cancelBtn.addEventListener('click', ohCloseModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', ohCloseEditor);
   var addLiBtn = document.getElementById('ohAddLineItemBtn');
   if (addLiBtn) addLiBtn.addEventListener('click', function(){
     ohModalLineItems.push({ desc: '', category: 'Materials', amt: null });
@@ -603,53 +604,68 @@ function ohRecomputeLineItemTotal() {
   }
 }
 
+// Fill the shared edit form's fields from an existing order
+function ohFillFieldsForEdit(ord) {
+  document.getElementById('ohModalTitle').textContent = 'Edit Order';
+  document.getElementById('ohMDate').value      = ord.date      || '';
+  document.getElementById('ohMSup').value       = ord.sup       || 'Rio Grande';
+  document.getElementById('ohMOrderNum').value  = ord.orderNum  || '';
+  document.getElementById('ohMInvNum').value    = ord.invNum    || '';
+  document.getElementById('ohMAmt').value       = ord.amt != null ? ord.amt : '';
+  document.getElementById('ohMShipped').value   = ord.shipped   || '';
+  document.getElementById('ohMDelivered').value = ord.delivered || '';
+  document.getElementById('ohMNotes').value     = ord.notes     || '';
+  ohModalLineItems = (ord.lineItems || []).map(function(li){ return Object.assign({}, li); });
+  ohRenderLineItems();
+  var delBtn = document.getElementById('ohModalDelete');
+  if (delBtn) delBtn.style.display = '';
+  ohModalReceiptDriveId = ord.driveFileId || null;
+  var recLink = document.getElementById('ohModalReceiptLink');
+  if (recLink) recLink.style.display = ord.driveFileId ? 'inline-flex' : 'none';
+}
+
+// Reset the shared edit form's fields for creating a new order
+function ohFillFieldsForAdd() {
+  document.getElementById('ohModalTitle').textContent = 'Add Order';
+  document.getElementById('ohMDate').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('ohMSup').value       = 'Rio Grande';
+  document.getElementById('ohMOrderNum').value  = '';
+  document.getElementById('ohMInvNum').value    = '';
+  document.getElementById('ohMAmt').value       = '';
+  document.getElementById('ohMShipped').value   = '';
+  document.getElementById('ohMDelivered').value = '';
+  document.getElementById('ohMNotes').value     = '';
+  ohModalLineItems = [];
+  ohRenderLineItems();
+  ohModalReceiptDriveId = null;
+  var recLink = document.getElementById('ohModalReceiptLink');
+  if (recLink) recLink.style.display = 'none';
+  var delBtn = document.getElementById('ohModalDelete');
+  if (delBtn) delBtn.style.display = 'none';
+}
+
+// Moves the shared edit-form card back into the popup modal (its DOM "home").
+// Safe to call any time — no-op if it's already there.
+function ohMoveEditCardHome() {
+  var bg    = document.getElementById('ohModalBg');
+  var card  = document.getElementById('ohEditCard');
+  if (bg && card && card.parentNode !== bg) bg.appendChild(card);
+  if (card) card.classList.remove('oh-inline-modal');
+}
+
+// ── Add Order (popup) ──────────────────────────
 function ohOpenModal(id) {
-  ohEditId = id;
   var modal = document.getElementById('ohModalBg');
-  var title = document.getElementById('ohModalTitle');
   if (!modal) return;
+  ohCollapseRow(); // inline edit and the add popup are mutually exclusive
+  ohEditId = id;
+  ohMoveEditCardHome();
   if (id) {
     var ord = ohOrders.filter(function(o){ return o.id === id; })[0];
     if (!ord) return;
-    title.textContent = 'Edit Order';
-    document.getElementById('ohMDate').value      = ord.date      || '';
-    document.getElementById('ohMSup').value       = ord.sup       || 'Rio Grande';
-    document.getElementById('ohMOrderNum').value  = ord.orderNum  || '';
-    document.getElementById('ohMInvNum').value    = ord.invNum    || '';
-    document.getElementById('ohMAmt').value       = ord.amt != null ? ord.amt : '';
-    document.getElementById('ohMStatus').value    = ord.status    || 'Processing';
-    document.getElementById('ohMShipped').value   = ord.shipped   || '';
-    document.getElementById('ohMDelivered').value = ord.delivered || '';
-    document.getElementById('ohMCarrier').value   = ord.carrier   || '';
-    document.getElementById('ohMTracking').value  = ord.trackingNumber || '';
-    document.getElementById('ohMNotes').value     = ord.notes     || '';
-    ohModalLineItems = (ord.lineItems || []).map(function(li){ return Object.assign({}, li); });
-    ohRenderLineItems();
-    var delBtn = document.getElementById('ohModalDelete');
-    if (delBtn) delBtn.style.display = '';
-    ohModalReceiptDriveId = ord.driveFileId || null;
-    var recLink = document.getElementById('ohModalReceiptLink');
-    if (recLink) recLink.style.display = ord.driveFileId ? 'inline-flex' : 'none';
+    ohFillFieldsForEdit(ord);
   } else {
-    title.textContent = 'Add Order';
-    document.getElementById('ohMDate').value      = new Date().toISOString().slice(0,10);
-    document.getElementById('ohMSup').value       = 'Rio Grande';
-    document.getElementById('ohMOrderNum').value  = '';
-    document.getElementById('ohMInvNum').value    = '';
-    document.getElementById('ohMAmt').value       = '';
-    document.getElementById('ohMStatus').value    = 'Processing';
-    document.getElementById('ohMShipped').value   = '';
-    document.getElementById('ohMDelivered').value = '';
-    document.getElementById('ohMCarrier').value   = '';
-    document.getElementById('ohMTracking').value  = '';
-    document.getElementById('ohMNotes').value     = '';
-    ohModalLineItems = [];
-    ohRenderLineItems();
-    ohModalReceiptDriveId = null;
-    var recLink2 = document.getElementById('ohModalReceiptLink');
-    if (recLink2) recLink2.style.display = 'none';
-    var delBtn2 = document.getElementById('ohModalDelete');
-    if (delBtn2) delBtn2.style.display = 'none';
+    ohFillFieldsForAdd();
   }
   modal.classList.add('open');
   document.getElementById('ohMDate').focus();
@@ -662,17 +678,55 @@ function ohCloseModal() {
   ohEditId = null;
   ohModalLineItems = [];
 }
+
+// ── Edit Order (inline row expansion) ─────────
+function ohToggleExpand(id) {
+  if (ohRowExpandedId === id) { ohCollapseRow(); return; }
+  var ord = ohOrders.filter(function(o){ return o.id === id; })[0];
+  if (!ord) return;
+  ohRowExpandedId = id;
+  ohEditId = id;
+  ohFillFieldsForEdit(ord);
+  ohRender();
+}
+function ohCollapseRow() {
+  if (!ohRowExpandedId) return;
+  ohRowExpandedId = null;
+  ohEditId = null;
+  ohModalLineItems = [];
+  var amtField = document.getElementById('ohMAmt');
+  if (amtField) amtField.readOnly = false;
+  ohMoveEditCardHome();
+  ohRender();
+}
+// Cancel button: closes whichever mode is currently active
+function ohCloseEditor() {
+  if (ohRowExpandedId) ohCollapseRow();
+  else ohCloseModal();
+}
+
+// After ohRender() rebuilds the table, reattach the edit card into the
+// currently-expanded row's slot (or send it home if nothing's expanded,
+// or the expanded row got filtered out of view).
+function ohAttachInlineEdit() {
+  if (!ohRowExpandedId) { ohMoveEditCardHome(); return; }
+  var slot = document.getElementById('ohInlineSlot');
+  if (!slot) { ohCollapseRow(); return; }
+  var card = document.getElementById('ohEditCard');
+  if (card) {
+    slot.appendChild(card);
+    card.classList.add('oh-inline-modal');
+  }
+}
+
 function ohModalSave() {
   var date      = (document.getElementById('ohMDate').value      || '').trim();
   var sup       = (document.getElementById('ohMSup').value       || '').trim();
   var orderNum  = (document.getElementById('ohMOrderNum').value  || '').trim();
   var invNum    = (document.getElementById('ohMInvNum').value    || '').trim();
   var amtRaw    = (document.getElementById('ohMAmt').value       || '').trim();
-  var status    = (document.getElementById('ohMStatus').value    || '').trim();
   var shipped   = (document.getElementById('ohMShipped').value   || '').trim();
   var delivered = (document.getElementById('ohMDelivered').value || '').trim();
-  var carrier   = (document.getElementById('ohMCarrier').value   || '').trim();
-  var tracking  = (document.getElementById('ohMTracking').value  || '').trim();
   var notes     = (document.getElementById('ohMNotes').value     || '').trim();
   ohSyncLineItemsFromDom();
   var lineItems = ohModalLineItems.filter(function(li){ return (li.desc || '').trim() || li.amt != null; });
@@ -681,8 +735,7 @@ function ohModalSave() {
     : ohParseAmt(amtRaw);
   var saved;
   var fields = { date: date, sup: sup, orderNum: orderNum, invNum: invNum, amt: amt,
-    status: status, shipped: shipped, delivered: delivered, carrier: carrier,
-    trackingNumber: tracking, notes: notes, lineItems: lineItems };
+    shipped: shipped, delivered: delivered, notes: notes, lineItems: lineItems };
 
   if (ohEditId) {
     ohOrders = ohOrders.map(function(o){
@@ -695,19 +748,10 @@ function ohModalSave() {
     ohOrders.push(saved);
   }
   ohCacheLocally();
-  ohCloseModal();
+  ohCloseEditor();
   ohRender();
   toast('Order saved');
   if (saved) ohSyncOrder(saved);
-}
-function ohLookupTracking(btn) {
-  var orderNum = (document.getElementById('ohMOrderNum').value || '').trim();
-  ssLookupTracking({
-    numberField:  'ohMTracking',
-    carrierField: 'ohMCarrier',
-    orderNumberGuess: orderNum,
-    button: btn,
-  });
 }
 
 function ohDeleteOrder(id) {
@@ -715,7 +759,7 @@ function ohDeleteOrder(id) {
   var target = ohOrders.find(function(o){ return o.id === id; });
   ohOrders = ohOrders.filter(function(o){ return o.id !== id; });
   ohCacheLocally();
-  ohCloseModal();
+  ohCloseEditor();
   ohRender();
   toast('Order deleted', '🗑');
   if (target) ohDeleteFromNotion(target.notionPageId);
@@ -728,6 +772,11 @@ function ohRender() {
   var tbody = document.getElementById('ohTbody');
   if (!tbody) return;
 
+  // The edit card may currently be a live child of tbody (inline-expanded
+  // into a previous row). Evacuate it before wiping tbody's HTML below, or
+  // the innerHTML replacement destroys it along with the old rows.
+  ohMoveEditCardHome();
+
   var rows = ohOrders.slice();
   if (ohSupFilter  !== 'all') rows = rows.filter(function(o){ return o.sup === ohSupFilter; });
   if (ohYearFilter !== 'all') rows = rows.filter(function(o){ return o.date && o.date.slice(0,4) === ohYearFilter; });
@@ -739,6 +788,7 @@ function ohRender() {
           : 'No orders match the current filters.')
       + '</td></tr>';
     ohUpdateStats([]);
+    ohAttachInlineEdit();
     return;
   }
 
@@ -790,23 +840,29 @@ function ohRender() {
           return '<span class="oh-dot" style="background:' + (OH_CAT_COLOR[c] || '#888') + '" title="' + ohEsc(c) + '"></span>';
         }).join('') + '</span>';
       }
-      var tip     = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
-      var checked = ohSelected.has(o.id) ? ' checked' : '';
-      var selCls  = ohSelected.has(o.id) ? ' oh-selected' : '';
-      return '<tr class="oh-sup-data-row' + selCls + '"' + tip + '>'
+      var tip      = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
+      var checked  = ohSelected.has(o.id) ? ' checked' : '';
+      var selCls   = ohSelected.has(o.id) ? ' oh-selected' : '';
+      var expanded = ohRowExpandedId === o.id;
+      var expCls   = expanded ? ' oh-row-expanded' : '';
+      var mainRow = '<tr class="oh-sup-data-row' + selCls + expCls + '"' + tip + '>'
         + '<td onclick="event.stopPropagation()" style="padding:0 8px">'
         +   '<input type="checkbox" class="oh-row-cb" data-id="' + o.id + '"' + checked
         +   ' onchange="ohToggleRow(\'' + o.id + '\',this.checked);this.closest(\'tr\').classList.toggle(\'oh-selected\',this.checked)">'
         + '</td>'
-        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.date ? ohFmtDate(o.date) : '<span class="oh-na">—</span>') + '</span></td>'
-        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
-        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
-        + '<td onclick="ohOpenModal(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
+        + '<td onclick="ohToggleExpand(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.date ? ohFmtDate(o.date) : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohToggleExpand(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.orderNum ? ohEsc(o.orderNum) : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohToggleExpand(\'' + o.id + '\')" style="cursor:pointer"><span class="oh-mono">' + (o.invNum   ? ohEsc(o.invNum)   : '<span class="oh-na">—</span>') + '</span></td>'
+        + '<td onclick="ohToggleExpand(\'' + o.id + '\')" style="cursor:pointer">' + amtHtml + '</td>'
         + '<td style="white-space:nowrap">'
         +   (o.driveFileId ? '<button type="button" class="oh-receipt-btn" onclick="event.stopPropagation();ohShowReceipt(\'' + o.driveFileId + '\')" title="View receipt">🧾</button>' : '')
-        +   '<button class="oh-edit-btn" onclick="event.stopPropagation();ohOpenModal(\'' + o.id + '\')">✏️</button>'
+        +   '<button class="oh-edit-btn" onclick="event.stopPropagation();ohToggleExpand(\'' + o.id + '\')" title="' + (expanded ? 'Collapse' : 'Edit') + '">' + (expanded ? '▾' : '✏️') + '</button>'
         + '</td>'
         + '</tr>';
+      var expandRow = expanded
+        ? '<tr class="oh-expand-row"><td colspan="6"><div class="oh-expand-slot" id="ohInlineSlot"></div></td></tr>'
+        : '';
+      return mainRow + expandRow;
     }).join('');
 
     return hdr + dataRows;
@@ -814,6 +870,7 @@ function ohRender() {
 
   tbody.innerHTML = html;
   ohUpdateStats(rows);
+  ohAttachInlineEdit();
 }
 
 // ── Stats ─────────────────────────────────────
