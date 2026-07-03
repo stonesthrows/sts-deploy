@@ -44,6 +44,7 @@ function orderToProps(o) {
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes   || '').slice(0, 2000) } }] },
     'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
+    'Drive File ID':  { rich_text: [{ text: { content: o.driveFileId || '' } }] },
     'Date':           o.date ? { date: { start: o.date } } : { date: null },
     'Supplier':       o.sup  ? { select: { name: o.sup } } : { select: null },
     'Amount':         o.amt  != null ? { number: o.amt } : { number: null },
@@ -73,6 +74,7 @@ function pageToOrder(page) {
     amt:          num(p['Amount']),
     notes:        txt(p['Notes']),
     lineItems:    lineItems,
+    driveFileId:  txt(p['Drive File ID']) || null,
   };
 }
 

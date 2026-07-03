@@ -132,6 +132,21 @@ function ohFetchFromNotion() {
       // Merge: Notion is authoritative for anything it knows about,
       // but keep any local-only records not yet synced (avoids wiping
       // data when the Notion DB is empty or sync hasn't run yet).
+      var localById = {};
+      ohOrders.forEach(function(o){ localById[o.id] = o; });
+      // Belt-and-suspenders: if the Notion response is missing a field this
+      // local record has (e.g. an older API deploy that doesn't round-trip
+      // a newer field yet), keep the local value instead of silently
+      // wiping it — Notion should only ever add/replace data, not erase it.
+      var needsResync = [];
+      orders.forEach(function(o) {
+        var local = localById[o.id];
+        if (!local) return;
+        var filled = false;
+        if (!o.driveFileId && local.driveFileId) { o.driveFileId = local.driveFileId; filled = true; }
+        if ((!o.lineItems || !o.lineItems.length) && local.lineItems && local.lineItems.length) { o.lineItems = local.lineItems; filled = true; }
+        if (filled) needsResync.push(o);
+      });
       var notionIds = new Set(orders.map(function(o){ return o.id; }));
       var localOnly = ohOrders.filter(function(o){ return !notionIds.has(o.id); });
       ohOrders = orders.concat(localOnly);
@@ -143,10 +158,11 @@ function ohFetchFromNotion() {
       ohSetSyncStatus('ok');
       ohUpdateTs();
 
-      // Push any local-only records up to Notion now
-      if (localOnly.length) {
-        console.log('ohFetchFromNotion: pushing ' + localOnly.length + ' local-only record(s) to Notion');
-        ohBatchSync(localOnly);
+      // Push any local-only or locally-patched-back records up to Notion now
+      var toSync = localOnly.concat(needsResync);
+      if (toSync.length) {
+        console.log('ohFetchFromNotion: pushing ' + toSync.length + ' record(s) to Notion');
+        ohBatchSync(toSync);
       }
     })
     .catch(function(err) {

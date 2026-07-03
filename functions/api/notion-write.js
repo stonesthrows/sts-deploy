@@ -46,6 +46,7 @@ function orderToProps(o) {
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
     'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
+    'Drive File ID':  { rich_text: [{ text: { content: o.driveFileId || '' } }] },
     'Amount':         o.amt != null ? { number: o.amt } : { number: null },
     'Materials':      { number: catSum(lineItems, 'Materials') },
     'Tools':          { number: catSum(lineItems, 'Tools') },
