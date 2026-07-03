@@ -12,6 +12,40 @@ var OH_RECEIPTS_SEEN    = 'oh-receipts-seen';
 var OH_CATS = ['Materials', 'Tools', 'Shipping', 'Other'];
 var OH_CAT_COLOR = { Materials: '#059669', Tools: '#2563eb', Shipping: '#f59e0b', Other: '#888' };
 
+// Keyword hints for free, offline category guessing (CSV imports, backfill fallback)
+var OH_CAT_KEYWORDS = {
+  Materials: ['wire','chain','finding','stone','gem','metal','silver','gold','bezel','jump ring',
+    'clasp','bead','cabochon','sheet','wax','casting','solder','flux','enamel','cord','leather',
+    'crystal','pearl','resin','patina','alloy','brass','copper','tubing','prong','setting','blank',
+    'sterling','ingot','shot','granule','rivet'],
+  Tools: ['plier','torch','hammer','mandrel','saw blade','file','drill','bur','buffer','tumbler',
+    'kiln','dapping','anvil','vise','clamp','punch','mold','mould','machine','tool','equipment',
+    'scale','magnifier','loupe','bench block','welder','engraver','rolling mill','press','ring stick',
+    'flex shaft','polishing motor'],
+  Shipping: ['shipping','freight','postage','delivery fee','handling fee'],
+  Other: ['tax','membership','subscription','warranty','misc fee'],
+};
+
+// Guess a single tax category from free text (notes/description). Returns null if no match.
+function ohGuessCategory(text) {
+  if (!text) return null;
+  var l = text.toLowerCase();
+  var best = null, bestScore = 0;
+  Object.keys(OH_CAT_KEYWORDS).forEach(function(cat) {
+    var score = OH_CAT_KEYWORDS[cat].reduce(function(s, kw){ return s + (l.indexOf(kw) >= 0 ? 1 : 0); }, 0);
+    if (score > bestScore) { best = cat; bestScore = score; }
+  });
+  return best;
+}
+
+// Build a single-category line item from free text, if a category can be guessed
+function ohGuessLineItems(notes, amt) {
+  if (amt == null) return [];
+  var cat = ohGuessCategory(notes);
+  if (!cat) return [];
+  return [{ desc: (notes || '').trim(), category: cat, amt: amt }];
+}
+
 // ── State ─────────────────────────────────────
 var ohOrders          = [];
 var ohSupFilter       = 'all';
@@ -165,6 +199,102 @@ async function ohPushAllToNotion() {
       btn.textContent = '⬆ ' + done + ' / ' + total;
     }
   });
+}
+
+// ── Auto-categorize uncategorized orders (manual button) ──────────────────
+// Tier 1: orders with a saved receipt image get re-scanned via Claude Vision
+// for real line items. Tier 2 (fallback, and used when Google/Anthropic keys
+// aren't configured): free keyword guess from the order's notes.
+function ohCategorizeAll(btn) {
+  var clientId      = localStorage.getItem('sts-google-client-id');
+  var anthropicKey  = localStorage.getItem('sts-anthropic-key');
+  if (clientId && anthropicKey) {
+    var token = getGoogleToken();
+    if (!token) {
+      triggerGoogleOAuth(clientId, function(){ ohRunCategorizeAll(btn, getGoogleToken(), anthropicKey); });
+      return;
+    }
+    ohRunCategorizeAll(btn, token, anthropicKey);
+  } else {
+    ohRunCategorizeAll(btn, null, null);
+  }
+}
+
+async function ohRunCategorizeAll(btn, token, anthropicKey) {
+  var candidates = ohOrders.filter(function(o){ return !(o.lineItems && o.lineItems.length); });
+  if (!candidates.length) { toast('All orders already categorized', 'ℹ'); return; }
+
+  var useVision = !!(token && anthropicKey);
+  if (btn) { btn.disabled = true; }
+
+  var changed = [];
+  for (var i = 0; i < candidates.length; i++) {
+    var o = candidates[i];
+    if (btn) btn.textContent = '🏷 ' + (i + 1) + '/' + candidates.length + '…';
+    var didCategorize = false;
+    if (useVision && o.driveFileId) {
+      didCategorize = await ohCategorizeViaVision(o, token, anthropicKey);
+    }
+    if (!didCategorize) {
+      var guess = ohGuessLineItems(o.notes, o.amt);
+      if (guess.length) { o.lineItems = guess; didCategorize = true; }
+    }
+    if (didCategorize) changed.push(o);
+  }
+
+  if (changed.length) {
+    ohCacheLocally();
+    ohRender();
+    toast('Categorized ' + changed.length + ' order' + (changed.length !== 1 ? 's' : '') + ' — syncing to Notion…');
+    ohBatchSync(changed, function(done, total, finished) {
+      if (!btn) return;
+      if (finished) {
+        btn.disabled = false;
+        btn.textContent = '🏷 Categorize All';
+        toast('Synced ' + total + ' categorized order' + (total !== 1 ? 's' : '') + ' ✓', '✓');
+      } else {
+        btn.textContent = '🏷 syncing ' + done + '/' + total;
+      }
+    });
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = '🏷 Categorize All'; }
+    toast('Could not auto-categorize the rest — try editing them manually', 'ℹ');
+  }
+}
+
+// Re-scans a saved receipt image via Claude Vision and fills in line items.
+// Leaves the order's existing `amt` (total) untouched — only adds the breakdown.
+async function ohCategorizeViaVision(o, token, anthropicKey) {
+  try {
+    var metaR = await fetch('https://www.googleapis.com/drive/v3/files/' + o.driveFileId + '?fields=mimeType',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    if (metaR.status === 401) { clearGoogleToken(); return false; }
+    var meta = await metaR.json();
+    var mimeType = meta.mimeType || 'image/jpeg';
+
+    var imgR = await fetch('https://www.googleapis.com/drive/v3/files/' + o.driveFileId + '?alt=media',
+      { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!imgR.ok) return false;
+    var blob   = await imgR.blob();
+    var base64 = await ohBlobToBase64(blob);
+    var data   = await ohReceiptVision(base64, mimeType, anthropicKey);
+    if (!data || !Array.isArray(data.line_items)) return false;
+
+    var lineItems = data.line_items.map(function(li) {
+      return {
+        desc:     li.description || '',
+        category: OH_CATS.indexOf(li.category) >= 0 ? li.category : 'Other',
+        amt:      li.amount != null ? parseFloat(li.amount) : null,
+      };
+    }).filter(function(li){ return li.amt != null; });
+
+    if (!lineItems.length) return false;
+    o.lineItems = lineItems;
+    return true;
+  } catch(e) {
+    console.warn('Backfill vision failed for', o.id, e);
+    return false;
+  }
 }
 
 // ── Notion: upsert one order ───────────────────
@@ -987,8 +1117,9 @@ function ohParseCsvSilent(text, supplierOverride) {
     var cells = ohCsvSplit(lines[r]);
     (function(cells) {
       function get(i) { return (i >= 0 && i < cells.length) ? cells[i].trim() : ''; }
-      var date = ohNormalizeDate(get(iDate));
-      var amt  = ohParseAmt(get(iAmt));
+      var date  = ohNormalizeDate(get(iDate));
+      var amt   = ohParseAmt(get(iAmt));
+      var notes = get(iNotes);
       if (!date && !get(iOrderNum) && amt == null) return;
       newOrders.push({
         id:       'oh_' + (Date.now() + r).toString(36),
@@ -998,7 +1129,8 @@ function ohParseCsvSilent(text, supplierOverride) {
         invNum:   get(iInvNum),
         amt:      amt,
         status:   ohNormalizeStatus(get(iStatus)) || 'Processing',
-        notes:    get(iNotes)
+        notes:    notes,
+        lineItems: ohGuessLineItems(notes, amt),
       });
     })(cells);
   }
@@ -1055,9 +1187,10 @@ function ohParseCsv(text, supplierOverride) {
     (function(cells) {
       function get(i) { return (i >= 0 && i < cells.length) ? cells[i].trim() : ''; }
 
-      var date = ohNormalizeDate(get(iDate));
-      var sup  = supplierOverride || ohNormalizeSup(get(iSup));
-      var amt  = ohParseAmt(get(iAmt));
+      var date  = ohNormalizeDate(get(iDate));
+      var sup   = supplierOverride || ohNormalizeSup(get(iSup));
+      var amt   = ohParseAmt(get(iAmt));
+      var notes = get(iNotes);
 
       // Skip fully empty rows
       if (!date && !sup && !get(iOrderNum) && amt == null) { skipped++; return; }
@@ -1070,7 +1203,8 @@ function ohParseCsv(text, supplierOverride) {
         invNum:    get(iInvNum),
         amt:    amt,
         status: ohNormalizeStatus(get(iStatus)) || 'Processing',
-        notes:  get(iNotes)
+        notes:  notes,
+        lineItems: ohGuessLineItems(notes, amt),
       });
       imported++;
     })(cells);
