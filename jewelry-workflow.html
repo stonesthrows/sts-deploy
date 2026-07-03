@@ -3303,7 +3303,7 @@
       background: #fff;
       border-radius: 12px;
       padding: 24px;
-      width: 380px;
+      width: 440px;
       box-shadow: 0 16px 48px rgba(0,0,0,0.2);
     }
     .sot-modal h3 {
@@ -3522,6 +3522,33 @@
   .oh-table tr.oh-selected td { background: #eff6ff !important; }
   body.theme-midnight .oh-bulk-bar { background: #1e293b; border-color: #f59e0b; color: #fcd34d; }
   body.theme-midnight .oh-table tr.oh-selected td { background: #1e3a5f !important; }
+  .oh-cat-dots { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+  .oh-cat-stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .oh-cat-stat {
+    background: #fff;
+    border: 1px solid var(--bdr-light);
+    border-radius: 10px;
+    padding: 9px 12px;
+    text-align: center;
+  }
+  .oh-cat-stat .v { font-size: 15px; font-weight: 800; line-height: 1.2; }
+  .oh-cat-stat .l { font-size: 9.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; font-weight: 600; }
+  .oh-cat-stat.materials .v { color: #059669; }
+  .oh-cat-stat.tools     .v { color: #2563eb; }
+  .oh-cat-stat.shipping  .v { color: #f59e0b; }
+  .oh-cat-stat.other     .v { color: #888; }
+  .oh-cat-stat.uncat     .v { color: var(--text-dim); }
+  .oh-li-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .oh-li-row .oh-li-desc { flex: 3; margin-bottom: 0 !important; }
+  .oh-li-row .oh-li-cat  { flex: 2; margin-bottom: 0 !important; }
+  .oh-li-row .oh-li-amt  { flex: 1.3; margin-bottom: 0 !important; }
+  .oh-li-remove { background: none; border: none; cursor: pointer; color: #b91c1c; font-size: 13px; padding: 4px 2px; flex-shrink: 0; }
+  #ohLineItemsSummary { font-size: 11px; color: var(--text-dim); margin: 4px 0 8px; min-height: 14px; }
   .oh-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .oh-title { font-size: 15px; font-weight: 700; }
   .oh-refresh-lbl { font-size: 11px; color: var(--text-dim); }
@@ -5151,6 +5178,29 @@
     <div class="oh-stat blue">
       <div class="v" id="oh-month">—</div>
       <div class="l">This Month</div>
+    </div>
+  </div>
+
+  <div class="oh-cat-stats" title="Tax category breakdown for the current filter">
+    <div class="oh-cat-stat materials">
+      <div class="v" id="oh-cat-materials">—</div>
+      <div class="l">Materials</div>
+    </div>
+    <div class="oh-cat-stat tools">
+      <div class="v" id="oh-cat-tools">—</div>
+      <div class="l">Tools</div>
+    </div>
+    <div class="oh-cat-stat shipping">
+      <div class="v" id="oh-cat-shipping">—</div>
+      <div class="l">Shipping</div>
+    </div>
+    <div class="oh-cat-stat other">
+      <div class="v" id="oh-cat-other">—</div>
+      <div class="l">Other</div>
+    </div>
+    <div class="oh-cat-stat uncat">
+      <div class="v" id="oh-cat-uncat">—</div>
+      <div class="l">Uncategorized</div>
     </div>
   </div>
 
@@ -7369,6 +7419,12 @@ function savePrintSetup() {
           <option>Delivered</option>
         </select>
       </div>
+    </div>
+    <div style="margin-top:6px;">
+      <label style="font-size:12px;color:var(--text-dim);">Line Items (for tax categorization)</label>
+      <div id="ohLineItems"></div>
+      <div id="ohLineItemsSummary"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="ohAddLineItemBtn">+ Add Line Item</button>
     </div>
     <div class="sot-modal-row">
       <div style="flex:1">

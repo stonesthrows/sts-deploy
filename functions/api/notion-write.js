@@ -29,15 +29,28 @@ function notionHdrs(token) {
   };
 }
 
+function catSum(lineItems, cat) {
+  if (!Array.isArray(lineItems)) return 0;
+  return lineItems.reduce(function(s, li) {
+    return s + ((li.category === cat && li.amt != null) ? (parseFloat(li.amt) || 0) : 0);
+  }, 0);
+}
+
 function orderToProps(o) {
   var label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' - ') || 'Order';
+  var lineItems = o.lineItems || [];
   var props = {
     'Order Label':    { title:     [{ text: { content: label } }] },
     'App ID':         { rich_text: [{ text: { content: o.id       || '' } }] },
     'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
+    'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
     'Amount':         o.amt != null ? { number: o.amt } : { number: null },
+    'Materials':      { number: catSum(lineItems, 'Materials') },
+    'Tools':          { number: catSum(lineItems, 'Tools') },
+    'Shipping':       { number: catSum(lineItems, 'Shipping') },
+    'Other Amt':      { number: catSum(lineItems, 'Other') },
   };
   if (o.date) props['Date']     = { date: { start: o.date } };
   if (o.sup)  props['Supplier'] = { select: { name: o.sup } };

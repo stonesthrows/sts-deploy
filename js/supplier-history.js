@@ -8,13 +8,18 @@ var OH_WRITE_API        = '/api/notion-write';    // POST / DELETE (write)
 var OH_RECEIPTS_FOLDER  = 'STS Receipts';
 var OH_RECEIPTS_SEEN    = 'oh-receipts-seen';
 
+// Tax categories for line-item breakdown
+var OH_CATS = ['Materials', 'Tools', 'Shipping', 'Other'];
+var OH_CAT_COLOR = { Materials: '#059669', Tools: '#2563eb', Shipping: '#f59e0b', Other: '#888' };
+
 // ── State ─────────────────────────────────────
-var ohOrders        = [];
-var ohSupFilter     = 'all';
-var ohYearFilter    = String(new Date().getFullYear());
-var ohEditId        = null;
-var ohSelected      = new Set();
-var ohCollapsedSups = new Set();
+var ohOrders          = [];
+var ohSupFilter       = 'all';
+var ohYearFilter      = String(new Date().getFullYear());
+var ohEditId          = null;
+var ohSelected        = new Set();
+var ohCollapsedSups   = new Set();
+var ohModalLineItems  = [];
 
 // ── Bootstrap ─────────────────────────────────
 function ohInit() {
@@ -357,6 +362,76 @@ function ohWireAddBtn() {
   if (saveBtn) saveBtn.addEventListener('click', ohModalSave);
   var cancelBtn = document.getElementById('ohModalCancel');
   if (cancelBtn) cancelBtn.addEventListener('click', ohCloseModal);
+  var addLiBtn = document.getElementById('ohAddLineItemBtn');
+  if (addLiBtn) addLiBtn.addEventListener('click', function(){
+    ohModalLineItems.push({ desc: '', category: 'Materials', amt: null });
+    ohRenderLineItems();
+  });
+}
+
+// ── Line items (tax categorization) ───────────
+function ohRenderLineItems() {
+  var wrap = document.getElementById('ohLineItems');
+  if (!wrap) return;
+  wrap.innerHTML = ohModalLineItems.map(function(li, i) {
+    return '<div class="oh-li-row" data-idx="' + i + '">'
+      + '<input type="text" class="oh-li-desc" placeholder="Description" value="' + ohEsc(li.desc || '') + '">'
+      + '<select class="oh-li-cat">' + OH_CATS.map(function(c) {
+          return '<option value="' + c + '"' + (li.category === c ? ' selected' : '') + '>' + c + '</option>';
+        }).join('') + '</select>'
+      + '<input type="number" step="0.01" min="0" class="oh-li-amt" placeholder="0.00" value="' + (li.amt != null ? li.amt : '') + '">'
+      + '<button type="button" class="oh-li-remove" title="Remove line item">✕</button>'
+      + '</div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">No line items — Amount below is used as-is.</div>';
+
+  wrap.querySelectorAll('.oh-li-remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.closest('.oh-li-row').dataset.idx, 10);
+      ohModalLineItems.splice(idx, 1);
+      ohRenderLineItems();
+      ohRecomputeLineItemTotal();
+    });
+  });
+  wrap.querySelectorAll('.oh-li-desc, .oh-li-cat, .oh-li-amt').forEach(function(el) {
+    el.addEventListener('input', ohSyncLineItemsFromDom);
+    el.addEventListener('change', ohSyncLineItemsFromDom);
+  });
+  ohRecomputeLineItemTotal();
+}
+
+function ohSyncLineItemsFromDom() {
+  var wrap = document.getElementById('ohLineItems');
+  if (!wrap) return;
+  wrap.querySelectorAll('.oh-li-row').forEach(function(row) {
+    var idx = parseInt(row.dataset.idx, 10);
+    if (!ohModalLineItems[idx]) return;
+    ohModalLineItems[idx].desc     = row.querySelector('.oh-li-desc').value;
+    ohModalLineItems[idx].category = row.querySelector('.oh-li-cat').value;
+    ohModalLineItems[idx].amt      = ohParseAmt(row.querySelector('.oh-li-amt').value);
+  });
+  ohRecomputeLineItemTotal();
+}
+
+function ohRecomputeLineItemTotal() {
+  var amtField = document.getElementById('ohMAmt');
+  var summary  = document.getElementById('ohLineItemsSummary');
+  if (!ohModalLineItems.length) {
+    if (amtField) amtField.readOnly = false;
+    if (summary) summary.textContent = '';
+    return;
+  }
+  var total = ohModalLineItems.reduce(function(s, li){ return s + (parseFloat(li.amt) || 0); }, 0);
+  if (amtField) { amtField.value = total.toFixed(2); amtField.readOnly = true; }
+  if (summary) {
+    var byCat = {};
+    ohModalLineItems.forEach(function(li) {
+      var a = parseFloat(li.amt) || 0;
+      byCat[li.category] = (byCat[li.category] || 0) + a;
+    });
+    summary.textContent = Object.keys(byCat).map(function(c) {
+      return c + ': $' + byCat[c].toFixed(2);
+    }).join('  ·  ');
+  }
 }
 
 function ohOpenModal(id) {
@@ -379,6 +454,8 @@ function ohOpenModal(id) {
     document.getElementById('ohMCarrier').value   = ord.carrier   || '';
     document.getElementById('ohMTracking').value  = ord.trackingNumber || '';
     document.getElementById('ohMNotes').value     = ord.notes     || '';
+    ohModalLineItems = (ord.lineItems || []).map(function(li){ return Object.assign({}, li); });
+    ohRenderLineItems();
     var delBtn = document.getElementById('ohModalDelete');
     if (delBtn) delBtn.style.display = '';
     var recLink = document.getElementById('ohModalReceiptLink');
@@ -403,6 +480,8 @@ function ohOpenModal(id) {
     document.getElementById('ohMCarrier').value   = '';
     document.getElementById('ohMTracking').value  = '';
     document.getElementById('ohMNotes').value     = '';
+    ohModalLineItems = [];
+    ohRenderLineItems();
     var delBtn2 = document.getElementById('ohModalDelete');
     if (delBtn2) delBtn2.style.display = 'none';
   }
@@ -412,7 +491,10 @@ function ohOpenModal(id) {
 function ohCloseModal() {
   var modal = document.getElementById('ohModalBg');
   if (modal) modal.classList.remove('open');
+  var amtField = document.getElementById('ohMAmt');
+  if (amtField) amtField.readOnly = false;
   ohEditId = null;
+  ohModalLineItems = [];
 }
 function ohModalSave() {
   var date      = (document.getElementById('ohMDate').value      || '').trim();
@@ -426,11 +508,15 @@ function ohModalSave() {
   var carrier   = (document.getElementById('ohMCarrier').value   || '').trim();
   var tracking  = (document.getElementById('ohMTracking').value  || '').trim();
   var notes     = (document.getElementById('ohMNotes').value     || '').trim();
-  var amt       = ohParseAmt(amtRaw);
+  ohSyncLineItemsFromDom();
+  var lineItems = ohModalLineItems.filter(function(li){ return (li.desc || '').trim() || li.amt != null; });
+  var amt       = lineItems.length
+    ? lineItems.reduce(function(s, li){ return s + (parseFloat(li.amt) || 0); }, 0)
+    : ohParseAmt(amtRaw);
   var saved;
   var fields = { date: date, sup: sup, orderNum: orderNum, invNum: invNum, amt: amt,
     status: status, shipped: shipped, delivered: delivered, carrier: carrier,
-    trackingNumber: tracking, notes: notes };
+    trackingNumber: tracking, notes: notes, lineItems: lineItems };
 
   if (ohEditId) {
     ohOrders = ohOrders.map(function(o){
@@ -532,6 +618,12 @@ function ohRender() {
       var amtHtml = amt != null && !isNaN(amt)
         ? '<span class="oh-amt">$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>'
         : '<span class="oh-na">—</span>';
+      var cats = Array.from(new Set((o.lineItems || []).map(function(li){ return li.category; })));
+      if (cats.length) {
+        amtHtml += '<span class="oh-cat-dots">' + cats.map(function(c) {
+          return '<span class="oh-dot" style="background:' + (OH_CAT_COLOR[c] || '#888') + '" title="' + ohEsc(c) + '"></span>';
+        }).join('') + '</span>';
+      }
       var tip     = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';
       var checked = ohSelected.has(o.id) ? ' checked' : '';
       var selCls  = ohSelected.has(o.id) ? ' oh-selected' : '';
@@ -563,17 +655,29 @@ function ohUpdateStats(rows) {
   var now       = new Date();
   var thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
   var total = 0, count = 0, month = 0;
+  var catTotals = { Materials: 0, Tools: 0, Shipping: 0, Other: 0 };
+  var categorized = 0;
   rows.forEach(function(o){
     count++;
     var a = o.amt != null ? parseFloat(o.amt) : NaN;
     if (!isNaN(a)) total += a;
     if (o.date && o.date.slice(0,7) === thisMonth && !isNaN(a)) month += a;
+    (o.lineItems || []).forEach(function(li) {
+      var la = parseFloat(li.amt) || 0;
+      catTotals[li.category] = (catTotals[li.category] || 0) + la;
+      categorized += la;
+    });
   });
   var fmt = function(n){ return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var el  = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
   el('oh-total', total > 0 ? fmt(total) : '—');
   el('oh-count', count > 0 ? count      : '—');
   el('oh-month', month > 0 ? fmt(month) : '—');
+  el('oh-cat-materials', fmt(catTotals.Materials));
+  el('oh-cat-tools',     fmt(catTotals.Tools));
+  el('oh-cat-shipping',  fmt(catTotals.Shipping));
+  el('oh-cat-other',     fmt(catTotals.Other));
+  el('oh-cat-uncat',     fmt(Math.max(0, total - categorized)));
 }
 function ohUpdateTs() {
   var el = document.getElementById('ohTs');
@@ -657,15 +761,25 @@ async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
         var base64 = await ohBlobToBase64(blob);
         var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
         if (data) {
+          var lineItems = Array.isArray(data.line_items) ? data.line_items.map(function(li) {
+            return {
+              desc:     li.description || '',
+              category: OH_CATS.indexOf(li.category) >= 0 ? li.category : 'Other',
+              amt:      li.amount != null ? parseFloat(li.amount) : null,
+            };
+          }).filter(function(li){ return li.amt != null; }) : [];
           var order = {
             id:          'rec_' + file.id.slice(0, 12),
             date:        data.date     || '',
             sup:         ohNormalizeSup(data.supplier || '') || 'Unknown',
             orderNum:    data.order_number   || '',
             invNum:      data.invoice_number || '',
-            amt:         data.amount != null ? parseFloat(data.amount) : null,
+            amt:         lineItems.length
+              ? lineItems.reduce(function(s, li){ return s + li.amt; }, 0)
+              : (data.amount != null ? parseFloat(data.amount) : null),
             notes:       data.notes || file.name,
             driveFileId: file.id,
+            lineItems:   lineItems,
           };
           // Skip if already imported by order/inv number
           var existing = ohFilterExisting([order]);
@@ -714,14 +828,21 @@ async function ohReceiptVision(base64, mimeType, key) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
+      max_tokens: 1024,
       messages: [{ role: 'user', content: [
         { type: contentType, source: source },
         { type: 'text', text:
-          'Extract purchase info from this business receipt or invoice. '
-          + 'Return ONLY a JSON object with these keys (null if not found): '
+          'Extract purchase info from this business receipt or invoice for a jewelry-making business. '
+          + 'Also break down each line item and categorize it for tax purposes as one of: '
+          + '"Materials" (raw materials/supplies consumed making jewelry — metals, stones, findings, wire, chain, packaging), '
+          + '"Tools" (equipment, tools, machinery — durable items, not consumed), '
+          + '"Shipping" (shipping/freight/postage charges), '
+          + '"Other" (fees, taxes, anything else). '
+          + 'Return ONLY a JSON object with these keys (null/empty if not found): '
           + '{"supplier": string, "date": "YYYY-MM-DD", "amount": number, '
-          + '"invoice_number": string, "order_number": string, "notes": string}. '
+          + '"invoice_number": string, "order_number": string, "notes": string, '
+          + '"line_items": [{"description": string, "amount": number, "category": "Materials"|"Tools"|"Shipping"|"Other"}]}. '
+          + 'line_items should cover all charges on the receipt (including shipping/tax as their own entries if itemized) so they sum to roughly the total amount. '
           + 'No other text.'
         }
       ]}]

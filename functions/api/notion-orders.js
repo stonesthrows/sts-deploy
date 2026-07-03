@@ -29,17 +29,28 @@ function notionHdrs(token) {
   };
 }
 
+function catSum(lineItems, cat) {
+  if (!Array.isArray(lineItems)) return 0;
+  return lineItems.reduce((s, li) => s + ((li.category === cat && li.amt != null) ? (parseFloat(li.amt) || 0) : 0), 0);
+}
+
 function orderToProps(o) {
   const label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' — ') || 'Order';
+  const lineItems = o.lineItems || [];
   return {
     'Order Label':    { title:     [{ text: { content: label } }] },
     'App ID':         { rich_text: [{ text: { content: o.id       || '' } }] },
     'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes   || '').slice(0, 2000) } }] },
+    'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
     'Date':           o.date ? { date: { start: o.date } } : { date: null },
     'Supplier':       o.sup  ? { select: { name: o.sup } } : { select: null },
     'Amount':         o.amt  != null ? { number: o.amt } : { number: null },
+    'Materials':      { number: catSum(lineItems, 'Materials') },
+    'Tools':          { number: catSum(lineItems, 'Tools') },
+    'Shipping':       { number: catSum(lineItems, 'Shipping') },
+    'Other Amt':      { number: catSum(lineItems, 'Other') },
   };
 }
 
@@ -50,6 +61,8 @@ function pageToOrder(page) {
   const dt  = (prop) => prop?.date?.start   || '';
   const num = (prop) => (prop?.number != null ? prop.number : null);
   const appId = txt(p['App ID']);
+  let lineItems = [];
+  try { lineItems = JSON.parse(txt(p['Line Items']) || '[]'); } catch (e) { lineItems = []; }
   return {
     id:           appId || ('n_' + page.id.replace(/-/g, '')),
     notionPageId: page.id,
@@ -59,6 +72,7 @@ function pageToOrder(page) {
     invNum:       txt(p['Invoice Number']),
     amt:          num(p['Amount']),
     notes:        txt(p['Notes']),
+    lineItems:    lineItems,
   };
 }
 
