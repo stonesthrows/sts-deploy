@@ -3,9 +3,20 @@
 //  Cross-device KV store for active rq timers, keyed by restock item pid.
 //  Requires KV namespace binding: STS_TIMER
 //
-//  GET → { [pid]: { startTime, employee, sessionNotionPageId, itemText, items, richMatch } }
-//  PUT → body is full state object → 200 { ok }
+//  KV holds the UNION of every device's active timers. Clients mutate it one
+//  timer at a time so no device can ever evict another device's timer:
+//    GET                              → { [pid]: {...} }
+//    PUT { upsert: { [pid]: {...} } } → set those pids in the union
+//    PUT { remove: pid | [pids] }     → delete those pids from the union
+//    PUT { [pid]: {...}, ... }        → LEGACY full-blob from stale clients:
+//                                       merge-union (add/update, NEVER delete)
+//                                       so an old cached build can't clobber.
 // ════════════════════════════════════════════
+
+const KV_KEY   = 'rq_timers';
+const TTL_SECS = 2592000; // 30 days — a real restock job can legitimately run
+                          // for multiple days; the old 7-day TTL only survived
+                          // because every reload accidentally refreshed it.
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -20,6 +31,16 @@ function json(data, status = 200) {
   });
 }
 
+async function readState(kv) {
+  try {
+    const val = await kv.get(KV_KEY);
+    const parsed = val ? JSON.parse(val) : {};
+    return (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
@@ -27,22 +48,39 @@ export async function onRequestOptions() {
 export async function onRequestGet(context) {
   const kv = context.env.STS_TIMER;
   if (!kv) return json({});
-  try {
-    const val = await kv.get('rq_timers');
-    return json(val ? JSON.parse(val) : {});
-  } catch(e) {
-    return json({});
-  }
+  return json(await readState(kv));
 }
 
 export async function onRequestPut(context) {
   const kv = context.env.STS_TIMER;
   if (!kv) return json({ ok: true }); // silent no-op if KV not bound
+
+  let body;
+  try { body = await context.request.json(); }
+  catch (e) { return json({ error: 'bad json' }, 400); }
+  if (!body || typeof body !== 'object') return json({ error: 'bad body' }, 400);
+
+  const state = await readState(kv);
+
+  if (body.upsert || body.remove) {
+    // ── New per-timer ops ──
+    if (body.upsert && typeof body.upsert === 'object') {
+      for (const pid of Object.keys(body.upsert)) state[pid] = body.upsert[pid];
+    }
+    if (body.remove) {
+      const rm = Array.isArray(body.remove) ? body.remove : [body.remove];
+      for (const pid of rm) delete state[pid];
+    }
+  } else {
+    // ── Legacy full-blob PUT (stale client): merge-union, never delete ──
+    // so a cached build that lacks a timer can't evict it from the union.
+    for (const pid of Object.keys(body)) state[pid] = body[pid];
+  }
+
   try {
-    const body = await context.request.json();
-    await kv.put('rq_timers', JSON.stringify(body), { expirationTtl: 604800 });
+    await kv.put(KV_KEY, JSON.stringify(state), { expirationTtl: TTL_SECS });
     return json({ ok: true });
-  } catch(e) {
+  } catch (e) {
     return json({ error: e.message }, 500);
   }
 }
