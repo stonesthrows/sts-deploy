@@ -342,36 +342,53 @@ function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
   return '<div class="rq-variant-table-stack">'
     + table.metals.map(function(metal) {
         var cols = table.rows.filter(function(r) { return r.metal === metal; });
-        var html = '<div class="rq-variant-table-group">'
+        // Split a long size run into two rows (e.g. 2-6, then 6.5-12)
+        // instead of one row of 15-20+ narrow columns — otherwise the qty
+        // input has to shrink so far that a "0" starts rendering clipped,
+        // looking like a stray "(". Splitting halves the column count per
+        // row, so each input gets roughly double the width back.
+        var chunks = (table.hasSizes && cols.length > 8)
+          ? [cols.slice(0, Math.ceil(cols.length / 2)), cols.slice(Math.ceil(cols.length / 2))]
+          : [cols];
+        return '<div class="rq-variant-table-group">'
           + '<div class="rq-variant-table-metal">' + _rqEsc(metal) + '</div>'
-          + '<table class="rq-variant-table"><thead>';
-        if (table.hasSizes) {
-          html += '<tr><th class="rq-variant-row-label">Size</th>';
-          var i = 0;
-          while (i < cols.length) {
-            var size = cols[i].size;
-            var span = 1;
-            while (i + span < cols.length && cols[i + span].size === size) span++;
-            html += '<th colspan="' + span + '">' + (_rqEsc(_rqShortSizeLabel(size)) || '—') + '</th>';
-            i += span;
-          }
-          html += '</tr>';
-        }
-        html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
-        cols.forEach(function(r) {
-          var qty = qtyByVariantId[r.variant.id] || '';
-          var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
-          html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-            + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
-        });
-        html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Stock</th>';
-        cols.forEach(function(r) {
-          html += '<td>' + _rqInvBadgeCompactHtml(r.variant.id) + '</td>';
-        });
-        html += '</tr></tbody></table></div>';
-        return html;
+          + chunks.map(function(chunkCols) {
+              return _rqVariantSubTableHtml(pid, chunkCols, table.hasSizes, qtyByVariantId, onchangeFn);
+            }).join('')
+          + '</div>';
       }).join('')
     + '</div>';
+}
+
+// Renders one metal's size row (or one half of it, when split into two —
+// see _rqVariantTableHtml above) as its own small table.
+function _rqVariantSubTableHtml(pid, cols, hasSizes, qtyByVariantId, onchangeFn) {
+  var html = '<table class="rq-variant-table"><thead>';
+  if (hasSizes) {
+    html += '<tr><th class="rq-variant-row-label">Size</th>';
+    var i = 0;
+    while (i < cols.length) {
+      var size = cols[i].size;
+      var span = 1;
+      while (i + span < cols.length && cols[i + span].size === size) span++;
+      html += '<th colspan="' + span + '">' + (_rqEsc(_rqShortSizeLabel(size)) || '—') + '</th>';
+      i += span;
+    }
+    html += '</tr>';
+  }
+  html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
+  cols.forEach(function(r) {
+    var qty = qtyByVariantId[r.variant.id] || '';
+    var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+    html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
+      + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
+  });
+  html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Stock</th>';
+  cols.forEach(function(r) {
+    html += '<td>' + _rqInvBadgeCompactHtml(r.variant.id) + '</td>';
+  });
+  html += '</tr></tbody></table>';
+  return html;
 }
 
 function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v106-restock-compact-numeric-sizes -->
+<!-- deploy-version: v107-restock-split-size-rows -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2711,7 +2711,8 @@
       font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
       color: var(--text3); margin-bottom: 3px;
     }
-    .rq-variant-table { border-collapse: collapse; font-size: 10px; margin-bottom: 2px; table-layout: auto; }
+    .rq-variant-table { border-collapse: collapse; font-size: 10px; margin-bottom: 4px; table-layout: auto; }
+    .rq-variant-table:last-child { margin-bottom: 2px; }
     .rq-variant-table th {
       border: 1px solid var(--bdr); padding: 2px 3px; background: var(--card-head-bg);
       color: var(--text2); font-weight: 700; text-align: center; white-space: nowrap;
@@ -2728,8 +2729,8 @@
        column table doesn't need horizontal scrolling to fit on screen. */
     .inv-badge-compact { display: inline-block; min-width: 14px; padding: 1px 3px !important; font-size: 9px !important; border-radius: 5px; }
     .rq-variant-qty {
-      width: 24px; padding: 1px 2px; border: 1px solid var(--bdr); border-radius: 4px;
-      font-size: 10px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+      width: 30px; padding: 2px 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 11px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
     }
     .rq-variant-qty:focus { border-color: var(--accent); outline: none; }
     .rq-variant-done {
@@ -7634,7 +7635,7 @@ function savePrintSetup() {
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=4"></script>
+<script src="js/restock.js?v=5"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
