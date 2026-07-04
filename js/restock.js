@@ -1156,29 +1156,108 @@ function _rqRestoreTimers() {
       _rqStartTick(pid);
     });
   } catch (e) {}
-  // Read-only merge of other devices' timers from the shared KV union. We do
-  // NOT blind-push our local view (that was the clobber). We only re-assert
-  // timers WE started that KV is missing — self-healing our own timers without
-  // ever resurrecting a zombie we merely received from another device.
+  _rqReconcileTimers();
+  _rqStartReconcilePoll();
+}
+
+// Pulls the shared KV union and reconciles it against our in-memory view.
+// Runs once at boot (from _rqRestoreTimers) AND periodically thereafter (see
+// _rqStartReconcilePoll below) so a stop or edit made on another device shows
+// up here within one poll interval instead of only at next page load/reload.
+//
+//   - pid on server, not tracked locally             → adopt (another device
+//                                                       started it since we
+//                                                       last checked)
+//   - pid tracked locally as OURS, missing on server → self-heal (re-push).
+//                                                       Should be rare — we
+//                                                       unpersist before
+//                                                       deleting our own copy
+//                                                       on a real stop — but
+//                                                       covers a dropped PUT.
+//   - pid tracked locally as FOREIGN, missing on server → the owning device
+//                                                       stopped it — drop our
+//                                                       copy too. We're a
+//                                                       read-only relay for
+//                                                       timers we didn't
+//                                                       start, never the
+//                                                       authority on them.
+//   - pid tracked locally as FOREIGN, present but changed → refresh our copy
+//                                                       (owner mid-run edit,
+//                                                       e.g. size/qty or
+//                                                       notion page linkup).
+//                                                       Never done for OUR
+//                                                       OWN timers — that
+//                                                       would race our own
+//                                                       in-flight edits
+//                                                       against a poll that
+//                                                       read a stale server
+//                                                       copy moments before
+//                                                       our own PUT landed.
+function _rqReconcileTimers() {
   fetch('/api/rq-timer-state')
-    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(serverState) {
-      serverState = serverState || {};
-      var added = false;
-      Object.keys(serverState).forEach(function(pid) {
-        if (_rqTimers[pid]) return; // already active locally
-        var s = serverState[pid];
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
-        _rqStartTick(pid);
-        added = true;
-      });
+      if (!serverState) return;
       var myId = _rqDeviceId();
+      var changed = false;
+
+      // Foreign timer removed remotely (owner stopped it) → drop locally.
+      Object.keys(_rqTimers).forEach(function(pid) {
+        var t = _rqTimers[pid];
+        if (t.deviceId !== myId && !serverState[pid]) {
+          clearInterval(t.tickInterval);
+          delete _rqTimers[pid];
+          changed = true;
+        }
+      });
+
+      // Our own timer missing remotely → self-heal (re-assert), never resurrect
+      // a timer we merely received from another device (handled above instead).
       Object.keys(_rqTimers).forEach(function(pid) {
         if (_rqTimers[pid].deviceId === myId && !serverState[pid]) _rqPersistTimer(pid);
       });
-      if (added) restockQueueRender();
+
+      // New timer from another device → adopt.
+      Object.keys(serverState).forEach(function(pid) {
+        if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
+        var s = serverState[pid];
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
+        _rqStartTick(pid);
+        changed = true;
+      });
+
+      // Foreign timer's fields changed remotely (owner mid-run edit) → refresh.
+      Object.keys(_rqTimers).forEach(function(pid) {
+        var t = _rqTimers[pid];
+        if (t.deviceId === myId) return; // never clobber our own in-flight edits
+        var s = serverState[pid];
+        if (!s) return;
+        var nextItems = JSON.stringify(s.items || null);
+        var nextRich  = JSON.stringify(s.richMatch || null);
+        if (nextItems !== JSON.stringify(t.items || null) || nextRich !== JSON.stringify(t.richMatch || null)
+            || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText) {
+          t.items = s.items || null;
+          t.richMatch = s.richMatch || null;
+          t.sessionNotionPageId = s.sessionNotionPageId;
+          t.itemText = s.itemText;
+          t.employee = s.employee;
+          changed = true;
+        }
+      });
+
+      if (changed) restockQueueRender();
     })
     .catch(function() {});
+}
+
+// Started once (guarded) at first boot-time restore. 25s keeps the "another
+// device stopped/edited this" gap tight without hammering KV — the restock
+// queue is a short-lived working view someone is actively watching while a
+// timer runs, not a background tab, so this cadence is cheap in practice.
+var _rqReconcilePoll = null;
+function _rqStartReconcilePoll() {
+  if (_rqReconcilePoll) return;
+  _rqReconcilePoll = setInterval(_rqReconcileTimers, 25000);
 }
 
 function _rqStartTick(pid) {
