@@ -1122,9 +1122,10 @@ function sotSaveNotes() {
 function sotSetSyncStatus(state) {
   var el = document.getElementById('sotSyncStatus');
   if (!el) return;
-  if (state === 'saving') { el.textContent = '☁ Saving…'; el.style.color = 'var(--text3)'; }
-  else if (state === 'saved') { el.textContent = '☁ Saved'; el.style.color = '#5a9a5a'; }
-  else if (state === 'error') { el.textContent = '☁ Sync error'; el.style.color = '#c44'; }
+  el.classList.remove('saving', 'saved', 'error');
+  if (state === 'saving') { el.textContent = '☁ Saving…'; el.classList.add('saving'); }
+  else if (state === 'saved') { el.textContent = '☁ Saved'; el.classList.add('saved'); }
+  else if (state === 'error') { el.textContent = '☁ Sync error'; el.classList.add('error'); }
 }
 
 function sotScheduleNotionSave() {
