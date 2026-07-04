@@ -918,7 +918,8 @@
     /* ── Customers Tab ───────────────────────── */
     .cust-bar {
       display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 16px;
+      gap: var(--sp-3);
+      margin-bottom: var(--sp-4);
     }
     .search-box {
       position: relative;
@@ -942,16 +943,55 @@
       color: var(--text);
     }
     .search-box input:focus { border-color: var(--accent); }
+    /* Customers-tab search: match New Order input styling (scoped — .search-box is shared) */
+    #tab-customers .search-box { width: 300px; }
+    #tab-customers .search-box svg { transition: color var(--dur-fast) var(--ease-smooth); }
+    #tab-customers .search-box:focus-within svg { color: var(--accent); }
+    #tab-customers .search-box input {
+      border-radius: var(--rad-sm);
+      background: #FAFAF8;
+      transition: border-color var(--dur-fast) var(--ease-smooth),
+                  background var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth);
+    }
+    #tab-customers .search-box input::placeholder { color: #B8B0A6; }
+    #tab-customers .search-box input:hover:not(:focus) { border-color: #C4B49A; }
+    #tab-customers .search-box input:focus {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: var(--focus-ring);
+    }
+    /* Sync button: clearer affordance (scoped — .notion-chip base is shared) */
+    .cust-bar .notion-chip {
+      padding: 8px 13px;
+      font-size: 12px; font-weight: 600;
+      border: 1px solid #DFD3F0;
+      border-radius: var(--rad-sm);
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  color var(--dur-fast) var(--ease-smooth),
+                  border-color var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth),
+                  transform var(--dur-fast) var(--ease-smooth);
+    }
+    .cust-bar .notion-chip:hover:not(:disabled) {
+      background: #E4D8F4; color: #4A2080; border-color: #C9B4E4;
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+    .cust-bar .notion-chip:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+    .cust-bar .notion-chip:disabled { opacity: 0.65; cursor: default; }
+    .cust-bar .notion-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
     .cust-table {
       background: #fff;
       border: 1px solid #E4DDD4;
-      border-radius: 12px;
+      border-radius: var(--rad-lg);
       overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
     .ct-head {
       display: grid;
-      grid-template-columns: 1.6fr 120px 130px 100px 90px;
-      padding: 11px 20px;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px 28px;
+      padding: 10px 20px;
       background: #F8F3EC;
       border-bottom: 1px solid #E4DDD4;
     }
@@ -959,28 +999,35 @@
     .ct-row {
       display: grid;
       grid-template-columns: 1.6fr 120px 130px 100px 90px 28px;
-      padding: 13px 20px;
+      padding: 12px 20px;
       align-items: center;
       cursor: pointer;
-      transition: background 0.1s;
+      box-shadow: inset 3px 0 0 transparent;
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth);
     }
-    .ct-row:hover { background: #FBF8F3; }
+    .ct-row:hover { background: #FBF8F3; box-shadow: inset 3px 0 0 var(--accent); }
     .ct-row-wrap { border-bottom: 1px solid #F2EDE6; }
     .ct-row-wrap:last-child { border-bottom: none; }
+    .ct-open > .ct-row { background: #FDFAF6; box-shadow: inset 3px 0 0 var(--accent); }
 
     /* ── Expand chevron ──────────────────────── */
     .ct-chevron {
       font-size: 16px; color: var(--text3);
-      transition: transform 0.2s; text-align: right;
+      transition: transform var(--dur-med) var(--ease-smooth),
+                  color var(--dur-fast) var(--ease-smooth);
+      text-align: right;
       line-height: 1; user-select: none;
     }
-    .ct-open .ct-chevron { transform: rotate(90deg); }
+    .ct-row:hover .ct-chevron { color: var(--accent); transform: translateX(2px); }
+    .ct-open .ct-chevron,
+    .ct-open .ct-row:hover .ct-chevron { transform: rotate(90deg); color: var(--accent); }
 
     /* ── Inline expand panel ─────────────────── */
     .ct-expand {
       max-height: 0;
       overflow: hidden;
-      transition: max-height 0.35s ease;
+      transition: max-height 0.35s var(--ease-smooth);
       background: #FDFAF6;
     }
     .ct-open .ct-expand {
@@ -1001,6 +1048,16 @@
       font-size: 10.5px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--text2);
       padding: 10px 0 8px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    /* Gold tick — matches .form-sec-label on the New Order pass */
+    .ct-exp-section-title::before,
+    .ct-info-title::before {
+      content: '';
+      width: 3px; height: 11px;
+      border-radius: 2px;
+      background: var(--accent);
+      flex-shrink: 0;
     }
 
     /* ── Contact info block ──────────────────── */
@@ -1014,6 +1071,7 @@
     .ct-info-title {
       font-size: 10.5px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--text2);
+      display: flex; align-items: center; gap: 7px;
     }
     .ct-edit-toggle-btn {
       font-size: 11.5px; font-weight: 600; color: var(--accent);
@@ -1040,11 +1098,15 @@
     /* ── Previous orders ─────────────────────── */
     .ct-prev-order {
       padding: 7px 10px;
-      border-radius: 7px;
+      border-radius: var(--rad-sm);
       border: 1px solid #EDE8E2;
       margin-bottom: 6px;
       background: #fff;
+      transition: border-color var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth),
+                  background var(--dur-fast) var(--ease-smooth);
     }
+    .ct-prev-order:hover { border-color: #D9CFC4; box-shadow: var(--shadow-sm); }
     .ct-prev-order-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
     .ct-prev-desc { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
     .ct-prev-edit-btn {
@@ -1064,7 +1126,7 @@
       border-color: #C8D9F0;
       background: #F4F8FE;
     }
-    .ct-current-order:hover { background: #E8F0FB; border-color: #A0BCDF; }
+    .ct-current-order:hover { background: #E8F0FB; border-color: #A0BCDF; box-shadow: var(--shadow-sm); }
     .ct-open-order-hint {
       font-size: 10.5px; font-weight: 600; color: var(--accent);
       flex-shrink: 0; opacity: 0.8;
@@ -1075,14 +1137,16 @@
     .ct-gmail-thread {
       display: block;
       padding: 9px 12px;
-      border-radius: 7px;
+      border-radius: var(--rad-sm);
       border: 1px solid #EDE8E2;
       margin-bottom: 6px;
       text-decoration: none;
       background: #fff;
-      transition: background 0.1s;
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  border-color var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth);
     }
-    .ct-gmail-thread:hover { background: #FBF8F3; border-color: #D9CFC4; }
+    .ct-gmail-thread:hover { background: #FBF8F3; border-color: #D9CFC4; box-shadow: var(--shadow-sm); }
     .ct-gmail-row1 { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
     .ct-gmail-unread-dot {
       width: 7px; height: 7px; border-radius: 50%;
@@ -1117,14 +1181,21 @@
     }
     .ct-edit-input {
       padding: 6px 10px;
-      border: 1.5px solid #D9D0C6;
-      border-radius: 6px;
+      border: 1px solid #D8D0C8;
+      border-radius: var(--rad-sm);
       font-size: 13px; color: var(--text);
-      background: #fff;
+      background: #FAFAF8;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color var(--dur-fast) var(--ease-smooth),
+                  background var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth);
     }
-    .ct-edit-input:focus { border-color: var(--accent); }
+    .ct-edit-input:hover:not(:focus) { border-color: #C4B49A; }
+    .ct-edit-input:focus {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: var(--focus-ring);
+    }
     .ct-edit-foot {
       display: flex; align-items: center; gap: 8px;
     }
@@ -1134,11 +1205,12 @@
       width: 34px; height: 34px; border-radius: 50%;
       background: linear-gradient(135deg, #C9983A 0%, #7A5A18 100%);
       color: #fff;
-      font-size: 12px; font-weight: 800;
+      font-size: 12px; font-weight: 800; letter-spacing: 0.3px;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(26,46,56,0.18), inset 0 0 0 1px rgba(255,255,255,0.18);
     }
-    .c-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .c-name { font-size: 13.5px; font-weight: 700; color: var(--text); letter-spacing: -0.1px; }
     .c-email { font-size: 11.5px; color: var(--text2); }
     .o-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
     .o-badge {
@@ -1152,7 +1224,7 @@
     .o-badge.assignee  { background:#FBEFE0; color:#9A5A1A; }
     .o-badge.platform-etsy    { background:#FDEDEB; color:#B5462F; }
     .o-badge.platform-shopify { background:#E9F5EC; color:#1F7A3D; }
-    .c-td { font-size: 13px; color: var(--text); }
+    .c-td { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
     .c-muted { color: var(--text2); }
     .active-chip {
       display: inline-flex; align-items: center; gap: 5px;
@@ -1165,39 +1237,48 @@
     .active-chip::before { content: '●'; font-size: 8px; }
 
     /* ── Customer sub-tabs ───────────────────── */
+    /* Sub-tabs sit directly on the blue page background — light-on-dark palette */
     .cust-subtabs {
       display: flex; gap: 4px;
-      border-bottom: 1px solid #E4DDD4;
-      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      margin-bottom: var(--sp-4);
       flex-wrap: wrap;
     }
     .cst-tab {
       padding: 7px 14px;
       font-size: 12.5px; font-weight: 600;
-      color: var(--text2);
+      color: rgba(255,255,255,0.72);
       border: none; background: none;
       border-bottom: 2.5px solid transparent;
+      border-radius: var(--rad-sm) var(--rad-sm) 0 0;
       cursor: pointer;
+      font-family: inherit;
       display: flex; align-items: center; gap: 6px;
-      transition: color 0.15s;
+      transition: color var(--dur-fast) var(--ease-smooth),
+                  background var(--dur-fast) var(--ease-smooth),
+                  border-color var(--dur-fast) var(--ease-smooth);
       margin-bottom: -1px;
     }
-    .cst-tab:hover { color: var(--text); }
-    .cst-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .cst-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .cst-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .cst-tab.active { color: var(--accent-light); border-bottom-color: var(--accent-light); }
     .cst-count {
       font-size: 10px; font-weight: 700;
-      background: #F0EDE8; color: var(--text2);
+      background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.85);
       padding: 1px 6px; border-radius: 10px;
       min-width: 18px; text-align: center;
+      font-variant-numeric: tabular-nums;
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  color var(--dur-fast) var(--ease-smooth);
     }
-    .cst-tab.active .cst-count { background: #F5EDD5; color: var(--accent); }
+    .cst-tab.active .cst-count { background: rgba(201,152,58,0.3); color: var(--accent-light); }
     .cust-empty {
       padding: 40px 20px;
       text-align: center;
       color: var(--text2);
       font-size: 13.5px;
     }
-    .cust-empty-icon { font-size: 32px; margin-bottom: 10px; }
+    .cust-empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.85; }
 
     .stage-chip {
       display: inline-block;
@@ -3777,7 +3858,7 @@
     /* Customer table: scrollable */
     .cust-table { overflow-x: auto; }
     .ct-head,
-    .ct-row { min-width: 540px; }
+    .ct-row { min-width: 620px; }
 
     /* Customer bar: stack search + button */
     .cust-bar { flex-direction: column; align-items: stretch; gap: 10px; }
