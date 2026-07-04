@@ -2603,20 +2603,110 @@
     }
 
     /* ── Sales ───────────────────────────────── */
-    .sales-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
-    .sales-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .sales-card  { background: #fff; border: 1px solid #E4DDD4; border-radius: 12px; overflow: hidden; }
-    .sales-card-head { padding: 12px 16px; background: #F8F3EC; border-bottom: 1px solid #E4DDD4; font-size: 13px; font-weight: 700; color: var(--text); }
-    .sales-card-body { padding: 16px; }
-    .sales-row-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #F4EFE8; font-size: 13px; }
-    .sales-row-item:last-child { border-bottom: none; }
-    .sales-row-name { font-weight: 600; color: var(--text); }
-    .sales-row-val  { color: #4A7A4A; font-weight: 700; font-size: 13px; }
-    .sales-bar-wrap { display: flex; flex-direction: column; gap: 11px; }
-    .sales-bar-row  { display: flex; flex-direction: column; gap: 4px; }
-    .sales-bar-lbl  { display: flex; justify-content: space-between; font-size: 12px; color: #5A5250; }
-    .sales-bar-track{ height: 8px; background: #F0EBE3; border-radius: 4px; overflow: hidden; }
-    .sales-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+    /* Toolbar row (auto-update note + Square sync button) */
+    .sales-toolbar { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); flex-wrap: wrap; }
+    .sales-toolbar-note { font-size: 11px; color: var(--text3); font-style: italic; }
+    .sales-sync-btn {
+      background: var(--hdr); color: #fff; border: 1px solid transparent;
+      border-radius: var(--rad-sm); padding: 7px 15px;
+      font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: var(--shadow-sm);
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth),
+                  transform var(--dur-fast) var(--ease-smooth);
+    }
+    .sales-sync-btn:hover:not(:disabled) { background: var(--nav); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+    .sales-sync-btn:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-sm); }
+    .sales-sync-btn:disabled { opacity: 0.65; cursor: default; }
+    .sales-sync-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+    /* Stat cards (shared .stat-card, non-clickable here) */
+    .sales-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+    #tab-sales .stat-card { cursor: default; }
+    #tab-sales .stat-card:hover { border-color: #E4DDD4; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+    #tab-sales .stat-value { font-variant-numeric: tabular-nums; }
+    #tab-sales .stat-sub { font-size: 11px; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+    .sales-delta { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sales-delta.up   { color: #2A7A48; }
+    .sales-delta.down { color: #C43030; }
+
+    /* Cards */
+    .sales-row   { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+    .sales-card  {
+      background: var(--card-bg); border: 1px solid #E4DDD4; border-radius: var(--rad-lg);
+      overflow: hidden; box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--dur-fast) var(--ease-smooth);
+    }
+    .sales-card:hover { box-shadow: var(--shadow-md); }
+    .sales-card-head {
+      padding: 10px var(--sp-4); background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
+      font-size: 11.5px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .sales-card-body { padding: var(--sp-4); }
+    .sales-card-body.sales-flush { padding: 0; }
+    .sales-block { margin-top: var(--sp-4); }
+
+    /* Horizontal bar charts */
+    .sales-bar-wrap { display: flex; flex-direction: column; gap: 10px; }
+    .sales-bar-row  { display: flex; flex-direction: column; gap: 3px; border-radius: var(--rad-sm); }
+    .sales-bar-lbl  { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
+    .sales-bar-amt  { font-weight: 700; color: var(--text); }
+    .sales-bar-sub  { font-size: 11px; color: var(--text3); }
+    .sales-bar-track{ height: 8px; background: #F0EBE3; border-radius: 999px; overflow: hidden; }
+    .sales-bar-fill {
+      height: 100%; border-radius: 999px;
+      transition: width var(--dur-med) var(--ease-smooth), filter var(--dur-fast) var(--ease-smooth);
+    }
+    .sales-bar-fill.sf-gold { background: linear-gradient(90deg,#C9983A,#E8B850); }
+    .sales-bar-fill.sf-blue { background: linear-gradient(90deg,#4A7FB8,#6A9AD4); }
+    .sales-bar-row:hover .sales-bar-fill { filter: brightness(1.07); }
+
+    /* Data tables */
+    .sales-table-wrap { overflow-x: auto; }
+    .sales-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .sales-table th {
+      padding: 8px var(--sp-4); text-align: left; white-space: nowrap;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+      color: #7A7268; background: #F8F3EC; border-bottom: 1px solid #E4DDD4;
+    }
+    .sales-table td { padding: 7px var(--sp-4); border-bottom: 1px solid #F4EFE8; font-variant-numeric: tabular-nums; }
+    .sales-table tbody tr { transition: background var(--dur-fast) var(--ease-smooth); }
+    .sales-table tbody tr:nth-child(even) { background: #FDFAF6; }
+    .sales-table tbody tr:hover { background: var(--accent-bg); }
+    .sales-table tbody tr:last-child td { border-bottom: none; }
+    .sales-td-label { font-weight: 600; color: var(--text); }
+    .sales-td-total { font-weight: 700; color: #2A7A48; }
+    .sales-td-muted { color: #7A7268; }
+    .sales-td-desc  { color: #5A5248; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sales-chip { display: inline-block; background: #F0EBE3; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 600; color: var(--text2); }
+    .sales-empty { padding: 24px; text-align: center; color: var(--text3); font-size: 13px; }
+
+    /* Custom Order Revenue section divider */
+    .sales-section { margin-top: 28px; padding-top: 20px; border-top: 2px solid #E4DDD4; }
+    .sales-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-4); }
+    .sales-section-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .sales-section-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+    /* Midnight theme: sales surfaces + contrast */
+    body.theme-midnight .sales-card { background: var(--card-bg); border-color: var(--bdr); }
+    body.theme-midnight .sales-card-head { background: var(--card-head-bg); border-color: var(--bdr); color: var(--text2); }
+    body.theme-midnight #tab-sales .stat-card:hover { border-color: var(--bdr) !important; }
+    body.theme-midnight .sales-table th { background: var(--card-head-bg); border-color: var(--bdr); color: var(--text3); }
+    body.theme-midnight .sales-table td { border-color: var(--bdr-light); }
+    body.theme-midnight .sales-table tbody tr:nth-child(even) { background: #28282C; }
+    body.theme-midnight .sales-table tbody tr:hover { background: var(--accent-bg); }
+    body.theme-midnight .sales-td-total { color: #7FC79A; }
+    body.theme-midnight .sales-td-muted { color: var(--text3); }
+    body.theme-midnight .sales-td-desc  { color: var(--text2); }
+    body.theme-midnight .sales-chip { background: #343438; color: var(--text2); }
+    body.theme-midnight .sales-delta.up   { color: #7FC79A; }
+    body.theme-midnight .sales-delta.down { color: #E08A80; }
+    body.theme-midnight .sales-bar-track { background: #38383C; }
+    body.theme-midnight .sales-section { border-top-color: var(--bdr); }
+    body.theme-midnight .sales-sync-btn { background: var(--accent-bg); color: var(--accent-light); border-color: var(--accent-border); }
+    body.theme-midnight .sales-sync-btn:hover:not(:disabled) { background: #342C20; }
 
     /* ── Notes ───────────────────────────────── */
     .notes-capture {

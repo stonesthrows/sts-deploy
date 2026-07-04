@@ -178,7 +178,7 @@ function renderSales() {
   var prevTotal = prevWeek.total || 0;
   var weekChange = prevTotal ? ((lastTotal - prevTotal) / prevTotal * 100).toFixed(0) : 0;
   var changeSign = weekChange >= 0 ? '+' : '';
-  var changeCls  = weekChange >= 0 ? 'color:#2A7A48' : 'color:#C43030';
+  var changeCls  = weekChange >= 0 ? 'up' : 'down';
 
   // Active orders pipeline value
   var pipelineVal = ORDERS
@@ -188,17 +188,15 @@ function renderSales() {
   var html = '';
 
   // ── Sync button + auto-update note ───────
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
-  html += '<span style="font-size:11px;color:#9A8860;font-style:italic">⏱ Auto-updates every Saturday &amp; Sunday evening</span>';
-  html += '<button id="salesSyncBtn" onclick="syncSquareSales()" '
-        + 'style="background:#1a1a2e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">'
-        + '↻ Sync from Square</button>';
+  html += '<div class="sales-toolbar">';
+  html += '<span class="sales-toolbar-note">⏱ Auto-updates every Saturday &amp; Sunday evening</span>';
+  html += '<button id="salesSyncBtn" class="sales-sync-btn" onclick="syncSquareSales()">↻ Sync from Square</button>';
   html += '</div>';
 
   // ── Stat Cards ────────────────────────────
   html += '<div class="sales-stats">';
   html += statCard('💰', 'si-gold',   'Last Weekend',   '$' + lastTotal.toLocaleString(),
-    '<span style="' + changeCls + ';font-size:11px;font-weight:600">' + changeSign + weekChange + '% vs prior</span>');
+    '<span class="sales-delta ' + changeCls + '">' + changeSign + weekChange + '% vs prior</span>');
   html += statCard('📅', 'si-green',  'YTD Market Sales','$' + Math.round(totalYTD).toLocaleString(), allData.length + ' weekends');
   html += statCard('📊', 'si-purple', 'Avg / Weekend',  '$' + Math.round(avgWeek).toLocaleString(), Math.round(avgTx) + ' avg transactions');
   html += statCard('🔧', 'si-red',    'Active Pipeline', '$' + pipelineVal.toLocaleString(),
@@ -219,9 +217,9 @@ function renderSales() {
     var satPct = maxWeek ? Math.round(((w.saturday||0) / maxWeek) * 100) : 0;
     var sunPct = maxWeek ? Math.round(((w.sunday||0)   / maxWeek) * 100) : 0;
     html += '<div class="sales-bar-row">';
-    html += '<div class="sales-bar-lbl"><span>' + w.label + '</span><span style="font-weight:700">$' + Math.round(w.total).toLocaleString() + '</span></div>';
-    html += '<div class="sales-bar-track"><div class="sales-bar-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#C9983A,#E8B850)"></div></div>';
-    html += '<div class="sales-bar-lbl" style="font-size:11px;color:#9A8860">';
+    html += '<div class="sales-bar-lbl"><span>' + w.label + '</span><span class="sales-bar-amt">$' + Math.round(w.total).toLocaleString() + '</span></div>';
+    html += '<div class="sales-bar-track"><div class="sales-bar-fill sf-gold" style="width:' + pct + '%"></div></div>';
+    html += '<div class="sales-bar-lbl sales-bar-sub">';
     html += '<span>Sat $' + Math.round(w.saturday||0).toLocaleString() + '</span>';
     html += '<span>Sun $' + Math.round(w.sunday||0).toLocaleString() + '</span></div>';
     html += '</div>';
@@ -255,45 +253,44 @@ function renderSales() {
     var d = stageMap[s];
     var pct = Math.round((d.value / maxVal) * 100);
     html += '<div class="sales-bar-row">';
-    html += '<div class="sales-bar-lbl"><span>' + stageLabels[s] + ' (' + d.count + ')</span><span style="font-weight:700">$' + d.value.toLocaleString() + '</span></div>';
-    html += '<div class="sales-bar-track"><div class="sales-bar-fill" style="width:' + pct + '%;background:#6A9AD4"></div></div>';
+    html += '<div class="sales-bar-lbl"><span>' + stageLabels[s] + ' (' + d.count + ')</span><span class="sales-bar-amt">$' + d.value.toLocaleString() + '</span></div>';
+    html += '<div class="sales-bar-track"><div class="sales-bar-fill sf-blue" style="width:' + pct + '%"></div></div>';
     html += '</div>';
   });
   html += '</div></div></div>';
   html += '</div>'; // sales-row
 
   // ── Weekly table ──────────────────────────
-  html += '<div class="sales-card" style="margin-top:14px">';
+  html += '<div class="sales-card sales-block">';
   html += '<div class="sales-card-head">All Weekend Sales</div>';
-  html += '<div class="sales-card-body" style="padding:0">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:#F8F3EC;border-bottom:1px solid #E4DDD4">';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table">';
+  html += '<thead><tr>';
   ['Weekend','Saturday','Sunday','Total','Transactions'].forEach(function(h) {
-    html += '<th style="padding:9px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7A7268">' + h + '</th>';
+    html += '<th>' + h + '</th>';
   });
   html += '</tr></thead><tbody>';
   var allWeeks = allData.slice().reverse();
-  allWeeks.forEach(function(w, i) {
-    var bg = i % 2 === 0 ? '#fff' : '#FDFAF6';
-    html += '<tr style="background:' + bg + ';border-bottom:1px solid #F4EFE8">';
-    html += '<td style="padding:8px 16px;font-weight:600">' + w.label + '</td>';
-    html += '<td style="padding:8px 16px">$' + (w.saturday||0).toLocaleString() + '</td>';
-    html += '<td style="padding:8px 16px">$' + (w.sunday||0).toLocaleString() + '</td>';
-    html += '<td style="padding:8px 16px;font-weight:700;color:#2A7A48">$' + Math.round(w.total).toLocaleString() + '</td>';
-    html += '<td style="padding:8px 16px;color:#7A7268">' + (w.num_transactions||0) + '</td>';
+  allWeeks.forEach(function(w) {
+    html += '<tr>';
+    html += '<td class="sales-td-label">' + w.label + '</td>';
+    html += '<td>$' + (w.saturday||0).toLocaleString() + '</td>';
+    html += '<td>$' + (w.sunday||0).toLocaleString() + '</td>';
+    html += '<td class="sales-td-total">$' + Math.round(w.total).toLocaleString() + '</td>';
+    html += '<td class="sales-td-muted">' + (w.num_transactions||0) + '</td>';
     html += '</tr>';
   });
-  html += '</tbody></table></div></div>';
+  html += '</tbody></table></div></div></div>';
 
   // ════════════════════════════════════════════
   // ── Custom Order Revenue ──────────────────
   // ════════════════════════════════════════════
 
-  html += '<div style="margin-top:32px;padding-top:24px;border-top:2px solid #E4DDD4;">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+  html += '<div class="sales-section">';
+  html += '<div class="sales-section-head">';
   html += '<div>';
-  html += '<div style="font-size:16px;font-weight:700;color:var(--text,#2C2820)">✏️ Custom Order Revenue</div>';
-  html += '<div style="font-size:12px;color:#9A8860;margin-top:2px">Completed orders from the pipeline — separate from market sales</div>';
+  html += '<div class="sales-section-title">✏️ Custom Order Revenue</div>';
+  html += '<div class="sales-section-sub">Completed orders from the pipeline — separate from market sales</div>';
   html += '</div></div>';
 
   var completedOrders = ORDERS.filter(function(o) {
@@ -311,7 +308,7 @@ function renderSales() {
   var activeVal    = ORDERS.filter(function(o){ return o.stage !== 'complete' && o.stage !== 'delivered'; })
                            .reduce(function(s,o){ return s + (o.price||0); }, 0);
 
-  html += '<div class="sales-stats" style="margin-bottom:16px">';
+  html += '<div class="sales-stats">';
   html += statCard('💎', 'si-gold',   'Total Completed',  '$' + Math.round(customTotal).toLocaleString(), customCount + ' orders');
   html += statCard('📊', 'si-purple', 'Avg Order Value',  '$' + Math.round(customAvg).toLocaleString(),  'per completed order');
   html += statCard('🔧', 'si-red',    'Active Pipeline',  '$' + activeVal.toLocaleString(),              activeCount + ' open orders');
@@ -319,37 +316,36 @@ function renderSales() {
 
   html += '<div class="sales-card">';
   html += '<div class="sales-card-head">Completed Orders</div>';
-  html += '<div class="sales-card-body" style="padding:0">';
+  html += '<div class="sales-card-body sales-flush">';
 
   if (!completedOrders.length) {
-    html += '<div style="padding:24px;text-align:center;color:#9A8860;font-size:13px">No completed orders yet</div>';
+    html += '<div class="sales-empty">No completed orders yet</div>';
   } else {
-    html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-    html += '<thead><tr style="background:#F8F3EC;border-bottom:1px solid #E4DDD4">';
+    html += '<div class="sales-table-wrap"><table class="sales-table">';
+    html += '<thead><tr>';
     ['Customer','Description','Type','Amount','Completed','Paid By'].forEach(function(h) {
-      html += '<th style="padding:9px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7A7268">' + h + '</th>';
+      html += '<th>' + h + '</th>';
     });
     html += '</tr></thead><tbody>';
 
     var typeLabels = { order:'Custom', estimate:'Estimate', repair:'Repair' };
-    completedOrders.forEach(function(o, i) {
-      var bg       = i % 2 === 0 ? '#fff' : '#FDFAF6';
+    completedOrders.forEach(function(o) {
       var amount   = o.finalPrice || o.price || 0;
       var dateStr  = o.completedAt ? new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
                    : o.deadline    ? new Date(o.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-                   : '<span style="color:#9A8860">Unknown</span>';
+                   : '<span class="sales-td-muted">Unknown</span>';
       var typeLabel = typeLabels[o.orderType] || 'Custom';
-      var paidBy   = o.paidBy || '<span style="color:#9A8860">—</span>';
-      html += '<tr style="background:' + bg + ';border-bottom:1px solid #F4EFE8">';
-      html += '<td style="padding:8px 16px;font-weight:600">'  + (o.name || '—') + '</td>';
-      html += '<td style="padding:8px 16px;color:#5A5248;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (o.desc || '—') + '</td>';
-      html += '<td style="padding:8px 16px"><span style="background:#F0EBE3;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + typeLabel + '</span></td>';
-      html += '<td style="padding:8px 16px;font-weight:700;color:#2A7A48">$' + amount.toLocaleString() + '</td>';
-      html += '<td style="padding:8px 16px">' + dateStr + '</td>';
-      html += '<td style="padding:8px 16px;color:#7A7268">' + paidBy + '</td>';
+      var paidBy   = o.paidBy || '<span class="sales-td-muted">—</span>';
+      html += '<tr>';
+      html += '<td class="sales-td-label">'  + (o.name || '—') + '</td>';
+      html += '<td class="sales-td-desc">' + (o.desc || '—') + '</td>';
+      html += '<td><span class="sales-chip">' + typeLabel + '</span></td>';
+      html += '<td class="sales-td-total">$' + amount.toLocaleString() + '</td>';
+      html += '<td>' + dateStr + '</td>';
+      html += '<td class="sales-td-muted">' + paidBy + '</td>';
       html += '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   }
 
   html += '</div></div></div>'; // close card, section
@@ -362,6 +358,6 @@ function statCard(icon, iconCls, label, value, sub) {
     + '<div class="stat-icon ' + iconCls + '">' + icon + '</div>'
     + '<div><div class="stat-label">' + label + '</div>'
     + '<div class="stat-value">' + value + '</div>'
-    + (sub ? '<div style="font-size:11px;color:#7A7268;margin-top:2px">' + sub + '</div>' : '')
+    + (sub ? '<div class="stat-sub">' + sub + '</div>' : '')
     + '</div></div>';
 }
