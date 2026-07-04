@@ -284,6 +284,9 @@ const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
   running: false, startTime: null, tickInterval: null, debounce: null,
   clockStatus: 'unknown', notionPageId: null,
   shiftEvents: [],
+  deviceId: null, // which device (see _wtDeviceId) put this slot's KV entry there;
+                  // used only to decide self-heal-vs-silent-reset in _wtReconcile,
+                  // never to gate who's allowed to view/stop/edit a running slot
 }));
 
 // Local catalog items not reliably found via Square text search
@@ -380,6 +383,132 @@ function showToast(msg, error = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// ── Cross-device live sync (KV) ─────────────────────────────────────────────
+// Mirrors js/restock.js's _rq* pattern 1:1 for the Work Timer's 2 fixed slots,
+// against /api/wt-timer-state (same STS_TIMER KV binding, separate per-slot
+// keys `wt_timer:{tid}`). See that file's header comment for the storage
+// rationale. This is a push-on-mutation + poll-to-reconcile layer on top of
+// the existing local/Notion-active-session bootstrap below — additive, not a
+// replacement: local-slot resume and Notion session create/finalize are
+// unchanged.
+
+// Stable per-browser id, so a device can tell which shared KV slot state is
+// its OWN (safe to self-heal/re-assert if KV loses it) versus one it merely
+// received from another device (must never blindly re-push over, and must
+// silently reset — not re-finalize — if that device removes it).
+function _wtDeviceId() {
+  let id = '';
+  try { id = localStorage.getItem('sts-wt-device') || ''; } catch (e) {}
+  if (!id) {
+    id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try { localStorage.setItem('sts-wt-device', id); } catch (e) {}
+  }
+  return id;
+}
+
+function _wtTimerPayload(tid) {
+  const t = T[tid];
+  if (!t || !t.running) return null;
+  return {
+    startTime: t.startTime,
+    items: t.selectedItems || [],
+    employee: t.selectedEmployee || null,
+    notionPageId: t.notionPageId || null,
+    deviceId: t.deviceId || null,
+  };
+}
+
+// Push this slot's current state into shared KV (start, notionPageId linkup,
+// or a mid-run edit like adjust-start). Called regardless of who "owns" the
+// slot — any device actively looking at a running timer can legitimately
+// edit it (same as RQ inline timers), same as the pre-existing behavior
+// where any device that had adopted a session via the Notion-active fallback
+// could already stop/edit it fully.
+function _wtPersistTimer(tid) {
+  const payload = _wtTimerPayload(tid);
+  if (!payload) return;
+  fetch('/api/wt-timer-state', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upsert: { [tid]: payload } }),
+  }).catch(() => {});
+}
+
+function _wtUnpersistTimer(tid) {
+  fetch('/api/wt-timer-state', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ remove: String(tid) }),
+  }).catch(() => {});
+}
+
+// Pulls shared KV state and reconciles it against our 2 local slots — same
+// logic as js/restock.js's _rqReconcileTimers, adapted to fixed tid slots:
+//   - server has a slot we're not running   → adopt it (another device
+//                                              started/is running it)
+//   - our own slot missing from server      → self-heal (re-push)
+//   - a slot we merely adopted (not ours) is
+//     missing from server                   → owner stopped/finalized it
+//                                              elsewhere — reset OUR copy
+//                                              silently (do NOT re-finalize
+//                                              the Notion session, it's
+//                                              already been finalized)
+//   - a slot we merely adopted changed on
+//     server (owner edited items/employee/
+//     start time)                            → refresh our copy. Never done
+//                                              for our own slot, to avoid
+//                                              racing our own in-flight edit
+//                                              against a poll that read a
+//                                              stale server copy just before
+//                                              our own PUT landed.
+function _wtReconcile() {
+  fetch('/api/wt-timer-state')
+    .then(r => r.ok ? r.json() : null)
+    .then(serverState => {
+      if (!serverState) return;
+      const myId = _wtDeviceId();
+      for (let tid = 0; tid < NUM_TIMERS; tid++) {
+        const s = serverState[tid] ?? serverState[String(tid)];
+        if (T[tid].running) {
+          if (s) {
+            if (T[tid].deviceId !== myId) {
+              const changed = s.startTime !== T[tid].startTime
+                || JSON.stringify(s.items || []) !== JSON.stringify(T[tid].selectedItems || [])
+                || (s.notionPageId || null) !== (T[tid].notionPageId || null);
+              if (changed) {
+                T[tid].startTime = s.startTime;
+                T[tid].selectedItems = s.items || [];
+                T[tid].selectedEmployee = s.employee || T[tid].selectedEmployee;
+                T[tid].notionPageId = s.notionPageId || null;
+                renderSelectedItems(tid);
+                _runningUI(tid);
+              }
+            }
+          } else if (T[tid].deviceId === myId) {
+            _wtPersistTimer(tid); // self-heal our own timer
+          } else {
+            // Another device already stopped/finalized this — reset our
+            // view silently. resetTimer() is pure local/UI cleanup (no
+            // Notion or KV calls), so this can't double-save the session.
+            resetTimer(tid);
+            showToast(`Timer ${tid + 1} was stopped on another device`);
+          }
+        } else if (s) {
+          resumeTimer(tid, { startTime: s.startTime, items: s.items || [], employee: s.employee, notionPageId: s.notionPageId || null, deviceId: s.deviceId || null });
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+// Started once at boot(). 25s mirrors the RQ inline timer poll cadence —
+// tight enough that "Device A stopped/edited this" surfaces on Device B
+// while its tab is open and showing the timer as running, without hammering
+// KV from every open Work Timer tab in the shop.
+let _wtReconcilePoll = null;
+function _wtStartReconcilePoll() {
+  if (_wtReconcilePoll) return;
+  _wtReconcilePoll = setInterval(_wtReconcile, 25000);
+}
+
 // ── Notion persistence ───────────────────────────────────────────────────────
 async function createActiveSession(tid) {
   const items = T[tid].selectedItems;
@@ -400,6 +529,7 @@ async function createActiveSession(tid) {
       localStorage.setItem(`sts_notionPageId_${tid}`, data.notionPageId);
       const loc = JSON.parse(localStorage.getItem(`sts_activeTimer_${tid}`) || '{}');
       localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ ...loc, notionPageId: data.notionPageId }));
+      _wtPersistTimer(tid);
     }
   } catch(e) { console.warn('Notion start save failed:', e); }
 }
@@ -471,6 +601,7 @@ function applyAdjustStart(tid) {
   const loc = JSON.parse(localStorage.getItem(`sts_activeTimer_${tid}`) || '{}');
   localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ ...loc, startTime: newStart }));
   patchNotion(T[tid].notionPageId, { startTime: new Date(newStart).toISOString() });
+  _wtPersistTimer(tid);
   $t(tid, 'adjust-panel').style.display = 'none';
   $g('abar-start-lbl-' + tid).textContent = new Date(newStart).toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
   showToast(`Start time updated`);
@@ -869,11 +1000,13 @@ function _runningUI(tid) {
 function startTimer(tid) {
   T[tid].running = true;
   T[tid].startTime = parseTimeInput($t(tid,'start-time-input')?.value) || Date.now();
-  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee }));
+  T[tid].deviceId = _wtDeviceId();
+  localStorage.setItem(`sts_activeTimer_${tid}`, JSON.stringify({ startTime: T[tid].startTime, items: T[tid].selectedItems, employee: T[tid].selectedEmployee, deviceId: T[tid].deviceId }));
   T[tid].shiftEvents = [];
   createActiveSession(tid);
   loadShiftsForTimer(tid);
   _runningUI(tid);
+  _wtPersistTimer(tid);
 }
 
 function resumeTimer(tid, saved) {
@@ -881,9 +1014,16 @@ function resumeTimer(tid, saved) {
   T[tid].selectedEmployee = saved.employee;
   T[tid].startTime        = saved.startTime;
   T[tid].running          = true;
+  // Own local-storage resume / Notion-active fallback adopt (both omit
+  // deviceId) default to "ours" — this device is now the one displaying and
+  // responsible for it. A live reconcile-triggered adopt (see _wtReconcile)
+  // passes the true owner's deviceId through, so it's correctly tagged
+  // foreign and never self-heal-pushed over.
+  T[tid].deviceId = saved.deviceId || _wtDeviceId();
   if (saved.notionPageId) { T[tid].notionPageId = saved.notionPageId; localStorage.setItem(`sts_notionPageId_${tid}`, saved.notionPageId); }
   renderSelectedItems(tid); _runningUI(tid);
   loadShiftsForTimer(tid);
+  _wtPersistTimer(tid);
   const elapsed = Date.now() - saved.startTime;
   const startDate = new Date(saved.startTime);
   const isDifferentDay = startDate.toDateString() !== new Date().toDateString();
@@ -903,6 +1043,7 @@ async function stopTimer(tid) {
   const startTime = new Date(T[tid].startTime).toISOString();
   localStorage.removeItem(`sts_activeTimer_${tid}`);
   localStorage.removeItem(`sts_notionPageId_${tid}`);
+  _wtUnpersistTimer(tid);
   const totalWall = Date.now() - T[tid].startTime;
   $t(tid,'stop-btn').disabled = true; $t(tid,'stop-btn').textContent = 'Saving…';
   let clockedOutMs = 0;
@@ -1119,7 +1260,7 @@ function inventoryDone() {
 }
 
 function resetTimer(tid) {
-  T[tid].running = false; T[tid].notionPageId = null; T[tid].shiftEvents = [];
+  T[tid].running = false; T[tid].notionPageId = null; T[tid].shiftEvents = []; T[tid].deviceId = null;
   localStorage.removeItem(`sts_activeTimer_${tid}`); localStorage.removeItem(`sts_notionPageId_${tid}`);
   clearInterval(T[tid].tickInterval);
   // Hide active bar
@@ -1415,6 +1556,13 @@ async function boot() {
   loadSessionsFromNotion();
   await loadEmployees();
   if (CFG.sqToken) { setTimeout(() => { pollShifts(); setInterval(pollShifts, 45000); }, 5000); }
+
+  // Live cross-device sync layer (additive — see _wtReconcile above). Runs
+  // once immediately so a timer another device started since this device's
+  // last load/active-session check shows up right away, then on a poll so a
+  // stop/edit elsewhere keeps showing up while this tab stays open.
+  _wtReconcile();
+  _wtStartReconcilePoll();
 }
 boot();
 
