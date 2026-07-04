@@ -7283,20 +7283,29 @@ function savePrintSetup() {
 
 /* Health Bar */
 .tl-health-bar {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
   padding: 10px 20px; background: var(--bg2);
   border-bottom: 1px solid var(--bdr); font-size: 13px;
 }
 .tl-health-item { display: flex; flex-direction: column; gap: 1px; }
 .tl-health-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
-.tl-health-val { font-weight: 700; font-size: 15px; color: var(--text); }
+.tl-health-val { font-weight: 700; font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
 .tl-health-sep { color: var(--text-dim); font-size: 16px; }
-.tl-health-diff { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.tl-health-diff { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 20px; font-variant-numeric: tabular-nums; }
 .tl-health-diff.health-ok  { background: #e8f5e9; color: #2e7d32; }
 .tl-health-diff.health-warn { background: #fff3e0; color: #e65100; }
 .tl-health-diff.health-err  { background: #fce4ec; color: #c62828; }
-.tl-health-log-btn { margin-left: auto; font-size: 12px; padding: 4px 12px; border: 1px solid var(--bdr); border-radius: 20px; background: transparent; color: var(--accent); cursor: pointer; }
-.tl-health-log-btn:hover { background: var(--accent); color: #fff; }
+.tl-health-log-btn {
+  margin-left: auto; font-size: 12px; padding: 4px 12px;
+  border: 1px solid var(--bdr); border-radius: 20px;
+  background: transparent; color: var(--accent); cursor: pointer;
+  font-family: inherit; font-weight: 600;
+  transition: background var(--dur-fast) var(--ease-smooth),
+              color var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth);
+}
+.tl-health-log-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tl-health-log-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 
 /* Chain gap rows */
 .tl-chain-gap-row td { padding: 6px 12px; }
@@ -7308,8 +7317,11 @@ function savePrintSetup() {
   margin-left: 12px; font-size: 11px; padding: 2px 10px;
   border: 1px solid #ff9800; border-radius: 12px;
   background: transparent; color: #e65100; cursor: pointer;
+  font-family: inherit;
+  transition: background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
 }
 .tl-gap-add-btn:hover { background: #ff9800; color: #fff; }
+.tl-gap-add-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Gap trip rows */
 .tl-gap-trip-row { background: #f3e5f5 !important; }
@@ -7319,22 +7331,31 @@ function savePrintSetup() {
   margin-left: 4px; font-size: 11px; padding: 2px 6px;
   border: 1px solid var(--bdr); border-radius: 6px;
   background: transparent; color: #c62828; cursor: pointer;
+  font-family: inherit;
+  transition: background var(--dur-fast) var(--ease-smooth), border-color var(--dur-fast) var(--ease-smooth);
 }
-.tl-del-btn:hover { background: #fce4ec; }
+.tl-del-btn:hover { background: #fce4ec; border-color: #ef9a9a; }
+.tl-del-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .tl-stats-row {
   display: flex; gap: 10px; flex-wrap: wrap;
-  padding: 16px 20px;
+  padding: var(--sp-4) 20px;
   border-bottom: 1px solid var(--bdr);
 }
 .tl-stat {
   background: var(--card-bg);
-  border: 1px solid var(--bdr);
-  border-radius: 12px;
-  padding: 14px 16px;
-  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--bdr-light);
+  border-radius: var(--rad-lg);
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: var(--sp-3);
   min-width: 130px; flex: 1;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth),
+              transform var(--dur-fast) var(--ease-smooth);
 }
+.tl-stat:hover { box-shadow: var(--shadow-md); border-color: var(--bdr); transform: translateY(-1px); }
+#tab-triplog .stat-value { font-variant-numeric: tabular-nums; }
 .tl-stat-reimb { border-color: #F0C870; background: #FDFAF2; }
 .tl-reimb-value { color: #8C6520 !important; }
 /* ── Calendar ─────────────────────────── */
@@ -7520,44 +7541,49 @@ function savePrintSetup() {
 /* ── end Calendar ─────────────────────── */
 
 .tl-stat-icon {
-  width: 38px; height: 38px; border-radius: 10px;
+  width: 38px; height: 38px; border-radius: var(--rad-md);
   display: flex; align-items: center; justify-content: center;
   font-size: 17px; flex-shrink: 0;
 }
 .tl-date-input {
-  padding: 6px 10px; border: 1px solid var(--bdr); border-radius: 8px;
+  padding: 6px 10px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
   font-size: 13px; background: var(--card-bg); color: var(--text);
-  cursor: pointer;
+  cursor: pointer; font-family: inherit;
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
 }
+.tl-date-input:hover { border-color: var(--accent-border); }
+.tl-date-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .tl-table-wrap {
   overflow-x: auto;
-  padding: 16px 20px;
+  padding: var(--sp-4) 20px;
 }
 .tl-table {
   width: 100%; border-collapse: collapse; font-size: 13px;
-  background: var(--card-bg); border: 1px solid var(--bdr);
-  border-radius: 10px; overflow: hidden;
+  background: var(--card-bg); border: 1px solid var(--bdr-light);
+  border-radius: var(--rad-lg); overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .tl-table thead th {
   background: var(--card-head-bg); border-bottom: 1px solid var(--bdr);
-  padding: 10px 12px; text-align: left;
-  font-size: 11px; font-weight: 700; color: var(--text2);
-  text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
+  padding: 9px 12px; text-align: left;
+  font-size: 10.5px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
 }
-.tl-table tbody tr { border-bottom: 1px solid var(--bdr-light); transition: background .1s; }
+.tl-table tbody tr { border-bottom: 1px solid var(--bdr-light); transition: background var(--dur-fast) var(--ease-smooth); }
 .tl-table tbody tr:last-child { border-bottom: none; }
 .tl-table tbody tr:hover { background: var(--accent-bg); }
-.tl-table td { padding: 10px 12px; vertical-align: middle; }
+.tl-table td { padding: 9px 12px; vertical-align: middle; }
 .tl-td-date { white-space: nowrap; font-weight: 600; font-size: 12px; }
-.tl-time { font-weight: 400; color: var(--text-dim); font-size: 11px; }
+.tl-time { font-weight: 400; color: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
 .tl-td-route { max-width: 380px; }
 .tl-from { color: var(--text2); }
 .tl-to   { font-weight: 600; color: var(--text); }
 .tl-arrow { color: var(--text-dim); margin: 0 5px; font-size: 11px; }
-.tl-td-miles { text-align: right; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.tl-td-miles { text-align: right; font-weight: 700; font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tl-td-act { white-space: nowrap; }
 .tl-td-odo { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
-.tl-odo { font-family: monospace; }
+.tl-odo { font-family: 'SF Mono', 'Consolas', monospace; font-variant-numeric: tabular-nums; }
 .tl-td-edit { text-align: right; white-space: nowrap; }
 .tl-badge {
   display: inline-block; padding: 2px 8px;
@@ -7569,9 +7595,14 @@ function savePrintSetup() {
   padding: 4px 10px; font-size: 11px; font-weight: 600;
   border: 1px solid var(--bdr); border-radius: 6px;
   background: var(--card-head-bg); color: var(--text2);
-  cursor: pointer; transition: all .15s;
+  cursor: pointer; font-family: inherit;
+  transition: background var(--dur-fast) var(--ease-smooth),
+              color var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
 }
-.tl-edit-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg); }
+.tl-edit-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg); box-shadow: var(--shadow-sm); }
+.tl-edit-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .tl-edit-dot {
   font-size: 13px; color: #C9983A; margin-right: 4px;
   cursor: default;
@@ -7586,7 +7617,7 @@ function savePrintSetup() {
 }
 .recon-stat { display: flex; flex-direction: column; gap: 3px; }
 .recon-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
-.recon-stat-val { font-size: 20px; font-weight: 800; color: var(--text); }
+.recon-stat-val { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .recon-stat-sep { font-size: 16px; color: var(--text-dim); }
 .recon-gap { font-size: 20px; font-weight: 800; }
 .recon-over  { color: #2D7A4A; }
@@ -7604,7 +7635,7 @@ function savePrintSetup() {
   top: 50%; left: 50%; transform: translate(-50%, -55%);
   width: min(480px, 96vw);
   background: var(--card-bg); border: 1px solid var(--bdr);
-  border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.18);
+  border-radius: 16px; box-shadow: var(--shadow-lg);
   z-index: 901; flex-direction: column;
 }
 .tl-modal.active { display: flex; transform: translate(-50%, -50%); }
@@ -7616,8 +7647,10 @@ function savePrintSetup() {
 .tl-modal-close {
   background: none; border: none; font-size: 22px; line-height: 1;
   color: var(--text-dim); cursor: pointer; padding: 0 2px;
+  transition: color var(--dur-fast) var(--ease-smooth);
 }
 .tl-modal-close:hover { color: var(--text); }
+.tl-modal-close:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
 .tl-modal-route {
   padding: 8px 20px 12px;
   font-size: 12px; color: var(--text2);
@@ -7628,12 +7661,14 @@ function savePrintSetup() {
 .tl-field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
 .tl-field label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text2); }
 .tl-field input, .tl-field select, .tl-field textarea {
-  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: 8px;
-  font-size: 13px; background: var(--bg); color: var(--text);
-  transition: border-color .15s; width: 100%;
+  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+  font-size: 13px; background: var(--input-bg); color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+  width: 100%;
 }
 .tl-field input:focus, .tl-field select:focus, .tl-field textarea:focus {
-  outline: none; border-color: var(--accent-border);
+  outline: none; border-color: var(--accent); box-shadow: var(--focus-ring);
 }
 .tl-field textarea { resize: vertical; font-family: inherit; }
 .tl-modal-foot {
@@ -7647,14 +7682,16 @@ function savePrintSetup() {
   margin: 0 20px 4px;
   background: linear-gradient(135deg,#FEF9EC,#FDF2D5);
   border: 1.5px solid #F0C870;
-  border-radius: 12px; padding: 14px 18px;
+  border-radius: var(--rad-lg); padding: 12px 16px;
+  box-shadow: var(--shadow-sm);
 }
 .odo-card {
-  margin: 16px 20px;
+  margin: var(--sp-4) 20px;
   background: var(--card-bg);
-  border: 1px solid var(--bdr);
-  border-radius: 12px;
+  border: 1px solid var(--bdr-light);
+  border-radius: var(--rad-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .odo-card-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -7670,9 +7707,9 @@ function savePrintSetup() {
 }
 .odo-sync-item { display: flex; flex-direction: column; gap: 3px; }
 .odo-sync-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
-.odo-sync-val { font-size: 20px; font-weight: 800; color: var(--text); }
+.odo-sync-val { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .odo-sync-sep { font-size: 18px; color: var(--text-dim); }
-.odo-delta { font-size: 14px; font-weight: 700; }
+.odo-delta { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .odo-delta.ok   { color: #2D7A4A; }
 .odo-delta.warn { color: #B07818; }
 .odo-delta.err  { color: #c0392b; }
@@ -7683,12 +7720,67 @@ function savePrintSetup() {
   flex-wrap: wrap;
 }
 .odo-input {
-  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: 8px;
-  font-size: 13px; background: var(--bg); color: var(--text);
+  padding: 8px 10px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+  font-size: 13px; background: var(--input-bg); color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
 }
-.odo-input:focus { outline: none; border-color: var(--accent-border); }
+.odo-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .odo-notes { flex: 1; min-width: 180px; }
-.odo-history-wrap { padding: 12px 16px 0; }
+.odo-history-wrap { padding: 12px 16px 0; overflow-x: auto; }
+
+/* ── TripLog: midnight theme ── */
+/* --bg2 is an alias (var(--hdr-pill)) substituted at :root, so the midnight
+   --hdr-pill override never reaches it — re-resolve it here. */
+body.theme-midnight .tl-health-bar { background: var(--hdr-pill); border-color: var(--bdr); }
+body.theme-midnight #tab-triplog .tl-stat-icon.si-gold   { background: #342C20; }
+body.theme-midnight #tab-triplog .tl-stat-icon.si-purple { background: #2E2838; }
+body.theme-midnight #tab-triplog .tl-stat-icon.si-green  { background: #1E2A22; }
+body.theme-midnight .tl-stat-reimb { border-color: #4A3820; background: #28221A; }
+body.theme-midnight .tl-reimb-value { color: #F0C060 !important; }
+body.theme-midnight .tl-health-diff.health-ok   { background: #1C2E22; color: #7FC79A; }
+body.theme-midnight .tl-health-diff.health-warn { background: #332818; color: #F0B060; }
+body.theme-midnight .tl-health-diff.health-err  { background: #33201E; color: #E08A80; }
+body.theme-midnight .tl-chain-gap-over  { background: #2A2414; border-top-color: #8A6A1C; border-bottom-color: #4A3E1C; }
+body.theme-midnight .tl-chain-gap-under { background: #2E1C1C; border-top-color: #8A3A34; border-bottom-color: #4A2A28; }
+body.theme-midnight .tl-gap-add-btn { border-color: #B07818; color: #F0B060; }
+body.theme-midnight .tl-gap-add-btn:hover { background: #B07818; color: #1A1A1C; }
+body.theme-midnight .tl-gap-trip-row { background: #2A2434 !important; }
+body.theme-midnight .tl-gap-trip-row:hover { background: #342C42 !important; }
+body.theme-midnight .tl-gap-dot { background: #B080D0 !important; }
+body.theme-midnight .tl-del-btn { color: #E08A80; }
+body.theme-midnight .tl-del-btn:hover { background: #33201E; border-color: #5A3230; }
+body.theme-midnight .tl-biz { background: #1C2E22; color: #7FC79A; border-color: #2E4A38; }
+body.theme-midnight .tl-per { background: #26283E; color: #9AA4E0; border-color: #3A4066; }
+body.theme-midnight .tl-edit-dot.tl-sync-fail { color: #E08A80; }
+body.theme-midnight .odo-friday-banner { background: linear-gradient(135deg,#28221A,#332B1C); border-color: #4A3820; }
+body.theme-midnight .odo-delta.ok   { color: #7FC79A; }
+body.theme-midnight .odo-delta.warn { color: #F0B060; }
+body.theme-midnight .odo-delta.err  { color: #E08A80; }
+body.theme-midnight .recon-over  { color: #7FC79A; }
+body.theme-midnight .recon-under { color: #E08A80; }
+
+/* ── TripLog: mobile (≤640px) ── */
+@media (max-width: 640px) {
+  #tab-triplog .page-bar { padding: 14px 12px 0 !important; }
+  .tl-health-bar { padding: 10px 12px; gap: 10px; }
+  .tl-stats-row {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 8px; padding: 12px;
+  }
+  .tl-stat { min-width: 0; padding: 10px 12px; gap: 10px; }
+  .tl-stat-reimb { grid-column: 1 / -1; }
+  #tab-triplog .stat-value { font-size: 20px; }
+  .tl-stat-icon { width: 34px; height: 34px; font-size: 15px; }
+  .tl-table-wrap { padding: 12px; }
+  .tl-table-wrap .tl-table { min-width: 680px; }
+  .odo-friday-banner { margin: 0 12px 4px; padding: 12px 14px; }
+  .odo-card { margin: 12px; }
+  .odo-sync-strip { gap: 10px; padding: 12px; }
+  .odo-sync-val { font-size: 17px; }
+  .odo-input-row { padding: 10px 12px; }
+  .odo-history-wrap { padding: 10px 12px 0; }
+}
 </style>
 
 <!-- ═══════════════════ EDIT ORDER MODAL ═══════════════════ -->
