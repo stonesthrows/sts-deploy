@@ -226,15 +226,7 @@
   <div class="config-panel">
     <button class="config-toggle" onclick="toggleConfig()">⚙ API settings</button>
     <div class="config-body" id="config-body">
-      <div style="font-size:12px;color:var(--text3);padding:0.25rem 0 0.5rem;">Square token is read from ⚙ Integrations in the main app.</div>
-      <div class="config-row">
-        <label class="config-label">Square Access Token</label>
-        <input class="config-input" id="sq-token" type="password" placeholder="sq0atp-…" autocomplete="off">
-      </div>
-      <div class="config-row">
-        <label class="config-label">Square Location ID</label>
-        <input class="config-input" id="sq-location" type="text" placeholder="D7EZ98V48F79A">
-      </div>
+      <div style="font-size:12px;color:var(--text3);padding:0.25rem 0 0.5rem;">Square access uses the server's configured account — no per-browser token needed.</div>
       <div class="config-row">
         <label class="config-label">Notion Integration Token</label>
         <input class="config-input" id="notion-token" type="password" placeholder="secret_…" autocomplete="off">
@@ -275,7 +267,16 @@ const NOTION_DB = 'e59ae574e5ee4d569395e15bd56450e9';
 const NUM_TIMERS = 2;
 
 // ── Shared config ────────────────────────────────────────────────────────────
-const CFG = { sqToken: '', sqLocation: 'D7EZ98V48F79A', notionToken: '' };
+// Square access always goes through the server's configured account (see
+// functions/api/square.js's SQUARE_TOKEN fallback) — there is no per-browser
+// token override. A stale/invalid locally-set token used to silently break
+// Square calls (inventory pushes, labor shift lookups, catalog search) on
+// just the one device that had it saved, while every other device and the
+// server itself worked fine. Location is likewise one fixed value, not a
+// per-browser setting — matches js/inventory.js's INV_LOCATION_ID (a
+// separate script context, so duplicated as a constant rather than shared).
+const SQUARE_LOCATION_ID = 'D7EZ98V48F79A';
+const CFG = { sqLocation: SQUARE_LOCATION_ID, notionToken: '' };
 
 // ── Per-timer state ──────────────────────────────────────────────────────────
 const T = Array.from({ length: NUM_TIMERS }, (_, i) => ({
@@ -370,9 +371,10 @@ const $g = id => document.getElementById(id);
 const $t = (tid, id) => document.getElementById(`t${tid}-${id}`);
 
 // ── Square proxy ─────────────────────────────────────────────────────────────
+// Never attaches a client token — /api/square always falls back to the
+// server's own SQUARE_TOKEN env var when none is sent.
 function sq(path, opts = {}) {
   const payload = { path: '/v2' + path, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : undefined };
-  if (CFG.sqToken) payload.token = CFG.sqToken;
   return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
 }
 
@@ -875,7 +877,7 @@ function renderShiftLog(tid) {
 }
 
 async function loadShiftsForTimer(tid) {
-  if (!CFG.sqToken || !T[tid].selectedEmployee || !T[tid].startTime) return;
+  if (!T[tid].selectedEmployee || !T[tid].startTime) return;
   try {
     const pStart = T[tid].startTime;
     const pStop  = Date.now();
@@ -915,7 +917,6 @@ function _applyClockBadge(tid, openShift) {
 async function checkClockIn(tid) {
   const emp = T[tid].selectedEmployee; if (!emp) return;
   const badge = $t(tid,'clock-status');
-  if (!CFG.sqToken) { T[tid].clockStatus='unknown'; badge.className='clock-status'; return; }
   T[tid].clockStatus='checking'; badge.className='clock-status checking visible'; badge.textContent='⏳ Checking…'; checkReady(tid);
   try {
     const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:1 }) });
@@ -948,7 +949,6 @@ async function patchActiveShiftLog(tid) {
 }
 
 async function pollShifts() {
-  if (!CFG.sqToken) return;
   for (let tid = 0; tid < NUM_TIMERS; tid++) {
     const emp = T[tid].selectedEmployee; if (!emp) continue;
     try {
@@ -1048,7 +1048,7 @@ async function stopTimer(tid) {
   $t(tid,'stop-btn').disabled = true; $t(tid,'stop-btn').textContent = 'Saving…';
   let clockedOutMs = 0;
   let shifts = [];
-  if (CFG.sqToken && T[tid].selectedEmployee) {
+  if (T[tid].selectedEmployee) {
     try {
       const pStart = T[tid].startTime;
       const pStop  = new Date(stopTime).getTime();
@@ -1479,15 +1479,15 @@ async function deleteSession(i) {
 // ── Config ────────────────────────────────────────────────────────────────────
 function toggleConfig() { $g('config-body').classList.toggle('open'); }
 function saveConfig() {
-  CFG.sqToken = $g('sq-token').value.trim(); CFG.sqLocation = $g('sq-location').value.trim()||'D7EZ98V48F79A'; CFG.notionToken = $g('notion-token').value.trim();
-  localStorage.setItem('sts-square-token',CFG.sqToken); localStorage.setItem('sts-square-location',CFG.sqLocation); localStorage.setItem('sts_notionToken',CFG.notionToken);
+  // Square token/location are no longer per-browser settings — see the CFG
+  // comment above. Only the Notion integration token lives here.
+  CFG.notionToken = $g('notion-token').value.trim();
+  localStorage.setItem('sts_notionToken',CFG.notionToken);
   showToast('Config saved'); loadEmployees();
 }
 function loadConfig() {
-  const _legacySqLoc = localStorage.getItem('sts_sqLocation');
-  if (_legacySqLoc && !localStorage.getItem('sts-square-location')) { localStorage.setItem('sts-square-location', _legacySqLoc); localStorage.removeItem('sts_sqLocation'); }
-  CFG.sqToken = localStorage.getItem('sts-square-token')||''; CFG.sqLocation = localStorage.getItem('sts-square-location')||CFG.sqLocation; CFG.notionToken = localStorage.getItem('sts_notionToken')||'';
-  $g('sq-token').value=CFG.sqToken; $g('sq-location').value=CFG.sqLocation; $g('notion-token').value=CFG.notionToken;
+  CFG.notionToken = localStorage.getItem('sts_notionToken')||'';
+  $g('notion-token').value=CFG.notionToken;
 }
 
 // ── Session loaders ───────────────────────────────────────────────────────────
@@ -1555,7 +1555,7 @@ async function boot() {
 
   loadSessionsFromNotion();
   await loadEmployees();
-  if (CFG.sqToken) { setTimeout(() => { pollShifts(); setInterval(pollShifts, 45000); }, 5000); }
+  setTimeout(() => { pollShifts(); setInterval(pollShifts, 45000); }, 5000);
 
   // Live cross-device sync layer (additive — see _wtReconcile above). Runs
   // once immediately so a timer another device started since this device's
@@ -1581,10 +1581,6 @@ window.addEventListener('message', function(e) {
 });
 
 async function autoPreselectItem(tid, query) {
-  if (!CFG.sqToken) {
-    showToast('Set your Square token in timer settings first');
-    return;
-  }
   T[tid].selectedItems = [];
   renderSelectedItems(tid);
   checkReady(tid);

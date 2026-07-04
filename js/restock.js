@@ -927,13 +927,13 @@ function _rqAutoMatchSingle(pid, rawText) {
   _rqAutoMatches[pid] = '_loading_';
   _rqUpdateMatchRow(pid);
   var localMatches = _rqLocalSearch(query);
-  // Note: _rqSqCall only attaches a token if one is saved in this browser's
-  // localStorage — the /api/square proxy falls back to its own server-side
-  // SQUARE_TOKEN otherwise. So this must NOT skip the live search just
-  // because no local token exists (that previously made every item on a
-  // device without a saved token — e.g. a phone that's never opened
-  // Integrations — show "No Square match" even though the server-side
-  // credential would have matched it fine).
+  // Note: _rqSqCall never attaches a client token — the /api/square proxy
+  // always falls back to its own server-side SQUARE_TOKEN. So this always
+  // runs the live search regardless of device (that used to be conditional
+  // on a per-browser token being saved, which made every item on a device
+  // without one — e.g. a phone that's never opened Integrations — show
+  // "No Square match" even though the server-side credential would have
+  // matched it fine).
   return _rqSqSearchExpand(query).then(function(squareRows) {
     if (_rqAutoMatches[pid] !== '_loading_') return;
     var rows = localMatches.concat(squareRows);
@@ -1679,12 +1679,15 @@ function rqSearchInput(pid, value) {
   s.debounceTimer = setTimeout(function() { _rqSearchCatalog(pid, value, false); }, 350);
 }
 
+// Never attaches a client token — /api/square always falls back to the
+// server's own SQUARE_TOKEN env var when none is sent. There is no
+// per-browser override: a stale/invalid token saved in one browser's
+// localStorage used to silently break Square calls on just that device
+// while every other device (and the server itself) worked fine.
 function _rqSqCall(path, opts) {
   opts = opts || {};
-  var token = localStorage.getItem('sts-square-token') || '';
   var payload = { path: '/v2' + path, method: opts.method || 'GET' };
   if (opts.body) payload.body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
-  if (token) payload.token = token;
   return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r) { return r.json(); });
 }
 
@@ -2163,7 +2166,11 @@ function rqConfirmPush(store, i) {
   var s = _rqStoreList(store)[i]; if (!s) return;
   var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
-  var loc = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
+  // Single source of truth for the Square location — same constant used by
+  // the inventory-count fetch below and by js/inventory.js. This used to be
+  // a per-browser override (localStorage['sts-square-location']) that
+  // defaulted to the same value today but could silently diverge per device.
+  var loc = INV_LOCATION_ID;
   var pushItems = (s.items || []).filter(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
   if (!pushItems.length) {
     toast('No Square items to push', '⚠');
