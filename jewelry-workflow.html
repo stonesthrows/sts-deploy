@@ -3325,6 +3325,22 @@
     .rq-edit-field label { width:52px; font-weight:600; color:var(--text3); flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
     .rq-edit-input { background:#fff; border:1px solid var(--bdr); border-radius:6px; color:var(--text); font-size:12px; padding:4px 7px; outline:none; transition:border-color 0.2s; }
     .rq-edit-input:focus { border-color:var(--accent); }
+    /* Semantic classes emitted by js/restock.js (colors owned here, with
+       midnight variants — replaces the old inline hex + [style*=…] hooks) */
+    .rq-sbar-dot { color:#ccc; } /* separator between start/stop times */
+    .rq-sbar-act-btn.rq-save-btn,
+    .rq-sbar-act-btn.rq-save-btn:hover { border-color:#3A7A4A; color:#3A7A4A; }
+    .rq-sbar-profit { font-weight:700; }
+    /* summary selector repeated so it out-specifics .prod-report-summary b */
+    .rq-profit-pos, .prod-report-summary b.rq-profit-pos { color:#3A7A4A; }
+    .rq-profit-neg, .prod-report-summary b.rq-profit-neg { color:#A0402A; }
+    .rq-queue-loading { padding:24px; text-align:center; color:#B0A898; font-size:13px; }
+    .rq-report-loading, .rq-report-empty { text-align:center; color:#B0A898; font-size:14px; padding:40px 0; }
+    .rq-report-error { text-align:center; color:#A0402A; font-size:13px; padding:30px 0; }
+    body.theme-midnight .rq-sbar-act-btn.rq-save-btn,
+    body.theme-midnight .rq-sbar-act-btn.rq-save-btn:hover { border-color:#3F6B4F; color:#7FC79A; }
+    body.theme-midnight .rq-profit-pos { color:#7FC79A; }
+    body.theme-midnight .rq-profit-neg { color:#E08A80; }
 
     /* ── Supplier Order Tracker ─────────────────── */
     #tab-supplier { padding: 0; }
@@ -6360,6 +6376,33 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
 .inv-var-name { flex: 1; font-size: 13px; color: var(--text2); min-width: 0; }
 #tab-inv-adjust .inv-var-name { font-weight: 500; color: var(--text); }
 
+/* Variant row tints by material/style — classes emitted by js/inventory.js's
+   _invVarTint(); .inv-row-alt is the zebra fallback for untinted rows.
+   Midnight variants live in the inventory midnight section below. */
+.inv-row-alt            { background: var(--card-head-bg); }
+.inv-tint-orb1          { background: #EEF4FD; }
+.inv-tint-orb2          { background: #EEF7F1; }
+.inv-tint-orb3          { background: #FDF5EE; }
+.inv-tint-silver-single { background: #EFF4FB; }
+.inv-tint-gf-single     { background: #FDF8EC; }
+.inv-tint-silver-double { background: #E6EDF7; }
+.inv-tint-gf-double     { background: #FBF0DC; }
+
+/* Per-row icon buttons (reset ↻ / hide ✕) — hover states in CSS, no JS */
+.inv-icon-btn {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px;
+  line-height: 1; opacity: 0.45; transition: opacity 0.15s, color 0.15s;
+}
+.inv-icon-btn:hover { opacity: 1; }
+.inv-reset-btn:hover { color: var(--accent, #C9983A); }
+.inv-hide-btn:hover { color: #dc2626; }
+.inv-icon-btn.inv-hide-var { font-size: 12px; padding: 2px 5px; opacity: 0.35; margin-left: 2px; }
+.inv-icon-btn.inv-hide-var:hover { opacity: 1; }
+
+/* Category fetch error (rendered by js/inventory.js into the sub panel) */
+.inv-load-error { padding: 32px; text-align: center; color: #dc2626; font-size: 13px; }
+
 .inv-badge {
   font-size: 12px;
   font-weight: 600;
@@ -6596,27 +6639,157 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
 }
 #inv-ls-qty { font-size: 14px; font-weight: 700; color: #d97706; font-variant-numeric: tabular-nums; }
 
-/* ── Inventory: midnight theme ──
-   js/inventory.js hardcodes light-hex chip colors and inline pastel row
-   tints; scope the dark fixes under this tab (+ its body-level popover)
-   so the shared base classes used by other views stay untouched. */
-body.theme-midnight #tab-inv-adjust .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
-body.theme-midnight #tab-inv-adjust .inv-badge.low-stock { background: #332818; color: #F0C060; }
-body.theme-midnight #tab-inv-adjust .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
+/* Queue-All-Low modal rows (rendered by js/inventory.js into #inv-qal-list) */
+.inv-qal-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--card-head-bg); border: 1px solid var(--bdr);
+}
+.inv-qal-row .inv-qal-check { width: 16px; height: 16px; accent-color: var(--accent, #C9983A); flex-shrink: 0; cursor: pointer; }
+.inv-qal-var { min-width: 72px; font-size: 13px; font-weight: 600; color: var(--text); }
+.inv-qal-stock { font-size: 11px; color: var(--text-dim); min-width: 64px; }
+.inv-qal-lbl { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); }
+.inv-qal-qty, .inv-qal-threshold {
+  width: 50px; padding: 4px 6px; border: 1px solid var(--bdr); border-radius: 6px;
+  font-size: 13px; font-weight: 600; text-align: center;
+  background: var(--card-bg); color: var(--text);
+}
+
+/* ── Inventory: midnight theme ── */
+/* Stock badges: dark chips for the hardcoded light hexes in the base rules.
+   Unscoped on purpose — every .inv-badge context (Adjust Inventory, To
+   Restock, order-bag reads) wants the same dark treatment. */
+body.theme-midnight .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
+body.theme-midnight .inv-badge.low-stock { background: #332818; color: #F0C060; }
+body.theme-midnight .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
 body.theme-midnight #tab-inv-adjust .inv-queue-btn,
 body.theme-midnight #tab-inv-adjust .inv-qal-btn { background: #28221A; border-color: #8A6420; color: #F0C060; }
 body.theme-midnight #tab-inv-adjust .inv-queue-btn:hover,
 body.theme-midnight #tab-inv-adjust .inv-qal-btn:hover { background: #342C20; color: #F0D498; }
 body.theme-midnight #tab-inv-adjust .inv-split-georgina,
 body.theme-midnight #inv-split-popover .inv-split-georgina { background: #2E2838; color: #B49CF0; }
-/* Neutralize the JS-inlined pastel row tints in midnight; keep a subtle zebra
-   (variant rows start at the card's 2nd child, so "odd" = every other row). */
-body.theme-midnight #tab-inv-adjust .inv-row { background: transparent !important; }
-body.theme-midnight #tab-inv-adjust .inv-row:nth-child(odd) { background: rgba(255,255,255,0.03) !important; }
+/* Dark equivalents of the material row tints (.inv-row-alt zebra follows
+   --card-head-bg automatically) */
+body.theme-midnight .inv-tint-orb1          { background: #202834; }
+body.theme-midnight .inv-tint-orb2          { background: #1F2B24; }
+body.theme-midnight .inv-tint-orb3          { background: #2D2620; }
+body.theme-midnight .inv-tint-silver-single { background: #232B38; }
+body.theme-midnight .inv-tint-gf-single     { background: #2C2719; }
+body.theme-midnight .inv-tint-silver-double { background: #283246; }
+body.theme-midnight .inv-tint-gf-double     { background: #342B17; }
+body.theme-midnight .inv-hide-btn:hover { color: #E08A80; }
+body.theme-midnight .inv-load-error { color: #E08A80; }
 body.theme-midnight #inv-ls-qty { color: #F0C060; }
 /* Shared .btn-outline hardcodes a white background; re-surface it for dark
    (same scoped fix the Calendar pass used). */
 body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
+
+/* ── Inventory Manager modal (js/inv-manager.js renders into #inv-manager-root) ──
+   Everything rides the theme tokens, so midnight inherits automatically;
+   the few hardcoded colors get explicit dark overrides at the end. */
+.invmgr-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9000;
+  display: flex; align-items: center; justify-content: center; padding: 12px;
+}
+.invmgr-modal {
+  background: var(--card-bg); border-radius: 12px;
+  width: 100%; max-width: 940px; height: min(88vh, 720px);
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.3); overflow: hidden;
+}
+.invmgr-head {
+  padding: 14px 20px; border-bottom: 1px solid var(--bdr); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.invmgr-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.invmgr-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.invmgr-close {
+  background: none; border: none; color: var(--text-dim); font-size: 20px;
+  cursor: pointer; padding: 4px 8px; line-height: 1; border-radius: 5px;
+}
+.invmgr-body { display: flex; flex: 1; min-height: 0; }
+.invmgr-left { width: 268px; flex-shrink: 0; border-right: 1px solid var(--bdr); display: flex; flex-direction: column; }
+.invmgr-left-head { padding: 10px 12px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; }
+.invmgr-panel-label { font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.6px; margin-bottom: 7px; }
+.invmgr-search {
+  width: 100%; box-sizing: border-box; padding: 6px 10px;
+  border: 1px solid var(--bdr); border-radius: 7px; font-size: 13px;
+  background: var(--card-bg); color: var(--text); outline: none;
+}
+.invmgr-catalog { flex: 1; overflow-y: auto; padding: 6px 8px; }
+.invmgr-note { padding: 28px 12px; text-align: center; color: var(--text-dim); font-size: 13px; }
+.invmgr-err { color: #dc2626; }
+.invmgr-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.invmgr-tabbar {
+  display: flex; align-items: center; gap: 4px; padding: 8px 14px;
+  border-bottom: 1px solid var(--bdr); flex-shrink: 0; background: var(--card-head-bg);
+}
+.invmgr-hint { margin-left: 8px; font-size: 11px; color: var(--text-dim); }
+.invmgr-zones {
+  flex: 1; overflow-y: auto; padding: 12px 14px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start;
+}
+.invmgr-foot {
+  padding: 10px 18px; border-top: 1px solid var(--bdr); flex-shrink: 0;
+  background: var(--card-head-bg);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.invmgr-foot-info { display: flex; align-items: center; gap: 10px; }
+.invmgr-foot-note { font-size: 11px; color: var(--text-dim); }
+.invmgr-foot-btns { display: flex; gap: 8px; }
+.invmgr-export-btn { font-size: 12px; }
+/* Left panel: draggable category headers + item rows */
+.invmgr-group { margin-bottom: 10px; }
+.invmgr-cat {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  border-radius: 7px; cursor: grab;
+  background: var(--card-head-bg); border: 1px solid var(--bdr);
+  font-size: 12px; font-weight: 600; color: var(--text); user-select: none;
+}
+.invmgr-grip { color: var(--text-dim); font-size: 10px; }
+.invmgr-grow { flex: 1; }
+.invmgr-count { font-size: 10.5px; color: var(--text-dim); font-weight: 400; }
+.invmgr-catpill { font-size: 10px; background: var(--accent-bg, #F5EDDF); color: var(--accent, #8B6914); border-radius: 4px; padding: 1px 5px; }
+.invmgr-item {
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 16px;
+  cursor: grab; font-size: 12.5px; color: var(--text); border-radius: 5px;
+  user-select: none; transition: background 0.1s;
+}
+.invmgr-item:hover { background: var(--bdr-light, #F0EBE3); }
+.invmgr-grip-sm { color: var(--text-dim); font-size: 9px; opacity: 0.5; }
+/* Deprecated (hidden) section */
+.invmgr-depr { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bdr); }
+.invmgr-depr-label { font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.5px; margin-bottom: 6px; }
+.invmgr-depr-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; font-size: 12px; color: var(--text-dim); }
+.invmgr-strike { text-decoration: line-through; opacity: 0.7; }
+.invmgr-depr-type { font-size: 10px; opacity: 0.5; }
+.invmgr-restore {
+  font-size: 11px; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--bdr); background: var(--card-bg); color: var(--text); cursor: pointer;
+}
+/* Right panel: drop zones + assigned chips */
+.invMgrZoneInner {
+  border: 2px dashed var(--bdr); border-radius: 8px; padding: 8px 10px;
+  min-height: 76px; transition: border-color 0.15s; background: var(--card-bg);
+}
+.invmgr-zone-label { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.3px; margin-bottom: 5px; text-transform: uppercase; }
+.invmgr-chip-wrap { display: flex; flex-wrap: wrap; }
+.invmgr-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: var(--accent-bg, #F5EDDF); border: 1px solid var(--accent, #C9A96E);
+  border-radius: 20px; padding: 2px 6px 2px 9px;
+  font-size: 11.5px; color: var(--text); margin: 2px; max-width: 100%;
+}
+.invmgr-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.invmgr-chip-x {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 14px; padding: 0 0 0 3px; line-height: 1; flex-shrink: 0;
+}
+.invmgr-drop-hint { font-size: 11.5px; color: var(--text-dim); opacity: 0.55; margin-top: 4px; }
+/* Midnight: the shared .btn-outline hardcodes a white background (same fix
+   as the tabs above); soften the fetch-error red for dark. */
+body.theme-midnight .invmgr-modal .btn-outline { background: var(--card-bg); }
+body.theme-midnight .invmgr-err { color: #E08A80; }
 
 /* ── Designs ─────────────────────────────── */
 /* Give the title band a card surface so .page-sub stays legible on the page
@@ -8880,16 +9053,16 @@ body.theme-midnight .recon-under { color: #E08A80; }
   <div id="prod-report-rates"></div>
   <div id="prod-report-summary"></div>
   <div id="prod-report-body">
-    <div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>
+    <div class="rq-report-loading">Loading…</div>
   </div>
 </div>
 
 <style>
 /* ── Production Report redesign (scoped to #tab-prod-report only) ──
    The report markup itself is rendered by js/restock.js into the three
-   container divs above; that file is frozen on a parallel branch, so all
-   styling here is CSS-only, scoped under this tab's id, and where the JS
-   inlines hardcoded colors we out-specific them with [style*=…] hooks. */
+   container divs above via semantic .rq-* classes; the base colors live
+   with the shared .rq- rules, and this block re-tints them for this tab's
+   blue page background. */
 
 /* Header: put the title and sync buttons on one row (the shared
    .rq-header-bar is block-level; scoped so the Restock tab is untouched) */
@@ -8974,8 +9147,8 @@ body.theme-midnight .recon-under { color: #E08A80; }
 #tab-prod-report .rq-sbar-footer .rq-sbar-pieces {
   background: var(--hover); border-radius: 5px; padding: 2px 8px; line-height: 1.6;
 }
-/* JS inlines a #ccc separator dot between start/stop times */
-#tab-prod-report .rq-sbar-time-row span[style*="#ccc"] { color: var(--bdr) !important; }
+/* Separator dot between start/stop times: token color on this tab */
+#tab-prod-report .rq-sbar-dot { color: var(--bdr); }
 
 /* Inline edit row: swap the hardcoded cream (#F5F0EB) / #fff inputs for
    theme-aware tokens so midnight inherits correctly */
@@ -8983,33 +9156,28 @@ body.theme-midnight .recon-under { color: #E08A80; }
 #tab-prod-report .rq-edit-input { background: var(--input-bg); color: var(--text); }
 #tab-prod-report .rq-edit-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
 
-/* Loading / empty placeholders (JS inlines #B0A898 on the page bg) */
-#prod-report-body > div[style*="#B0A898"] { color: rgba(255,255,255,0.78) !important; }
-/* Error placeholder (JS inlines a dark red that vanishes on the blue bg) */
-#prod-report-body > div[style*="#A0402A"] { color: #FAD4CA !important; }
+/* Loading / empty / error placeholders sit on the blue page bg — lift
+   their contrast (base classes carry the light-surface colors) */
+#prod-report-body .rq-report-loading,
+#prod-report-body .rq-report-empty { color: rgba(255,255,255,0.78); }
+#prod-report-body .rq-report-error { color: #FAD4CA; }
+body.theme-midnight #prod-report-body .rq-report-error { color: #E08A80; }
 
 /* ── Midnight ──
    Shared .btn-outline hardcodes a white background; re-surface it for dark
    (same scoped fix the Calendar and Adjust Inventory passes used). */
 body.theme-midnight #tab-prod-report .btn-outline { background: var(--card-bg); }
-/* js/restock.js inlines light-theme greens/reds (profit, Save buttons,
-   summary profit <b>) — brighten them for dark via [style*=…] hooks.
-   Post-merge follow-up: move these inline colors to classes in restock.js. */
-body.theme-midnight #tab-prod-report [style*="#3A7A4A"] { color: #7FC79A !important; }
-body.theme-midnight #tab-prod-report button[style*="#3A7A4A"] { border-color: #3F6B4F !important; }
-body.theme-midnight #tab-prod-report [style*="#A0402A"] { color: #E08A80 !important; }
+/* Profit greens/reds + Save buttons get their midnight variants from the
+   base .rq-profit-* / .rq-save-btn rules (shared with the Session Log). */
 body.theme-midnight #tab-prod-report .rq-sbar-del:hover { border-color: #E08A80; color: #E08A80; }
 body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A4A50; }
 </style>
 
 <style>
 /* ── Restock Queue redesign (scoped to #tab-to-restock only) ──
-   The queue markup is rendered by js/restock.js (frozen on a parallel
-   branch), so this pass is CSS-only. The .rq- base rules are shared with
-   the Production Report tab and the phone.html embed, so everything here
-   is scoped under this tab's id; where the JS inlines hardcoded colors we
-   out-specific them with [style*=…] hooks (same stopgap as the report
-   pass — post-merge cleanup task exists to move them into classes). */
+   The queue markup is rendered by js/restock.js via semantic .rq-* classes.
+   The .rq- base rules are shared with the Production Report tab and the
+   phone.html embed, so everything here is scoped under this tab's id. */
 
 /* Add bar: token radius + focus ring on the Square-catalog search */
 #tab-to-restock .rq-add-bar input {
@@ -9020,11 +9188,10 @@ body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A
 #tab-to-restock .rq-add-bar input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
 #tab-to-restock .rq-add-dropdown { border-radius: var(--rad-sm); box-shadow: var(--shadow-lg); }
 
-/* Empty / loading placeholders sit directly on the blue page background
-   (js/restock.js inlines #B0A898 for the loading one) */
+/* Empty / loading placeholders sit directly on the blue page background */
 #restock-queue-empty { text-align: center; color: rgba(255,255,255,0.78); font-size: 14px; padding: 40px 0; }
 #restock-queue-list { display: flex; flex-direction: column; gap: var(--sp-2); }
-#restock-queue-list > div[style*="#B0A898"] { color: rgba(255,255,255,0.78) !important; }
+#restock-queue-list .rq-queue-loading { color: rgba(255,255,255,0.78); }
 
 /* Queue cards: shared tokens + a subtle hover lift (mirrors the report
    tab's session cards). var(--card-bg) also fixes the hardcoded #fff
@@ -9147,11 +9314,8 @@ body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A
 #tab-to-restock .rq-style-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Midnight ── */
-/* Stock badges keep their light-hex backgrounds in the dark theme (same
-   fix the Adjust Inventory pass applied under #tab-inv-adjust) */
-body.theme-midnight #tab-to-restock .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
-body.theme-midnight #tab-to-restock .inv-badge.low-stock { background: #332818; color: #F0C060; }
-body.theme-midnight #tab-to-restock .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
+/* Stock badges get their dark chips from the base body.theme-midnight
+   .inv-badge.* rules (shared with Adjust Inventory). */
 /* The global midnight select override (background/color !important) wipes
    the per-person assignee tints — restore dark-appropriate ones */
 body.theme-midnight #tab-to-restock .rq-assignee.rq-vanessa { background: #1E2A3E !important; border-color: #3A5A9A !important; color: #8CB4F0 !important; }
@@ -9193,7 +9357,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=5"></script>
+<script src="js/restock.js?v=6"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
@@ -9271,8 +9435,8 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 </script>
 <script src="js/designs.js"></script>
 <script src="js/triplog.js"></script>
-<script src="js/inventory.js?v=11"></script>
-<script src="js/inv-manager.js"></script>
+<script src="js/inventory.js?v=12"></script>
+<script src="js/inv-manager.js?v=2"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() { /* timer now lives inline in the restock queue */ }

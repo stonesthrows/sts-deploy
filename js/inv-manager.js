@@ -107,66 +107,66 @@ function invMgrClose() {
 }
 
 // ── Modal shell HTML ──────────────────────────
+// All styling lives in jewelry-workflow.html's .invmgr-* rules (light +
+// midnight); this file only emits semantic classes.
 
 function _invMgrBuildShell() {
   return `
-<div id="invMgrOverlay"
-  style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:12px;"
+<div id="invMgrOverlay" class="invmgr-overlay"
   onclick="if(event.target.id==='invMgrOverlay')invMgrClose()">
 
-  <div style="background:var(--card-bg);border-radius:12px;width:100%;max-width:940px;height:min(88vh,720px);display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;">
+  <div class="invmgr-modal">
 
     <!-- Header -->
-    <div style="padding:14px 20px;border-bottom:1px solid var(--bdr);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+    <div class="invmgr-head">
       <div>
-        <div style="font-size:15px;font-weight:600;color:var(--text);">⚙ Manage Inventory Items</div>
-        <div style="font-size:11.5px;color:var(--text-dim);margin-top:2px;">Drag items or whole Square categories into your app sub-tabs · changes save to localStorage and take effect immediately</div>
+        <div class="invmgr-title">⚙ Manage Inventory Items</div>
+        <div class="invmgr-sub">Drag items or whole Square categories into your app sub-tabs · changes save to localStorage and take effect immediately</div>
       </div>
-      <button onclick="invMgrClose()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;border-radius:5px;" title="Close">✕</button>
+      <button class="invmgr-close" onclick="invMgrClose()" title="Close">✕</button>
     </div>
 
     <!-- Two-panel body -->
-    <div style="display:flex;flex:1;min-height:0;">
+    <div class="invmgr-body">
 
       <!-- LEFT: Square catalog -->
-      <div style="width:268px;flex-shrink:0;border-right:1px solid var(--bdr);display:flex;flex-direction:column;">
-        <div style="padding:10px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0;">
-          <div style="font-size:10px;font-weight:700;color:var(--text-dim);letter-spacing:0.6px;margin-bottom:7px;">SQUARE CATALOG — NOT YET IN APP</div>
-          <input id="invMgrSearch" placeholder="Search items…" oninput="invMgrFilter(this.value)"
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;background:var(--card-bg);color:var(--text);outline:none;">
+      <div class="invmgr-left">
+        <div class="invmgr-left-head">
+          <div class="invmgr-panel-label">SQUARE CATALOG — NOT YET IN APP</div>
+          <input id="invMgrSearch" class="invmgr-search" placeholder="Search items…" oninput="invMgrFilter(this.value)">
         </div>
-        <div id="invMgrCatalog" style="flex:1;overflow-y:auto;padding:6px 8px;">
-          <div style="padding:28px 12px;text-align:center;color:var(--text-dim);font-size:13px;">⏳ Loading Square catalog…</div>
+        <div id="invMgrCatalog" class="invmgr-catalog">
+          <div class="invmgr-note">⏳ Loading Square catalog…</div>
         </div>
       </div>
 
       <!-- RIGHT: App sub-tab drop zones -->
-      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+      <div class="invmgr-right">
 
         <!-- Main tab switcher -->
-        <div style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--card-head-bg);">
+        <div class="invmgr-tabbar">
           <button id="invMgrMainBtn-earrings"    class="inv-ear-sub active" onclick="invMgrSwitchMain('earrings')">🪬 Earrings</button>
           <button id="invMgrMainBtn-rings"       class="inv-ear-sub"        onclick="invMgrSwitchMain('rings')">💍 Rings</button>
           <button id="invMgrMainBtn-pendants"    class="inv-ear-sub"        onclick="invMgrSwitchMain('pendants')">📿 Pendants</button>
           <button id="invMgrMainBtn-permjewelry" class="inv-ear-sub"        onclick="invMgrSwitchMain('permjewelry')">🔗 Perm. Jewelry</button>
           <button id="invMgrMainBtn-noserings"   class="inv-ear-sub"        onclick="invMgrSwitchMain('noserings')">👃 Nose Rings</button>
-          <span style="margin-left:8px;font-size:11px;color:var(--text-dim);">← drop into a sub-tab below</span>
+          <span class="invmgr-hint">← drop into a sub-tab below</span>
         </div>
 
         <!-- Drop zones grid -->
-        <div id="invMgrZones" style="flex:1;overflow-y:auto;padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start;">
+        <div id="invMgrZones" class="invmgr-zones">
         </div>
 
       </div>
     </div>
 
     <!-- Footer -->
-    <div style="padding:10px 18px;border-top:1px solid var(--bdr);flex-shrink:0;background:var(--card-head-bg);display:flex;align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button onclick="invMgrExportJS()" class="btn btn-outline btn-sm" style="font-size:12px;">📋 Copy JS Config</button>
-        <span style="font-size:11px;color:var(--text-dim);">copies constant to paste into inventory.js for permanent deploy</span>
+    <div class="invmgr-foot">
+      <div class="invmgr-foot-info">
+        <button onclick="invMgrExportJS()" class="btn btn-outline btn-sm invmgr-export-btn">📋 Copy JS Config</button>
+        <span class="invmgr-foot-note">copies constant to paste into inventory.js for permanent deploy</span>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div class="invmgr-foot-btns">
         <button onclick="invMgrClose()" class="btn btn-outline btn-sm">Cancel</button>
         <button onclick="invMgrSave()" class="btn btn-gold btn-sm">Save &amp; Close</button>
       </div>
@@ -254,7 +254,7 @@ async function _invMgrFetchCatalog() {
 
   } catch (e) {
     if (catalogEl) {
-      catalogEl.innerHTML = `<div style="padding:28px 12px;text-align:center;color:#dc2626;font-size:13px;">⚠ ${_invMgrEsc(e.message)}</div>`;
+      catalogEl.innerHTML = `<div class="invmgr-note invmgr-err">⚠ ${_invMgrEsc(e.message)}</div>`;
     }
   } finally {
     _invMgrFetching = false;
@@ -280,7 +280,7 @@ function _invMgrRenderLeft() {
   const groupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
 
   if (!groupList.length) {
-    el.innerHTML = '<div style="padding:28px 12px;text-align:center;color:var(--text-dim);font-size:13px;">✓ All Square items are already assigned.</div>';
+    el.innerHTML = '<div class="invmgr-note">✓ All Square items are already assigned.</div>';
     return;
   }
 
@@ -296,30 +296,26 @@ function _invMgrRenderLeft() {
     const catSafe = _invMgrEsc(group.catId);
     const nameSafe = _invMgrEsc(group.name);
     html += `
-<div style="margin-bottom:10px;">
-  <div draggable="true"
+<div class="invmgr-group">
+  <div class="invmgr-cat" draggable="true"
     ondragstart="invMgrDragStart(event,'category','${catSafe}','${_invMgrEscAttr(group.name)}')"
     ondragend="this.style.opacity=''"
-    style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:7px;cursor:grab;background:var(--card-head-bg);border:1px solid var(--bdr);font-size:12px;font-weight:600;color:var(--text);user-select:none;"
     title="Drag to assign entire category (${items.length} items)">
-    <span style="color:var(--text-dim);font-size:10px;">⠿⠿</span>
-    <span style="flex:1;">${nameSafe}</span>
-    <span style="font-size:10.5px;color:var(--text-dim);font-weight:400;">${group.items.length} items</span>
-    <span style="font-size:10px;background:var(--accent-bg,#F5EDDF);color:var(--accent,#8B6914);border-radius:4px;padding:1px 5px;">CAT</span>
+    <span class="invmgr-grip">⠿⠿</span>
+    <span class="invmgr-grow">${nameSafe}</span>
+    <span class="invmgr-count">${group.items.length} items</span>
+    <span class="invmgr-catpill">CAT</span>
   </div>`;
 
     items.forEach(item => {
       const name    = item.item_data?.name || 'Unnamed';
       const itemSafe = _invMgrEsc(item.id);
       html += `
-  <div draggable="true"
+  <div class="invmgr-item" draggable="true"
     ondragstart="invMgrDragStart(event,'item','${itemSafe}','${_invMgrEscAttr(name)}')"
-    ondragend="this.style.opacity=''"
-    style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 16px;cursor:grab;font-size:12.5px;color:var(--text);border-radius:5px;user-select:none;transition:background 0.1s;"
-    onmouseenter="this.style.background='var(--bdr-light,#F0EBE3)'"
-    onmouseleave="this.style.background=''">
-    <span style="color:var(--text-dim);font-size:9px;opacity:0.5;">⠿</span>
-    <span style="flex:1;">${_invMgrEsc(name)}</span>
+    ondragend="this.style.opacity=''">
+    <span class="invmgr-grip-sm">⠿</span>
+    <span class="invmgr-grow">${_invMgrEsc(name)}</span>
   </div>`;
     });
 
@@ -331,8 +327,8 @@ function _invMgrRenderLeft() {
   const hiddenVars = !q ? _invMgrGetHiddenVars() : [];
 
   if ((hiddenIds.size || hiddenVars.length) && !q) {
-    html += `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--bdr);">
-  <div style="font-size:10px;font-weight:700;color:var(--text-dim);letter-spacing:0.5px;margin-bottom:6px;">DEPRECATED (HIDDEN FROM APP)</div>`;
+    html += `<div class="invmgr-depr">
+  <div class="invmgr-depr-label">DEPRECATED (HIDDEN FROM APP)</div>`;
 
     // Hidden whole items
     hiddenIds.forEach(id => {
@@ -343,10 +339,9 @@ function _invMgrRenderLeft() {
         if (match) name = match.item_data?.name || id;
       });
       html += `
-  <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;font-size:12px;color:var(--text-dim);">
-    <span style="flex:1;"><span style="text-decoration:line-through;opacity:0.7;">${_invMgrEsc(name)}</span> <span style="font-size:10px;opacity:0.5;">(item)</span></span>
-    <button onclick="invMgrRestoreItem('${_invMgrEsc(id)}')"
-      style="font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--bdr);background:var(--card-bg);color:var(--text);cursor:pointer;">Restore</button>
+  <div class="invmgr-depr-row">
+    <span class="invmgr-grow"><span class="invmgr-strike">${_invMgrEsc(name)}</span> <span class="invmgr-depr-type">(item)</span></span>
+    <button class="invmgr-restore" onclick="invMgrRestoreItem('${_invMgrEsc(id)}')">Restore</button>
   </div>`;
     });
 
@@ -354,17 +349,16 @@ function _invMgrRenderLeft() {
     hiddenVars.forEach(({ varId, varName, itemName }) => {
       const label = varName ? `${_invMgrEsc(itemName)} — ${_invMgrEsc(varName)}` : _invMgrEsc(itemName);
       html += `
-  <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;font-size:12px;color:var(--text-dim);">
-    <span style="flex:1;"><span style="text-decoration:line-through;opacity:0.7;">${label}</span> <span style="font-size:10px;opacity:0.5;">(variation)</span></span>
-    <button onclick="invMgrRestoreVar('${_invMgrEsc(varId)}')"
-      style="font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--bdr);background:var(--card-bg);color:var(--text);cursor:pointer;">Restore</button>
+  <div class="invmgr-depr-row">
+    <span class="invmgr-grow"><span class="invmgr-strike">${label}</span> <span class="invmgr-depr-type">(variation)</span></span>
+    <button class="invmgr-restore" onclick="invMgrRestoreVar('${_invMgrEsc(varId)}')">Restore</button>
   </div>`;
     });
 
     html += '</div>';
   }
 
-  el.innerHTML = html || '<div style="padding:28px 12px;text-align:center;color:var(--text-dim);font-size:13px;">No matches</div>';
+  el.innerHTML = html || '<div class="invmgr-note">No matches</div>';
 }
 
 function _invMgrGetHidden() {
@@ -429,23 +423,23 @@ function _invMgrRenderRight() {
     const chips = entries.map((e, idx) => {
       const icon  = e.type === 'category' ? '📁 ' : '';
       const nSafe = _invMgrEsc(e.name);
-      return `<div style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-bg,#F5EDDF);border:1px solid var(--accent,#C9A96E);border-radius:20px;padding:2px 6px 2px 9px;font-size:11.5px;color:var(--text);margin:2px;max-width:100%;">
-        <span title="${nSafe}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">${icon}${nSafe}</span>
-        <button onclick="invMgrRemove('${key}',${idx})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1;flex-shrink:0;" title="Remove">✕</button>
+      return `<div class="invmgr-chip">
+        <span class="invmgr-chip-name" title="${nSafe}">${icon}${nSafe}</span>
+        <button class="invmgr-chip-x" onclick="invMgrRemove('${key}',${idx})" title="Remove">✕</button>
       </div>`;
     }).join('');
 
     const placeholder = !entries.length
-      ? '<div style="font-size:11.5px;color:var(--text-dim);opacity:0.55;margin-top:4px;">drop here</div>'
+      ? '<div class="invmgr-drop-hint">drop here</div>'
       : '';
 
     return `<div
       ondragover="event.preventDefault();this.querySelector('.invMgrZoneInner').style.borderColor='var(--accent,#C9A96E)'"
       ondragleave="this.querySelector('.invMgrZoneInner').style.borderColor=''"
       ondrop="invMgrDrop(event,'${key}');this.querySelector('.invMgrZoneInner').style.borderColor=''">
-      <div class="invMgrZoneInner" style="border:2px dashed var(--bdr);border-radius:8px;padding:8px 10px;min-height:76px;transition:border-color 0.15s;background:var(--card-bg);">
-        <div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.3px;margin-bottom:5px;text-transform:uppercase;">${_invMgrEsc(label)}</div>
-        <div style="display:flex;flex-wrap:wrap;">${chips}</div>
+      <div class="invMgrZoneInner">
+        <div class="invmgr-zone-label">${_invMgrEsc(label)}</div>
+        <div class="invmgr-chip-wrap">${chips}</div>
         ${placeholder}
       </div>
     </div>`;

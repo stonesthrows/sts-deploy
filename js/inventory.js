@@ -372,31 +372,33 @@ async function _invLoadSub(sub) {
     _invLoadSplit(sub);
   } catch (e) {
     _invSetPanelHtml(sub,
-      '<div style="padding:32px;text-align:center;color:#dc2626;font-size:13px;">' +
+      '<div class="inv-load-error">' +
       '⚠ ' + _esc(e.message) + '</div>'
     );
   }
 }
 
 // ── Variant row tint (by material/style keywords) ────────────────────────────
+// Returns a semantic CSS class; the colors (light + midnight variants) live
+// in jewelry-workflow.html's .inv-tint-* rules.
 
 function _invVarTint(varName) {
   const n = varName.toLowerCase();
   const orbMatch = n.match(/(\d+)\s+orbs?/);
   if (orbMatch) {
     const orbs = parseInt(orbMatch[1]);
-    if (orbs === 1) return '#EEF4FD';
-    if (orbs === 2) return '#EEF7F1';
-    if (orbs === 3) return '#FDF5EE';
+    if (orbs === 1) return 'inv-tint-orb1';
+    if (orbs === 2) return 'inv-tint-orb2';
+    if (orbs === 3) return 'inv-tint-orb3';
   }
   const isSingle = n.includes('single');
   const isDouble = n.includes('double');
   const isGF     = n.includes(' gf') || n.includes('gold fill');
   const isSilver = n.includes('silver');
-  if (isSingle && isSilver) return '#EFF4FB';
-  if (isSingle && isGF)     return '#FDF8EC';
-  if (isDouble && isSilver) return '#E6EDF7';
-  if (isDouble && isGF)     return '#FBF0DC';
+  if (isSingle && isSilver) return 'inv-tint-silver-single';
+  if (isSingle && isGF)     return 'inv-tint-gf-single';
+  if (isDouble && isSilver) return 'inv-tint-silver-double';
+  if (isDouble && isGF)     return 'inv-tint-gf-double';
   return '';
 }
 
@@ -496,16 +498,10 @@ function _invRenderSub(sub) {
         <span>${_esc(name)}</span>
         <div style="display:flex;align-items:center;gap:6px;">
           ${lowVarsForItem.length >= 2 ? `<button class="inv-qal-btn" onclick="invOpenQueueAllLowModal('${item.id}')" title="Queue all low sizes">⚑ Queue All Low</button>` : ''}
-          <button onclick="invResetItem('${item.id}','${nameSafe}','${sub}')"
-            title="Reset this item to match Square (clears local overrides for it)"
-            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
-            onmouseenter="this.style.opacity='1';this.style.color='var(--accent,#C9983A)'"
-            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">↻</button>
-          <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
-            title="Remove entire item from webapp (won't affect Square)"
-            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
-            onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
-            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
+          <button class="inv-icon-btn inv-reset-btn" onclick="invResetItem('${item.id}','${nameSafe}','${sub}')"
+            title="Reset this item to match Square (clears local overrides for it)">↻</button>
+          <button class="inv-icon-btn inv-hide-btn" onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
+            title="Remove entire item from webapp (won't affect Square)">✕</button>
         </div>
       </div>`;
 
@@ -526,9 +522,9 @@ function _invRenderSub(sub) {
       const varSafe   = _esc(varName).replace(/'/g, '&#39;');
       const threshold = _invGetThreshold(varId);
       const isLow     = sqQty !== null && sqQty < threshold;
-      const rowTint   = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '');
+      const tintClass = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'inv-row-alt' : '');
 
-      html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
+      html += `<div class="inv-row${tintClass ? ' ' + tintClass : ''}" data-var-id="${varId}">
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
         ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
@@ -545,11 +541,8 @@ function _invRenderSub(sub) {
         </div>
         <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
         <button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue" style="${isLow ? '' : 'visibility:hidden'}">⚑ Queue</button>
-        <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
-          title="Remove this variation from webapp (won't affect Square)"
-          style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"
-          onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
-          onmouseleave="this.style.opacity='0.35';this.style.color='var(--text-dim)'">✕</button>
+        <button class="inv-icon-btn inv-hide-btn inv-hide-var" onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
+          title="Remove this variation from webapp (won't affect Square)">✕</button>
       </div>`;
     });
 
@@ -1030,20 +1023,17 @@ function invOpenQueueAllLowModal(itemId) {
 
   const list = document.getElementById('inv-qal-list');
   list.innerHTML = lowVars.map((v, i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--card-head-bg);border:1px solid var(--bdr);">
-      <input type="checkbox" class="inv-qal-check" data-idx="${i}" checked
-        style="width:16px;height:16px;accent-color:var(--accent,#C9983A);flex-shrink:0;cursor:pointer;">
-      <span style="min-width:72px;font-size:13px;font-weight:600;color:var(--text);">${_esc(v.varName || '(Default)')}</span>
-      <span style="font-size:11px;color:var(--text-dim);min-width:64px;">stock: ${v.curQty}</span>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);">
+    <div class="inv-qal-row">
+      <input type="checkbox" class="inv-qal-check" data-idx="${i}" checked>
+      <span class="inv-qal-var">${_esc(v.varName || '(Default)')}</span>
+      <span class="inv-qal-stock">stock: ${v.curQty}</span>
+      <label class="inv-qal-lbl">
         qty
-        <input type="number" class="inv-qal-qty" data-idx="${i}" min="1" max="99" value="3"
-          style="width:50px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
+        <input type="number" class="inv-qal-qty" data-idx="${i}" min="1" max="99" value="3">
       </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);">
+      <label class="inv-qal-lbl">
         threshold
-        <input type="number" class="inv-qal-threshold" data-idx="${i}" min="1" max="99" value="${v.threshold}"
-          style="width:50px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;font-weight:600;text-align:center;background:var(--card-bg);color:var(--text);">
+        <input type="number" class="inv-qal-threshold" data-idx="${i}" min="1" max="99" value="${v.threshold}">
       </label>
     </div>
   `).join('');

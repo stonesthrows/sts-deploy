@@ -1294,7 +1294,7 @@ function restockQueueRender() {
 
   if (!_rqMetaLoaded || !_rqSizesLoaded || !_rqNotesLoaded) {
     if (!_rqLoadingAll) {
-      list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+      list.innerHTML = '<div class="rq-queue-loading">Loading…</div>';
       list.style.display = 'flex';
       if (empty) empty.style.display = 'none';
       _rqLoadAll(restockQueueRender);
@@ -2448,7 +2448,7 @@ function _rqSessionEditRowHTML(store, i, s) {
       }).join('')
     + (editAdd ? _rqEditAddPanelHTML(store, i, editAdd) : '<button class="rq-adjust-link" style="margin-top:4px;" onclick="rqEditOpenAdd(\'' + store + '\',' + i + ')">+ Add item</button>')
     + '<div style="display:flex;gap:8px;margin-top:2px;">'
-    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(\'' + store + '\',' + i + ')">Save</button>'
+    + '<button class="rq-sbar-act-btn rq-save-btn" onclick="rqSaveEditSession(\'' + store + '\',' + i + ')">Save</button>'
     + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession(\'' + store + '\')">Cancel</button>'
     + '</div></div>';
 }
@@ -2584,7 +2584,7 @@ function _rqRenderRatesPanel() {
           + '<input class="rq-edit-input" type="number" min="0" step="0.5" id="rq-rate-' + name + '" placeholder="$/hr" value="' + (rates[name] != null ? rates[name] : '') + '"></div>';
       }).join('')
     + '<div style="display:flex;gap:8px;margin-top:2px;">'
-    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveRatesPanel()">Save</button>'
+    + '<button class="rq-sbar-act-btn rq-save-btn" onclick="rqSaveRatesPanel()">Save</button>'
     + '<button class="rq-sbar-act-btn" onclick="rqToggleRatesPanel()">Cancel</button>'
     + '</div></div>';
 }
@@ -2637,7 +2637,7 @@ function rqRenderProductionReport(forceRefresh) {
   if (_rqReportSessions && !forceRefresh) { _rqRenderReportBody(_rqReportSessions); return; }
   if (_rqReportLoading) return;
   _rqReportLoading = true;
-  body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>';
+  body.innerHTML = '<div class="rq-report-loading">Loading…</div>';
   fetch('/api/notion-timesession?all=true')
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(ns) {
@@ -2663,7 +2663,7 @@ function rqRenderProductionReport(forceRefresh) {
     })
     .catch(function() {
       _rqReportLoading = false;
-      body.innerHTML = '<div style="text-align:center;color:#A0402A;font-size:13px;padding:30px 0;">Failed to load report</div>';
+      body.innerHTML = '<div class="rq-report-error">Failed to load report</div>';
     });
 }
 
@@ -2705,7 +2705,7 @@ function _rqRenderReportBody(sessions) {
   var summaryEl = document.getElementById('prod-report-summary');
   if (!body) return;
   if (!sessions.length) {
-    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No production data yet</div>';
+    body.innerHTML = '<div class="rq-report-empty">No production data yet</div>';
     if (summaryEl) summaryEl.innerHTML = '';
     return;
   }
@@ -2742,7 +2742,7 @@ function _rqRenderReportBody(sessions) {
     var laborTxt  = 'Labor: $' + laborCost.toFixed(2) + ' (' + hrs.toFixed(1) + 'h × $' + rate.toFixed(2) + '/hr)' + (rateIsEstimate ? ' (est.)' : '');
     var valueTxt  = hasAnyValue ? 'Value: $' + itemValue.toFixed(2) + (valueIsEstimate ? ' (est.)' : '') : 'Value: —';
     var profitTxt = hasAnyValue ? 'Profit: ' + (profit >= 0 ? '+$' + profit.toFixed(2) : '-$' + Math.abs(profit).toFixed(2)) : 'Profit: —';
-    var profitColor = profit >= 0 ? '#3A7A4A' : '#A0402A';
+    var profitClass = profit >= 0 ? 'rq-profit-pos' : 'rq-profit-neg';
 
     var editRow = _rqSessionEditRowHTML('report', i, s);
 
@@ -2756,7 +2756,7 @@ function _rqRenderReportBody(sessions) {
       + '</div>'
       + '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
-      + '<span style="color:#ccc">·</span>'
+      + '<span class="rq-sbar-dot">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'report\',' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-report-' + i + '" onclick="rqSyncShiftsForSession(\'report\',' + i + ')">⟳ Sync</button>' : '')
@@ -2765,7 +2765,7 @@ function _rqRenderReportBody(sessions) {
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
       + '<span class="rq-sbar-pieces">' + laborTxt + '</span>'
       + '<span class="rq-sbar-pieces">' + valueTxt + '</span>'
-      + '<span class="rq-sbar-pieces" style="font-weight:700;color:' + profitColor + ';">' + profitTxt + '</span>'
+      + '<span class="rq-sbar-pieces rq-sbar-profit ' + profitClass + '">' + profitTxt + '</span>'
       + '</div>'
       + editRow
       + '</div>';
@@ -2778,7 +2778,7 @@ function _rqRenderReportBody(sessions) {
       + '<span>' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : '') + '</span>'
       + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
       + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
-      + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
+      + '<span>Total Profit: <b class="' + (grandProfit >= 0 ? 'rq-profit-pos' : 'rq-profit-neg') + '">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
       + '</div>';
   }
 }
@@ -2875,7 +2875,7 @@ function rqRenderSessions() {
 
     var timeRow = '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
-      + '<span style="color:#ccc">·</span>'
+      + '<span class="rq-sbar-dot">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'log\',' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-log-' + i + '" onclick="rqSyncShiftsForSession(\'log\',' + i + ')">⟳ Sync</button>' : '')
