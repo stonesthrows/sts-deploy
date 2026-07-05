@@ -4828,6 +4828,46 @@
     .home-body-grid { grid-template-columns: 1fr; }
   }
 
+  /* ── Print Order Bag (tab-print-bag) ──────────────── */
+  .pb-bar { margin-bottom: var(--sp-3); align-items: center; }
+  .pb-print-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: linear-gradient(135deg, #C9983A, #A87C28);
+    color: #fff; border: none; border-radius: var(--rad-sm);
+    padding: 8px 18px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--dur-fast) var(--ease-smooth),
+                transform var(--dur-fast) var(--ease-smooth),
+                filter var(--dur-fast);
+  }
+  .pb-print-btn:hover { filter: brightness(1.07); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .pb-print-btn:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
+  .pb-print-btn:focus-visible { outline: none; box-shadow: var(--focus-ring), var(--shadow-sm); }
+  .pb-frame-shell {
+    border: 1px solid var(--bdr);
+    border-radius: var(--rad-lg);
+    /* Matches the preview document's own screen backdrop (#666) so the
+       frame reads as one seamless surface in both themes, with no white
+       flash while the iframe loads. */
+    background: #666;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  #bag-frame {
+    display: block; width: 100%; border: none; background: #666;
+    height: calc(100vh - 186px);
+    height: calc(100dvh - 186px);
+    min-height: 420px;
+  }
+  @media (max-width: 768px) {
+    #bag-frame {
+      height: calc(100vh - 236px);
+      height: calc(100dvh - 236px);
+      min-height: 360px;
+    }
+  }
+
   </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -5651,15 +5691,15 @@
 
 <!-- ═══════════════════ PRINT ORDER BAG ═══════════════════ -->
 <div id="tab-print-bag" class="tab-panel">
-  <div style="padding:20px 24px 0;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div>
-        <div style="font-size:17px;font-weight:700;color:var(--text1);">Work Order Bag</div>
-        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Preview and print the current work order bag design.</div>
-      </div>
-      <button onclick="document.getElementById('bag-frame').contentWindow.print()" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">🖨 Print</button>
+  <div class="page-bar pb-bar">
+    <div>
+      <div class="page-title">🖨 Work Order Bag</div>
+      <div class="page-sub">Preview and print the current work order bag design.</div>
     </div>
-    <iframe id="bag-frame" src="work-order-print.html" style="width:100%;height:calc(100vh - 160px);border:1px solid var(--border1);border-radius:8px;background:#fff;"></iframe>
+    <button class="pb-print-btn" onclick="document.getElementById('bag-frame').contentWindow.print()">🖨 Print</button>
+  </div>
+  <div class="pb-frame-shell">
+    <iframe id="bag-frame" src="work-order-print.html" title="Work order bag print preview"></iframe>
   </div>
 </div>
 
