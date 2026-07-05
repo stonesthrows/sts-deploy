@@ -6547,6 +6547,17 @@ body.theme-midnight #inv-ls-qty { color: #F0C060; }
 body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
 
 /* ── Designs ─────────────────────────────── */
+/* Give the title band a card surface so .page-sub stays legible on the page
+   bg (same treatment as the Inventory pass). */
+#tab-designs .page-bar {
+  background: var(--card-bg);
+  border: 1px solid var(--bdr);
+  border-radius: var(--rad-lg);
+  padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  align-items: center;
+  margin-bottom: var(--sp-4);
+}
 .dsn-filter-bar { display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-bottom:var(--sp-4); }
 .dsn-filter-btn {
   background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:20px;
