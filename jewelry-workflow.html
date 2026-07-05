@@ -6003,7 +6003,7 @@
 <div id="tab-inv-adjust" class="tab-panel">
 
 <!-- Category nav (Earrings / Rings / Pendants) inside the panel -->
-<div style="display:flex;gap:6px;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr);flex-wrap:wrap;align-items:center;">
+<div class="inv-cat-nav">
   <button id="inv-main-tab-earrings" class="inv-ear-sub active" onclick="invSwitchMain('earrings')">🪬 Earrings</button>
   <button id="inv-main-tab-rings"    class="inv-ear-sub"        onclick="invSwitchMain('rings');if(!window._invRingLoaded)invLoadRings()">💍 Rings</button>
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
@@ -6022,7 +6022,7 @@
 </div>
 
 <!-- Earring sub-tabs (pill style matching artifact) -->
-<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+<div class="inv-subtab-row">
   <button id="inv-ear-subtab-ear-cuffs" class="inv-ear-sub active" onclick="invSwitchSub('ear-cuffs',this)">Ear Cuffs</button>
   <button id="inv-ear-subtab-dangle"    class="inv-ear-sub"        onclick="invSwitchSub('dangle',this)">Dangle</button>
   <button id="inv-ear-subtab-studs"     class="inv-ear-sub"        onclick="invSwitchSub('studs',this)">Studs</button>
@@ -6031,17 +6031,17 @@
 </div>
 
 <!-- Toolbar -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+<div class="inv-toolbar">
   <input id="invSearch" type="text" placeholder="Filter items…"
-    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    class="inv-search"
     oninput="invFilter(this.value)">
   <button class="btn btn-gold btn-sm" id="invUpdateAllBtn" onclick="invUpdateAll()">Update All</button>
   <button class="btn btn-outline btn-sm" id="invRefreshBtn" onclick="invRefresh()">↻ Refresh</button>
 </div>
-<div id="invCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+<div id="invCountLabel" class="inv-count-label"></div>
 
 <!-- Sub-panels -->
-<div style="padding:0 16px 16px">
+<div class="inv-panel-body">
   <div id="inv-sub-ear-cuffs" class="inv-sub-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-sub-dangle"    class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-sub-studs"     class="inv-sub-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
@@ -6060,7 +6060,7 @@
 </div>
 
 <!-- Ring sub-tabs -->
-<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+<div class="inv-subtab-row">
   <button id="inv-ring-subtab-stackable"  class="inv-ring-sub-btn inv-ear-sub active" onclick="invSwitchRingSub('stackable',this)">Stackable</button>
   <button id="inv-ring-subtab-ring-spirit" class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('ring-spirit',this)">Spirit Animal</button>
   <button id="inv-ring-subtab-geometric"  class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('geometric',this)">Geometric</button>
@@ -6069,17 +6069,17 @@
 </div>
 
 <!-- Toolbar -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+<div class="inv-toolbar">
   <input id="invRingSearch" type="text" placeholder="Filter items…"
-    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    class="inv-search"
     oninput="invRingFilter(this.value)">
   <button class="btn btn-gold btn-sm" id="invRingUpdateAllBtn" onclick="invUpdateAllRings()">Update All</button>
   <button class="btn btn-outline btn-sm" id="invRingRefreshBtn" onclick="invRefreshRings()">↻ Refresh</button>
 </div>
-<div id="invRingCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+<div id="invRingCountLabel" class="inv-count-label"></div>
 
 <!-- Ring sub-panels -->
-<div style="padding:0 16px 16px">
+<div class="inv-panel-body">
   <div id="inv-rsub-stackable"  class="inv-ring-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-ring-spirit" class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-geometric"  class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
@@ -6098,24 +6098,24 @@
 </div>
 
 <!-- Pendant sub-tabs -->
-<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+<div class="inv-subtab-row">
   <button id="inv-pendant-subtab-p-spirit"    class="inv-pendant-sub-btn inv-ear-sub active" onclick="invSwitchPendantSub('p-spirit',this)">Spirit Animal</button>
   <button id="inv-pendant-subtab-p-geometric" class="inv-pendant-sub-btn inv-ear-sub"        onclick="invSwitchPendantSub('p-geometric',this)">Geometric</button>
   <button id="inv-pendant-subtab-p-symbolic"  class="inv-pendant-sub-btn inv-ear-sub"        onclick="invSwitchPendantSub('p-symbolic',this)">Symbolic</button>
 </div>
 
 <!-- Toolbar -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+<div class="inv-toolbar">
   <input id="invPendantSearch" type="text" placeholder="Filter items…"
-    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    class="inv-search"
     oninput="invPendantFilter(this.value)">
   <button class="btn btn-gold btn-sm" id="invPendantUpdateAllBtn" onclick="invUpdateAllPendants()">Update All</button>
   <button class="btn btn-outline btn-sm" id="invPendantRefreshBtn" onclick="invRefreshPendants()">↻ Refresh</button>
 </div>
-<div id="invPendantCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+<div id="invPendantCountLabel" class="inv-count-label"></div>
 
 <!-- Pendant sub-panels -->
-<div style="padding:0 16px 16px">
+<div class="inv-panel-body">
   <div id="inv-psub-p-spirit"    class="inv-pendant-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-psub-p-geometric" class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-psub-p-symbolic"  class="inv-pendant-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
@@ -6132,23 +6132,23 @@
 </div>
 
 <!-- Permanent Jewelry sub-tabs -->
-<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px;background:var(--card-head-bg);border-bottom:1px solid var(--bdr)">
+<div class="inv-subtab-row">
   <button id="inv-pj-subtab-pj-birthstone" class="inv-pj-sub-btn inv-ear-sub active" onclick="invSwitchPermJewelrySub('pj-birthstone',this)">Silver Birthstone Charms</button>
   <button id="inv-pj-subtab-pj-giftfill"   class="inv-pj-sub-btn inv-ear-sub"        onclick="invSwitchPermJewelrySub('pj-giftfill',this)">Silver and Gold Fill Charms</button>
 </div>
 
 <!-- Toolbar -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+<div class="inv-toolbar">
   <input id="invPermJewelrySearch" type="text" placeholder="Filter items…"
-    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    class="inv-search"
     oninput="invPermJewelryFilter(this.value)">
   <button class="btn btn-gold btn-sm" id="invPermJewelryUpdateAllBtn" onclick="invUpdateAllPermJewelry()">Update All</button>
   <button class="btn btn-outline btn-sm" id="invPermJewelryRefreshBtn" onclick="invRefreshPermJewelry()">↻ Refresh</button>
 </div>
-<div id="invPermJewelryCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+<div id="invPermJewelryCountLabel" class="inv-count-label"></div>
 
 <!-- Permanent Jewelry sub-panels -->
-<div style="padding:0 16px 16px">
+<div class="inv-panel-body">
   <div id="inv-pjsub-pj-birthstone" class="inv-pj-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-pjsub-pj-giftfill"   class="inv-pj-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
@@ -6164,17 +6164,17 @@
 </div>
 
 <!-- Toolbar -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;">
+<div class="inv-toolbar">
   <input id="invNoseRingSearch" type="text" placeholder="Filter items…"
-    style="flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;background:var(--card-bg);color:var(--text)"
+    class="inv-search"
     oninput="invNoseRingFilter(this.value)">
   <button class="btn btn-gold btn-sm" id="invNoseRingUpdateAllBtn" onclick="invUpdateAllNoseRings()">Update All</button>
   <button class="btn btn-outline btn-sm" id="invNoseRingRefreshBtn" onclick="invRefreshNoseRings()">↻ Refresh</button>
 </div>
-<div id="invNoseRingCountLabel" style="font-size:12px;color:var(--text-dim);padding:0 16px 8px"></div>
+<div id="invNoseRingCountLabel" class="inv-count-label"></div>
 
 <!-- Faux Nose Rings panel content -->
-<div style="padding:0 16px 16px">
+<div class="inv-panel-body">
   <div id="inv-nrsub-nose-rings" class="inv-nosering-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
 </div>
@@ -6183,6 +6183,56 @@
 
 <style>
 /* ── Inventory styles (scoped, won't affect other tabs) ── */
+
+/* Static chrome inside #tab-inv-adjust (category nav / sub-tab rows / toolbars) */
+.inv-cat-nav {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px; padding: 10px 16px;
+  background: var(--card-head-bg);
+  border-bottom: 1px solid var(--bdr);
+}
+.inv-cat-nav .inv-ear-sub { font-size: 12.5px; padding: 5px 15px; }
+.inv-subtab-row {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 10px 16px;
+  background: var(--card-head-bg);
+  border-bottom: 1px solid var(--bdr);
+}
+.inv-toolbar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 10px; padding: 10px 16px;
+}
+.inv-search {
+  flex: 1; min-width: 160px;
+  padding: 7px 12px;
+  border: 1px solid var(--bdr);
+  border-radius: var(--rad-sm);
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.inv-search:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.inv-count-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.78); /* sits on the slate page bg in light theme */
+  padding: 0 16px 8px;
+  font-variant-numeric: tabular-nums;
+}
+body.theme-midnight .inv-count-label { color: var(--text-dim); }
+.inv-panel-body { padding: 0 16px 16px; }
+/* Give the title band a card surface so .page-sub stays legible on the page bg,
+   and the cat-nav / title / sub-tab stack reads as one cohesive header. */
+#tab-inv-adjust .page-bar { background: var(--card-bg); }
+
+/* Narrow screens: let each row wrap instead of crushing the variant name to
+   zero width and clipping the stepper off the card edge. */
+@media (max-width: 640px) {
+  #tab-inv-adjust .inv-row { flex-wrap: wrap; row-gap: 6px; padding: 8px 12px; }
+  #tab-inv-adjust .inv-var-name { flex: 1 1 100%; }
+}
+
 .inv-ear-sub {
   padding: 4px 14px;
   font-size: 12px;
@@ -6193,19 +6243,30 @@
   cursor: pointer;
   border-radius: 20px;
   white-space: nowrap;
-  transition: all .15s;
+  font-family: inherit;
+  transition: color var(--dur-fast) var(--ease-smooth),
+              background var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
 }
-.inv-ear-sub:hover { color: var(--text); background: var(--bg); border-color: var(--bdr); }
-.inv-ear-sub.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+.inv-ear-sub:hover { color: var(--text); background: var(--hover-bg); border-color: var(--bdr); }
+.inv-ear-sub:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.inv-ear-sub.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); box-shadow: var(--shadow-sm); }
 
 .inv-card {
   background: var(--card-bg);
   border: 1px solid var(--bdr);
-  border-radius: 10px;
-  margin-bottom: 8px;
+  border-radius: var(--rad-md);
+  margin-bottom: var(--sp-2);
   overflow: hidden;
 }
 .inv-card.hidden { display: none; }
+/* Hover lift scoped to the Adjust Inventory tab (base class is reused elsewhere) */
+#tab-inv-adjust .inv-card {
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-fast) var(--ease-smooth), border-color var(--dur-fast) var(--ease-smooth);
+}
+#tab-inv-adjust .inv-card:hover { box-shadow: var(--shadow-md); border-color: var(--accent-border); }
 .inv-card-head {
   padding: 8px 14px;
   background: var(--card-head-bg);
@@ -6222,7 +6283,10 @@
   gap: 10px;
 }
 .inv-row:last-child { border-bottom: none; }
+#tab-inv-adjust .inv-row { transition: box-shadow var(--dur-fast) var(--ease-smooth); }
+#tab-inv-adjust .inv-row:hover { box-shadow: inset 3px 0 0 var(--accent-mid); }
 .inv-var-name { flex: 1; font-size: 13px; color: var(--text2); min-width: 0; }
+#tab-inv-adjust .inv-var-name { font-weight: 500; color: var(--text); }
 
 .inv-badge {
   font-size: 12px;
@@ -6231,6 +6295,7 @@
   border-radius: 20px;
   white-space: nowrap;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .inv-badge.in-stock  { background: #f0fdf4; color: #16a34a; }
 .inv-badge.low-stock { background: #fffbeb; color: #d97706; }
@@ -6245,6 +6310,12 @@
   overflow: hidden;
   flex-shrink: 0;
 }
+#tab-inv-adjust .inv-stepper,
+#inv-split-popover .inv-stepper {
+  transition: border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+}
+#tab-inv-adjust .inv-stepper:focus-within,
+#inv-split-popover .inv-stepper:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
 .inv-step-btn {
   width: 28px; height: 30px;
   border: none;
@@ -6253,8 +6324,9 @@
   font-size: 15px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  transition: background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
 }
-.inv-step-btn:hover { background: var(--bdr-light); }
+.inv-step-btn:hover { background: var(--bdr-light); color: var(--text); }
 .inv-step-input {
   width: 48px; height: 30px;
   border: none;
@@ -6264,8 +6336,11 @@
   text-align: center;
   background: var(--card-bg);
   color: var(--text);
+  font-variant-numeric: tabular-nums;
   -moz-appearance: textfield;
 }
+#tab-inv-adjust .inv-step-input,
+#inv-split-popover .inv-step-input { font-weight: 600; }
 .inv-step-input::-webkit-inner-spin-button,
 .inv-step-input::-webkit-outer-spin-button { -webkit-appearance: none; }
 .inv-step-input:focus { outline: none; }
@@ -6285,6 +6360,21 @@
 }
 .inv-set-btn:hover { opacity: .88; }
 .inv-set-btn:disabled { background: var(--bdr); cursor: not-allowed; }
+#tab-inv-adjust .inv-set-btn,
+#inv-split-popover .inv-set-btn {
+  transition: background var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth),
+              transform var(--dur-fast) var(--ease-smooth);
+}
+#tab-inv-adjust .inv-set-btn:hover:not(:disabled),
+#inv-split-popover .inv-set-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--accent-mid);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+#tab-inv-adjust .inv-set-btn:focus-visible,
+#inv-split-popover .inv-set-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .inv-dot {
   width: 6px; height: 6px;
@@ -6311,6 +6401,7 @@
   transition: background .15s, color .15s;
 }
 .inv-queue-btn:hover { background: #fef3c7; color: #92400e; }
+.inv-queue-btn:focus-visible, .inv-qal-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .inv-qal-btn {
   padding: 0 9px;
@@ -6332,6 +6423,7 @@
   color: var(--text-dim);
   white-space: nowrap;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .inv-split-you, .inv-split-georgina {
@@ -6342,7 +6434,8 @@
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
-  transition: opacity .15s;
+  font-variant-numeric: tabular-nums;
+  transition: opacity var(--dur-fast) var(--ease-smooth);
 }
 .inv-split-you:hover, .inv-split-georgina:hover { opacity: .75; }
 .inv-split-you      { background: var(--accent-bg); color: var(--accent, #C9983A); }
@@ -6355,9 +6448,9 @@
   z-index: 9999;
   background: var(--card-bg);
   border: 1px solid var(--bdr);
-  border-radius: 10px;
+  border-radius: var(--rad-md);
   padding: 14px 16px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-lg);
   min-width: 180px;
 }
 .inv-sp-title {
@@ -6423,12 +6516,35 @@
 }
 #inv-ls-modal {
   background: var(--card-bg);
-  border-radius: 14px;
+  border-radius: var(--rad-lg);
   padding: 24px;
   width: 360px;
   max-width: 95vw;
-  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  box-shadow: var(--shadow-lg);
 }
+#inv-ls-qty { font-size: 14px; font-weight: 700; color: #d97706; font-variant-numeric: tabular-nums; }
+
+/* ── Inventory: midnight theme ──
+   js/inventory.js hardcodes light-hex chip colors and inline pastel row
+   tints; scope the dark fixes under this tab (+ its body-level popover)
+   so the shared base classes used by other views stay untouched. */
+body.theme-midnight #tab-inv-adjust .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
+body.theme-midnight #tab-inv-adjust .inv-badge.low-stock { background: #332818; color: #F0C060; }
+body.theme-midnight #tab-inv-adjust .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
+body.theme-midnight #tab-inv-adjust .inv-queue-btn,
+body.theme-midnight #tab-inv-adjust .inv-qal-btn { background: #28221A; border-color: #8A6420; color: #F0C060; }
+body.theme-midnight #tab-inv-adjust .inv-queue-btn:hover,
+body.theme-midnight #tab-inv-adjust .inv-qal-btn:hover { background: #342C20; color: #F0D498; }
+body.theme-midnight #tab-inv-adjust .inv-split-georgina,
+body.theme-midnight #inv-split-popover .inv-split-georgina { background: #2E2838; color: #B49CF0; }
+/* Neutralize the JS-inlined pastel row tints in midnight; keep a subtle zebra
+   (variant rows start at the card's 2nd child, so "odd" = every other row). */
+body.theme-midnight #tab-inv-adjust .inv-row { background: transparent !important; }
+body.theme-midnight #tab-inv-adjust .inv-row:nth-child(odd) { background: rgba(255,255,255,0.03) !important; }
+body.theme-midnight #inv-ls-qty { color: #F0C060; }
+/* Shared .btn-outline hardcodes a white background; re-surface it for dark
+   (same scoped fix the Calendar pass used). */
+body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
 
 /* ── Designs ─────────────────────────────── */
 .dsn-filter-bar { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px; }
@@ -8542,7 +8658,7 @@ body.theme-midnight .recon-under { color: #E08A80; }
     <div id="inv-ls-var-name" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;padding:10px 12px;background:var(--card-head-bg);border-radius:9px;border:1px solid var(--bdr);">
       <span style="font-size:12px;color:var(--text-dim);">Current stock:</span>
-      <span id="inv-ls-qty" style="font-size:14px;font-weight:700;color:#d97706;"></span>
+      <span id="inv-ls-qty"></span>
     </div>
     <div style="margin-bottom:18px;">
       <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">
