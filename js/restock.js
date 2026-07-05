@@ -927,13 +927,13 @@ function _rqAutoMatchSingle(pid, rawText) {
   _rqAutoMatches[pid] = '_loading_';
   _rqUpdateMatchRow(pid);
   var localMatches = _rqLocalSearch(query);
-  // Note: _rqSqCall only attaches a token if one is saved in this browser's
-  // localStorage — the /api/square proxy falls back to its own server-side
-  // SQUARE_TOKEN otherwise. So this must NOT skip the live search just
-  // because no local token exists (that previously made every item on a
-  // device without a saved token — e.g. a phone that's never opened
-  // Integrations — show "No Square match" even though the server-side
-  // credential would have matched it fine).
+  // Note: _rqSqCall never attaches a client token — the /api/square proxy
+  // always falls back to its own server-side SQUARE_TOKEN. So this always
+  // runs the live search regardless of device (that used to be conditional
+  // on a per-browser token being saved, which made every item on a device
+  // without one — e.g. a phone that's never opened Integrations — show
+  // "No Square match" even though the server-side credential would have
+  // matched it fine).
   return _rqSqSearchExpand(query).then(function(squareRows) {
     if (_rqAutoMatches[pid] !== '_loading_') return;
     var rows = localMatches.concat(squareRows);
@@ -1156,29 +1156,108 @@ function _rqRestoreTimers() {
       _rqStartTick(pid);
     });
   } catch (e) {}
-  // Read-only merge of other devices' timers from the shared KV union. We do
-  // NOT blind-push our local view (that was the clobber). We only re-assert
-  // timers WE started that KV is missing — self-healing our own timers without
-  // ever resurrecting a zombie we merely received from another device.
+  _rqReconcileTimers();
+  _rqStartReconcilePoll();
+}
+
+// Pulls the shared KV union and reconciles it against our in-memory view.
+// Runs once at boot (from _rqRestoreTimers) AND periodically thereafter (see
+// _rqStartReconcilePoll below) so a stop or edit made on another device shows
+// up here within one poll interval instead of only at next page load/reload.
+//
+//   - pid on server, not tracked locally             → adopt (another device
+//                                                       started it since we
+//                                                       last checked)
+//   - pid tracked locally as OURS, missing on server → self-heal (re-push).
+//                                                       Should be rare — we
+//                                                       unpersist before
+//                                                       deleting our own copy
+//                                                       on a real stop — but
+//                                                       covers a dropped PUT.
+//   - pid tracked locally as FOREIGN, missing on server → the owning device
+//                                                       stopped it — drop our
+//                                                       copy too. We're a
+//                                                       read-only relay for
+//                                                       timers we didn't
+//                                                       start, never the
+//                                                       authority on them.
+//   - pid tracked locally as FOREIGN, present but changed → refresh our copy
+//                                                       (owner mid-run edit,
+//                                                       e.g. size/qty or
+//                                                       notion page linkup).
+//                                                       Never done for OUR
+//                                                       OWN timers — that
+//                                                       would race our own
+//                                                       in-flight edits
+//                                                       against a poll that
+//                                                       read a stale server
+//                                                       copy moments before
+//                                                       our own PUT landed.
+function _rqReconcileTimers() {
   fetch('/api/rq-timer-state')
-    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(serverState) {
-      serverState = serverState || {};
-      var added = false;
-      Object.keys(serverState).forEach(function(pid) {
-        if (_rqTimers[pid]) return; // already active locally
-        var s = serverState[pid];
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
-        _rqStartTick(pid);
-        added = true;
-      });
+      if (!serverState) return;
       var myId = _rqDeviceId();
+      var changed = false;
+
+      // Foreign timer removed remotely (owner stopped it) → drop locally.
+      Object.keys(_rqTimers).forEach(function(pid) {
+        var t = _rqTimers[pid];
+        if (t.deviceId !== myId && !serverState[pid]) {
+          clearInterval(t.tickInterval);
+          delete _rqTimers[pid];
+          changed = true;
+        }
+      });
+
+      // Our own timer missing remotely → self-heal (re-assert), never resurrect
+      // a timer we merely received from another device (handled above instead).
       Object.keys(_rqTimers).forEach(function(pid) {
         if (_rqTimers[pid].deviceId === myId && !serverState[pid]) _rqPersistTimer(pid);
       });
-      if (added) restockQueueRender();
+
+      // New timer from another device → adopt.
+      Object.keys(serverState).forEach(function(pid) {
+        if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
+        var s = serverState[pid];
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
+        _rqStartTick(pid);
+        changed = true;
+      });
+
+      // Foreign timer's fields changed remotely (owner mid-run edit) → refresh.
+      Object.keys(_rqTimers).forEach(function(pid) {
+        var t = _rqTimers[pid];
+        if (t.deviceId === myId) return; // never clobber our own in-flight edits
+        var s = serverState[pid];
+        if (!s) return;
+        var nextItems = JSON.stringify(s.items || null);
+        var nextRich  = JSON.stringify(s.richMatch || null);
+        if (nextItems !== JSON.stringify(t.items || null) || nextRich !== JSON.stringify(t.richMatch || null)
+            || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText) {
+          t.items = s.items || null;
+          t.richMatch = s.richMatch || null;
+          t.sessionNotionPageId = s.sessionNotionPageId;
+          t.itemText = s.itemText;
+          t.employee = s.employee;
+          changed = true;
+        }
+      });
+
+      if (changed) restockQueueRender();
     })
     .catch(function() {});
+}
+
+// Started once (guarded) at first boot-time restore. 25s keeps the "another
+// device stopped/edited this" gap tight without hammering KV — the restock
+// queue is a short-lived working view someone is actively watching while a
+// timer runs, not a background tab, so this cadence is cheap in practice.
+var _rqReconcilePoll = null;
+function _rqStartReconcilePoll() {
+  if (_rqReconcilePoll) return;
+  _rqReconcilePoll = setInterval(_rqReconcileTimers, 25000);
 }
 
 function _rqStartTick(pid) {
@@ -1600,12 +1679,15 @@ function rqSearchInput(pid, value) {
   s.debounceTimer = setTimeout(function() { _rqSearchCatalog(pid, value, false); }, 350);
 }
 
+// Never attaches a client token — /api/square always falls back to the
+// server's own SQUARE_TOKEN env var when none is sent. There is no
+// per-browser override: a stale/invalid token saved in one browser's
+// localStorage used to silently break Square calls on just that device
+// while every other device (and the server itself) worked fine.
 function _rqSqCall(path, opts) {
   opts = opts || {};
-  var token = localStorage.getItem('sts-square-token') || '';
   var payload = { path: '/v2' + path, method: opts.method || 'GET' };
   if (opts.body) payload.body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
-  if (token) payload.token = token;
   return fetch('/api/square', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r) { return r.json(); });
 }
 
@@ -2084,7 +2166,11 @@ function rqConfirmPush(store, i) {
   var s = _rqStoreList(store)[i]; if (!s) return;
   var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
-  var loc = localStorage.getItem('sts-square-location') || 'D7EZ98V48F79A';
+  // Single source of truth for the Square location — same constant used by
+  // the inventory-count fetch below and by js/inventory.js. This used to be
+  // a per-browser override (localStorage['sts-square-location']) that
+  // defaulted to the same value today but could silently diverge per device.
+  var loc = INV_LOCATION_ID;
   var pushItems = (s.items || []).filter(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
   if (!pushItems.length) {
     toast('No Square items to push', '⚠');

@@ -111,18 +111,21 @@ async function _invFallbackCatSearch(sub) {
 }
 
 // ── Square API helper (routes through /api/square proxy to avoid CORS) ──────
+// Never attaches a client token — /api/square always falls back to the
+// server's own SQUARE_TOKEN env var when none is sent. There is no
+// per-browser override: this used to hard-fail with "No Square token" on any
+// device that didn't have one saved locally, even though the server-side
+// credential would have worked fine (this was very likely the actual cause
+// of "Square inventory shows correctly on some devices but not others").
 
 async function _sqFetch(path, opts = {}) {
-  const token = localStorage.getItem('sts-square-token');
-  if (!token) throw new Error('No Square token — add it in ⚙ Integrations');
-
   const method = opts.method || 'GET';
   const body   = opts.body ? JSON.parse(opts.body) : undefined;
 
   const res = await fetch('/api/square', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, method, body, token }),
+    body: JSON.stringify({ path, method, body }),
   });
 
   const json = await res.json();
