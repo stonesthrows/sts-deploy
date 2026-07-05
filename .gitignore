@@ -8,3 +8,4 @@ processed-drive-scans.json
 cf-screenshot.png
 *.log
 .netlify
+.claude/worktrees/

@@ -165,23 +165,25 @@ function renderNotesList(key, items) {
   }
 
   list.innerHTML = items.map(function(item, idx) {
-    var saving = item._saving ? ' style="opacity:0.5"' : '';
-    var dragAttrs = item.notionPageId && !item._saving
-      ? ' draggable="true" ondragstart="notesDragStart(event,\'' + key + '\',' + idx + ')" style="cursor:grab"'
-      : '';
-    var row = '<div' + saving + dragAttrs + ' style="display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid #F4EFE8">';
+    var cls = 'notes-list-item';
+    if (item.done) cls += ' done';
+    if (item._saving) cls += ' saving';
+    var dragAttrs = '';
+    if (item.notionPageId && !item._saving) {
+      cls += ' draggable';
+      dragAttrs = ' draggable="true" ondragstart="notesDragStart(event,\'' + key + '\',' + idx + ')"';
+    }
+    var row = '<div class="' + cls + '"' + dragAttrs + '>';
     if (!noCheck) {
-      row += '<input type="checkbox" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;margin-right:4px" '
+      row += '<input type="checkbox" '
            + (item.done ? 'checked' : '')
            + ' onchange="toggleNoteItem(\'' + key + '\',' + idx + ')">';
     }
-    var textStyle = 'flex:1;font-size:13px;' + (item.done ? 'text-decoration:line-through;color:#B0A898' : 'color:var(--text)');
-    row += '<span style="' + textStyle + '">'
+    row += '<span class="notes-item-text">'
          + item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
          + '</span>';
     if (!item._saving && key !== 'restock') {
-      row += '<span onclick="deleteNoteItem(\'' + key + '\',' + idx + ')" '
-           + 'style="cursor:pointer;color:#C4A0A0;font-size:18px;line-height:1;padding:0 4px" title="Remove">×</span>';
+      row += '<span class="notes-item-del" onclick="deleteNoteItem(\'' + key + '\',' + idx + ')" title="Remove">×</span>';
     }
     row += '</div>';
     return row;
@@ -437,20 +439,16 @@ function notesDragStart(event, key, idx) {
 function notesDragOver(event) {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
-  var list = event.currentTarget;
-  list.style.outline = '2px dashed var(--accent)';
-  list.style.outlineOffset = '-3px';
+  event.currentTarget.classList.add('drag-over');
 }
 
 function notesDragLeave(event) {
-  var list = event.currentTarget;
-  list.style.outline = '';
+  event.currentTarget.classList.remove('drag-over');
 }
 
 function notesDrop(event, targetKey) {
   event.preventDefault();
-  var list = event.currentTarget;
-  list.style.outline = '';
+  event.currentTarget.classList.remove('drag-over');
   if (!_dragNote || _dragNote.fromKey === targetKey) { _dragNote = null; return; }
 
   var pageId  = _dragNote.pageId;
