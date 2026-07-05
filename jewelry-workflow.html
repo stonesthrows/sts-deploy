@@ -6547,62 +6547,118 @@ body.theme-midnight #inv-ls-qty { color: #F0C060; }
 body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
 
 /* ── Designs ─────────────────────────────── */
-.dsn-filter-bar { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px; }
-.dsn-filter-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:background .15s,color .15s; }
-.dsn-filter-btn:hover { background:var(--accent-bg);color:var(--text); }
-.dsn-filter-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
-.dsn-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px; }
-.dsn-card { background:var(--card-bg);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s; }
-.dsn-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:var(--accent-border); }
-.dsn-card-thumb-wrap { position:relative;height:120px;background:var(--surface); }
-.dsn-card-thumb { width:100%;height:100%;background-size:cover;background-position:center; }
-.dsn-card-thumb-empty { display:flex;align-items:center;justify-content:center;height:100%;background:var(--surface); }
-.dsn-img-badge { position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 7px; }
+.dsn-filter-bar { display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-bottom:var(--sp-4); }
+.dsn-filter-btn {
+  background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:20px;
+  padding:5px 13px; font-size:12px; font-weight:600; color:var(--text2);
+  cursor:pointer; font-family:inherit;
+  transition:background var(--dur-fast) var(--ease-smooth),
+             color var(--dur-fast) var(--ease-smooth),
+             border-color var(--dur-fast) var(--ease-smooth),
+             box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dsn-filter-btn:hover { background:var(--accent-bg); border-color:var(--accent-border); color:var(--text); }
+.dsn-filter-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:var(--shadow-sm); }
+/* Library grid */
+.dsn-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:var(--sp-3); }
+.dsn-card {
+  background:var(--card-bg); border:1px solid var(--bdr); border-radius:var(--rad-lg);
+  overflow:hidden; cursor:pointer; box-shadow:var(--shadow-sm);
+  transition:box-shadow var(--dur-fast) var(--ease-smooth),
+             transform var(--dur-fast) var(--ease-smooth),
+             border-color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); border-color:var(--accent-border); }
+.dsn-card-thumb-wrap { position:relative; height:120px; background:var(--card-head-bg); overflow:hidden; }
+.dsn-card-thumb { width:100%; height:100%; background-size:cover; background-position:center; transition:transform var(--dur-med) var(--ease-smooth); }
+.dsn-card:hover .dsn-card-thumb:not(.dsn-card-thumb-empty) { transform:scale(1.04); }
+.dsn-card-thumb-empty { display:flex; align-items:center; justify-content:center; height:100%; background:var(--card-head-bg); }
+.dsn-img-badge { position:absolute; bottom:6px; right:6px; background:rgba(26,46,56,.6); color:#fff; font-size:11px; font-weight:700; border-radius:10px; padding:2px 7px; }
 .dsn-card-body { padding:11px 13px 13px; }
-.dsn-cat-chip { display:inline-block;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:20px;font-size:10.5px;font-weight:700;padding:2px 8px;margin-bottom:5px; }
-.dsn-card-name { font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.3; }
-.dsn-card-preview { font-size:11.5px;color:var(--text3);line-height:1.4; }
+.dsn-cat-chip { display:inline-block; background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent-border); border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.2px; padding:2px 8px; margin-bottom:5px; }
+.dsn-card-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; }
+.dsn-card-preview { font-size:11.5px; color:var(--text3); line-height:1.4; }
 /* Form */
-.dsn-form-header { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
-.dsn-form-title { font-size:16px;font-weight:800;color:var(--text);flex:1; }
-.dsn-field-label { font-size:12px;font-weight:700;color:var(--text);display:block;margin-bottom:4px; }
-.dsn-input { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;transition:border-color .15s; }
-.dsn-input:focus { outline:none;border-color:var(--accent); }
-.dsn-textarea { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px;resize:none;min-height:38px;line-height:1.5;transition:border-color .15s;overflow:hidden; }
-.dsn-textarea:focus { outline:none;border-color:var(--accent); }
-.dsn-select { width:100%;padding:9px 11px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--text);margin-bottom:14px; }
-.dsn-upload-row { display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px; }
-.dsn-upload-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
-.dsn-upload-btn:hover { background:var(--accent-bg); }
-.dsn-pdf-status { font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;min-height:18px; }
-.dsn-gear-menu { position:absolute;right:0;top:calc(100% + 6px);background:var(--card-bg);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;min-width:190px;padding:5px; }
-.dsn-gear-item { display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border:none;background:none;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;border-radius:7px;text-align:left;white-space:nowrap; }
-.dsn-gear-item:hover { background:var(--surface); }
+.dsn-form-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+.dsn-form-title { font-size:16px; font-weight:800; color:var(--text); flex:1; }
+.dsn-field-label { font-size:12px; font-weight:700; color:var(--text); display:block; margin-bottom:4px; }
+.dsn-req { color:#c0392b; }
+.dsn-input, .dsn-textarea, .dsn-select {
+  width:100%; padding:9px 11px; border:1px solid var(--bdr); border-radius:var(--rad-sm);
+  font-size:13px; font-family:inherit; background:var(--card-bg); color:var(--text); margin-bottom:14px;
+  transition:border-color var(--dur-fast) var(--ease-smooth),
+             box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dsn-textarea { resize:none; min-height:38px; line-height:1.5; overflow:hidden; }
+.dsn-input:focus, .dsn-textarea:focus, .dsn-select:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
+.dsn-upload-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.dsn-upload-btn {
+  display:inline-block; background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:var(--rad-sm);
+  padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--text2);
+  transition:background var(--dur-fast) var(--ease-smooth),
+             border-color var(--dur-fast) var(--ease-smooth),
+             color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-upload-btn:hover { background:var(--accent-bg); border-color:var(--accent-border); color:var(--text); }
+.dsn-key-save { flex-shrink:0; padding:6px 14px; background:var(--accent); color:#fff; border-color:var(--accent); }
+.dsn-key-save:hover { background:var(--accent-mid); border-color:var(--accent-mid); color:#fff; }
+.dsn-pdf-status { font-size:12px; color:var(--accent); font-weight:600; margin-bottom:12px; min-height:18px; transition:color var(--dur-fast); }
+.dsn-pdf-status.err { color:#c0392b; }
+.dsn-pdf-status.ok  { color:var(--text); }
+.dsn-gear-menu {
+  position:absolute; right:0; top:calc(100% + 6px);
+  background:var(--card-bg); border:1px solid var(--bdr); border-radius:var(--rad-md);
+  box-shadow:var(--shadow-lg); z-index:200; min-width:190px; padding:5px;
+  animation:dsnMenuPop var(--dur-fast) var(--ease-smooth);
+}
+@keyframes dsnMenuPop {
+  from { opacity:0; transform:scale(0.96) translateY(-4px); }
+}
+.dsn-gear-item { display:flex; align-items:center; gap:9px; width:100%; padding:9px 12px; border:none; background:none; font-size:13px; font-family:inherit; color:var(--text); cursor:pointer; border-radius:7px; text-align:left; white-space:nowrap; transition:background var(--dur-fast); }
+.dsn-gear-item:hover { background:var(--hover); }
 .dsn-gear-item.danger { color:#c0392b; }
-.dsn-gear-item.active { background:var(--accent);color:#fff; }
-.dsn-gear-sep { height:1px;background:var(--bdr);margin:4px 0; }
-.dsn-form-layout { display:grid;grid-template-columns:1fr 250px;gap:24px;align-items:start; }
-.dsn-form-right { position:sticky;top:10px; }
-.dsn-img-col-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
-.dsn-img-edit-btn { background:var(--surface);border:1px solid var(--bdr);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);transition:background .15s; }
+.dsn-gear-item.active { background:var(--accent); color:#fff; }
+.dsn-gear-sep { height:1px; background:var(--bdr); margin:4px 0; }
+.dsn-form-layout { display:grid; grid-template-columns:1fr 250px; gap:24px; align-items:start; }
+.dsn-form-right { position:sticky; top:10px; }
+.dsn-img-col-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.dsn-img-edit-btn { background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--text2); transition:background var(--dur-fast); }
 .dsn-img-edit-btn:hover { background:var(--accent-bg); }
-.dsn-img-edit-btn.active { background:#c0392b;color:#fff;border-color:#c0392b; }
-.dsn-img-col { display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:40px; }
+.dsn-img-edit-btn.active { background:#c0392b; color:#fff; border-color:#c0392b; }
+.dsn-img-col { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-height:40px; }
 .dsn-thumb-wrap { position:relative; }
-.dsn-thumb { width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;border:1px solid var(--bdr);cursor:pointer;display:block; }
-.dsn-thumb:hover { border-color:var(--accent); }
-.dsn-thumb-del { position:absolute;top:7px;right:7px;width:28px;height:28px;border-radius:50%;background:rgba(192,57,43,.9);color:#fff;border:2px solid rgba(255,255,255,.7);cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .15s; }
-.dsn-img-col.edit-mode .dsn-thumb-del { opacity:1;pointer-events:auto; }
-.dsn-form-actions { display:flex;gap:8px;padding-top:4px;flex-wrap:wrap; }
+.dsn-thumb {
+  width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:var(--rad-md);
+  border:1px solid var(--bdr); cursor:pointer; display:block;
+  transition:border-color var(--dur-fast) var(--ease-smooth),
+             box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dsn-thumb:hover { border-color:var(--accent); box-shadow:var(--shadow-sm); }
+.dsn-thumb-del { position:absolute; top:7px; right:7px; width:28px; height:28px; border-radius:50%; background:rgba(192,57,43,.9); color:#fff; border:2px solid rgba(255,255,255,.7); cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0; pointer-events:none; transition:opacity var(--dur-fast); }
+.dsn-img-col.edit-mode .dsn-thumb-del { opacity:1; pointer-events:auto; }
+.dsn-form-actions { display:flex; gap:8px; padding-top:4px; flex-wrap:wrap; }
 @media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
 /* Lightbox */
-#dsn-img-overlay { position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;align-items:center;justify-content:center; }
-#dsn-img-overlay img { max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain; }
-#dsn-img-overlay-close { position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;line-height:1; }
+#dsn-img-overlay { position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:9999; display:none; align-items:center; justify-content:center; animation:dsnFade var(--dur-med) var(--ease-smooth); }
+@keyframes dsnFade { from { opacity:0; } }
+#dsn-img-overlay img { max-width:92vw; max-height:88vh; border-radius:var(--rad-md); object-fit:contain; }
+#dsn-img-overlay-close { position:absolute; top:16px; right:20px; font-size:28px; color:#fff; cursor:pointer; line-height:1; }
 @media (max-width:600px) {
   .dsn-grid { grid-template-columns:1fr 1fr; }
   .dsn-card-thumb-wrap { height:90px; }
 }
+/* ── Designs: midnight theme ──
+   Shared .btn-outline hardcodes a white background (same scoped fix the
+   Calendar + Inventory passes used), and the hardcoded #c0392b reds are
+   too dark to read on the midnight card surfaces. Scope under this tab. */
+body.theme-midnight #tab-designs .btn-outline { background: var(--card-bg); }
+body.theme-midnight #tab-designs .dsn-filter-btn.active,
+body.theme-midnight #tab-designs .dsn-gear-item.active,
+body.theme-midnight #tab-designs .dsn-key-save { color:#1A1A1C; }
+body.theme-midnight #tab-designs .dsn-gear-item.danger { color:#E08A80; }
+body.theme-midnight #tab-designs .dsn-req { color:#E08A80; }
+body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
 </style>
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
@@ -6654,12 +6710,12 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
     <div id="dsn-pdf-status" class="dsn-pdf-status"></div>
 
     <!-- API key panel (toggled by ⚙ gear button) -->
-    <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
+    <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
       <div id="dsn-api-key-row">
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
-          <button onclick="designsSaveApiKey()" class="dsn-upload-btn" style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:#fff;border-color:var(--accent)">Save</button>
+          <button onclick="designsSaveApiKey()" class="dsn-upload-btn dsn-key-save">Save</button>
         </div>
       </div>
       <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);">
@@ -6673,7 +6729,7 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
         <!-- Name + Category inline -->
         <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
           <div>
-            <label class="dsn-field-label">Design Name <span style="color:#c0392b">*</span></label>
+            <label class="dsn-field-label">Design Name <span class="dsn-req">*</span></label>
             <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
           </div>
           <div>

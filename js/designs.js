@@ -125,13 +125,13 @@ async function designsShowForm(id) {
     document.getElementById('dsn-specs').value = '';
     document.getElementById('dsn-instructions').value = '';
     document.getElementById('dsn-pdf-status').textContent = '⏳ Loading…';
-    document.getElementById('dsn-pdf-status').style.color = 'var(--accent)';
+    _dsnStatusTone(document.getElementById('dsn-pdf-status'), '');
     try {
       _designsCurrentFull = await _designsApiFetch(id);
       document.getElementById('dsn-pdf-status').textContent = '';
     } catch(e) {
       document.getElementById('dsn-pdf-status').textContent = '❌ Could not load design: ' + e.message;
-      document.getElementById('dsn-pdf-status').style.color = '#c0392b';
+      _dsnStatusTone(document.getElementById('dsn-pdf-status'), 'err');
     }
   }
 
@@ -363,7 +363,7 @@ async function designsHandlePDF(file) {
   const status = document.getElementById('dsn-pdf-status');
   const apiKey = localStorage.getItem('sts-anthropic-key');
   if (!apiKey) {
-    status.style.color = '#c0392b';
+    _dsnStatusTone(status, 'err');
     status.textContent = '⚠ Enter your Anthropic API key — click ⚙ to add it';
     const panel = document.getElementById('dsn-api-key-panel');
     if (panel) { panel.style.display = ''; designsRefreshApiKeyUI(); }
@@ -371,7 +371,7 @@ async function designsHandlePDF(file) {
     return;
   }
 
-  status.style.color = 'var(--accent)';
+  _dsnStatusTone(status, '');
   status.textContent = '⏳ Rendering PDF pages…';
 
   const buf = await file.arrayBuffer();
@@ -434,10 +434,10 @@ async function designsHandlePDF(file) {
     if (!instrEl.value.trim() && parsed.instructions)  instrEl.value = parsed.instructions;
 
     setTimeout(dsnAutoResizeAll, 0);
-    status.style.color = 'var(--text)';
+    _dsnStatusTone(status, 'ok');
     status.textContent = '✓ Fields filled by Claude — review and edit below';
   } catch(err) {
-    status.style.color = '#c0392b';
+    _dsnStatusTone(status, 'err');
     status.textContent = '❌ ' + (err.message || err);
   }
 }
@@ -498,6 +498,16 @@ function designsToggleApiKeyPanel() {
     const key = localStorage.getItem('sts-anthropic-key');
     if (!key) setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
   }
+}
+
+// ── Status tone (presentational only) ─────────
+// Swaps the .dsn-pdf-status color modifier classes ('' = accent/default,
+// 'err' = red, 'ok' = text color) so the midnight theme can restyle them
+// in CSS instead of fighting hardcoded inline hex colors.
+function _dsnStatusTone(el, tone) {
+  if (!el) return;
+  el.classList.remove('err', 'ok');
+  if (tone) el.classList.add(tone);
 }
 
 // ── Auto-resize textareas ─────────────────────
