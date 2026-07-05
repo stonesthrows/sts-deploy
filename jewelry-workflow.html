@@ -349,14 +349,9 @@
     .stat-label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.2px; text-transform: uppercase; margin-bottom: 3px; }
     .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
 
-    /* ── TripLog dashboard widget ─────────────── */
-    .tl-dash-widget { background: var(--card-bg, #fff); border: 1px solid #E4DDD4; border-radius: 12px; padding: 13px 18px; margin-bottom: 18px; }
-    .tl-dash-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-    .tl-dash-title { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
-    .tl-dash-open { background:none; border:none; font-size:12px; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
-    .tl-dash-open:hover { text-decoration:underline; }
-    .tl-dash-refresh { background:#F2EEE9; border:1px solid #E4DDD4; border-radius:6px; padding:2px 8px; font-size:13px; cursor:pointer; color:var(--text2); line-height:1.6; }
-    .tl-dash-refresh:hover { background:#EAE4DE; }
+    /* ── TripLog dashboard widget (Home tab "Latest Trip" content;
+       the old .tl-dash-widget/hdr/title/open/refresh wrapper classes are
+       gone from the markup — the Home widget shell renders the frame) ── */
     .tl-dash-content { display:flex; align-items:center; gap:18px; flex-wrap:wrap; min-height:36px; }
     .tl-dash-date-block { min-width:90px; }
     .tl-dash-date { font-size:13px; font-weight:700; color:var(--text); }
@@ -364,11 +359,14 @@
     .tl-dash-route { flex:1; font-size:13px; color:var(--text2); min-width:120px; }
     .tl-dash-from, .tl-dash-to { font-weight:600; color:var(--text); }
     .tl-dash-arrow { color:var(--text3); margin:0 5px; }
-    .tl-dash-divider { width:1px; height:36px; background:#E4DDD4; flex-shrink:0; }
+    .tl-dash-divider { width:1px; height:36px; background:var(--bdr-light); flex-shrink:0; }
     .tl-dash-stats { display:flex; gap:22px; flex-shrink:0; }
     .tl-dash-stat { text-align:center; }
-    .tl-dash-stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; }
+    .tl-dash-stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; font-variant-numeric:tabular-nums; }
     .tl-dash-stat-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.3px; margin-top:2px; }
+    .tl-dash-err { color:#C43030; font-size:13px; }
+    body.theme-midnight .tl-dash-err { color:#E08A80; }
+    .tl-dash-empty { color:var(--text3); font-size:13px; }
 
     /* ── Kanban ──────────────────────────────── */
     .kanban-bar {
@@ -4697,60 +4695,88 @@
   .home-body-grid {
     display: grid;
     grid-template-columns: 3fr 2fr;
-    gap: 14px;
+    gap: var(--sp-3);
     align-items: start;
   }
+  /* Column wrappers + the Sales/Trip split (were inline styles) */
+  .home-col   { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .home-split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); min-width: 0; }
+  .home-head-actions { display: flex; align-items: center; gap: 8px; }
 
   .home-header {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 20px;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
   }
-  .home-greeting { font-size: 20px; font-weight: 700; color: var(--text); }
-  .home-date     { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  /* The greeting sits directly on the page background — the default (blue)
+     and midnight themes both need light text there; the light-background
+     themes (warm/sage/coast) switch back to ink below. */
+  .home-greeting { font-size: 21px; font-weight: 800; letter-spacing: .01em; color: #FFFFFF; }
+  .home-date     { font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  body.theme-warm .home-greeting, body.theme-sage .home-greeting, body.theme-coast .home-greeting { color: var(--text); }
+  body.theme-warm .home-date,     body.theme-sage .home-date,     body.theme-coast .home-date     { color: var(--text2); }
 
   .home-kpi-row {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 12px; margin-bottom: 20px;
+    gap: var(--sp-3); margin-bottom: var(--sp-3);
   }
+  /* KPI cards mirror the Kanban dashboard's .stat-card treatment */
   .home-kpi {
     background: var(--card-bg);
-    border: 1px solid var(--bdr);
-    border-radius: 12px;
-    padding: 16px 18px;
-    display: flex; align-items: center; gap: 14px;
-    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+    border: 1px solid var(--bdr-light);
+    border-radius: var(--rad-lg);
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--dur-fast) var(--ease-smooth),
+                box-shadow var(--dur-fast) var(--ease-smooth),
+                transform var(--dur-fast) var(--ease-smooth);
   }
-  .home-kpi:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,152,58,.18); }
+  .home-kpi:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(201,152,58,0.16), var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .home-kpi:active { transform: translateY(0); }
   .home-kpi-icon {
-    width: 40px; height: 40px; border-radius: 10px;
+    width: 40px; height: 40px; border-radius: var(--rad-md);
     display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
   }
-  .home-kpi-num { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
-  .home-kpi-lbl { font-size: 11px; color: var(--text2); margin-top: 3px; font-weight: 500; text-transform: uppercase; letter-spacing: .3px; }
+  .home-kpi-num { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; }
+  .home-kpi-lbl { font-size: 11px; color: var(--text2); margin-top: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
 
-  .home-widgets {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 14px; margin-bottom: 20px;
-  }
-  .home-widget {
+  /* Widget shells — one shared treatment for both card families */
+  .home-widget, .home-stage-card {
     background: var(--card-bg);
-    border: 1px solid var(--bdr);
-    border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--bdr-light);
+    border-radius: var(--rad-lg); overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--dur-fast) var(--ease-smooth);
+    min-width: 0;
   }
-  .home-widget-head {
+  .home-widget:hover, .home-stage-card:hover { box-shadow: var(--shadow-md); }
+  .home-widget-head, .home-stage-head {
     background: var(--card-head-bg);
-    padding: 10px 14px;
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 13px; font-weight: 700; color: var(--text);
-    border-bottom: 1px solid var(--bdr);
+    padding: 9px 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+    font-size: 11.5px; font-weight: 700; color: var(--text2);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--bdr-light);
   }
-  .home-widget-link {
+  .home-widget-link, .home-stage-head a {
     background: none; border: none; cursor: pointer;
-    font-size: 11px; color: var(--accent); font-weight: 600;
-    padding: 0; text-decoration: none;
+    font-size: 11px; color: var(--accent); font-weight: 700;
+    padding: 2px 7px; margin: -2px -4px;
+    border-radius: 6px; text-decoration: none;
+    text-transform: none; letter-spacing: normal;
+    transition: background var(--dur-fast) var(--ease-smooth),
+                color var(--dur-fast) var(--ease-smooth);
   }
-  .home-widget-link:hover { text-decoration: underline; }
-  .home-widget-body { padding: 10px 14px; min-height: 140px; }
+  .home-widget-link:hover, .home-stage-head a:hover { background: var(--accent-bg); text-decoration: none; }
+  .home-widget-link:focus-visible, .home-stage-head a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .home-widget-body { padding: 8px 14px; min-height: 140px; }
+  .home-stage-body  { padding: 12px 14px; min-height: 56px; }
   .hw-loading { color: var(--text-dim); font-size: 13px; padding: 20px 0; text-align: center; }
 
   .hw-gmail-row {
@@ -4780,52 +4806,98 @@
     padding: 8px 0; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
   }
   .hw-pkg-row:last-child { border-bottom: none; }
+  .hw-pkg-row.hw-click { cursor: pointer; }
+  .hw-pkg-row.hw-click:hover .hw-pkg-label { color: var(--accent); }
   .hw-pkg-dir  { font-size: 15px; flex-shrink: 0; }
   .hw-pkg-info { flex: 1; min-width: 0; }
-  .hw-pkg-label { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-pkg-label { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--dur-fast) var(--ease-smooth); }
   .hw-pkg-meta  { color: var(--text-dim); font-size: 11px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hw-pkg-edit-toggle { flex-shrink: 0; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .hw-pkg-edit-toggle { flex-shrink: 0; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 5px; transition: color var(--dur-fast) var(--ease-smooth); }
   .hw-pkg-edit-toggle:hover { color: var(--accent); }
+  .hw-pkg-edit-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .hw-pkg-edit-form {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     padding: 6px 0 8px; border-bottom: 1px solid var(--bdr-light); font-size: 12px;
   }
   .hw-pkg-edit-form:last-child { border-bottom: none; }
+  #hw-pkg-add-form { padding: 8px 14px; border-bottom: 1px solid var(--bdr-light); }
+  .hw-pkg-exp-label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; }
   .hw-pkg-edit-form select, .hw-pkg-edit-form input[type=text] {
     font-size: 11px; padding: 4px 6px; border-radius: 5px;
     border: 1px solid var(--bdr); background: var(--input-bg, #FAFAF8); color: var(--text);
+    transition: border-color var(--dur-fast) var(--ease-smooth),
+                box-shadow var(--dur-fast) var(--ease-smooth);
   }
+  .hw-pkg-edit-form select:focus, .hw-pkg-edit-form input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .hw-pkg-edit-form select { width: 78px; flex-shrink: 0; }
   .hw-pkg-edit-form input[type=text] { flex: 1; min-width: 90px; }
 
-  .home-stage-card {
-    background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden;
-    margin-bottom: 0;
+  /* Orders in Studio list rows (markup rendered by homeTabInit) */
+  .hw-order-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; border-bottom: 1px solid var(--bdr-light);
+    font-size: 13px; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-smooth);
   }
-  .home-stage-head {
-    background: var(--card-head-bg); padding: 10px 14px;
-    font-size: 13px; font-weight: 700; color: var(--text);
-    border-bottom: 1px solid var(--bdr);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .home-stage-head a { font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
-  .home-stage-head a:hover { text-decoration: underline; }
-  .home-stage-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0; padding: 0;
-  }
-  .home-stage-col {
-    padding: 10px 14px; border-right: 1px solid var(--bdr-light);
-    border-bottom: 1px solid var(--bdr-light);
-  }
-  .home-stage-col:last-child { border-right: none; }
-  .home-stage-count { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
-  .home-stage-lbl { font-size: 10px; color: var(--text2); margin-top: 3px; font-weight: 500; }
-  .home-stage-col.has-orders .home-stage-count { color: var(--accent); }
+  .hw-order-row:hover { background: var(--hover-bg); }
+  .hw-order-icon  { font-size: 14px; flex-shrink: 0; }
+  .hw-order-main  { flex: 1; min-width: 0; }
+  .hw-order-name  { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-order-desc  { font-size: 11px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-order-contact { font-size: 11px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-order-stage { font-size: 11px; color: var(--text2); flex-shrink: 0; white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  .hw-order-dl    { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .hw-call-badge  { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #C43030; color: #fff; flex-shrink: 0; white-space: nowrap; }
+  .hw-order-more  { padding: 7px 14px; font-size: 11px; color: var(--text2); }
+  .hw-order-more a { color: var(--accent); font-weight: 600; cursor: pointer; }
+  .hw-order-more a:hover { text-decoration: underline; }
+  .hw-order-empty { padding: 14px; color: var(--text-dim); font-size: 13px; }
+
+  /* Weekend Sales mini chart (markup rendered by dashSquareLoad) */
+  .hw-sq-bars  { display: flex; align-items: flex-end; gap: 8px; padding: 4px 0 6px; border-bottom: 1px solid var(--bdr-light); }
+  .hw-sq-col   { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .hw-sq-total { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .hw-sq-stack { width: 100%; max-width: 52px; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 5px 5px 0 0; overflow: hidden; }
+  .hw-sq-sat   { background: #C9983A; width: 100%; }
+  .hw-sq-sun   { background: #E8B850; width: 100%; }
+  .hw-sq-lbl   { font-size: 10px; color: var(--text2); margin-top: 5px; text-align: center; white-space: nowrap; }
+  .hw-sq-foot  { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--text2); }
+  .hw-sq-legend { display: flex; align-items: center; gap: 14px; }
+  .hw-sq-key   { display: flex; align-items: center; gap: 4px; }
+  .hw-sq-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .hw-sq-meta  { font-variant-numeric: tabular-nums; }
+  .hw-sq-delta.up   { font-weight: 700; color: #2A7A48; }
+  .hw-sq-delta.down { font-weight: 700; color: #C43030; }
+
+  /* ── Home: midnight ── */
+  /* KPI icon chips (si-) and deadline pills (dl-) keep light-hex backgrounds
+     in the dark theme (same class of fix as the Kanban/Triplog passes) —
+     scoped to this tab because both families are shared with other tabs. */
+  body.theme-midnight #tab-home .si-gold   { background: #342C20; }
+  body.theme-midnight #tab-home .si-purple { background: #2E2838; }
+  body.theme-midnight #tab-home .si-green  { background: #1E2A22; }
+  body.theme-midnight #tab-home .si-red    { background: #33201E; }
+  body.theme-midnight #tab-home .dl-ok     { background: #1C2E22; color: #7FC79A; }
+  body.theme-midnight #tab-home .dl-soon   { background: #332818; color: #F0C060; }
+  body.theme-midnight #tab-home .dl-past   { background: #33201E; color: #E08A80; }
+  body.theme-midnight #tab-home .dl-none   { background: #343438; color: var(--text3); }
+  /* Shared .btn-outline hardcodes a white background (same scoped fix the
+     Calendar / Adjust Inventory passes applied under their tab ids) */
+  body.theme-midnight #tab-home .btn-outline { background: var(--card-bg); }
+  /* Chromium paints date-input internals on a light chrome unless the
+     control opts into a dark color-scheme — without this the Packages
+     "Expected by" fields render as white boxes in midnight */
+  body.theme-midnight #tab-home input[type=date] { color-scheme: dark; }
+  body.theme-midnight .hw-sq-delta.up   { color: #7FC79A; }
+  body.theme-midnight .hw-sq-delta.down { color: #E08A80; }
 
   @media (max-width: 768px) {
     .home-kpi-row { grid-template-columns: 1fr 1fr; }
     .home-body-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .home-split { grid-template-columns: 1fr; }
+    .home-kpi { padding: 12px 14px; }
   }
 
   /* ── Print Order Bag (tab-print-bag) ──────────────── */
@@ -5067,21 +5139,21 @@
     <div class="home-body-grid">
 
       <!-- LEFT column: Sales + TripLog row + Orders -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="home-col">
 
         <!-- Sales + TripLog side by side -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="home-split">
 
           <!-- Square Weekend Sales widget -->
           <div class="home-stage-card">
             <div class="home-stage-head">
               <span>💰 Weekend Sales</span>
-              <div style="display:flex;align-items:center;gap:8px;">
+              <div class="home-head-actions">
                 <button class="home-widget-link" onclick="dashSquareLoad()" title="Refresh">↻</button>
                 <a onclick="sbNav('more','sales',null)">Sales →</a>
               </div>
             </div>
-            <div id="hw-square-body" style="padding:12px 14px;min-height:52px;">
+            <div id="hw-square-body" class="home-stage-body">
               <div class="hw-loading">Loading…</div>
             </div>
           </div>
@@ -5090,13 +5162,13 @@
           <div class="home-stage-card">
             <div class="home-stage-head">
               <span>🚗 Latest Trip</span>
-              <div style="display:flex;align-items:center;gap:8px;">
+              <div class="home-head-actions">
                 <button class="home-widget-link" id="tlDashRefreshBtn" onclick="dashTriplogLoad(true)" title="Refresh">↻</button>
                 <a onclick="sbNavDirect('triplog',null)">Trips →</a>
               </div>
             </div>
-            <div id="tlDashContent" class="tl-dash-content" style="padding:12px 14px;min-height:60px;">
-              <span style="color:var(--text-dim);font-size:13px;">Loading…</span>
+            <div id="tlDashContent" class="tl-dash-content home-stage-body">
+              <span class="tl-dash-empty">Loading…</span>
             </div>
           </div>
 
@@ -5109,14 +5181,14 @@
             <a onclick="sbNav('custom-orders','dashboard',null)">View kanban →</a>
           </div>
           <div class="home-stage-grid" id="hw-stage-grid">
-            <div style="padding:20px;color:var(--text-dim);font-size:13px">Loading orders…</div>
+            <div class="hw-order-empty">Loading orders…</div>
           </div>
         </div>
 
       </div>
 
       <!-- RIGHT column: Gmail + Calendar -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="home-col">
 
         <!-- Calendar widget -->
         <div class="home-widget">
@@ -5133,12 +5205,12 @@
         <div class="home-widget">
           <div class="home-widget-head">
             <span>📦 Packages</span>
-            <span style="display:flex;gap:10px;align-items:center;">
+            <span class="home-head-actions">
               <button class="home-widget-link" onclick="_pkgToggleAddForm()" title="Add a package tracking number manually">+ New</button>
               <button class="home-widget-link" onclick="_homeRefreshPackages()" title="Refresh">↻</button>
             </span>
           </div>
-          <div class="hw-pkg-edit-form" id="hw-pkg-add-form" style="display:none;padding:8px 14px;">
+          <div class="hw-pkg-edit-form" id="hw-pkg-add-form" style="display:none;">
             <select id="hw-pkg-add-dir" style="width:56px;">
               <option value="in">📥 In</option>
               <option value="out">📤 Out</option>
@@ -5162,7 +5234,7 @@
               <option value="Delivered">Delivered</option>
               <option value="Received">Received</option>
             </select>
-            <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;">
+            <label class="hw-pkg-exp-label">
               Expected by
               <input type="date" id="hw-pkg-add-expected">
             </label>
@@ -9300,8 +9372,9 @@ function applyStatFilter(key) {
     // Greeting
     const h = new Date().getHours();
     const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    const greetEmoji = h < 12 ? '☀️' : h < 17 ? '🌤️' : '🌙';
     const greetEl = document.getElementById('homeGreeting');
-    if (greetEl) greetEl.textContent = greet + ' ☀️';
+    if (greetEl) greetEl.textContent = greet + ' ' + greetEmoji;
     const dateEl = document.getElementById('homeDate');
     if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 
@@ -9335,7 +9408,7 @@ function applyStatFilter(key) {
         const shown = sorted.slice(0, 8);
         stageGrid.style.display = 'block';
         if (!shown.length) {
-          stageGrid.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:13px">No active orders 🎉</div>';
+          stageGrid.innerHTML = '<div class="hw-order-empty">No active orders 🎉</div>';
         } else {
           const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
           stageGrid.innerHTML = shown.map(o => {
@@ -9346,21 +9419,21 @@ function applyStatFilter(key) {
             const jobDesc = o.jobDesc || o.desc || '';
             const needsContact = o.stage === 'contact-need';
             const contactBadge = needsContact
-              ? `<span style="font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;background:#dc2626;color:#fff;flex-shrink:0;white-space:nowrap;">📞 Call</span>`
+              ? `<span class="hw-call-badge">📞 Call</span>`
               : '';
-            return `<div onclick="openOrderCard('${esc(o.id)}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--bdr-light);font-size:13px;cursor:pointer;" onmouseover="this.style.background='var(--hover-bg,rgba(0,0,0,.04))'" onmouseout="this.style.background=''">
-              <span style="font-size:14px;flex-shrink:0;">${icon}</span>
-              <span style="flex:1;min-width:0;">
-                <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(o.name||'—')}</div>
-                ${jobDesc ? `<div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(jobDesc)}</div>` : ''}
-                ${contact ? `<div style="font-size:11px;color:var(--text3,var(--text2));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(contact)}</div>` : ''}
+            return `<div class="hw-order-row" onclick="openOrderCard('${esc(o.id)}')">
+              <span class="hw-order-icon">${icon}</span>
+              <span class="hw-order-main">
+                <div class="hw-order-name">${esc(o.name||'—')}</div>
+                ${jobDesc ? `<div class="hw-order-desc">${esc(jobDesc)}</div>` : ''}
+                ${contact ? `<div class="hw-order-contact">${esc(contact)}</div>` : ''}
               </span>
               ${contactBadge}
-              <span style="font-size:11px;color:var(--text2);flex-shrink:0;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;">${esc(slbl)}</span>
-              <span class="${dl.cls}" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;">${dl.text}</span>
+              <span class="hw-order-stage">${esc(slbl)}</span>
+              <span class="hw-order-dl ${dl.cls}">${dl.text}</span>
             </div>`;
           }).join('')
-          + (active.length > 8 ? `<div style="padding:7px 14px;font-size:11px;color:var(--text2);">+${active.length - 8} more — <a onclick="sbNav('custom-orders','dashboard',null)" style="color:var(--accent);cursor:pointer;">View all →</a></div>` : '');
+          + (active.length > 8 ? `<div class="hw-order-more">+${active.length - 8} more — <a onclick="sbNav('custom-orders','dashboard',null)">View all →</a></div>` : '');
         }
       }
     }
@@ -9551,7 +9624,7 @@ function applyStatFilter(key) {
         metaText = noTrackBits.length ? `${noTrackBits.join(' · ')} — no tracking number yet` : 'No tracking number yet';
       }
 
-      const row = `<div class="hw-pkg-row"${p.onclick ? ` onclick="${p.onclick}" style="cursor:pointer;"` : ''}>
+      const row = `<div class="hw-pkg-row${p.onclick ? ' hw-click' : ''}"${p.onclick ? ` onclick="${p.onclick}"` : ''}>
         <span class="hw-pkg-dir">${dirIcon}</span>
         <span class="hw-pkg-info">
           <div class="hw-pkg-label">${esc(p.label)}</div>
@@ -9574,7 +9647,7 @@ function applyStatFilter(key) {
           <option value="">— Status —</option>
           ${STATUS_OPTS.map(s => `<option value="${s}"${p.status === s ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
-        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;">
+        <label class="hw-pkg-exp-label">
           Expected by
           <input type="date" id="${rowId}-expected" value="${p.expected ? esc(String(p.expected).slice(0, 10)) : ''}">
         </label>
@@ -9725,30 +9798,30 @@ function applyStatFilter(key) {
       const satH = Math.round(((w.saturday || 0) / maxVal) * BAR_H);
       const sunH = Math.round(((w.sunday   || 0) / maxVal) * BAR_H);
       return `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;">
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;">$${Math.round(w.total||0).toLocaleString()}</div>
-          <div style="width:100%;max-width:52px;display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px;border-radius:5px 5px 0 0;overflow:hidden;">
-            <div style="background:#E8B850;height:${sunH}px;width:100%;"></div>
-            <div style="background:#C9983A;height:${satH}px;width:100%;"></div>
+        <div class="hw-sq-col">
+          <div class="hw-sq-total">$${Math.round(w.total||0).toLocaleString()}</div>
+          <div class="hw-sq-stack" style="height:${BAR_H}px;">
+            <div class="hw-sq-sun" style="height:${sunH}px;"></div>
+            <div class="hw-sq-sat" style="height:${satH}px;"></div>
           </div>
-          <div style="font-size:10px;color:var(--text2);margin-top:5px;text-align:center;white-space:nowrap;">${w.label}</div>
+          <div class="hw-sq-lbl">${w.label}</div>
         </div>`;
     }).join('');
 
     const changeHtml = change !== null
-      ? `<span style="font-weight:700;color:${change >= 0 ? '#2A7A48' : '#C43030'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
+      ? `<span class="hw-sq-delta ${change >= 0 ? 'up' : 'down'}">${change >= 0 ? '+' : ''}${change}% vs prior</span>`
       : '';
 
     body.innerHTML = `
-      <div style="display:flex;align-items:flex-end;gap:8px;padding:4px 0 0;border-bottom:1px solid var(--bdr-light);padding-bottom:4px;">
+      <div class="hw-sq-bars">
         ${bars}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
-        <div style="display:flex;align-items:center;gap:14px;font-size:11px;color:var(--text2);">
-          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#C9983A;border-radius:2px;"></span>Sat</span>
-          <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#E8B850;border-radius:2px;"></span>Sun</span>
+      <div class="hw-sq-foot">
+        <div class="hw-sq-legend">
+          <span class="hw-sq-key"><span class="hw-sq-swatch hw-sq-sat"></span>Sat</span>
+          <span class="hw-sq-key"><span class="hw-sq-swatch hw-sq-sun"></span>Sun</span>
         </div>
-        <div style="font-size:11px;color:var(--text2);">
+        <div class="hw-sq-meta">
           ${changeHtml}${changeHtml ? ' · ' : ''}${last.num_transactions || 0} transactions
         </div>
       </div>`;

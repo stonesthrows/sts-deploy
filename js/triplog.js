@@ -816,7 +816,7 @@ async function dashTriplogLoad(force) {
 
   const el = document.getElementById('tlDashContent');
   if (!el) return;
-  el.innerHTML = '<span style="color:var(--text3);font-size:13px;">Loading…</span>';
+  el.innerHTML = '<span class="tl-dash-empty">Loading…</span>';
 
   const today   = new Date();
   const lookback = new Date(today);
@@ -837,7 +837,7 @@ async function dashTriplogLoad(force) {
   } catch (err) {
     clearTimeout(timeout);
     const msg = err.name === 'AbortError' ? 'Request timed out' : err.message;
-    el.innerHTML = `<span style="color:#c0392b;font-size:13px;">⚠ Couldn't load trips — ${msg}</span>`;
+    el.innerHTML = `<span class="tl-dash-err">⚠ Couldn't load trips — ${msg}</span>`;
   }
 }
 
@@ -846,7 +846,7 @@ function dashTriplogRender(trip) {
   if (!el) return;
 
   if (!trip) {
-    el.innerHTML = '<span style="color:var(--text3);font-size:13px;">No recent trips found.</span>';
+    el.innerHTML = '<span class="tl-dash-empty">No recent trips found.</span>';
     return;
   }
 
