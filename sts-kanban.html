@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>STS Orders — Kanban</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EFF1ED; --surface:#FFFFFF; --ink:#20241E; --muted:#6B7265;
+  --line:#DDE1D8; --line-strong:#C8CDC2;
+  --accent:#2F6E5C; --accent-soft:#E3EEE9; --accent-ink:#F2F7F5;
+  --amber:#9A6A10; --amber-bg:#F6EBD3;
+  --red:#AC3327; --red-bg:#F7E3E0;
+  --tag:#F3F4F0; --tag-line:#CBD0C4;
+  --radius:10px;
+  --col-w:88vw;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink);
+  font-size:15px; -webkit-font-smoothing:antialiased; overscroll-behavior-x:none;
+  display:flex; flex-direction:column; height:100dvh;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+
+/* ---------- header ---------- */
+header{
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 8px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.wordmark{
+  font-family:'Archivo',sans-serif; font-weight:800; font-size:13px;
+  letter-spacing:.18em; text-transform:uppercase;
+}
+.wordmark span{color:var(--muted); font-weight:700}
+.sync{
+  display:flex; align-items:center; gap:6px;
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted);
+}
+.sync .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.sync.offline .dot{background:var(--amber)}
+.sync.error .dot{background:var(--red)}
+
+/* ---------- tab strip: hallmark row ---------- */
+.tabs{
+  display:flex; gap:6px; overflow-x:auto; padding:6px 16px 10px;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch; flex-shrink:0;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto; display:flex; align-items:center; gap:6px;
+  padding:6px 10px; border:1px solid var(--line-strong); border-radius:6px;
+  background:var(--surface);
+  font-family:'Archivo',sans-serif; font-weight:700; font-size:11px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  box-shadow:inset 0 -2px 0 rgba(32,36,30,.05);
+}
+.tab .count{
+  font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:10.5px;
+  color:var(--ink); background:var(--tag); border-radius:4px; padding:1px 5px;
+}
+.tab.active{
+  background:var(--ink); border-color:var(--ink); color:var(--accent-ink);
+  box-shadow:none;
+}
+.tab.active .count{background:var(--accent); color:#fff}
+
+/* ---------- board ---------- */
+.board{
+  flex:1; display:flex; gap:10px; overflow-x:auto; overflow-y:hidden;
+  scroll-snap-type:x mandatory; padding:0 calc((100vw - var(--col-w))/2) 12px;
+  -webkit-overflow-scrolling:touch;
+}
+.col{
+  flex:0 0 var(--col-w); scroll-snap-align:center;
+  display:flex; flex-direction:column; min-height:0;
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:14px; overflow:hidden;
+}
+.col-head{
+  padding:12px 14px 10px; border-bottom:1px solid var(--line);
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+}
+.col-title{
+  font-family:'Archivo',sans-serif; font-weight:800; font-size:14px;
+  letter-spacing:.1em; text-transform:uppercase;
+}
+.col-num{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted);
+}
+.col-body{flex:1; overflow-y:auto; padding:10px 12px 90px; min-height:0}
+.substage{margin-bottom:14px}
+.substage-label{
+  font-family:'Archivo',sans-serif; font-weight:700; font-size:10.5px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  padding:0 2px 6px; display:flex; align-items:center; gap:8px;
+}
+.substage-label::after{content:""; flex:1; height:1px; background:var(--line)}
+.empty-col{
+  color:var(--muted); font-size:13px; text-align:center; padding:34px 12px;
+}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--surface); border:1px solid var(--line-strong);
+  border-radius:var(--radius); padding:10px 12px; margin-bottom:8px;
+  box-shadow:0 1px 2px rgba(32,36,30,.06);
+}
+.card-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+.card-name{font-weight:600; font-size:15px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.card-row2{display:flex; align-items:center; gap:6px; margin-top:7px; flex-wrap:wrap}
+.type-pill{
+  margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:9.5px;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+}
+
+/* hang-tag chips: notched corner + punched hole */
+.chip{
+  position:relative; display:inline-flex; align-items:center;
+  font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:11px;
+  padding:3px 8px 3px 16px; background:var(--tag); border:1px solid var(--tag-line);
+  clip-path:polygon(9px 0, 100% 0, 100% 100%, 9px 100%, 0 50%);
+  border-radius:4px;
+}
+.chip::before{
+  content:""; position:absolute; left:8px; top:50%; transform:translate(0,-50%);
+  width:4px; height:4px; border-radius:50%; background:var(--bg);
+  box-shadow:inset 0 0 0 1px var(--tag-line);
+}
+.chip.due-amber{background:var(--amber-bg); border-color:#DDBE83; color:var(--amber)}
+.chip.due-red{background:var(--red-bg); border-color:#E0A49D; color:var(--red)}
+.chip.loc{color:var(--accent); background:var(--accent-soft); border-color:#B5CFC5}
+
+/* accordion */
+.card-detail{display:none; margin-top:10px; border-top:1px dashed var(--line-strong); padding-top:10px}
+.card.open .card-detail{display:block}
+.card.open{border-color:var(--accent)}
+.detail-desc{font-size:13.5px; color:var(--ink); line-height:1.45; margin-bottom:10px; white-space:pre-wrap}
+.detail-desc:empty{display:none}
+.detail-meta{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted);
+  margin-bottom:10px;
+}
+.seg{
+  display:flex; border:1px solid var(--line-strong); border-radius:8px;
+  overflow:hidden; margin-bottom:10px;
+}
+.seg button{
+  flex:1; padding:7px 4px; font-size:12px; font-weight:600; color:var(--muted);
+  border-right:1px solid var(--line);
+}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--ink); color:#fff}
+.card-actions{display:flex; gap:8px}
+.btn{
+  border-radius:8px; padding:9px 12px; font-weight:600; font-size:13px;
+  border:1px solid var(--line-strong); background:var(--surface);
+}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; flex:1}
+.btn:active{transform:translateY(1px)}
+
+/* completed footer (Ready column) */
+.done-foot{
+  padding:8px 2px 0; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  color:var(--muted); text-align:center; width:100%;
+}
+.done-list{display:none}
+.done-list.show{display:block}
+.done-list .card{opacity:.55}
+
+/* ---------- FAB ---------- */
+.fab{
+  position:fixed; right:18px; bottom:calc(env(safe-area-inset-bottom) + 18px);
+  width:54px; height:54px; border-radius:16px; background:var(--ink); color:#fff;
+  font-size:26px; line-height:1; box-shadow:0 6px 16px rgba(32,36,30,.3); z-index:40;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ---------- sheets ---------- */
+.scrim{
+  position:fixed; inset:0; background:rgba(32,36,30,.42); z-index:50;
+  opacity:0; pointer-events:none; transition:opacity .18s;
+}
+.scrim.show{opacity:1; pointer-events:auto}
+.sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:60; background:var(--surface);
+  border-radius:18px 18px 0 0; transform:translateY(105%); transition:transform .22s ease;
+  max-height:92dvh; display:flex; flex-direction:column;
+}
+.sheet.show{transform:translateY(0)}
+.sheet-head{
+  padding:14px 18px 10px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sheet-title{font-family:'Archivo',sans-serif; font-weight:800; font-size:14px; letter-spacing:.1em; text-transform:uppercase}
+.sheet-body{overflow-y:auto; padding:14px 18px calc(env(safe-area-inset-bottom) + 20px)}
+.field{margin-bottom:13px}
+.field label{
+  display:block; font-family:'Archivo',sans-serif; font-weight:700; font-size:10.5px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:5px;
+}
+.field input,.field select,.field textarea{
+  width:100%; padding:10px 11px; border:1px solid var(--line-strong); border-radius:8px;
+  font:inherit; font-size:15px; background:var(--surface); color:var(--ink);
+}
+.field textarea{min-height:76px; resize:vertical}
+.sheet-actions{display:flex; gap:10px; margin-top:6px}
+.btn.danger{color:var(--red); border-color:#E0A49D}
+
+/* estimate builder */
+.est-section{border-top:1px solid var(--line); margin-top:4px; padding-top:14px}
+.est-title{
+  font-family:'Archivo',sans-serif; font-weight:800; font-size:11px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.est-add{font-size:12px; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0}
+.est-row{display:grid; grid-template-columns:1fr 84px 30px; gap:6px; margin-bottom:6px}
+.est-row input{
+  padding:8px 10px; border:1px solid var(--line-strong); border-radius:8px;
+  font:inherit; font-size:14px; min-width:0;
+}
+.est-row input[data-cost]{font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:right}
+.est-rm{
+  border:1px solid var(--line-strong); border-radius:8px; color:var(--red);
+  font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.est-mult{display:flex; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden; width:fit-content; margin:8px 0 10px}
+.est-mult button{padding:7px 20px; font-weight:700; font-size:13px; color:var(--muted); border-right:1px solid var(--line)}
+.est-mult button:last-child{border-right:none}
+.est-mult button.on{background:var(--ink); color:#fff}
+.est-totals{
+  background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  font-family:'IBM Plex Mono',monospace; font-size:12px;
+}
+.est-line{display:flex; justify-content:space-between; padding:2px 0; color:var(--muted)}
+.est-line span:last-child{color:var(--ink)}
+.est-final{
+  display:flex; justify-content:space-between; margin-top:6px; padding-top:8px;
+  border-top:2px solid var(--accent); font-weight:600; font-size:15px; color:var(--ink);
+}
+
+/* move picker */
+.move-col{margin-bottom:12px}
+.move-col-title{
+  font-family:'Archivo',sans-serif; font-weight:800; font-size:11px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;
+}
+.move-opt{
+  display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:6px;
+  border:1px solid var(--line-strong); border-radius:8px; font-size:14px; font-weight:500;
+}
+.move-opt.current{border-color:var(--accent); background:var(--accent-soft)}
+
+.banner{
+  margin:0 16px 8px; padding:8px 12px; border-radius:8px; font-size:12.5px;
+  background:var(--amber-bg); color:var(--amber); border:1px solid #DDBE83; display:none;
+}
+.banner.show{display:block}
+
+@media (min-width:700px){ :root{--col-w:46vw} .board{padding:0 16px 12px} }
+@media (min-width:1024px){ :root{--col-w:31.5vw} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important; animation:none!important; scroll-behavior:auto!important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Stones Throw <span>/ Orders</span></div>
+  <div class="sync" id="sync"><span class="dot"></span><span id="syncText">live</span></div>
+</header>
+
+<div class="banner" id="banner">Offline demo — worker routes not reachable. Changes won't persist.</div>
+
+<nav class="tabs" id="tabs" aria-label="Columns"></nav>
+<main class="board" id="board"></main>
+
+<button class="fab" id="fab" aria-label="New order">+</button>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- order detail / new order sheet -->
+<div class="sheet" id="orderSheet" role="dialog" aria-modal="true">
+  <div class="sheet-head">
+    <div class="sheet-title" id="orderSheetTitle">Order</div>
+    <button class="btn" data-close>Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field"><label>Customer</label><input id="f_customer" autocomplete="off"></div>
+    <div class="field"><label>Order type</label>
+      <select id="f_type">
+        <option value="custom">Custom</option><option value="repair">Repair</option>
+        <option value="resize">Resize</option><option value="estimate">Estimate</option>
+        <option value="website">Website order</option><option value="etsy">Etsy order</option>
+      </select>
+    </div>
+    <div class="field"><label>Pickup / delivery</label>
+      <select id="f_location">
+        <option value="Studio">Studio</option><option value="BM">Bell Market</option>
+        <option value="MM">Mueller Market</option><option value="CC">Chaparral Crossing</option>
+        <option value="SV">Sunset Valley</option><option value="AF">Austin Flea</option>
+        <option value="Ship">Ship</option>
+      </select>
+    </div>
+    <div class="field"><label>Deadline</label><input id="f_deadline" type="date"></div>
+    <div class="field"><label>Assignee</label>
+      <select id="f_assignee">
+        <option>Kyle</option><option>Stevie</option><option>Vanessa</option>
+      </select>
+    </div>
+    <div class="field"><label>Stage</label>
+      <select id="f_stage"></select>
+    </div>
+    <div class="field"><label>Payment</label>
+      <select id="f_payment">
+        <option value="unpaid">Unpaid</option><option value="deposit">Deposit paid</option>
+        <option value="paid">Paid in full</option>
+      </select>
+    </div>
+    <div class="field"><label>Description</label><textarea id="f_desc"></textarea></div>
+    <div class="field"><label>Notes</label><textarea id="f_notes"></textarea></div>
+
+    <div class="est-section">
+      <div class="est-title">Estimate <button class="est-add" id="estAddBtn" type="button">+ Add line</button></div>
+      <div id="estRows"></div>
+      <div class="field" style="margin-top:8px"><label>Labor ($)</label>
+        <input id="est_labor" type="number" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div class="est-title" style="margin-bottom:4px">Markup</div>
+      <div class="est-mult">
+        <button type="button" data-mult="2.5">2.5×</button>
+        <button type="button" data-mult="3">3×</button>
+      </div>
+      <div class="est-totals">
+        <div class="est-line"><span>Materials</span><span id="estMat">$0.00</span></div>
+        <div class="est-line"><span>Labor</span><span id="estLab">$0.00</span></div>
+        <div class="est-line"><span>Subtotal × <span id="estMultLbl">2.5</span></span><span></span></div>
+        <div class="est-final"><span>Estimate</span><span id="estFinal">$0.00</span></div>
+      </div>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn danger" id="btnDelete">Delete</button>
+      <button class="btn primary" id="btnSave">Save order</button>
+    </div>
+  </div>
+</div>
+
+<!-- move picker sheet -->
+<div class="sheet" id="moveSheet" role="dialog" aria-modal="true">
+  <div class="sheet-head">
+    <div class="sheet-title">Move to</div>
+    <button class="btn" data-close>Close</button>
+  </div>
+  <div class="sheet-body" id="moveBody"></div>
+</div>
+
+<script>
+/* ================= config ================= */
+const API = 'https://sts-worker-v2.stonesthrowjewelry.workers.dev';
+const POLL_MS = 15000;
+
+const COLUMNS = [
+  {id:'intake',    name:'Intake',            abbr:'IN', subs:['Custom Intake','Repair Intake','Estimate Intake','Website Order Intake']},
+  {id:'sketch',    name:'Sketch',            abbr:'SK', subs:['Needs Sketch','Waiting on Sketch Approval','Sketch Approved']},
+  {id:'estimating',name:'Estimating',        abbr:'ES', subs:['Estimate Sent','Waiting on Approval','Estimate Approved']},
+  {id:'deposit',   name:'Deposit',           abbr:'DP', subs:['Waiting on Deposit','Deposit Paid']},
+  {id:'materials', name:'Materials',         abbr:'MA', subs:['Order Materials','Waiting on Materials','Waiting on Customer Shipment']},
+  {id:'bench',     name:'At the Bench',      abbr:'BN', subs:['Kyle','Stevie','Vanessa','Etsy Order']},
+  {id:'invoicing', name:'Invoicing',         abbr:'IV', subs:['Needs Invoicing','Invoice Sent']},
+  {id:'contact',   name:'Contact Customer',  abbr:'CC', subs:['Need to Contact Customer','Contacted Customer']},
+  {id:'ready',     name:'Ready · Pickup/Ship', abbr:'RD', subs:['Ready for Pickup','Ship Out']},
+];
+const DONE_STATES = ['Completed','Delivered','Cancelled'];
+
+/* column path per order type (advance skips what's not listed) */
+const PATHS = {
+  custom:  ['intake','sketch','estimating','deposit','materials','bench','invoicing','contact','ready'],
+  estimate:['intake','estimating','deposit','materials','bench','invoicing','contact','ready'],
+  repair:  ['intake','estimating','materials','bench','invoicing','contact','ready'],
+  resize:  ['intake','estimating','materials','bench','invoicing','contact','ready'],
+  website: ['intake','materials','bench','ready'],
+  etsy:    ['intake','materials','bench','ready'],
+};
+const INTAKE_SUB = {custom:'Custom Intake', repair:'Repair Intake', resize:'Repair Intake',
+                    estimate:'Estimate Intake', website:'Website Order Intake', etsy:'Website Order Intake'};
+/* sub-stages that advance passes through inside a column (linear ones only) */
+const LINEAR_SUBS = {
+  sketch:['Needs Sketch','Waiting on Sketch Approval','Sketch Approved'],
+  estimating:['Estimate Sent','Waiting on Approval','Estimate Approved'],
+  deposit:['Waiting on Deposit','Deposit Paid'],
+  materials:['Order Materials','Waiting on Materials'],
+  invoicing:['Needs Invoicing','Invoice Sent'],
+  contact:['Need to Contact Customer','Contacted Customer'],
+};
+const LOCATIONS = {Studio:'Studio', BM:'BM', MM:'MM', CC:'CC', SV:'SV', AF:'AF', Ship:'Ship'};
+
+/* ================= state ================= */
+let orders = [];
+let online = false;
+let activeCol = 0;
+let openCardId = null;
+let editingId = null;   // order id in sheet, null = new
+let movingId = null;
+
+const demo = () => {
+  const d = n => { const t=new Date(); t.setDate(t.getDate()+n); return t.toISOString().slice(0,10); };
+  return [
+    {id:'d1', customer:'Daryl M.', type:'custom', column:'bench', subStage:'Kyle', location:'Studio', deadline:d(6), payment:'deposit', assignee:'Kyle', description:'Custom ring — sandcast, stone in place.', notes:'', status:'active'},
+    {id:'d2', customer:'Josh Corpus', type:'repair', column:'invoicing', subStage:'Needs Invoicing', location:'MM', deadline:d(2), payment:'unpaid', assignee:'Stevie', description:'Chain solder repair.', notes:'', status:'active'},
+    {id:'d3', customer:'A. Rivera', type:'custom', column:'sketch', subStage:'Waiting on Sketch Approval', location:'BM', deadline:d(14), payment:'unpaid', assignee:'Kyle', description:'Chevron stacker set, 14/20 GF.', notes:'', status:'active'},
+    {id:'d4', customer:'Etsy #4412', type:'etsy', column:'materials', subStage:'Waiting on Materials', location:'Ship', deadline:d(-1), payment:'paid', assignee:'Kyle', description:'Seamless hoops 16g.', notes:'', status:'active'},
+    {id:'d5', customer:'K. Osei', type:'custom', column:'ready', subStage:'Ready for Pickup', location:'SV', deadline:d(1), payment:'paid', assignee:'Kyle', description:'Meditation ring.', notes:'', status:'active'},
+    {id:'d6', customer:'T. Nguyen', type:'repair', column:'ready', subStage:'Completed', location:'Studio', deadline:d(-9), payment:'paid', assignee:'Stevie', description:'Prong re-tip.', notes:'', status:'done'},
+  ];
+};
+
+/* ================= api ================= */
+async function apiGet(){
+  const r = await fetch(API + '/orders'); if(!r.ok) throw 0;
+  return r.json();
+}
+async function apiSave(order, isNew){
+  const r = await fetch(API + (isNew ? '/orders' : '/orders/' + order.id), {
+    method: isNew ? 'POST' : 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(order),
+  });
+  if(!r.ok) throw 0;
+  return r.json();
+}
+async function apiDelete(id){
+  const r = await fetch(API + '/orders/' + id, {method:'DELETE'});
+  if(!r.ok) throw 0;
+}
+
+async function load(silent){
+  try{
+    const data = await apiGet();
+    orders = Array.isArray(data) ? data : (data.orders || []);
+    setOnline(true);
+  }catch(e){
+    if(!online && !orders.length){ orders = demo(); }
+    setOnline(false);
+  }
+  render(silent);
+}
+function setOnline(v){
+  online = v;
+  const s = document.getElementById('sync');
+  s.className = 'sync' + (v ? '' : ' offline');
+  document.getElementById('syncText').textContent = v ? 'live' : 'demo';
+  document.getElementById('banner').classList.toggle('show', !v);
+}
+async function persist(order, isNew){
+  if(online){
+    try{ await apiSave(order, isNew); }catch(e){ setOnline(false); }
+  }
+}
+
+/* ================= advance logic ================= */
+function nextStep(o){
+  const path = PATHS[o.type] || PATHS.custom;
+  const lin = LINEAR_SUBS[o.column];
+  if(lin){
+    const i = lin.indexOf(o.subStage);
+    if(i > -1 && i < lin.length - 1) return {column:o.column, subStage:lin[i+1]};
+  }
+  const ci = path.indexOf(o.column);
+  if(ci === -1 || ci === path.length - 1){
+    if(o.column === 'ready' && !DONE_STATES.includes(o.subStage))
+      return {column:'ready', subStage:'Completed', done:true};
+    return null;
+  }
+  const nc = path[ci+1];
+  return {column:nc, subStage:entrySub(nc, o)};
+}
+function entrySub(col, o){
+  if(col === 'intake') return INTAKE_SUB[o.type] || 'Custom Intake';
+  if(col === 'bench')  return o.type === 'etsy' ? 'Etsy Order' : (o.assignee || 'Kyle');
+  if(col === 'ready')  return o.location === 'Ship' ? 'Ship Out' : 'Ready for Pickup';
+  return (LINEAR_SUBS[col] || COLUMNS.find(c=>c.id===col).subs)[0];
+}
+function advance(o){
+  const n = nextStep(o);
+  if(!n) return;
+  o.column = n.column; o.subStage = n.subStage;
+  if(n.done) o.status = 'done';
+  o.updatedAt = Date.now();
+  persist(o, false); render();
+}
+
+/* ================= rendering ================= */
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+const esc = s => (s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+function dueChip(o){
+  if(!o.deadline) return '';
+  const now = new Date(); now.setHours(0,0,0,0);
+  const dl = new Date(o.deadline + 'T00:00:00');
+  const days = Math.round((dl - now) / 86400000);
+  const abs = dl.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const rel = days === 0 ? 'today' : days > 0 ? 'in ' + days + 'd' : Math.abs(days) + 'd late';
+  const cls = days < 0 ? 'due-red' : days <= 7 ? 'due-amber' : '';
+  return `<span class="chip ${cls}">${abs} · ${rel}</span>`;
+}
+
+function cardEl(o){
+  const c = el('div','card' + (openCardId===o.id?' open':''));
+  c.innerHTML = `
+    <div class="card-top">
+      <div class="card-name">${esc(o.customer)}</div>
+      <span class="chip loc">${LOCATIONS[o.location]||esc(o.location)}</span>
+    </div>
+    <div class="card-row2">${dueChip(o)}<span class="type-pill">${esc(o.type)}</span></div>
+    <div class="card-detail">
+      <div class="detail-desc">${esc(o.description)}</div>
+      <div class="detail-meta">${esc(o.subStage)} · ${esc(o.assignee||'')}${o.estimateTotal ? ' · est. $' + (Math.round(o.estimateTotal*100)/100).toFixed(2) : ''}</div>
+      <div class="seg" data-seg>
+        ${['unpaid','deposit','paid'].map(p=>`<button data-pay="${p}" class="${o.payment===p?'on':''}">${p==='deposit'?'Deposit':p==='paid'?'Paid':'Unpaid'}</button>`).join('')}
+      </div>
+      <div class="card-actions">
+        <button class="btn primary" data-act="advance">Advance →</button>
+        <button class="btn" data-act="move">Move…</button>
+        <button class="btn" data-act="details">Details</button>
+      </div>
+    </div>`;
+  c.querySelector('.card-top').addEventListener('click', ()=>{
+    openCardId = openCardId === o.id ? null : o.id; render(true);
+  });
+  c.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click', ()=>{
+    o.payment = b.dataset.pay; o.updatedAt = Date.now(); persist(o,false); render(true);
+  }));
+  c.querySelector('[data-act="advance"]').addEventListener('click', ()=>advance(o));
+  c.querySelector('[data-act="move"]').addEventListener('click', ()=>openMove(o.id));
+  c.querySelector('[data-act="details"]').addEventListener('click', ()=>openSheet(o.id));
+  return c;
+}
+
+function render(keepScroll){
+  const board = document.getElementById('board');
+  const scrollX = board.scrollLeft;
+  const colScroll = [...board.children].map(c=>c.querySelector('.col-body')?.scrollTop||0);
+  board.innerHTML = '';
+  const tabs = document.getElementById('tabs'); tabs.innerHTML = '';
+
+  COLUMNS.forEach((col, idx)=>{
+    const active = orders.filter(o=>o.column===col.id && o.status!=='done');
+    const done   = col.id==='ready' ? orders.filter(o=>o.column==='ready' && o.status==='done') : [];
+
+    /* tab */
+    const t = el('button','tab'+(idx===activeCol?' active':''),
+      `${col.abbr}<span class="count">${active.length}</span>`);
+    t.addEventListener('click', ()=>scrollToCol(idx));
+    tabs.appendChild(t);
+
+    /* column */
+    const c = el('section','col');
+    c.appendChild(el('div','col-head',
+      `<div class="col-title">${col.name}</div><div class="col-num">${idx+1}/9</div>`));
+    const body = el('div','col-body');
+
+    if(!active.length && !done.length){
+      body.appendChild(el('div','empty-col','No orders here. Advance a card or add one with +.'));
+    }else{
+      col.subs.forEach(sub=>{
+        const group = active.filter(o=>o.subStage===sub);
+        if(!group.length) return;               /* empty sub-stages hidden */
+        const g = el('div','substage');
+        g.appendChild(el('div','substage-label',esc(sub)));
+        group.forEach(o=>g.appendChild(cardEl(o)));
+        body.appendChild(g);
+      });
+      /* anything with an unknown sub-stage still shows */
+      const orphans = active.filter(o=>!col.subs.includes(o.subStage) && !DONE_STATES.includes(o.subStage));
+      if(orphans.length){
+        const g = el('div','substage');
+        g.appendChild(el('div','substage-label','Other'));
+        orphans.forEach(o=>g.appendChild(cardEl(o)));
+        body.appendChild(g);
+      }
+    }
+    if(done.length){
+      const foot = el('button','done-foot',`${done.length} completed · hidden — tap to peek`);
+      const list = el('div','done-list');
+      done.forEach(o=>list.appendChild(cardEl(o)));
+      foot.addEventListener('click', ()=>list.classList.toggle('show'));
+      body.appendChild(foot); body.appendChild(list);
+    }
+    c.appendChild(body);
+    board.appendChild(c);
+  });
+
+  if(keepScroll){
+    board.scrollLeft = scrollX;
+    [...board.children].forEach((c,i)=>{const b=c.querySelector('.col-body'); if(b)b.scrollTop=colScroll[i]||0;});
+  } else {
+    scrollToCol(activeCol, true);
+  }
+}
+
+function scrollToCol(idx, instant){
+  activeCol = idx;
+  const board = document.getElementById('board');
+  const col = board.children[idx];
+  if(col) col.scrollIntoView({behavior:instant?'instant':'smooth', inline:'center', block:'nearest'});
+  [...document.getElementById('tabs').children].forEach((t,i)=>{
+    t.classList.toggle('active', i===idx);
+    if(i===idx) t.scrollIntoView({behavior:instant?'instant':'smooth', inline:'nearest', block:'nearest'});
+  });
+}
+
+/* track active column while swiping */
+let scrollTimer;
+document.getElementById('board').addEventListener('scroll', ()=>{
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(()=>{
+    const board = document.getElementById('board');
+    const mid = board.scrollLeft + board.clientWidth/2;
+    let best=0, bestD=1e9;
+    [...board.children].forEach((c,i)=>{
+      const center = c.offsetLeft + c.offsetWidth/2;
+      const d = Math.abs(center-mid);
+      if(d<bestD){bestD=d;best=i;}
+    });
+    if(best!==activeCol){
+      activeCol = best;
+      [...document.getElementById('tabs').children].forEach((t,i)=>{
+        t.classList.toggle('active', i===best);
+        if(i===best) t.scrollIntoView({behavior:'smooth', inline:'nearest', block:'nearest'});
+      });
+    }
+  },80);
+},{passive:true});
+
+/* ================= order sheet ================= */
+const $ = id => document.getElementById(id);
+
+/* build the Stage dropdown: every column, every sub-stage, plus done states */
+(function buildStageSelect(){
+  const sel = document.getElementById('f_stage');
+  COLUMNS.forEach(col=>{
+    const g = document.createElement('optgroup'); g.label = col.name;
+    const subs = col.id==='ready' ? [...col.subs, ...DONE_STATES] : col.subs;
+    subs.forEach(sub=>{
+      const opt = document.createElement('option');
+      opt.value = col.id + '|' + sub; opt.textContent = sub;
+      g.appendChild(opt);
+    });
+    sel.appendChild(g);
+  });
+})();
+
+/* new orders: changing type retargets the stage to the matching intake sub,
+   but only while the stage is still sitting in Intake (don't fight manual picks) */
+document.getElementById('f_type').addEventListener('change', ()=>{
+  const sel = document.getElementById('f_stage');
+  if(sel.value.startsWith('intake|')){
+    sel.value = 'intake|' + INTAKE_SUB[document.getElementById('f_type').value];
+  }
+});
+/* ---- estimate builder ---- */
+let est = {materials:[], labor:'', mult:2.5};
+const money = n => '$' + (Math.round(n*100)/100).toFixed(2);
+
+function renderEst(){
+  const wrap = $('estRows'); wrap.innerHTML='';
+  if(!est.materials.length) est.materials.push({desc:'',cost:''});
+  est.materials.forEach((m,i)=>{
+    const row = el('div','est-row');
+    row.innerHTML = `
+      <input placeholder="Material…" value="${esc(m.desc)}">
+      <input data-cost type="number" step="0.01" min="0" placeholder="0.00" value="${esc(String(m.cost))}">
+      <button type="button" class="est-rm" aria-label="Remove line">×</button>`;
+    const [descIn, costIn] = row.querySelectorAll('input');
+    descIn.addEventListener('input', ()=>{ m.desc = descIn.value; });
+    costIn.addEventListener('input', ()=>{ m.cost = costIn.value; calcEst(); });
+    row.querySelector('.est-rm').addEventListener('click', ()=>{
+      est.materials.splice(i,1); renderEst();
+    });
+    wrap.appendChild(row);
+  });
+  $('est_labor').value = est.labor;
+  document.querySelectorAll('.est-mult button').forEach(b=>
+    b.classList.toggle('on', parseFloat(b.dataset.mult)===est.mult));
+  calcEst();
+}
+function calcEst(){
+  const mat = est.materials.reduce((s,m)=>s + (parseFloat(m.cost)||0), 0);
+  const lab = parseFloat($('est_labor').value)||0;
+  $('estMat').textContent = money(mat);
+  $('estLab').textContent = money(lab);
+  $('estMultLbl').textContent = est.mult;
+  $('estFinal').textContent = money((mat+lab)*est.mult);
+  return (mat+lab)*est.mult;
+}
+$('estAddBtn').addEventListener('click', ()=>{ est.materials.push({desc:'',cost:''}); renderEst(); });
+$('est_labor').addEventListener('input', ()=>{ est.labor = $('est_labor').value; calcEst(); });
+document.querySelectorAll('.est-mult button').forEach(b=>b.addEventListener('click', ()=>{
+  est.mult = parseFloat(b.dataset.mult); renderEst();
+}));
+
+function openSheet(id){
+  editingId = id;
+  const o = id ? orders.find(x=>x.id===id) : null;
+  $('orderSheetTitle').textContent = o ? o.customer : 'New order';
+  $('f_customer').value = o?.customer||''; $('f_type').value = o?.type||'custom';
+  $('f_location').value = o?.location||'Studio'; $('f_deadline').value = o?.deadline||'';
+  $('f_assignee').value = o?.assignee||'Kyle'; $('f_payment').value = o?.payment||'unpaid';
+  $('f_desc').value = o?.description||''; $('f_notes').value = o?.notes||'';
+  $('f_stage').value = o ? o.column + '|' + o.subStage
+                         : 'intake|' + INTAKE_SUB[$('f_type').value];
+  est = o?.estimate
+    ? {materials:(o.estimate.materials||[]).map(m=>({...m})), labor:o.estimate.labor||'', mult:o.estimate.mult||2.5}
+    : {materials:[], labor:'', mult:2.5};
+  renderEst();
+  $('btnDelete').style.display = o ? '' : 'none';
+  show('orderSheet');
+}
+$('btnSave').addEventListener('click', ()=>{
+  const isNew = !editingId;
+  const o = isNew
+    ? {id:'o'+Date.now().toString(36), status:'active', createdAt:Date.now()}
+    : orders.find(x=>x.id===editingId);
+  o.customer=$('f_customer').value.trim()||'Unnamed'; o.type=$('f_type').value;
+  o.location=$('f_location').value; o.deadline=$('f_deadline').value;
+  o.assignee=$('f_assignee').value; o.payment=$('f_payment').value;
+  o.description=$('f_desc').value; o.notes=$('f_notes').value;
+  const mats = est.materials.filter(m=>m.desc.trim() || parseFloat(m.cost));
+  if(mats.length || parseFloat(est.labor)){
+    o.estimate = {materials:mats, labor:est.labor, mult:est.mult};
+    o.estimateTotal = calcEst();
+  } else { o.estimate = null; o.estimateTotal = null; }
+  const [stCol, stSub] = $('f_stage').value.split('|');
+  o.column = stCol; o.subStage = stSub;
+  o.status = DONE_STATES.includes(stSub) ? 'done' : 'active';
+  if(isNew) orders.push(o);
+  o.updatedAt=Date.now();
+  persist(o, isNew); hideAll(); render(true);
+});
+$('btnDelete').addEventListener('click', async ()=>{
+  if(!editingId) return;
+  orders = orders.filter(x=>x.id!==editingId);
+  if(online){ try{ await apiDelete(editingId); }catch(e){ setOnline(false); } }
+  hideAll(); render(true);
+});
+$('fab').addEventListener('click', ()=>openSheet(null));
+
+/* ================= move sheet ================= */
+function openMove(id){
+  movingId = id;
+  const o = orders.find(x=>x.id===id);
+  const body = $('moveBody'); body.innerHTML='';
+  COLUMNS.forEach(col=>{
+    const wrap = el('div','move-col');
+    wrap.appendChild(el('div','move-col-title',col.name));
+    const subs = col.id==='ready' ? [...col.subs, ...DONE_STATES] : col.subs;
+    subs.forEach(sub=>{
+      const b = el('button','move-opt'+(o.column===col.id&&o.subStage===sub?' current':''),esc(sub));
+      b.addEventListener('click', ()=>{
+        o.column=col.id; o.subStage=sub;
+        o.status = DONE_STATES.includes(sub) ? 'done' : 'active';
+        o.updatedAt=Date.now(); persist(o,false); hideAll(); render(true);
+      });
+      wrap.appendChild(b);
+    });
+    body.appendChild(wrap);
+  });
+  show('moveSheet');
+}
+
+/* ================= sheet plumbing ================= */
+function show(id){ $('scrim').classList.add('show'); $(id).classList.add('show'); }
+function hideAll(){
+  $('scrim').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+}
+$('scrim').addEventListener('click', hideAll);
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', hideAll));
+
+/* ================= sync loops ================= */
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) load(true); });
+setInterval(()=>{ if(!document.hidden && online) load(true); }, POLL_MS);
+
+load();
+</script>
+</body>
+</html>
