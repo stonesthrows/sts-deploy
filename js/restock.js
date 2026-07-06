@@ -1603,8 +1603,16 @@ function rqSaveTimerNote(pid) {
   }
 }
 
-function _rqToDateTimeLocal(ms) {
-  var d = new Date(ms);
+// Formats a timestamp — ms epoch OR ISO string, since Date accepts both — as a
+// <input type="datetime-local"> value. Returns '' for a null/empty input so a
+// session with no stop time yet renders a blank field instead of "Invalid Date".
+// Single definition shared by the inline timer adjust-start (passes ms) and the
+// session edit form in restock-sessions.js (passes a session start/stop time):
+// these were formerly two identically-named functions, one per section, where
+// the guarded session version silently shadowed the timer one.
+function _rqToDateTimeLocal(value) {
+  if (!value) return '';
+  var d = new Date(value);
   var p = function(n) { return String(n).padStart(2, '0'); };
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
     + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());

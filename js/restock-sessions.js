@@ -66,11 +66,8 @@ function rqToggleLog() {
   if (page) page.classList.toggle('rq-log-open', !section.classList.contains('rq-log-collapsed'));
 }
 
-function _rqToDateTimeLocal(iso) {
-  if (!iso) return '';
-  var d = new Date(iso), p = function(n) { return String(n).padStart(2,'0'); };
-  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
-}
+// _rqToDateTimeLocal lives in restock.js (loaded first) and is shared — it
+// accepts both a ms epoch and an ISO timestamp and guards against null.
 
 function rqStartEditSession(store, i) {
   var s = _rqStoreList(store)[i];
