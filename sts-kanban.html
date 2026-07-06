@@ -8,12 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#EFF1ED; --surface:#FFFFFF; --ink:#20241E; --muted:#6B7265;
-  --line:#DDE1D8; --line-strong:#C8CDC2;
-  --accent:#2F6E5C; --accent-soft:#E3EEE9; --accent-ink:#F2F7F5;
-  --amber:#9A6A10; --amber-bg:#F6EBD3;
+  --bg:#4E7A94; --surface:#FFFFFF; --panel:#EBF5FB; --ink:#1A2E38; --muted:#7A9AAA;
+  --line:#C8DFEE; --line-strong:#B0CDE0;
+  --accent:#C9983A; --accent-mid:#A07428; --accent-light:#E8C878;
+  --accent-soft:#FDF6E8; --accent-ink:#FDF6E8;
+  --hdr:#1E3D50; --hdr-bdr:#2E5C78;
+  --amber:#B5651D; --amber-bg:#F7E6D2;
   --red:#AC3327; --red-bg:#F7E3E0;
-  --tag:#F3F4F0; --tag-line:#CBD0C4;
+  --tag:#EBF5FB; --tag-line:#C8DFEE;
   --radius:10px;
   --col-w:88vw;
 }
@@ -33,15 +35,16 @@ button:focus-visible,[tabindex]:focus-visible,input:focus-visible,textarea:focus
 header{
   padding:calc(env(safe-area-inset-top) + 10px) 16px 8px;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--hdr); border-bottom:1px solid var(--hdr-bdr);
 }
 .wordmark{
   font-family:'Archivo',sans-serif; font-weight:800; font-size:13px;
-  letter-spacing:.18em; text-transform:uppercase;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--accent-light);
 }
-.wordmark span{color:var(--muted); font-weight:700}
+.wordmark span{color:rgba(232,200,120,.55); font-weight:700}
 .sync{
   display:flex; align-items:center; gap:6px;
-  font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted);
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#B8CBD6;
 }
 .sync .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .sync.offline .dot{background:var(--amber)}
@@ -69,7 +72,8 @@ header{
   background:var(--ink); border-color:var(--ink); color:var(--accent-ink);
   box-shadow:none;
 }
-.tab.active .count{background:var(--accent); color:#fff}
+.tab.active .count{background:linear-gradient(135deg,var(--accent),var(--accent-mid)); color:#fff}
+.tab-icon{font-size:15px; line-height:1}
 
 /* ---------- board ---------- */
 .board{
@@ -130,12 +134,12 @@ header{
 }
 .chip::before{
   content:""; position:absolute; left:8px; top:50%; transform:translate(0,-50%);
-  width:4px; height:4px; border-radius:50%; background:var(--bg);
+  width:4px; height:4px; border-radius:50%; background:var(--surface);
   box-shadow:inset 0 0 0 1px var(--tag-line);
 }
-.chip.due-amber{background:var(--amber-bg); border-color:#DDBE83; color:var(--amber)}
+.chip.due-amber{background:var(--amber-bg); border-color:#E2B385; color:var(--amber)}
 .chip.due-red{background:var(--red-bg); border-color:#E0A49D; color:var(--red)}
-.chip.loc{color:var(--accent); background:var(--accent-soft); border-color:#B5CFC5}
+.chip.loc{color:var(--accent); background:var(--accent-soft); border-color:#E8D0A0}
 
 /* accordion */
 .card-detail{display:none; margin-top:10px; border-top:1px dashed var(--line-strong); padding-top:10px}
@@ -162,7 +166,7 @@ header{
   border-radius:8px; padding:9px 12px; font-weight:600; font-size:13px;
   border:1px solid var(--line-strong); background:var(--surface);
 }
-.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; flex:1}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-mid)); border-color:transparent; color:#fff; flex:1}
 .btn:active{transform:translateY(1px)}
 
 /* completed footer (Ready column) */
@@ -236,7 +240,7 @@ header{
 .est-mult button:last-child{border-right:none}
 .est-mult button.on{background:var(--ink); color:#fff}
 .est-totals{
-  background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
   font-family:'IBM Plex Mono',monospace; font-size:12px;
 }
 .est-line{display:flex; justify-content:space-between; padding:2px 0; color:var(--muted)}
@@ -260,7 +264,7 @@ header{
 
 .banner{
   margin:0 16px 8px; padding:8px 12px; border-radius:8px; font-size:12.5px;
-  background:var(--amber-bg); color:var(--amber); border:1px solid #DDBE83; display:none;
+  background:var(--amber-bg); color:var(--amber); border:1px solid #E2B385; display:none;
 }
 .banner.show{display:block}
 
@@ -367,15 +371,15 @@ const API = 'https://sts-worker-v2.kyle-3c9.workers.dev';
 const POLL_MS = 15000;
 
 const COLUMNS = [
-  {id:'intake',    name:'Intake',            abbr:'IN', subs:['Custom Intake','Repair Intake','Estimate Intake','Website Order Intake']},
-  {id:'sketch',    name:'Sketch',            abbr:'SK', subs:['Needs Sketch','Waiting on Sketch Approval','Sketch Approved']},
-  {id:'estimating',name:'Estimating',        abbr:'ES', subs:['Estimate Sent','Waiting on Approval','Estimate Approved']},
-  {id:'deposit',   name:'Deposit',           abbr:'DP', subs:['Waiting on Deposit','Deposit Paid']},
-  {id:'materials', name:'Materials',         abbr:'MA', subs:['Order Materials','Waiting on Materials','Waiting on Customer Shipment']},
-  {id:'bench',     name:'At the Bench',      abbr:'BN', subs:['Kyle','Stevie','Vanessa','Etsy Order']},
-  {id:'invoicing', name:'Invoicing',         abbr:'IV', subs:['Needs Invoicing','Invoice Sent']},
-  {id:'contact',   name:'Contact Customer',  abbr:'CC', subs:['Need to Contact Customer','Contacted Customer']},
-  {id:'ready',     name:'Ready · Pickup/Ship', abbr:'RD', subs:['Ready for Pickup','Ship Out']},
+  {id:'intake',    name:'Intake',            icon:'📥', headBg:'#DDE6FA', headColor:'#243C80', subs:['Custom Intake','Repair Intake','Estimate Intake','Website Order Intake']},
+  {id:'sketch',    name:'Sketch',            icon:'✏️', headBg:'#FEF2CC', headColor:'#7A5A00', subs:['Needs Sketch','Waiting on Sketch Approval','Sketch Approved']},
+  {id:'estimating',name:'Estimating',        icon:'🧮', headBg:'#FDEBD8', headColor:'#904020', subs:['Estimate Sent','Waiting on Approval','Estimate Approved']},
+  {id:'deposit',   name:'Deposit',           icon:'💰', headBg:'#D6F0E8', headColor:'#1A5C3A', subs:['Waiting on Deposit','Deposit Paid']},
+  {id:'materials', name:'Materials',         icon:'📦', headBg:'#F0EAF4', headColor:'#6038A0', subs:['Order Materials','Waiting on Materials','Waiting on Customer Shipment']},
+  {id:'bench',     name:'At the Bench',      icon:'🔨', headBg:'#E6EEF8', headColor:'#234E8C', subs:['Kyle','Stevie','Vanessa','Etsy Order']},
+  {id:'invoicing', name:'Invoicing',         icon:'🧾', headBg:'#F4EAF8', headColor:'#6A1B9A', subs:['Needs Invoicing','Invoice Sent']},
+  {id:'contact',   name:'Contact Customer',  icon:'📞', headBg:'#E8F4E8', headColor:'#1A5C30', subs:['Need to Contact Customer','Contacted Customer']},
+  {id:'ready',     name:'Ready · Pickup/Ship', icon:'✅', headBg:'#DEF0F8', headColor:'#145E7A', subs:['Ready for Pickup','Ship Out']},
 ];
 const DONE_STATES = ['Completed','Delivered','Cancelled'];
 
@@ -556,14 +560,21 @@ function render(keepScroll){
 
     /* tab */
     const t = el('button','tab'+(idx===activeCol?' active':''),
-      `${col.abbr}<span class="count">${active.length}</span>`);
+      `<span class="tab-icon" aria-hidden="true">${col.icon}</span><span class="count">${active.length}</span>`);
+    t.setAttribute('aria-label', col.name);
     t.addEventListener('click', ()=>scrollToCol(idx));
     tabs.appendChild(t);
 
     /* column */
     const c = el('section','col');
-    c.appendChild(el('div','col-head',
-      `<div class="col-title">${col.name}</div><div class="col-num">${idx+1}/9</div>`));
+    const head = el('div','col-head',
+      `<div class="col-title">${col.name}</div><div class="col-num">${idx+1}/9</div>`);
+    head.style.background = col.headBg;
+    head.style.borderBottomColor = col.headBg;
+    head.querySelector('.col-title').style.color = col.headColor;
+    head.querySelector('.col-num').style.color = col.headColor;
+    head.querySelector('.col-num').style.opacity = '0.7';
+    c.appendChild(head);
     const body = el('div','col-body');
 
     if(!active.length && !done.length){
@@ -759,7 +770,9 @@ function openMove(id){
   const body = $('moveBody'); body.innerHTML='';
   COLUMNS.forEach(col=>{
     const wrap = el('div','move-col');
-    wrap.appendChild(el('div','move-col-title',col.name));
+    const title = el('div','move-col-title',col.name);
+    title.style.color = col.headColor;
+    wrap.appendChild(title);
     const subs = col.id==='ready' ? [...col.subs, ...DONE_STATES] : col.subs;
     subs.forEach(sub=>{
       const b = el('button','move-opt'+(o.column===col.id&&o.subStage===sub?' current':''),esc(sub));
