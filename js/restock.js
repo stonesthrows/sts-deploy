@@ -1747,60 +1747,27 @@ function _rqDefaultModifierSelections(modifierLists) {
   return selected;
 }
 
+// Setup-panel catalog search. Delegates the Square search→batch-retrieve→parse
+// to the shared _rqSqSearchExpand helper (whose row shape — id/name/sku/category/
+// isParent/variantCount/variants/modifierLists — matches what this panel needs
+// 1:1, modifier lists included) and keeps only the setup-specific concerns here:
+// the spinner, the stale-setup guard, local-item fallback, and the autoSelect vs
+// render branch. _rqSqSearchExpand resolves to [] on both no-results and network
+// error, so a failed lookup simply falls back to whatever local matches exist.
 function _rqSearchCatalog(pid, query, autoSelect) {
   var s = _rqSetups[pid]; if (!s) return;
   var spinner = document.getElementById('rq-spinner-' + pid);
   if (spinner) { spinner.style.display = 'block'; spinner.classList.add('active'); }
   var localMatches = _rqLocalSearch(query);
-  _rqSqCall('/catalog/search', {
-    method: 'POST',
-    body: { object_types: ['ITEM'], query: { text_query: { keywords: [query] } }, limit: 20, include_related_objects: true },
-  }).then(function(searchData) {
+  _rqSqSearchExpand(query).then(function(squareRows) {
     if (!_rqSetups[pid]) return;
-    var found = searchData.objects || [];
-    if (!found.length) {
-      if (autoSelect && !localMatches.length) { _rqShowNoMatch(pid, query); return null; }
-      if (autoSelect && localMatches.length)  { _rqSelectSetupItem(pid, localMatches[0]); return null; }
-      _rqRenderResults(pid, localMatches, query);
-      return null;
+    var rows = localMatches.concat(squareRows);
+    if (autoSelect) {
+      if (rows.length) { _rqSelectSetupItem(pid, rows[0]); }
+      else             { _rqShowNoMatch(pid, query); }
+    } else {
+      _rqRenderResults(pid, rows, query);
     }
-    return _rqSqCall('/catalog/batch-retrieve', {
-      method: 'POST',
-      body: { object_ids: found.map(function(o) { return o.id; }), include_related_objects: true },
-    }).then(function(fullData) {
-      if (!_rqSetups[pid]) return;
-      var modifierListsById = {};
-      (fullData.related_objects || []).forEach(function(o) {
-        if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
-      });
-      var rows = localMatches.slice();
-      (fullData.objects || []).forEach(function(obj) {
-        if (obj.type !== 'ITEM') return;
-        var itemName   = obj.item_data ? obj.item_data.name : 'Unnamed';
-        var catName    = obj.item_data ? (obj.item_data.category_name || '') : '';
-        var variations = obj.item_data ? (obj.item_data.variations || []) : [];
-        var modifierLists = _rqBuildModifierLists(obj, modifierListsById);
-        if (variations.length <= 1) {
-          var v = variations[0] ? variations[0].item_variation_data : null;
-          rows.push({ id: variations[0] ? variations[0].id : obj.id, name: itemName, sku: v ? (v.sku || '') : '', category: catName, isParent: false, modifierLists: modifierLists });
-        } else {
-          rows.push({
-            id: obj.id, name: itemName, category: catName, isParent: true, variantCount: variations.length,
-            modifierLists: modifierLists,
-            variants: variations.map(function(vv) {
-              var vd = vv.item_variation_data;
-              return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' };
-            }),
-          });
-        }
-      });
-      if (autoSelect) { _rqSelectSetupItem(pid, rows[0]); }
-      else            { _rqRenderResults(pid, rows, query); }
-    });
-  }).catch(function() {
-    if (!_rqSetups[pid]) return;
-    if (autoSelect) { _rqShowNoMatch(pid, query); }
-    else if (localMatches.length) { _rqRenderResults(pid, localMatches, query); }
   }).then(function() {
     var sp = document.getElementById('rq-spinner-' + pid);
     if (sp) { sp.style.display = 'none'; sp.classList.remove('active'); }
