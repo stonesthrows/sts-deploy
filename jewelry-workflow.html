@@ -3537,6 +3537,15 @@
       margin-top: 2px;
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
+    .sot-item-link {
+      display: inline-block;
+      font-size: 11px;
+      margin-left: 6px;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .sot-item-link:hover { opacity: 0.7; }
     .sot-item-actions {
       display: none;
       gap: 4px;
@@ -5965,6 +5974,48 @@
           <button class="sot-rg-btn" onclick="sotSendToRG()">🛒 Send to RG</button>
         </div>
         <div class="sot-sync-status" id="sotSyncStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Supply Item Modal -->
+<div id="sotModalBg" class="sot-modal-bg" onclick="sotModalClose(event)">
+  <div class="sot-modal">
+    <h3>Edit Item</h3>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Name</label>
+        <input id="sotEditName" type="text" style="width:100%">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Description</label>
+        <input id="sotEditDesc" type="text" style="width:100%">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">SKU / Item #</label>
+        <input id="sotEditSku" type="text" style="width:100%" disabled>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Category</label>
+        <select id="sotEditCat" style="width:100%"></select>
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Ordering Web Page</label>
+        <input id="sotEditUrl" type="url" placeholder="https://…" style="width:100%">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+      <button id="sotModalDelete" type="button" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="sotDeleteItem(sotEditId)">Delete</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="sotModalBgClose()">Cancel</button>
+        <button type="button" class="btn btn-gold btn-sm" onclick="sotEditSave()">Save</button>
       </div>
     </div>
   </div>

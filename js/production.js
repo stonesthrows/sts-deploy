@@ -1031,6 +1031,7 @@ var sotCustomSuppliers = [];
 var sotNotionPageId = null;
 var sotNotionTimer  = null;
 var sotUpdatedAt    = 0;
+var sotCatalogUrls  = {};
 
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
@@ -1072,7 +1073,8 @@ function sotSaveLocal() {
     localStorage.setItem('sot_order_v1', JSON.stringify({order: sotOrder}));
     localStorage.setItem('sot_custom_v1', JSON.stringify({
       custom: sotCustom,
-      suppliers: sotCustomSuppliers
+      suppliers: sotCustomSuppliers,
+      catalogUrls: sotCatalogUrls
     }));
     localStorage.setItem('sot_updated_at_v1', String(sotUpdatedAt));
   } catch(e) {}
@@ -1104,6 +1106,7 @@ function sotLoad() {
       var dc = JSON.parse(rawC);
       sotCustom = dc.custom || [];
       sotCustomSuppliers = dc.suppliers || [];
+      sotCatalogUrls = dc.catalogUrls || {};
     }
     var rawN = localStorage.getItem('sot_notes_v1');
     if (rawN) sotNotesTxt = rawN;
@@ -1199,6 +1202,11 @@ function sotAllItems() { return CATALOG.concat(sotCustom); }
 function sotGetItem(id) {
   return sotAllItems().filter(function(i){return i.id===id;})[0] || null;
 }
+function sotItemUrl(item) {
+  if (!item) return '';
+  if (CATALOG_IDS.has(item.id)) return sotCatalogUrls[item.id] || '';
+  return item.url || '';
+}
 function sotAllSuppliers() {
   return Object.keys(SUPPLIERS_META).map(function(id){
     return {id:id, name:SUPPLIERS_META[id].name, color:SUPPLIERS_META[id].color};
@@ -1263,6 +1271,7 @@ function sotRenderCatalog() {
       catItems.forEach(function(item) {
         var chk  = sotOrder[item.id] !== undefined;
         var isCust = !CATALOG_IDS.has(item.id);
+        var url  = sotItemUrl(item);
         html += '<div class="sot-item" id="sot-item-' + sotEsc(item.id) + '">';
         html += '<input class="sot-item-cb" type="checkbox"'
               + (chk ? ' checked' : '')
@@ -1271,13 +1280,16 @@ function sotRenderCatalog() {
         html += '<div class="sot-item-name">' + sotEsc(item.name) + '</div>';
         if (item.desc) html += '<div class="sot-item-desc">' + sotEsc(item.desc) + '</div>';
         html += '<span class="sot-item-sku">' + sotEsc(item.id) + '</span>';
-        html += '</div>';
-        if (isCust) {
-          html += '<div class="sot-item-actions">';
-          html += '<button class="sot-item-btn" onclick="sotEditOpen(\'' + sotEsc(item.id) + '\')">Edit</button>';
-          html += '<button class="sot-item-btn del" onclick="sotDeleteItem(\'' + sotEsc(item.id) + '\')">Del</button>';
-          html += '</div>';
+        if (url) {
+          html += '<a class="sot-item-link" href="' + sotEsc(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ordering page">&#128279; Order page</a>';
         }
+        html += '</div>';
+        html += '<div class="sot-item-actions">';
+        html += '<button class="sot-item-btn" onclick="sotEditOpen(\'' + sotEsc(item.id) + '\')">Edit</button>';
+        if (isCust) {
+          html += '<button class="sot-item-btn del" onclick="sotDeleteItem(\'' + sotEsc(item.id) + '\')">Del</button>';
+        }
+        html += '</div>';
         html += '</div>';
       });
 
@@ -1559,33 +1571,52 @@ function sotAddSupplier() {
 
 // ── Edit / delete ─────────────────────────────────────────────
 function sotEditOpen(id) {
-  var item = sotCustom.filter(function(i){return i.id===id;})[0];
+  var item = sotGetItem(id);
   if (!item) return;
+  var isCust = !CATALOG_IDS.has(id);
   sotEditId = id;
   var el;
-  el = document.getElementById('sotEditName'); if(el) el.value = item.name||'';
-  el = document.getElementById('sotEditDesc'); if(el) el.value = item.desc||'';
+  el = document.getElementById('sotEditName'); if(el) { el.value = item.name||''; el.disabled = !isCust; }
+  el = document.getElementById('sotEditDesc'); if(el) { el.value = item.desc||''; el.disabled = !isCust; }
   el = document.getElementById('sotEditSku');  if(el) el.value = item.id||'';
-  el = document.getElementById('sotEditCat');  if(el) el.value = item.cat||'';
+  el = document.getElementById('sotEditCat');  if(el) {
+    el.innerHTML = '<option value="">— Category —</option>' +
+      CAT_ORDER.map(function(c){ return '<option' + (c===item.cat?' selected':'') + '>' + sotEsc(c) + '</option>'; }).join('') +
+      '<option' + (item.cat==='Other'?' selected':'') + '>Other</option>';
+    el.disabled = !isCust;
+  }
+  el = document.getElementById('sotEditUrl');  if(el) el.value = sotItemUrl(item);
+  el = document.getElementById('sotModalDelete'); if(el) el.style.display = isCust ? '' : 'none';
   document.getElementById('sotModalBg').classList.add('open');
 }
 function sotEditSave() {
-  var item = sotCustom.filter(function(i){return i.id===sotEditId;})[0];
-  if (!item) return;
-  var el;
-  el = document.getElementById('sotEditName'); if(el) item.name = el.value.trim();
-  el = document.getElementById('sotEditDesc'); if(el) item.desc = el.value.trim();
-  el = document.getElementById('sotEditCat');  if(el) item.cat  = el.value;
+  var isCust = !CATALOG_IDS.has(sotEditId);
+  var urlEl = document.getElementById('sotEditUrl');
+  var url = urlEl ? urlEl.value.trim() : '';
+  if (isCust) {
+    var item = sotCustom.filter(function(i){return i.id===sotEditId;})[0];
+    if (!item) return;
+    var el;
+    el = document.getElementById('sotEditName'); if(el) item.name = el.value.trim();
+    el = document.getElementById('sotEditDesc'); if(el) item.desc = el.value.trim();
+    el = document.getElementById('sotEditCat');  if(el) item.cat  = el.value;
+    item.url = url;
+  } else {
+    if (url) sotCatalogUrls[sotEditId] = url;
+    else delete sotCatalogUrls[sotEditId];
+  }
   sotSave();
   sotModalBgClose();
   sotRenderCatalog();
   sotRenderOrder();
 }
 function sotDeleteItem(id) {
+  if (CATALOG_IDS.has(id)) return;
   if (!confirm('Remove this item from your catalog?')) return;
   sotCustom = sotCustom.filter(function(i){return i.id!==id;});
   delete sotOrder[id];
   sotSave();
+  sotModalBgClose();
   sotRenderCatalog();
   sotRenderOrder();
 }
