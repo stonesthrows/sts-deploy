@@ -16,6 +16,7 @@ var _rqLoadingAll = false;   // in-flight guard so re-entrant renders don't fire
 var _rqPrefetch   = null;    // { meta, sizes, notes } from /api/restock-all — consumed by the individual loaders in place of their own fetch
 var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
+var _rqLastNotionHydrate = 0;  // ms epoch of the last Notion open-session hydration (see _rqHydrateFromNotion)
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 // Session edit/push/add-item state is scoped per "store" so the Session Log
@@ -1247,7 +1248,142 @@ function _rqReconcileTimers() {
 
       if (changed) restockQueueRender();
     })
+    .catch(function() {})
+    // Runs after every reconcile outcome — success, empty server state, or a
+    // failed KV fetch — so a broken KV endpoint can't block Notion hydration.
+    // Must run AFTER the KV adopt pass above: KV-adopted timers have to be in
+    // _rqTimers before hydration dedupes against them.
+    .then(function() { _rqHydrateFromNotion(); });
+}
+
+// ── Notion open-session hydration ─────────────────────────────────────────────
+// KV is the fast sync channel for active timers, but it isn't durable ground
+// truth: a lost STS_TIMER binding, evicted keys, or a wiped device
+// localStorage used to make a still-open session (Start Time set, Stop Time
+// empty in the STS Work Sessions DB) invisible here forever. Notion IS the
+// ground truth for open sessions — the same query time-tracker.html already
+// resumes its slots from — so re-adopt any open session no tracked timer
+// claims. Sessions that match a queue item re-attach to that card; the rest
+// get a synthetic 'sess-{notionPageId}' timer rendered as a standalone card
+// (see restockQueueRender), so an open session is never invisible.
+function _rqHydrateFromNotion() {
+  // Queue items must be loaded first, or every open session would look
+  // unmatched and spawn an orphan card that belongs on a queue item. Don't
+  // stamp the throttle — retry on the next 25s reconcile instead.
+  if (typeof NOTES_DATA === 'undefined' || !NOTES_DATA.length) return;
+  // Disaster recovery, not the primary sync channel (that stays the 25s KV
+  // reconcile) — one Notion query per 5 minutes is plenty.
+  if (Date.now() - _rqLastNotionHydrate < 5 * 60 * 1000) return;
+  _rqLastNotionHydrate = Date.now();
+  fetch('/api/notion-timesession?active=true')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(sessions) {
+      if (!Array.isArray(sessions)) return;
+      var claimed = {};
+      Object.keys(_rqTimers).forEach(function(pid) {
+        var sid = _rqTimers[pid].sessionNotionPageId;
+        if (sid) claimed[sid] = true;
+      });
+      var changed = false;
+      sessions.forEach(function(s) {
+        if (!s.notionPageId || !s.startTime) return;
+        if (claimed[s.notionPageId]) return;
+        // Stopped on this device this page-load but the Notion PATCH failed
+        // or is still in flight — don't resurrect it under the retry.
+        if (_rqSessions.some(function(sess) { return sess.notionPageId === s.notionPageId; })) return;
+        var startMs = Date.parse(s.startTime);
+        if (isNaN(startMs)) return;
+        // Grace window: a session another device started moments ago may not
+        // have reached KV yet — let the normal KV adopt path claim it first.
+        if (Date.now() - startMs < 90 * 1000) return;
+        var pid = _rqMatchSessionToQueueItem(s);
+        var matched = !!pid;
+        if (!pid) pid = 'sess-' + s.notionPageId;
+        if (_rqTimers[pid]) return;
+        _rqAdoptSession(pid, s, startMs, matched);
+        changed = true;
+      });
+      if (changed) restockQueueRender();
+    })
     .catch(function() {});
+}
+
+// Finds the queue item an open Notion session belongs to. Primary key is the
+// session's Square Item ID against the item's cached auto-match (parent id,
+// then selected variant ids — time-tracker sessions store whatever id their
+// slot picked); fallback is normalized short-name equality, since the session
+// stores no queue pid.
+function _rqMatchSessionToQueueItem(s) {
+  function norm(t) { return (t || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  var candidates = itemsFor('restock').filter(function(item) {
+    // A pid with any timer or setup entry is spoken for — this also covers a
+    // KV-adopted timer whose sessionNotionPageId is still null mid-POST.
+    var pid = item.notionPageId;
+    return pid && !_rqTimers[pid] && !_rqSetups[pid];
+  });
+  if (s.squareItemId) {
+    for (var i = 0; i < candidates.length; i++) {
+      var m = _rqAutoMatches[candidates[i].notionPageId];
+      if (!m || typeof m !== 'object') continue; // '_loading_' / '_none_' sentinels
+      if (m.id === s.squareItemId) return candidates[i].notionPageId;
+      var variants = m.selectedVariants || [];
+      for (var v = 0; v < variants.length; v++) {
+        if (variants[v].id === s.squareItemId) return candidates[i].notionPageId;
+      }
+    }
+  }
+  var sName = norm(_rqShortName(s.itemName || ''));
+  if (!sName) return null;
+  for (var j = 0; j < candidates.length; j++) {
+    if (norm(_rqShortName(candidates[j].text || '')) === sName) return candidates[j].notionPageId;
+  }
+  return null;
+}
+
+// Rebuilds a running timer from an open Notion session and re-seeds it into
+// KV. The adopting device claims ownership (deviceId) so the existing
+// self-heal keeps re-asserting it if KV drops again; other devices pick it up
+// through the normal 25s KV reconcile. Zombie-safe: only currently-open
+// sessions ever get here, and rqStopTimer PATCHes Stop Time, which removes a
+// stopped session from the active query for good.
+function _rqAdoptSession(pid, s, startMs, matched) {
+  var empName = s.employeeName || '';
+  if (typeof RQ_NAME_ALIASES !== 'undefined' && RQ_NAME_ALIASES[empName]) empName = RQ_NAME_ALIASES[empName];
+  var items = null, richMatch = null;
+  var cached = matched ? _rqAutoMatches[pid] : null;
+  if (cached && typeof cached === 'object') {
+    // Mirror rqStartTimer's pre-selection so the running panel shows the same
+    // sizes table a locally-started timer would.
+    var totalQty = (cached.isParent && cached.selectedVariants)
+      ? cached.selectedVariants.reduce(function(sum, v) { return sum + (v.qty || 0); }, 0) : 0;
+    items = [Object.assign({}, cached, { pieces: totalQty || null })];
+    richMatch = cached.isParent ? cached : null;
+  } else {
+    // itemsJson is normally written at stop, so open sessions rarely have it;
+    // its entries store squareId where timer items store id — remap.
+    var parsed = null;
+    if (s.itemsJson) { try { parsed = JSON.parse(s.itemsJson); } catch (e) {} }
+    if (Array.isArray(parsed) && parsed.length) {
+      items = parsed.map(function(it) {
+        return { id: it.squareId || it.id || '', name: it.name || '', isParent: false, isCustom: !!it.isCustom, pieces: it.pieces != null ? it.pieces : null };
+      });
+    } else {
+      items = [{ id: s.squareItemId || '', name: s.itemName || '', sku: s.sku || '', category: s.category || '', isParent: false, isCustom: !s.squareItemId, pieces: s.pieces != null ? s.pieces : null }];
+    }
+  }
+  _rqTimers[pid] = {
+    startTime: startMs,
+    employee: { name: empName, id: '' },
+    sessionNotionPageId: s.notionPageId,
+    itemText: s.itemName || '',
+    items: items,
+    richMatch: richMatch,
+    deviceId: _rqDeviceId(),
+    notes: s.notes || '',
+    tickInterval: null,
+  };
+  _rqPersistTimer(pid);
+  _rqStartTick(pid);
 }
 
 // Started once (guarded) at first boot-time restore. 25s keeps the "another
@@ -1285,6 +1421,57 @@ function _rqRestartTicks() {
 
 // ── Queue render ──────────────────────────────────────────────────────────────
 
+// Running-timer panel for one active timer — used by the per-item render path
+// below and by the standalone cards for Notion-adopted sessions with no queue
+// item ('sess-' pids, which pass match = null).
+function _rqTimerPanelHtml(safePid, timer, match) {
+  var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
+  var startLbl = _rqFmtTime(timer.startTime);
+  var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
+  return '<div class="rq-timer-panel">'
+    + '<div class="rq-timer-running-row">'
+    + '<span class="rq-timer-dot"></span>'
+    + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
+    + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
+    + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
+    + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+    + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
+    + '</div>'
+    + _rqTimerSizesHtml(safePid, timer.richMatch || match)
+    + _rqTimerPiecesInputsHtml(safePid, timer)
+    + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
+    + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
+    + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
+    + '</div>'
+    + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
+    + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
+    + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
+    + '</div>'
+    + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
+    + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
+    + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
+    + '</div>'
+    + '</div>';
+}
+
+// Standalone cards for adopted open sessions that match no current queue item
+// — without these an open Notion session whose queue item is gone (or renamed)
+// would be running but invisible.
+function _rqOrphanCardsHtml(orphanPids) {
+  return orphanPids.map(function(pid) {
+    var timer = _rqTimers[pid];
+    var safePid = pid.replace(/'/g, '');
+    var name = (timer.itemText || 'Work session').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    return '<div class="rq-item rq-active" id="rq-item-' + safePid + '">'
+      + '<div class="rq-item-row">'
+      + '<span class="rq-text">' + name + '</span>'
+      + '<span class="rq-timer-meta" title="Open work session not linked to a queue item">session only</span>'
+      + '</div>'
+      + _rqTimerPanelHtml(safePid, timer, null)
+      + '</div>';
+  }).join('');
+}
+
 function restockQueueRender() {
   var list  = document.getElementById('restock-queue-list');
   var empty = document.getElementById('restock-queue-empty');
@@ -1303,7 +1490,11 @@ function restockQueueRender() {
   }
 
   var items = _rqSortedItems();
-  if (items.length === 0) {
+  // Adopted open sessions with no queue item ('sess-' pids, see
+  // _rqHydrateFromNotion) render as standalone cards above the queue — they
+  // must keep the list visible even when the queue itself is empty.
+  var orphanPids = Object.keys(_rqTimers).filter(function(p) { return p.indexOf('sess-') === 0; });
+  if (items.length === 0 && orphanPids.length === 0) {
     list.style.display = 'none';
     if (empty) empty.style.display = '';
     return;
@@ -1319,7 +1510,7 @@ function restockQueueRender() {
     if (!(_rqMeta.assignees[fPid])) { firstUnassignedIdx = fi; break; }
   }
 
-  list.innerHTML = items.map(function(item, idx) {
+  list.innerHTML = _rqOrphanCardsHtml(orphanPids) + items.map(function(item, idx) {
     var pid      = item.notionPageId || '';
     var assignee = (pid && _rqMeta.assignees[pid]) || '';
     var timer    = pid ? _rqTimers[pid] : null;
@@ -1394,36 +1585,7 @@ function restockQueueRender() {
       }
     }
 
-    var timerPanel = '';
-    if (isRunning) {
-      var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
-      var startLbl = _rqFmtTime(timer.startTime);
-      var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
-      timerPanel = '<div class="rq-timer-panel">'
-        + '<div class="rq-timer-running-row">'
-        + '<span class="rq-timer-dot"></span>'
-        + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
-        + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
-        + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
-        + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
-        + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
-        + '</div>'
-        + _rqTimerSizesHtml(safePid, timer.richMatch || match)
-        + _rqTimerPiecesInputsHtml(safePid, timer)
-        + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
-        + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
-        + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
-        + '</div>'
-        + '<div class="rq-adjust-panel" id="rq-adjust-' + safePid + '">'
-        + '<input type="datetime-local" class="rq-adjust-input" id="rq-adjust-input-' + safePid + '">'
-        + '<button class="rq-save-note-btn" onclick="rqApplyAdjustStart(\'' + safePid + '\')">Update</button>'
-        + '</div>'
-        + '<div class="rq-timer-notes-wrap" id="rq-notesarea-' + safePid + '">'
-        + '<textarea class="rq-timer-notes-area" id="rq-notes-' + safePid + '" placeholder="Optional notes…"></textarea>'
-        + '<button class="rq-save-note-btn" onclick="rqSaveTimerNote(\'' + safePid + '\')">Save note</button>'
-        + '</div>'
-        + '</div>';
-    }
+    var timerPanel = isRunning ? _rqTimerPanelHtml(safePid, timer, match) : '';
 
     var setupPanel = '';
     if (isSetup && !isRunning) {
@@ -1525,7 +1687,9 @@ function rqStopTimer(pid) {
   // Carry any mid-run size/qty edits (made against t.richMatch) back into
   // the bar's permanent match cache, so they survive after the timer ends
   // instead of reverting to whatever was set when the timer started.
-  if (t.richMatch) { _rqAmSet(pid, t.richMatch); _rqSaveSizesFor(pid, t.richMatch.selectedVariants || []); }
+  // 'sess-' pids are synthetic (Notion-adopted sessions with no queue item) —
+  // never write them into the auto-match/sizes caches.
+  if (t.richMatch && pid.indexOf('sess-') !== 0) { _rqAmSet(pid, t.richMatch); _rqSaveSizesFor(pid, t.richMatch.selectedVariants || []); }
   var stopTime = new Date().toISOString();
   var totalMs  = Date.now() - t.startTime;
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
