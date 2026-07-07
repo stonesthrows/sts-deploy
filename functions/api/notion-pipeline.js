@@ -213,38 +213,16 @@ function pageToOrder(page) {
   };
 }
 
-// ── Route handlers ────────────────────────────────────────────
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
+// ── Edge cache (Cloudflare KV) ──────────────────────────────────
+// Full-database scans are identical across every device that opens the
+// app — cache the result at the edge instead of re-scanning Notion on
+// every page load. Reuses the STS_KV namespace already bound for the
+// Etsy OAuth flow (functions/api/etsy-auth.js), under its own key.
+const CACHE_KEY  = 'pipeline:orders:v1';
+const FRESH_MS   = 30 * 1000;   // serve straight from cache below this age
+const STALE_MS   = 5 * 60 * 1000; // serve-while-revalidate ceiling; miss beyond this
 
-// GET /api/notion-pipeline           →  { syncedAt, orders: [all orders] }
-// GET /api/notion-pipeline?since=ISO →  { syncedAt, orders: [orders edited since] }
-// Clients feed syncedAt back as the next request's `since` for delta pulls.
-export async function onRequestGet(context) {
-  const token = context.env.NOTION_TOKEN;
-  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
-  const hdrs = notionHdrs(token);
-
-  // Captured BEFORE the query runs, so an edit landing mid-query falls after
-  // this stamp and gets re-delivered on the next delta instead of skipped.
-  const syncedAt = new Date().toISOString();
-
-  const sinceRaw = new URL(context.request.url).searchParams.get('since');
-  let filter = null;
-  if (sinceRaw) {
-    const t = Date.parse(sinceRaw);
-    // 2-minute overlap: Notion truncates last_edited_time to the minute, so a
-    // strict boundary would miss same-minute edits. Re-delivered orders are
-    // harmless — the client merge is idempotent.
-    if (!isNaN(t)) {
-      filter = {
-        timestamp: 'last_edited_time',
-        last_edited_time: { on_or_after: new Date(t - 120000).toISOString() },
-      };
-    }
-  }
-
+async function queryAllFromNotion(hdrs, filter) {
   const orders = [];
   let cursor;
   do {
@@ -259,14 +237,104 @@ export async function onRequestGet(context) {
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      return json({ error: err.message || 'query failed' }, r.status);
+      const e = new Error(err.message || 'query failed');
+      e.status = r.status;
+      throw e;
     }
     const d = await r.json();
     (d.results || []).forEach(p => { if (!p.archived) orders.push(pageToOrder(p)); });
     cursor = d.has_more ? d.next_cursor : null;
   } while (cursor);
+  return orders;
+}
 
-  return json({ syncedAt, orders });
+async function refreshCache(kv, hdrs) {
+  const syncedAt = new Date().toISOString();
+  const orders   = await queryAllFromNotion(hdrs, null);
+  const snapshot = { at: Date.now(), syncedAt, orders };
+  if (kv) await kv.put(CACHE_KEY, JSON.stringify(snapshot));
+  return snapshot;
+}
+
+// ── Route handlers ────────────────────────────────────────────
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
+// GET /api/notion-pipeline           →  { syncedAt, orders: [all orders] }  (cached at the edge)
+// GET /api/notion-pipeline?since=ISO →  { syncedAt, orders: [orders edited since] }  (never cached)
+// Clients feed syncedAt back as the next request's `since` for delta pulls.
+export async function onRequestGet(context) {
+  const { env, request } = context;
+  const token = env.NOTION_TOKEN;
+  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
+  const hdrs = notionHdrs(token);
+  const kv   = env.STS_KV || null;
+
+  const sinceRaw = new URL(request.url).searchParams.get('since');
+
+  // Delta requests are already a small, cheap, filtered query — bypass the
+  // cache entirely so they're never served a stale-cursor snapshot.
+  if (sinceRaw) {
+    const t = Date.parse(sinceRaw);
+    let filter = null;
+    // 2-minute overlap: Notion truncates last_edited_time to the minute, so a
+    // strict boundary would miss same-minute edits. Re-delivered orders are
+    // harmless — the client merge is idempotent.
+    if (!isNaN(t)) {
+      filter = {
+        timestamp: 'last_edited_time',
+        last_edited_time: { on_or_after: new Date(t - 120000).toISOString() },
+      };
+    }
+    // Captured BEFORE the query runs, so an edit landing mid-query falls
+    // after this stamp and gets re-delivered on the next delta, not skipped.
+    const syncedAt = new Date().toISOString();
+    try {
+      const orders = await queryAllFromNotion(hdrs, filter);
+      return json({ syncedAt, orders });
+    } catch(e) {
+      return json({ error: e.message || 'query failed' }, e.status || 500);
+    }
+  }
+
+  // Full pull — no KV bound (e.g. local dev) falls straight through to Notion.
+  if (!kv) {
+    try {
+      const syncedAt = new Date().toISOString();
+      const orders   = await queryAllFromNotion(hdrs, null);
+      return json({ syncedAt, orders });
+    } catch(e) {
+      return json({ error: e.message || 'query failed' }, e.status || 500);
+    }
+  }
+
+  let cached = null;
+  try { cached = await kv.get(CACHE_KEY, 'json'); } catch(e) { /* treat as miss */ }
+  const age = cached ? Date.now() - cached.at : Infinity;
+
+  if (cached && age < FRESH_MS) {
+    return json({ syncedAt: cached.syncedAt, orders: cached.orders });
+  }
+
+  if (cached && age < STALE_MS) {
+    // Stale-while-revalidate: answer instantly from the stale copy, refresh
+    // the cache in the background for the next request.
+    context.waitUntil(refreshCache(kv, hdrs).catch(e => console.error('KV refresh failed', e)));
+    return json({ syncedAt: cached.syncedAt, orders: cached.orders, stale: true });
+  }
+
+  // Cold cache (first load ever, or stale beyond the ceiling) — block on a
+  // fresh scan so the response is never older than STALE_MS.
+  try {
+    const snapshot = await refreshCache(kv, hdrs);
+    return json({ syncedAt: snapshot.syncedAt, orders: snapshot.orders });
+  } catch(e) {
+    // Notion is down/erroring — fall back to whatever we have, however old,
+    // rather than hard-failing every device at once.
+    if (cached) return json({ syncedAt: cached.syncedAt, orders: cached.orders, stale: true });
+    return json({ error: e.message || 'query failed' }, e.status || 500);
+  }
 }
 
 // POST /api/notion-pipeline  →  create or update a pipeline order
@@ -274,6 +342,13 @@ export async function onRequestPost(context) {
   const token = context.env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const hdrs = notionHdrs(token);
+  const kv   = context.env.STS_KV || null;
+
+  // Any write invalidates the read cache so the very next GET regenerates
+  // it — a write from any device makes every device's next load fresh.
+  const invalidateCache = () => {
+    if (kv) context.waitUntil(kv.delete(CACHE_KEY).catch(e => console.error('KV invalidate failed', e)));
+  };
 
   const order = await context.request.json();
 
@@ -288,6 +363,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'archive failed' }, r.status);
     }
+    invalidateCache();
     return json({ ok: true });
   }
 
@@ -303,6 +379,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'stage patch failed' }, r.status);
     }
+    invalidateCache();
     return json({ ok: true });
   }
 
@@ -318,6 +395,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'update failed' }, r.status);
     }
+    invalidateCache();
     return json({ notionId: order.notionId });
   }
 
@@ -344,6 +422,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
+        invalidateCache();
         return json({ notionId: match.id });
       }
     }
@@ -356,5 +435,6 @@ export async function onRequestPost(context) {
   });
   const d = await r.json();
   if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
+  invalidateCache();
   return json({ notionId: d.id });
 }
