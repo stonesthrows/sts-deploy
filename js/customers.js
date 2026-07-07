@@ -681,6 +681,7 @@ function prefillFromOrder(orderId) {
   set('f-pickup',      o.pickup || '');
   if (typeof setOrderType === 'function') setOrderType(o.type || 'order');
   if (typeof toggleShippingAddress === 'function') toggleShippingAddress();
+  if (typeof orderFormStep === 'function') orderFormStep(1);
   const panel = document.getElementById('tab-new-order');
   if (panel) panel.scrollTop = 0;
   if (typeof toast === 'function') toast(`Form pre-filled for ${o.name} — review and submit`, '✓');
@@ -696,6 +697,7 @@ function prefillFromCustomer(name, email, type) {
   document.getElementById('f-name').value  = name;
   document.getElementById('f-email').value = email;
   if (typeof setOrderType === 'function') setOrderType(type);
+  if (typeof orderFormStep === 'function') orderFormStep(1);
   const panel = document.getElementById('tab-new-order');
   if (panel) panel.scrollTop = 0;
   if (typeof toast === 'function') toast(`Form pre-filled for ${name} — fill in the details and submit`, '✓');
