@@ -23,6 +23,15 @@ function fmtDate(ds) {
 
 function fmtPrice(p) { return p ? '$' + p.toLocaleString() : ''; }
 
+// Escape user-entered data before interpolating it into HTML strings.
+// Order names/descriptions arrive from Notion, Etsy and Shopify — a quote
+// or angle bracket in any of them must render as text, never as markup.
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+
 function toast(msg, icon='✓') {
   const el = document.getElementById('toast');
   el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
@@ -59,9 +68,12 @@ function _touchDragHighlight(bodyEl, on) {
   bodyEl.classList.toggle(cls, on);
 }
 
-function cardPointerDown(ev, orderId, kind) {
+// cardEl is optional: inline handlers pass nothing (ev.currentTarget is the
+// card); delegated listeners (kanban board) pass the card element explicitly
+// since their currentTarget is the container.
+function cardPointerDown(ev, orderId, kind, cardEl) {
   if (ev.pointerType === 'mouse' || !isIpadDragWidth()) return;
-  const card = ev.currentTarget;
+  const card = cardEl || ev.currentTarget;
   const startX = ev.clientX, startY = ev.clientY;
   let dragging = false, ghost = null, longPressTimer, lastBody = null;
 

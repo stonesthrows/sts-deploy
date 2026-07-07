@@ -27,9 +27,88 @@ function setNameFields(fullName) {
 }
 
 // ════════════════════════════════════════════
+//  KANBAN RENDER  —  build-once shell + keyed card sync
+//  The column/sub-section skeleton is static (COLUMN_GROUPS and
+//  PICKUP_LOCATIONS are constants), so it's built exactly once. Every
+//  render after that only syncs card elements into the existing stage
+//  bodies via the keyed cache — unchanged cards are reused, scroll
+//  positions survive, and a background sync tick can't yank the board
+//  out from under the user.
+// ════════════════════════════════════════════
+
+function buildKanbanShell(board) {
+  board.innerHTML = '';
+  COLUMN_GROUPS.forEach(group => {
+    const col = document.createElement('div');
+    col.className = `k-col ${group.cls}`;
+
+    // Alert dot is always present in the head, shown only when it has a count
+    const headHTML = `
+      <div class="k-head">
+        <span>${group.label}<span class="k-alert-dot" style="display:none"></span></span>
+        <span class="k-count">0</span>
+      </div>`;
+
+    if (group.pickupSections) {
+      // Ready to Pickup/Ship — cards are hidden on this board (they live in
+      // the Ready to Ship tab); the bodies stay as drop targets only.
+      const stageId  = group.stages[0].id;
+      const subsHTML = PICKUP_LOCATIONS.map(loc => `
+        <div class="k-sub-wrap s-pickup-sub k-sub-empty">
+          <div class="k-sub-head">📍 ${loc}<span class="k-sub-count">0</span></div>
+          <div class="k-body"
+               data-stage-id="${stageId}"
+               data-pickup="${loc.replace(/"/g,'&quot;')}"
+               data-cards-hidden="1"
+               ondragover="dragOver(event)"
+               ondragleave="dragLeave(event)"
+               ondrop="dropWithPickup(event,'${stageId}','${loc.replace(/'/g,"\\'")}')">
+          </div>
+        </div>`).join('');
+      const extraStagesHTML = group.stages.slice(1).map(stage => `
+        <div class="k-sub-wrap ${stage.cls} k-sub-empty">
+          <div class="k-sub-head">${stage.label}<span class="k-sub-count">0</span></div>
+          <div class="k-body"
+               data-stage-id="${stage.id}"
+               data-cards-hidden="1"
+               ondragover="dragOver(event)"
+               ondragleave="dragLeave(event)"
+               ondrop="drop(event,'${stage.id}')">
+          </div>
+        </div>`).join('');
+      col.innerHTML = headHTML + subsHTML + extraStagesHTML;
+
+    } else if (group.stages.length > 1) {
+      const subsHTML = group.stages.map(stage => `
+        <div class="k-sub-wrap ${stage.cls} k-sub-empty">
+          <div class="k-sub-head">${stage.label}<span class="k-sub-count">0</span></div>
+          <div class="k-body"
+               data-stage-id="${stage.id}"
+               ondragover="dragOver(event)"
+               ondragleave="dragLeave(event)"
+               ondrop="drop(event,'${stage.id}')">
+          </div>
+        </div>`).join('');
+      col.innerHTML = headHTML + subsHTML;
+
+    } else {
+      const stageId = group.stages[0].id;
+      col.innerHTML = headHTML + `
+        <div class="k-body"
+             data-stage-id="${stageId}"
+             ondragover="dragOver(event)"
+             ondragleave="dragLeave(event)"
+             ondrop="drop(event,'${stageId}')">
+        </div>`;
+    }
+
+    board.appendChild(col);
+  });
+}
+
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
-  board.innerHTML = '';
+  if (!board) return;
 
   // ── Active stat-card filter banner ────────────
   const filterBar = document.getElementById('kanbanFilterBar');
@@ -44,122 +123,62 @@ function renderKanban() {
     }
   }
 
-  COLUMN_GROUPS.forEach(group => {
-    const col = document.createElement('div');
-    col.className = `k-col ${group.cls}`;
+  if (!board.dataset.built) {
+    buildKanbanShell(board);
+    board.dataset.built = '1';
+  }
+
+  // Drop cached card nodes for orders that no longer exist
+  const liveIds = new Set(ORDERS.map(o => o.id));
+  for (const k of [..._cardCache.keys()]) {
+    if (!liveIds.has(k)) _cardCache.delete(k);
+  }
+
+  const visible = o =>
+    (showCompleted || !completedHidden.has(o.id)) &&
+    (!window.kanbanStatFilter || window.kanbanStatFilter(o));
+
+  const cols = board.children;
+  COLUMN_GROUPS.forEach((group, i) => {
+    const col = cols[i];
+    if (!col) return;
 
     const allStageIds = group.stages.map(s => s.id);
-    const allCards    = ORDERS.filter(o =>
-      allStageIds.includes(o.stage) &&
-      (showCompleted || !completedHidden.has(o.id)) &&
-      (!window.kanbanStatFilter || window.kanbanStatFilter(o))
-    );
-    const totalCount = allCards.length;
+    const groupCards  = ORDERS.filter(o => allStageIds.includes(o.stage) && visible(o));
+    const countEl = col.querySelector('.k-count');
+    if (countEl) countEl.textContent = groupCards.length;
 
-    if (group.pickupSections) {
-      // ── Ready to Pickup/Ship: sub-sections by pickup location (stage[0] only) ──
-      // Cards at ready-pick are hidden here — they appear in the Ready to Ship tab instead
-      const pickupCards = [];
-      const subsHTML = PICKUP_LOCATIONS.map(loc => {
-        const locCards = pickupCards.filter(o => o.pickup === loc);
-        const stageId  = group.stages[0].id;
-        return `
-          <div class="k-sub-wrap s-pickup-sub${locCards.length ? '' : ' k-sub-empty'}">
-            <div class="k-sub-head">📍 ${loc}<span class="k-sub-count">${locCards.length}</span></div>
-            <div class="k-body"
-                 data-stage-id="${stageId}"
-                 data-pickup="${loc.replace(/"/g,'&quot;')}"
-                 ondragover="dragOver(event)"
-                 ondragleave="dragLeave(event)"
-                 ondrop="dropWithPickup(event,'${stageId}','${loc.replace(/'/g,"\\'")}')">
-              ${locCards.length ? locCards.map(cardHTML).join('') : '<div class="k-empty">Drop here</div>'}
-            </div>
-          </div>`;
-      }).join('');
-
-      // Cards with no / unrecognized pickup location (stage[0] only)
-      const unassigned = pickupCards.filter(o => !PICKUP_LOCATIONS.includes(o.pickup));
-      const unassignedHTML = unassigned.length ? `
-          <div class="k-sub-wrap s-pickup-sub">
-            <div class="k-sub-head">📍 Unassigned<span class="k-sub-count">${unassigned.length}</span></div>
-            <div class="k-body"
-                 data-stage-id="${group.stages[0].id}"
-                 ondragover="dragOver(event)"
-                 ondragleave="dragLeave(event)"
-                 ondrop="drop(event,'${group.stages[0].id}')">
-              ${unassigned.map(cardHTML).join('')}
-            </div>
-          </div>` : '';
-
-      // Extra stages (e.g. Ship Out) rendered as sub-sections below pickup locations
-      // Cards hidden here — they appear in the Ready to Ship tab instead
-      const extraStagesHTML = group.stages.slice(1).map(stage => {
-        return `
-          <div class="k-sub-wrap ${stage.cls} k-sub-empty">
-            <div class="k-sub-head">${stage.label}<span class="k-sub-count">0</span></div>
-            <div class="k-body"
-                 data-stage-id="${stage.id}"
-                 ondragover="dragOver(event)"
-                 ondragleave="dragLeave(event)"
-                 ondrop="drop(event,'${stage.id}')">
-              <div class="k-empty">Drop here</div>
-            </div>
-          </div>`;
-      }).join('');
-
-      col.innerHTML = `
-        <div class="k-head">
-          <span>${group.label}</span>
-          <span class="k-count">${totalCount}</span>
-        </div>
-        ${subsHTML}${unassignedHTML}${extraStagesHTML}`;
-
-    } else if (group.stages.length > 1) {
-      // ── Multi-stage grouped column ──
-      const subsHTML = group.stages.map(stage => {
-        const stageCards = allCards.filter(o => o.stage === stage.id);
-        return `
-          <div class="k-sub-wrap ${stage.cls}${stageCards.length ? '' : ' k-sub-empty'}">
-            <div class="k-sub-head">${stage.label}<span class="k-sub-count">${stageCards.length}</span></div>
-            <div class="k-body"
-                 data-stage-id="${stage.id}"
-                 ondragover="dragOver(event)"
-                 ondragleave="dragLeave(event)"
-                 ondrop="drop(event,'${stage.id}')">
-              ${stageCards.length ? stageCards.map(cardHTML).join('') : '<div class="k-empty">Drop here</div>'}
-            </div>
-          </div>`;
-      }).join('');
-
-      const needCount = ORDERS.filter(o => o.stage === 'contact-need').length;
-      const alertDot  = (group.cls === 's-contact-group' && needCount > 0)
-        ? `<span class="k-alert-dot">${needCount}</span>` : '';
-
-      col.innerHTML = `
-        <div class="k-head">
-          <span>${group.label}${alertDot}</span>
-          <span class="k-count">${totalCount}</span>
-        </div>
-        ${subsHTML}`;
-
-    } else {
-      // ── Single-stage column — original layout ──
-      const stageId = group.stages[0].id;
-      col.innerHTML = `
-        <div class="k-head">
-          <span>${group.label}</span>
-          <span class="k-count">${totalCount}</span>
-        </div>
-        <div class="k-body"
-             data-stage-id="${stageId}"
-             ondragover="dragOver(event)"
-             ondragleave="dragLeave(event)"
-             ondrop="drop(event,'${stageId}')">
-          ${allCards.length ? allCards.map(cardHTML).join('') : '<div class="k-empty">Drop here</div>'}
-        </div>`;
+    // Contact-group alert dot (unfiltered count, as before)
+    if (group.cls === 's-contact-group') {
+      const dot = col.querySelector('.k-alert-dot');
+      if (dot) {
+        const needCount = ORDERS.filter(o => o.stage === 'contact-need').length;
+        dot.textContent = needCount;
+        dot.style.display = needCount > 0 ? '' : 'none';
+      }
     }
 
-    board.appendChild(col);
+    col.querySelectorAll('.k-body').forEach(body => {
+      const hideCards = body.dataset.cardsHidden === '1';
+      const stageId   = body.dataset.stageId;
+      const cards     = hideCards ? [] : groupCards.filter(o => o.stage === stageId);
+
+      const wrap = body.closest('.k-sub-wrap');
+      if (wrap) {
+        wrap.classList.toggle('k-sub-empty', cards.length === 0);
+        const subCnt = wrap.querySelector('.k-sub-count');
+        if (subCnt) subCnt.textContent = cards.length;
+      }
+
+      if (cards.length) {
+        body.replaceChildren(...cards.map(cardEl));
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'k-empty';
+        empty.textContent = 'Drop here';
+        body.replaceChildren(empty);
+      }
+    });
   });
 
   // Only count orders that are genuinely in-progress (not completed, delivered, cancelled, or hidden)
@@ -196,6 +215,10 @@ function pickupBadgeLabel(pickup) {
   return PICKUP_BADGE_LABELS[pickup] || pickup;
 }
 
+// All user-entered fields go through esc() — names and descriptions arrive
+// from Notion/Etsy/Shopify and must never be interpreted as markup. Card
+// actions use data-action attributes handled by ONE delegated listener on
+// the board (below) instead of per-card inline handlers.
 function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
   // Photos live as blobs in IndexedDB, served via the warm object-URL
@@ -206,52 +229,43 @@ function cardHTML(o) {
   const isCollapsed = !expandedCards.has(o.id);
   const platformCls = o.id.startsWith('etsy-') ? ' o-card-etsy'
                      : o.id.startsWith('shopify-') ? ' o-card-shopify' : '';
+  const eid = esc(o.id);
   return `
     <div class="o-card${platformCls}${o.stage === 'contact-need' ? ' contact-pulse' : ''}${isCollapsed ? ' collapsed' : ''}"
-         id="card-${o.id}"
-         draggable="true"
-         ondragstart="dragStart(event,'${o.id}')"
-         ondragend="dragEnd(event)"
-         onpointerdown="cardPointerDown(event,'${o.id}','kanban')"
-         onclick="openOrderCard('${o.id}')">
+         id="card-${eid}"
+         data-id="${eid}"
+         draggable="true">
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
-        <div class="o-name">${o.name}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
+        <div class="o-name">${esc(o.name)}${!o.notionId ? ` <span class="o-unsynced" data-action="retry" title="Not yet synced to Notion — tap to retry now">⚠ unsynced</span>` : ''}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-          <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}"
-                  title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}"
-                  onclick="event.stopPropagation(); openCamera('${o.id}')">📷</button>
-          <button class="card-print-btn"
-                  title="Print work order"
-                  onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
-          <button class="card-move-btn"
-                  title="Move to another stage"
-                  onclick="event.stopPropagation(); openStageSheet('${o.id}')">↪</button>
-          <span class="o-chevron"
-                title="Expand / Collapse"
-                onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
+          <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}" data-action="camera"
+                  title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}">📷</button>
+          <button class="card-print-btn" data-action="print" title="Print work order">🖨</button>
+          <button class="card-move-btn" data-action="move" title="Move to another stage">↪</button>
+          <span class="o-chevron" data-action="toggle" title="Expand / Collapse">▾</span>
         </div>
       </div>
       <div class="o-collapsed-summary">
         ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
           : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
-          : o.pickup ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
-        ${o.assignee ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
+          : o.pickup ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+        ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
         ${photoSrc ? `
-          <div class="card-photo" onclick="event.stopPropagation(); viewPhoto('${o.id}')">
+          <div class="card-photo" data-action="photo">
             <img src="${photoSrc}" alt="Work order bag">
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
-        <div class="o-desc">${o.desc}</div>
+        <div class="o-desc">${esc(o.desc)}</div>
         ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
         <div class="o-badges">
-          ${o.pickup        ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
-          ${o.contactSource ? `<span class="o-badge source">💬 ${o.contactSource}</span>` : ''}
+          ${o.pickup        ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+          ${o.contactSource ? `<span class="o-badge source">💬 ${esc(o.contactSource)}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
-          ${o.assignee      ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
+          ${o.assignee      ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
@@ -260,6 +274,72 @@ function cardHTML(o) {
       </div>
     </div>`;
 }
+
+// ── Keyed card cache ─────────────────────────────────────────
+// Card DOM nodes are cached per order id and only rebuilt when a field
+// cardHTML actually renders has changed — a render pass reuses the same
+// elements, so drags, toggles, and sync ticks don't rebuild the world.
+const _cardCache = new Map();   // order id → { rev, el }
+
+function cardRev(o) {
+  const photoSrc = (typeof photoURL === 'function' && photoURL(o.id)) || o.photo || '';
+  return [
+    o.stage, o.name, o.desc, o.price, o.deadline, o.assignee, o.pickup,
+    o.contactSource, o.contactedAt, photoSrc, o.hasPhoto ? 1 : 0,
+    o.notionId ? 1 : 0, expandedCards.has(o.id) ? 1 : 0,
+  ].join('');
+}
+
+function cardEl(o) {
+  const rev = cardRev(o);
+  let c = _cardCache.get(o.id);
+  if (!c || c.rev !== rev) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = cardHTML(o).trim();
+    c = { rev, el: tpl.content.firstElementChild };
+    _cardCache.set(o.id, c);
+  }
+  return c.el;
+}
+
+// ── Delegated card events ────────────────────────────────────
+// One listener per event type on the board handles every card, present
+// and future — no inline JS-in-string handlers (which broke on quotes in
+// order data and bloated every render).
+(function initKanbanDelegation() {
+  const board = document.getElementById('kanbanBoard');
+  if (!board) return;
+
+  board.addEventListener('click', e => {
+    const card = e.target.closest('.o-card');
+    if (!card) return;
+    const id = card.dataset.id;
+    const actionEl = e.target.closest('[data-action]');
+    const action = (actionEl && card.contains(actionEl)) ? actionEl.dataset.action : null;
+    switch (action) {
+      case 'camera': return openCamera(id);
+      case 'print':  return printOrder(id);
+      case 'move':   return openStageSheet(id);
+      case 'toggle': return toggleCard(id);
+      case 'retry':  return retrySyncOrder(id);
+      case 'photo':  return viewPhoto(id);
+      default:       return openOrderCard(id);
+    }
+  });
+
+  board.addEventListener('dragstart', e => {
+    const card = e.target.closest('.o-card');
+    if (card) dragStart(e, card.dataset.id);
+  });
+  board.addEventListener('dragend', e => {
+    const card = e.target.closest('.o-card');
+    if (card) dragEnd(e);
+  });
+  board.addEventListener('pointerdown', e => {
+    const card = e.target.closest('.o-card');
+    if (card) cardPointerDown(e, card.dataset.id, 'kanban', card);
+  });
+})();
 
 function openOrderCard(id) {
   const o = ORDERS.find(x => x.id === id);
