@@ -198,7 +198,11 @@ function pickupBadgeLabel(pickup) {
 
 function cardHTML(o) {
   const dl       = deadlineInfo(o.deadline);
-  const hasPhoto = !!o.photo;
+  // Photos live as blobs in IndexedDB, served via the warm object-URL
+  // cache; o.photo (legacy inline base64) is kept as a render fallback
+  // for pre-migration data.
+  const photoSrc = (typeof photoURL === 'function' && photoURL(o.id)) || o.photo || null;
+  const hasPhoto = !!(photoSrc || o.hasPhoto);
   const isCollapsed = !expandedCards.has(o.id);
   const platformCls = o.id.startsWith('etsy-') ? ' o-card-etsy'
                      : o.id.startsWith('shopify-') ? ' o-card-shopify' : '';
@@ -236,9 +240,9 @@ function cardHTML(o) {
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
-        ${hasPhoto ? `
+        ${photoSrc ? `
           <div class="card-photo" onclick="event.stopPropagation(); viewPhoto('${o.id}')">
-            <img src="${o.photo}" alt="Work order bag">
+            <img src="${photoSrc}" alt="Work order bag">
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
         <div class="o-desc">${o.desc}</div>
@@ -1430,24 +1434,32 @@ function openCamera(orderId) {
 
 function handlePhoto(input) {
   if (!input.files || !input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const order = ORDERS.find(o => o.id === currentPhotoOrderId);
-    if (order) {
-      order.photo = e.target.result;
-      saveToStorage();
-      renderKanban();
-      toast('Photo saved', '📷');
-    }
-  };
-  reader.readAsDataURL(input.files[0]);
+  const file    = input.files[0];
+  const orderId = currentPhotoOrderId;
+  const order   = ORDERS.find(o => o.id === orderId);
+  if (!order) return;
+  // Downscale to a bounded JPEG (raw phone photos are 2–4 MB; card and
+  // lightbox sizes can't tell the difference) and store the blob in
+  // IndexedDB — never as base64 on the order object.
+  downscalePhoto(file).then(async blob => {
+    await photoPut(orderId, blob);
+    delete order.photo;              // clear any legacy inline base64
+    order.hasPhoto = true;
+    saveToStorage();
+    renderKanban();
+    toast('Photo saved', '📷');
+  }).catch(e => {
+    console.error('Photo save failed', e);
+    toast('⚠ Photo could not be saved', '⚠');
+  });
 }
 
 function viewPhoto(orderId) {
   const order = ORDERS.find(o => o.id === orderId);
-  if (!order || !order.photo) return;
+  const src = (typeof photoURL === 'function' && photoURL(orderId)) || (order && order.photo) || null;
+  if (!order || !src) return;
   currentPhotoOrderId = orderId;
-  document.getElementById('lightboxImg').src = order.photo;
+  document.getElementById('lightboxImg').src = src;
   document.getElementById('lbTitle').textContent = order.name + ' — ' + order.desc;
   document.getElementById('photoLightbox').classList.add('open');
 }
@@ -1463,7 +1475,14 @@ function retakePhoto() {
 
 function removePhoto() {
   const order = ORDERS.find(o => o.id === currentPhotoOrderId);
-  if (order) { delete order.photo; saveToStorage(); renderKanban(); toast('Photo removed', '✓'); }
+  if (order) {
+    delete order.photo;
+    delete order.hasPhoto;
+    photoDelete(order.id).catch(e => console.warn('Photo delete failed', e));
+    saveToStorage();
+    renderKanban();
+    toast('Photo removed', '✓');
+  }
   closeLightbox();
 }
 

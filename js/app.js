@@ -372,31 +372,114 @@ function safeSendPrompt(msg) {
 }
 
 
-function saveToStorage() {
+// Persistence: IndexedDB (via js/store.js) is authoritative; localStorage
+// keeps a photo-less mirror as a synchronous fallback + rollback path.
+// Both sides carry a savedAt stamp so load can pick whichever is newer
+// (e.g. the tab closed after the mirror wrote but before IndexedDB did).
+async function saveToStorage() {
+  const stamp = Date.now();
+
+  // Mirror first — synchronous, so even an immediate tab close keeps it.
+  let mirrorOk = false;
   try {
-    localStorage.setItem('sts-orders', JSON.stringify(ORDERS));
+    const mirror = ORDERS.map(o => {
+      if (!o.photo) return o;
+      const copy = Object.assign({}, o);   // strip legacy base64 photos —
+      delete copy.photo;                   // they're what used to blow the
+      copy.hasPhoto = true;                // 5 MB localStorage quota
+      return copy;
+    });
+    localStorage.setItem('sts-orders', JSON.stringify(mirror));
     localStorage.setItem('sts-hidden', JSON.stringify([...completedHidden]));
-  } catch(e) {}
+    localStorage.setItem('sts-orders-savedat', String(stamp));
+    mirrorOk = true;
+  } catch(e) {
+    console.error('saveToStorage: localStorage mirror failed', e);
+  }
+
+  try {
+    await DB.set('kv', 'orders', ORDERS);
+    await DB.set('kv', 'hidden', [...completedHidden]);
+    await DB.set('kv', 'savedAt', stamp);
+  } catch(e) {
+    console.error('saveToStorage: IndexedDB write failed', e);
+    if (!mirrorOk && typeof toast === 'function') {
+      toast('⚠ Local save failed — recent changes may not survive a reload', '⚠');
+    }
+  }
 }
 
-// ════════════════════════════════════════════
-//  SAVE CHOICE  —  Local vs Notion
-// ════════════════════════════════════════════
+// ── One-time migration: localStorage → IndexedDB ─────────────
+// All-or-nothing: the flag is only set after everything is written, so a
+// failure midway just retries on the next boot (photo puts are idempotent).
+// The original localStorage data is never modified here — if migration
+// throws, loadFromStorage falls back to it exactly as before.
+async function migrateFromLocalStorage() {
+  if (await DB.get('kv', 'migrated-v1')) return;
+  const raw = localStorage.getItem('sts-orders');
+  if (raw) {
+    const orders = JSON.parse(raw);
+    if (Array.isArray(orders)) {
+      for (const o of orders) {
+        if (o && o.photo && String(o.photo).slice(0, 5) === 'data:') {
+          const blob = await (await fetch(o.photo)).blob();
+          await DB.set('photos', o.id, blob);
+          delete o.photo;
+          o.hasPhoto = true;
+        }
+      }
+      await DB.set('kv', 'orders', orders);
+      const hiddenRaw = localStorage.getItem('sts-hidden');
+      if (hiddenRaw) await DB.set('kv', 'hidden', JSON.parse(hiddenRaw));
+      await DB.set('kv', 'savedAt', Date.now());
+    }
+  }
+  await DB.set('kv', 'migrated-v1', true);
+  console.log('Storage migrated to IndexedDB');
+}
 
+async function loadFromStorage() {
+  try { await migrateFromLocalStorage(); }
+  catch(e) { console.error('Storage migration failed — will retry next load', e); }
 
-function loadFromStorage() {
+  let loaded = null;
+
+  // Preferred source: IndexedDB — unless the localStorage mirror is newer
+  // (IndexedDB write was interrupted on the previous save).
   try {
-    const saved = localStorage.getItem('sts-orders');
-    if (saved) {
-      const loaded = JSON.parse(saved);
-      if (Array.isArray(loaded) && loaded.length > 0) {
-        ORDERS.length = 0;
-        loaded.forEach(o => ORDERS.push(o));
+    const idbStamp = (await DB.get('kv', 'savedAt')) || 0;
+    let lsStamp = 0;
+    try { lsStamp = parseInt(localStorage.getItem('sts-orders-savedat') || '0', 10) || 0; } catch(e) {}
+    if (idbStamp >= lsStamp) {
+      const idbOrders = await DB.get('kv', 'orders');
+      if (Array.isArray(idbOrders) && idbOrders.length > 0) {
+        loaded = idbOrders;
+        const hidden = await DB.get('kv', 'hidden');
+        (hidden || []).forEach(id => completedHidden.add(id));
       }
     }
-    const hiddenSaved = localStorage.getItem('sts-hidden');
-    if (hiddenSaved) { JSON.parse(hiddenSaved).forEach(id => completedHidden.add(id)); }
-  } catch(e) {}
+  } catch(e) {
+    console.error('IndexedDB load failed — falling back to localStorage', e);
+  }
+
+  // Fallback: localStorage (the mirror, or pre-migration original data)
+  if (!loaded) {
+    try {
+      const saved = localStorage.getItem('sts-orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      }
+      const hiddenSaved = localStorage.getItem('sts-hidden');
+      if (hiddenSaved) { JSON.parse(hiddenSaved).forEach(id => completedHidden.add(id)); }
+    } catch(e) {}
+  }
+
+  if (loaded) {
+    ORDERS.length = 0;
+    loaded.forEach(o => ORDERS.push(o));
+  }
+
   // Migrate legacy stage IDs to new ones
   let migrated = false;
   ORDERS.forEach(o => {
@@ -429,18 +512,44 @@ function toggleThemePicker() {
 }
 
 // ════════════════════════════════════════════
-//  STARTUP
+//  APP BOOTSTRAP  —  runs once, on DOMContentLoaded
+//  (Previously split across a DOMContentLoaded handler and a parse-time
+//  IIFE that each ran loadFromStorage — now one async sequence that
+//  waits for storage before the first render.)
 // ════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', function() {
-  // Restore theme
+let _booted = false;
+async function bootstrapApp() {
+  if (_booted) return;
+  _booted = true;
+
+  // Restore theme (synchronous, before content renders)
   const savedTheme = localStorage.getItem('sts-theme') || '';
   if (savedTheme) setTheme(savedTheme);
 
-  // Load order data
-  loadFromStorage();
-  renderKanban();
-  renderCustomers();
-  loadNotes();
+  // Restore orders + hidden set (IndexedDB, migrating from localStorage on
+  // first run), then warm the photo object-URL cache so cardHTML can
+  // render photos synchronously.
+  await loadFromStorage();
+  if (typeof photoPreloadAll === 'function') await photoPreloadAll();
+
+  if (typeof renderKanban === 'function') renderKanban();
+  if (typeof renderCustomers === 'function') renderCustomers();
+  if (typeof loadNotes === 'function') loadNotes();
+
+  // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
+  if (typeof loadGmailOverview === 'function') loadGmailOverview();
+  if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
+
+  // Load customers from cache instantly, then refresh from Notion in background
+  if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
+  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
+
+  // Push any local orders missing a notionId, then pull everything from Notion
+  if (typeof notionPushUnsynced === 'function') {
+    notionPushUnsynced().then(() => {
+      if (typeof notionStartupSync === 'function') notionStartupSync();
+    });
+  }
 
   // Unregister any old service workers
   if ('serviceWorker' in navigator) {
@@ -456,37 +565,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (picker) picker.classList.remove('open');
     }
   });
-});
-
-
-
-
-
-// ════════════════════════════════════════════
-//  APP BOOTSTRAP  —  runs once DOM is ready
-// ════════════════════════════════════════════
-(function init() {
-  // Restore orders + hidden set from localStorage
-  loadFromStorage();
-
-  // Kick off Kanban render (guarded — orders.js may not be loaded yet)
-  if (typeof renderKanban === 'function') renderKanban();
-
-  // Restore notes from localStorage
-  if (typeof loadNotes === 'function') loadNotes();
-
-  // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
-  if (typeof loadGmailOverview === 'function') loadGmailOverview();
-  if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
-
-  // Load customers from cache instantly, then refresh from Notion in background
-  if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
-  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
-
-  // Push any local orders missing a notionId, then pull everything from Notion
-  if (typeof notionPushUnsynced === 'function') notionPushUnsynced().then(() => {
-    if (typeof notionStartupSync === 'function') notionStartupSync();
-  });
-  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
-})();
+}
+document.addEventListener('DOMContentLoaded', bootstrapApp);
 

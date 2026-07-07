@@ -176,7 +176,7 @@ async function notionSyncFromNotion() {
     const dirty = (typeof Outbox !== 'undefined') ? Outbox.dirtyKeys() : new Set();
 
     // Fields that are local-only or should never be overwritten with empty Notion values
-    const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
+    const preserveIfEmpty = ['photo', 'hasPhoto', 'contactedAt', 'deliveredAt'];
 
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
@@ -290,6 +290,7 @@ async function notionStartupSync() {
     ORDERS.forEach(o => {
       localFields[o.id] = {};
       if (o.photo)       localFields[o.id].photo       = o.photo;
+      if (o.hasPhoto)    localFields[o.id].hasPhoto    = true;
       if (o.pickup)      localFields[o.id].pickup      = o.pickup;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
@@ -321,6 +322,7 @@ async function notionStartupSync() {
       // Restore local-only fields that Notion doesn't store
       const lf = localFields[no.id] || {};
       if (!no.photo       && lf.photo)       no.photo       = lf.photo;
+      if (!no.hasPhoto    && lf.hasPhoto)    no.hasPhoto    = true;
       if (!no.pickup      && lf.pickup)      no.pickup      = lf.pickup;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;
@@ -370,7 +372,7 @@ function _setLastSync(iso) {
 // Local-only / sticky fields — never overwrite with an empty Notion value
 // (same list the startup sync preserves across full replacement)
 function _preserveLocalOnlyFields(local, incoming) {
-  ['photo', 'pickup', 'contactedAt', 'deliveredAt', 'cancelledAt', 'pdfUrl'].forEach(f => {
+  ['photo', 'hasPhoto', 'pickup', 'contactedAt', 'deliveredAt', 'cancelledAt', 'pdfUrl'].forEach(f => {
     if (!incoming[f] && local[f]) incoming[f] = local[f];
   });
 }
