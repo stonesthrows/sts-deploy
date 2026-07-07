@@ -241,6 +241,11 @@ function cardHTML(o) {
             <img src="${o.photo}" alt="Work order bag">
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
+        ${o.sketchImg ? `
+          <div class="card-photo card-sketch" onclick="event.stopPropagation(); viewSketch('${o.id}')">
+            <img src="${o.sketchImg}" alt="Design sketch">
+            <div class="card-photo-label">✏️ Tap to view sketch</div>
+          </div>` : ''}
         <div class="o-desc">${o.desc}</div>
         ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
         <div class="o-badges">
@@ -290,6 +295,13 @@ function openOrderCard(id) {
   document.getElementById('f-notes').value         = o.notes         || '';
   document.getElementById('f-customer-notes').value = o.customerNotes || '';
   document.getElementById('f-sketch').value        = o.sketchDesc    || '';
+  document.getElementById('f-contact-method').value = o.contactMethod || '';
+  document.getElementById('f-piece-type').value    = o.pieceType     || '';
+  document.getElementById('f-sizing').value        = o.sizing        || '';
+  document.getElementById('f-gemstones').value     = o.gemstones     || '';
+  document.querySelectorAll('#f-finish input').forEach(c => c.checked = (o.finish || []).includes(c.value));
+  if (typeof sketchLoad === 'function') { o.sketchImg ? sketchLoad(o.sketchImg) : sketchReset(); }
+  if (typeof hwClear === 'function') hwClear();
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
@@ -441,6 +453,17 @@ function saveOrderEdit() {
   o.notes         = document.getElementById('f-notes').value.trim()         || '';
   o.customerNotes = document.getElementById('f-customer-notes').value.trim() || '';
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
+  o.contactMethod = document.getElementById('f-contact-method').value  || '';
+  o.pieceType     = document.getElementById('f-piece-type').value      || '';
+  o.sizing        = document.getElementById('f-sizing').value.trim()   || '';
+  o.gemstones     = document.getElementById('f-gemstones').value.trim() || '';
+  o.finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
+  // Only touch the sketch when the canvas actually changed — protects the
+  // stored image if sketchLoad's async restore hadn't finished, and keeps
+  // no-op edits from re-uploading to Notion.
+  if (typeof sketchIsDirty === 'function' && sketchIsDirty()) {
+    o.sketchImg = sketchExport(); // null when cleared → Notion property emptied on sync
+  }
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
   o.addrStreet  = document.getElementById('f-addr-street').value.trim();
   o.addrStreet2 = document.getElementById('f-addr-street2').value.trim();
@@ -572,6 +595,12 @@ function submitOrder() {
   const shippingAddress = { street: addrStreet, street2: addrStreet2, city: addrCity, state: addrState, zip: addrZip, country: addrCountry };
   const contactSource = document.getElementById('f-source').value || null;
   const assignee      = document.getElementById('f-assignee').value || null;
+  const contactMethod = document.getElementById('f-contact-method').value || '';
+  const pieceType     = document.getElementById('f-piece-type').value || '';
+  const sizing        = document.getElementById('f-sizing').value.trim();
+  const gemstones     = document.getElementById('f-gemstones').value.trim();
+  const finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
+  const sketchImg     = (typeof sketchExport === 'function') ? sketchExport() : null;
   const newId      = 'u' + Date.now();
   const typeVal    = (document.getElementById('f-order-type') || {}).value || 'order';
   const typeMap    = ORDER_TYPE_STAGES[typeVal] || ORDER_TYPE_STAGES.order;
@@ -604,6 +633,12 @@ function submitOrder() {
     contactSource: contactSource,
     assignee:      assignee,
     orderType:     typeVal,
+    contactMethod: contactMethod,
+    pieceType:     pieceType,
+    sizing:        sizing,
+    gemstones:     gemstones,
+    finish:        finish,
+    sketchImg:     sketchImg,
   });
 
   // ── Add or update CUSTOMERS ──────────────
@@ -708,11 +743,15 @@ function toggleShippingAddress() {
 
 function clearForm() {
   ['f-firstname','f-lastname','f-email','f-phone','f-takein','f-deadline','f-job-desc','f-description','f-materials','f-deposit','f-shipping','f-notes','f-customer-notes','f-sketch',
+   'f-contact-method','f-piece-type','f-sizing','f-gemstones',
    'f-addr-street','f-addr-street2','f-addr-city','f-addr-state','f-addr-zip','f-addr-country','f-tracking-number','f-tracking-carrier']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
     });
+  document.querySelectorAll('#f-finish input').forEach(c => c.checked = false);
+  if (typeof sketchReset === 'function') sketchReset();
+  if (typeof hwClear === 'function') hwClear();
   const countryEl = document.getElementById('f-addr-country');
   if (countryEl) countryEl.value = 'United States';
   const pickup = document.getElementById('f-pickup');
@@ -1445,6 +1484,9 @@ function viewPhoto(orderId) {
   const order = ORDERS.find(o => o.id === orderId);
   if (!order || !order.photo) return;
   currentPhotoOrderId = orderId;
+  // Restore the Replace/Remove buttons in case viewSketch hid them
+  const lbActions = document.querySelector('#photoLightbox .lb-actions');
+  if (lbActions) lbActions.style.display = '';
   document.getElementById('lightboxImg').src = order.photo;
   document.getElementById('lbTitle').textContent = order.name + ' — ' + order.desc;
   document.getElementById('photoLightbox').classList.add('open');
@@ -1476,6 +1518,7 @@ async function retrySyncOrder(id) {
 
   let notionId = null, errMsg = '';
   try {
+    if (typeof _markSketchChanged === 'function') _markSketchChanged(order);
     const r = await fetch('/api/notion-pipeline', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1483,6 +1526,7 @@ async function retrySyncOrder(id) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
+      if (typeof _recordSketchSync === 'function') _recordSketchSync(order, d);
       notionId = d.notionId || null;
       if (!notionId) errMsg = 'No notionId in response (status ' + r.status + ')';
     } else {

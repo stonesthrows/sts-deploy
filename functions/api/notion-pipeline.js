@@ -137,6 +137,13 @@ function orderToProps(o) {
   if (o.takeIn)             props['Take-in Date'] = { date: { start: o.takeIn } };
   if (o.sketchDesc != null) props['Sketch Notes'] = { rich_text: [{ text: { content: (o.sketchDesc || '').slice(0, 2000) } }] };
 
+  // Design spec fields
+  if (o.contactMethod)     props['Preferred Contact']      = { select: { name: o.contactMethod } };
+  if (o.pieceType)         props['Piece Type']             = { select: { name: o.pieceType } };
+  if (o.sizing    != null) props['Sizing / Dimensions']    = { rich_text: [{ text: { content: (o.sizing    || '').slice(0, 2000) } }] };
+  if (o.gemstones != null) props['Gemstones / Components'] = { rich_text: [{ text: { content: (o.gemstones || '').slice(0, 2000) } }] };
+  if (o.finish    != null) props['Texture / Finish']       = { multi_select: (Array.isArray(o.finish) ? o.finish : []).map(name => ({ name })) };
+
   return props;
 }
 
@@ -209,7 +216,83 @@ function pageToOrder(page) {
     deposit:       num(p['Deposit']),
     takeIn:        dt(p['Take-in Date']),
     sketchDesc:    txt(p['Sketch Notes']),
+    // Design spec fields — the 'Sketch' files property is deliberately NOT
+    // mapped back: Notion file URLs expire hourly, so the editable sketch
+    // image (sketchImg) stays local, like order.photo.
+    contactMethod: sel(p['Preferred Contact']) || '',
+    pieceType:     sel(p['Piece Type']) || '',
+    sizing:        txt(p['Sizing / Dimensions']),
+    gemstones:     txt(p['Gemstones / Components']),
+    finish:        (p['Texture / Finish']?.multi_select || []).map(t => t.name),
   };
+}
+
+// ── Sketch upload + schema self-heal ──────────────────────────
+
+// Properties added for the design-spec/sketch feature. The Notion API
+// auto-creates select/multi-select OPTIONS but not PROPERTIES — a page
+// write naming an unknown property 400s. ensureSchema() adds any missing
+// ones so no manual Notion setup is needed.
+const NEW_SCHEMA_PROPS = {
+  'Preferred Contact':      { select: {} },
+  'Piece Type':             { select: {} },
+  'Sizing / Dimensions':    { rich_text: {} },
+  'Gemstones / Components': { rich_text: {} },
+  'Texture / Finish':       { multi_select: {} },
+  'Sketch':                 { files: {} },
+};
+
+async function ensureSchema(hdrs) {
+  const r = await fetch(`${NOTION_API}/databases/${PIPELINE_DB}`, {
+    method: 'PATCH', headers: hdrs,
+    body: JSON.stringify({ properties: NEW_SCHEMA_PROPS }),
+  });
+  return r.ok;
+}
+
+// Page write (PATCH update or POST create) that self-heals the schema:
+// on a 400 for a not-yet-existing property, add the new properties to the
+// database and retry once.
+async function writePage(hdrs, url, method, bodyObj) {
+  const body = JSON.stringify(bodyObj);
+  let r = await fetch(url, { method, headers: hdrs, body });
+  if (r.status === 400) {
+    const err = await r.clone().json().catch(() => ({}));
+    if (/not a property that exists/i.test(err.message || '') && await ensureSchema(hdrs)) {
+      r = await fetch(url, { method, headers: hdrs, body });
+    }
+  }
+  return r;
+}
+
+// Uploads a base64 PNG dataURL via Notion's File Upload API (direct
+// single-part mode) and returns the file_upload id to attach to the
+// 'Sketch' files property. Throws on any failure — the caller catches so
+// a sketch problem never breaks the order save itself.
+async function uploadSketchToNotion(token, dataURL) {
+  const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/.exec(dataURL || '');
+  if (!m) throw new Error('bad sketch dataURL');
+  const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  if (bytes.length > 4.5 * 1024 * 1024) throw new Error('sketch too large'); // free-plan cap is 5 MiB
+  const create = await fetch(`${NOTION_API}/file_uploads`, {
+    method: 'POST', headers: notionHdrs(token),
+    body: JSON.stringify({ filename: 'sketch.png', content_type: m[1] }),
+  });
+  const cu = await create.json().catch(() => ({}));
+  if (!create.ok) throw new Error(cu.message || 'file_upload create failed');
+  const fd = new FormData();
+  fd.append('file', new Blob([bytes], { type: m[1] }), 'sketch.png');
+  const send = await fetch(`${NOTION_API}/file_uploads/${cu.id}/send`, {
+    method: 'POST',
+    // No Content-Type — fetch sets the multipart boundary itself
+    headers: { 'Authorization': 'Bearer ' + token, 'Notion-Version': NOTION_VER },
+    body: fd,
+  });
+  if (!send.ok) {
+    const e = await send.json().catch(() => ({}));
+    throw new Error(e.message || 'file_upload send failed');
+  }
+  return cu.id;
 }
 
 // ── Route handlers ────────────────────────────────────────────
@@ -285,17 +368,30 @@ export async function onRequestPost(context) {
 
   const props = orderToProps(order);
 
+  // Sketch image → Notion File Upload API. Only when the client says the
+  // sketch changed (dirty-hash check in js/notion.js), and always isolated:
+  // an upload failure must never break the order save itself.
+  let sketchSynced = false, sketchError = null;
+  if (order._sketchChanged && order.sketchImg) {
+    try {
+      const fid = await uploadSketchToNotion(token, order.sketchImg);
+      props['Sketch'] = { files: [{ name: 'sketch.png', type: 'file_upload', file_upload: { id: fid } }] };
+      sketchSynced = true;
+    } catch (e) { sketchError = e.message || String(e); }
+  } else if (order._sketchChanged && !order.sketchImg) {
+    props['Sketch'] = { files: [] }; // sketch was cleared — empty the property
+    sketchSynced = true;
+  }
+
   // Update existing Notion page
   if (order.notionId) {
-    const r = await fetch(`${NOTION_API}/pages/${order.notionId}`, {
-      method: 'PATCH', headers: hdrs,
-      body: JSON.stringify({ properties: props, archived: false }),
-    });
+    const r = await writePage(hdrs, `${NOTION_API}/pages/${order.notionId}`, 'PATCH',
+      { properties: props, archived: false });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'update failed' }, r.status);
     }
-    return json({ notionId: order.notionId });
+    return json({ notionId: order.notionId, sketchSynced, sketchError });
   }
 
   // Idempotency guard — if a page with this App ID already exists (e.g. a
@@ -313,25 +409,21 @@ export async function onRequestPost(context) {
       const qd = await q.json();
       const match = (qd.results || [])[0];
       if (match) {
-        const r = await fetch(`${NOTION_API}/pages/${match.id}`, {
-          method: 'PATCH', headers: hdrs,
-          body: JSON.stringify({ properties: props, archived: false }),
-        });
+        const r = await writePage(hdrs, `${NOTION_API}/pages/${match.id}`, 'PATCH',
+          { properties: props, archived: false });
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id });
+        return json({ notionId: match.id, sketchSynced, sketchError });
       }
     }
   }
 
   // Create new Notion page
-  const r = await fetch(`${NOTION_API}/pages`, {
-    method: 'POST', headers: hdrs,
-    body: JSON.stringify({ parent: { database_id: PIPELINE_DB }, properties: props }),
-  });
+  const r = await writePage(hdrs, `${NOTION_API}/pages`, 'POST',
+    { parent: { database_id: PIPELINE_DB }, properties: props });
   const d = await r.json();
   if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
-  return json({ notionId: d.id });
+  return json({ notionId: d.id, sketchSynced, sketchError });
 }

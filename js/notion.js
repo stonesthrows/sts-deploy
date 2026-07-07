@@ -46,11 +46,35 @@ Object.entries(STAGE_TO_NOTION).forEach(([k, v]) => {
 });
 
 // ════════════════════════════════════════════
+//  SKETCH SYNC FLAGS  —  the design sketch (order.sketchImg, base64 PNG)
+//  is uploaded to Notion's 'Sketch' files property by the pipeline proxy,
+//  but only when it actually changed. sketchSyncedHash records the last
+//  successfully-uploaded fingerprint; a failed upload leaves it stale so
+//  the next order save retries automatically.
+// ════════════════════════════════════════════
+function _markSketchChanged(order) {
+  if (typeof sketchHash !== 'function') return;
+  const changed = (order.sketchImg && sketchHash(order.sketchImg) !== order.sketchSyncedHash)
+               || (!order.sketchImg && !!order.sketchSyncedHash); // sketch was cleared
+  if (changed) order._sketchChanged = true;
+  else delete order._sketchChanged;
+}
+
+function _recordSketchSync(order, d) {
+  if (d && d.sketchSynced && typeof sketchHash === 'function') {
+    order.sketchSyncedHash = order.sketchImg ? sketchHash(order.sketchImg) : null;
+    if (typeof saveToStorage === 'function') saveToStorage();
+  }
+  delete order._sketchChanged;
+}
+
+// ════════════════════════════════════════════
 //  CREATE  —  push a new order to Notion
 //  Returns the Notion page ID (string) or null on failure.
 // ════════════════════════════════════════════
 async function notionCreateOrder(order) {
   try {
+    _markSketchChanged(order);
     const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,6 +86,7 @@ async function notionCreateOrder(order) {
       return null;
     }
     const d = await r.json();
+    _recordSketchSync(order, d);
     return d.notionId || null;
   } catch(e) {
     console.warn('notionCreateOrder error', e);
@@ -76,6 +101,7 @@ async function notionCreateOrder(order) {
 async function notionUpdateOrder(order) {
   if (!order.notionId) return;
   try {
+    _markSketchChanged(order);
     const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -86,8 +112,10 @@ async function notionUpdateOrder(order) {
       console.error('notionUpdateOrder failed', r.status, err);
       if (typeof setConnStatus === 'function') setConnStatus(false);
       if (typeof toast === 'function') toast('⚠ Notion sync failed: ' + (err.error || r.status) + ' — local change kept, but will be overwritten by the next sync until this is fixed', '⚠', 8000);
-    } else if (typeof setConnStatus === 'function') {
-      setConnStatus(true);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      _recordSketchSync(order, d);
+      if (typeof setConnStatus === 'function') setConnStatus(true);
     }
   } catch(e) {
     console.warn('notionUpdateOrder error', e);
@@ -178,7 +206,7 @@ async function notionSyncFromNotion() {
     let added = 0, updated = 0;
 
     // Fields that are local-only or should never be overwritten with empty Notion values
-    const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
+    const preserveIfEmpty = ['photo', 'sketchImg', 'sketchSyncedHash', 'contactedAt', 'deliveredAt'];
 
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
@@ -295,6 +323,8 @@ async function notionStartupSync() {
     ORDERS.forEach(o => {
       localFields[o.id] = {};
       if (o.photo)       localFields[o.id].photo       = o.photo;
+      if (o.sketchImg)   localFields[o.id].sketchImg   = o.sketchImg;
+      if (o.sketchSyncedHash) localFields[o.id].sketchSyncedHash = o.sketchSyncedHash;
       if (o.pickup)      localFields[o.id].pickup      = o.pickup;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
@@ -319,6 +349,8 @@ async function notionStartupSync() {
       // Restore local-only fields that Notion doesn't store
       const lf = localFields[no.id] || {};
       if (!no.photo       && lf.photo)       no.photo       = lf.photo;
+      if (!no.sketchImg   && lf.sketchImg)   no.sketchImg   = lf.sketchImg;
+      if (!no.sketchSyncedHash && lf.sketchSyncedHash) no.sketchSyncedHash = lf.sketchSyncedHash;
       if (!no.pickup      && lf.pickup)      no.pickup      = lf.pickup;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;

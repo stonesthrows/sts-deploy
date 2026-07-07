@@ -876,6 +876,40 @@
     .form-foot .btn:active { transform: translateY(0); }
     .form-foot .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
+    /* ── Texture/Finish checkbox group (New Order form) ── */
+    .finish-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 0; }
+    .finish-checks label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 500;
+      text-transform: none; letter-spacing: 0;
+      color: var(--text); cursor: pointer;
+    }
+    .finish-checks input[type="checkbox"] {
+      width: 15px; height: 15px; padding: 0; margin: 0;
+      accent-color: var(--accent);
+    }
+
+    /* ── Design sketchpad + handwriting strip (New Order form) ── */
+    .sketch-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .sketch-btn {
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text);
+      border-radius: var(--rad-sm); padding: 6px 12px;
+      font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all var(--dur-fast) var(--ease-smooth);
+    }
+    .sketch-btn:hover { border-color: #C4B49A; }
+    .sketch-btn.active { background: var(--text); color: var(--accent-light); border-color: var(--text); }
+    .sketch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .sketch-btn.sk-w { padding: 6px 10px; min-width: 34px; line-height: 1; }
+    .sketch-sep { width: 1px; height: 22px; background: #E4DDD4; margin: 0 4px; }
+    #sketch-canvas, #hw-canvas {
+      width: 100%; height: auto; display: block;
+      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      touch-action: none; cursor: crosshair;
+    }
+    .hw-status { font-size: 11.5px; color: var(--text3); margin-left: auto; }
+    .card-sketch img { background: #fff; }
+
     /* Gmail pull panel */
     .gmail-panel {
       display: none;
@@ -5504,6 +5538,45 @@
             <label>Materials / Metal</label>
             <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
           </div>
+          <div class="fg">
+            <label>Preferred Contact</label>
+            <select id="f-contact-method">
+              <option value="">— Select —</option>
+              <option value="Email">Email</option>
+              <option value="Text">Text</option>
+              <option value="Phone">Phone</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Piece Type</label>
+            <select id="f-piece-type">
+              <option value="">— Select —</option>
+              <option value="Ring">Ring</option>
+              <option value="Ear Cuff">Ear Cuff</option>
+              <option value="Necklace">Necklace</option>
+              <option value="Bracelet">Bracelet</option>
+              <option value="Earrings">Earrings</option>
+              <option value="Pendant">Pendant</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Sizing / Dimensions</label>
+            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
+          </div>
+          <div class="fg">
+            <label>Texture / Finish</label>
+            <div class="finish-checks" id="f-finish">
+              <label><input type="checkbox" value="Polished"> Polished</label>
+              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
+              <label><input type="checkbox" value="Matte"> Matte</label>
+              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+            </div>
+          </div>
+          <div class="fg full">
+            <label>Gemstones / Components</label>
+            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:60px;"></textarea>
+          </div>
           <div class="fg full" id="oi-section">
             <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
             <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
@@ -5555,6 +5628,31 @@
           <div class="fg full" id="sketch-fg">
             <label>Sketch Notes</label>
             <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
+          </div>
+          <div class="fg full" id="hw-fg">
+            <label>✍ Handwrite Customer Info <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ write on the lines, then convert to fill the fields above</span></label>
+            <div class="sketch-toolbar">
+              <button type="button" class="sketch-btn" onclick="hwConvert(this)">✨ Convert to Type</button>
+              <button type="button" class="sketch-btn" onclick="hwClear()">🗑 Clear</button>
+              <span class="hw-status" id="hw-status"></span>
+            </div>
+            <canvas id="hw-canvas" width="1000" height="360"></canvas>
+          </div>
+          <div class="fg full" id="sketchpad-fg">
+            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ saved on the order card + synced to Notion</span></label>
+            <div class="sketch-toolbar">
+              <button type="button" class="sketch-btn active" id="sk-pen" onclick="sketchSetTool('pen',this)">✏️ Pen</button>
+              <button type="button" class="sketch-btn" id="sk-eraser" onclick="sketchSetTool('eraser',this)">🧽 Eraser</button>
+              <span class="sketch-sep"></span>
+              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(2.5,this)" title="Fine"><span style="font-size:7px;">●</span></button>
+              <button type="button" class="sketch-btn sk-w active" onclick="sketchSetWidth(5,this)" title="Medium"><span style="font-size:11px;">●</span></button>
+              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(10,this)" title="Thick"><span style="font-size:15px;">●</span></button>
+              <span class="sketch-sep"></span>
+              <button type="button" class="sketch-btn" onclick="sketchUndo()">↩ Undo</button>
+              <button type="button" class="sketch-btn" onclick="sketchRedo()">↪ Redo</button>
+              <button type="button" class="sketch-btn" onclick="sketchClear()">🗑 Clear</button>
+            </div>
+            <canvas id="sketch-canvas" width="1000" height="620"></canvas>
           </div>
         </div>
       </div>
@@ -9230,10 +9328,11 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js?v=2"></script>
-<script src="js/notion.js"></script>
+<script src="js/notion.js?v=20260707a"></script>
 <script src="js/customers.js"></script>
 <script src="js/app.js"></script>
-<script src="js/orders.js?v=20260616a"></script>
+<script src="js/sketchpad.js?v=1"></script>
+<script src="js/orders.js?v=20260707a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>
