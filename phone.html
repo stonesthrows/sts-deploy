@@ -296,6 +296,9 @@
     .rq-variant-table td { border: 1px solid var(--bdr); padding: 4px; text-align: center; }
     .rq-variant-corner { border: none !important; background: transparent !important; }
     .rq-variant-row-label { text-align: right !important; font-weight: 600; color: var(--text-dim); padding: 4px 9px !important; }
+    /* Leaf/style header (stone, style, gauge) — wraps so a long name widens
+       its column to a readable width instead of forcing one giant row. */
+    .rq-variant-leaf { white-space: normal !important; font-weight: 600; max-width: 120px; }
     .rq-variant-inv-row td { padding-top: 5px; border-top: none; }
     .rq-variant-inv-row .inv-badge { font-size: 10.5px; padding: 2px 5px; }
     .rq-variant-qty {
@@ -413,7 +416,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=6"></script>
+<script src="js/restock.js?v=7"></script>
 <script>
   // ── Tab switching ──────────────────────────────
   function showTab(name) {

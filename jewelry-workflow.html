@@ -3353,7 +3353,7 @@
     }
     .rq-variant-stone-select:focus { border-color: var(--accent); outline: none; }
     /* ── Grouped variant table (e.g. Metal x Size x Gauge) ── */
-    .rq-variant-table-stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .rq-variant-table-stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 100%; overflow-x: auto; }
     /* flex-start (not the flex default of stretch) keeps each table at its
        natural content width — with stretch on, two stacked tables with
        different column counts (e.g. 11 sizes vs 10) got stretched to the
@@ -3364,32 +3364,36 @@
       font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
       color: var(--text3); margin-bottom: 3px;
     }
-    .rq-variant-table { border-collapse: collapse; font-size: 10px; margin-bottom: 4px; table-layout: auto; }
+    .rq-variant-table { border-collapse: collapse; font-size: 11px; margin-bottom: 4px; table-layout: auto; }
     .rq-variant-table:last-child { margin-bottom: 2px; }
     .rq-variant-table th {
-      border: 1px solid var(--bdr); padding: 2px 3px; background: var(--card-head-bg);
+      border: 1px solid var(--bdr); padding: 2px 4px; background: var(--card-head-bg);
       color: var(--text2); font-weight: 700; text-align: center; white-space: nowrap;
     }
-    .rq-variant-table td { border: 1px solid var(--bdr); padding: 2px; text-align: center; }
-    /* Pin the row-label column and every data column to a fixed width —
-       both explicitly, so every size row in a stack (any chunk, any metal)
-       lines up in the same grid instead of each table sizing its columns
-       independently off its own header text. */
+    .rq-variant-table td { border: 1px solid var(--bdr); padding: 2px 3px; text-align: center; }
+    /* min-width, NOT a fixed width — columns share a common floor so size
+       rows in a stack still line up, but any column whose content is wider
+       (long size labels, leaf/style names, 3-digit stock counts) grows to
+       fit instead of clipping. A cell must never be smaller than its value. */
     .rq-variant-row-label {
       text-align: right !important; font-weight: 600; color: var(--text3);
-      padding: 2px 6px !important; width: 56px;
+      padding: 2px 6px !important; min-width: 56px;
     }
     .rq-variant-table th:not(.rq-variant-row-label),
-    .rq-variant-table td:not(.rq-variant-row-label) { width: 34px; }
+    .rq-variant-table td:not(.rq-variant-row-label) { min-width: 34px; }
+    /* Leaf/style header — the part of a variant name that isn't metal or
+       size (stone, style, gauge). Wraps so a long stone name widens its
+       column to a readable width rather than forcing one huge row. */
+    .rq-variant-leaf { white-space: normal !important; font-weight: 600; max-width: 110px; }
     .rq-variant-inv-row td { padding-top: 3px; border-top: none; }
     .rq-variant-inv-row .inv-badge { font-size: 10px; padding: 2px 5px; }
     /* Compact stock badge used only inside the grouped table — the full
        "not tracked"/"out of stock" text moved to a hover title so a 20+
        column table doesn't need horizontal scrolling to fit on screen. */
-    .inv-badge-compact { display: inline-block; min-width: 14px; padding: 1px 3px !important; font-size: 9px !important; border-radius: 5px; }
+    .inv-badge-compact { display: inline-block; min-width: 16px; padding: 1px 4px !important; font-size: 10px !important; border-radius: 5px; }
     .rq-variant-qty {
-      width: 30px; padding: 2px 3px; border: 1px solid var(--bdr); border-radius: 4px;
-      font-size: 11px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
+      width: 34px; padding: 2px 3px; border: 1px solid var(--bdr); border-radius: 4px;
+      font-size: 12px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
     }
     .rq-variant-qty:focus { border-color: var(--accent); outline: none; }
     .rq-variant-done {
@@ -9435,7 +9439,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/sales.js"></script>
 <script src="js/production.js?v=20260622a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=7"></script>
+<script src="js/restock.js?v=8"></script>
 <script src="js/restock-sessions.js?v=2"></script>
 <script src="js/supplier-history.js"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->

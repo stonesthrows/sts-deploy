@@ -378,6 +378,17 @@ function _rqVariantSubTableHtml(pid, cols, hasSizes, qtyByVariantId, onchangeFn)
     }
     html += '</tr>';
   }
+  // The leaf is whatever is left of the variant name after metal and size
+  // (stone, style, gauge…) — without this row, variants that differ only by
+  // leaf render as anonymous qty columns with no way to tell them apart.
+  var hasLeaf = cols.some(function(r) { return r.leaf; });
+  if (hasLeaf) {
+    html += '<tr><th class="rq-variant-row-label">' + (hasSizes ? 'Style' : 'Item') + '</th>';
+    cols.forEach(function(r) {
+      html += '<th class="rq-variant-leaf">' + (_rqEsc(r.leaf) || '—') + '</th>';
+    });
+    html += '</tr>';
+  }
   html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
   cols.forEach(function(r) {
     var qty = qtyByVariantId[r.variant.id] || '';
