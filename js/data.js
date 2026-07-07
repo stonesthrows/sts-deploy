@@ -3,7 +3,7 @@
 //  Edit this file to update orders, customers, sales data
 // ════════════════════════════════════════════
 
-const TODAY = new Date('2026-05-20');
+const TODAY = new Date();
 
 const STAGES = [
   { id:'intake-custom',   label:'Custom Intake',                cls:'s-intake-custom'   },

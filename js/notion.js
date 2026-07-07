@@ -48,68 +48,58 @@ Object.entries(STAGE_TO_NOTION).forEach(([k, v]) => {
 // ════════════════════════════════════════════
 //  CREATE  —  push a new order to Notion
 //  Returns the Notion page ID (string) or null on failure.
+//  Tries immediately (callers want the id right away); on a transient
+//  failure the create is queued in the Outbox and retried until it lands.
 // ════════════════════════════════════════════
 async function notionCreateOrder(order) {
+  const body = Object.assign({}, order);
+  delete body.photo; // local-only, can be MBs of base64
   try {
     const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(order),
+      body:    JSON.stringify(body),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       console.warn('notionCreateOrder failed', r.status, err);
+      if (r.status === 429 || r.status >= 500) Outbox.push({ key: order.id, kind: 'create' });
       return null;
     }
     const d = await r.json();
     return d.notionId || null;
   } catch(e) {
-    console.warn('notionCreateOrder error', e);
+    console.warn('notionCreateOrder error — queued for retry', e);
+    Outbox.push({ key: order.id, kind: 'create' });
     return null;
   }
 }
 
 // ════════════════════════════════════════════
 //  UPDATE  —  sync full order details to Notion
-//  No-op if the order has no notionId yet.
+//  Queued through the Outbox: delivered immediately when online,
+//  retried with backoff when not. An order with no Notion page yet
+//  gets a create queued instead, so the edit is never stranded.
 // ════════════════════════════════════════════
 async function notionUpdateOrder(order) {
-  if (!order.notionId) return;
-  try {
-    const r = await fetch(PIPELINE_PROXY, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(order),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      console.error('notionUpdateOrder failed', r.status, err);
-      if (typeof setConnStatus === 'function') setConnStatus(false);
-      if (typeof toast === 'function') toast('⚠ Notion sync failed: ' + (err.error || r.status) + ' — local change kept, but will be overwritten by the next sync until this is fixed', '⚠', 8000);
-    } else if (typeof setConnStatus === 'function') {
-      setConnStatus(true);
-    }
-  } catch(e) {
-    console.warn('notionUpdateOrder error', e);
+  if (!order || !order.id) return;
+  if (!order.notionId && !Outbox.has(order.id, 'create')) {
+    Outbox.push({ key: order.id, kind: 'create' });
+    return;
   }
+  Outbox.push({ key: order.id, kind: 'full' });
 }
 
 // ════════════════════════════════════════════
 //  STAGE UPDATE  —  lightweight stage-only patch
 //  Used after drag-and-drop so the round-trip is minimal.
-//  No-op if notionId is missing.
+//  Queued through the Outbox. No-op if notionId is missing (a pending
+//  create carries the order's current stage anyway).
 // ════════════════════════════════════════════
 async function notionUpdateStage(notionId, stageId) {
   if (!notionId) return;
-  try {
-    await fetch(PIPELINE_PROXY, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ notionId, _stageOnly: true, stage: stageId }),
-    });
-  } catch(e) {
-    console.warn('notionUpdateStage error', e);
-  }
+  const o = (typeof ORDERS !== 'undefined') ? ORDERS.find(x => x.notionId === notionId) : null;
+  Outbox.push({ key: o ? o.id : notionId, kind: 'stage', notionId: notionId, stage: stageId });
 }
 
 // ════════════════════════════════════════════
@@ -177,6 +167,10 @@ async function notionSyncFromNotion() {
 
     let added = 0, updated = 0;
 
+    // Orders with a queued write still in flight — their local state wins
+    // until the Outbox has delivered it, so a pull can't overwrite it.
+    const dirty = (typeof Outbox !== 'undefined') ? Outbox.dirtyKeys() : new Set();
+
     // Fields that are local-only or should never be overwritten with empty Notion values
     const preserveIfEmpty = ['photo', 'contactedAt', 'deliveredAt'];
 
@@ -188,12 +182,14 @@ async function notionSyncFromNotion() {
       if (no.id && byAppId[no.id]) {
         // Match by App ID — update in place, preserving local-only fields
         const existing = byAppId[no.id];
+        if (dirty.has(existing.id)) continue;
         preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
         Object.assign(existing, no);
         updated++;
       } else if (no.notionId && byNotionId[no.notionId]) {
         // Match by Notion page ID — update in place
         const existing = byNotionId[no.notionId];
+        if (dirty.has(existing.id)) continue;
         preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
         Object.assign(existing, no);
         updated++;
@@ -222,28 +218,21 @@ async function notionSyncFromNotion() {
 }
 
 // ════════════════════════════════════════════
-//  PUSH UNSYNCED  —  push any local orders without a notionId to Notion
+//  PUSH UNSYNCED  —  queue creates for any local orders without a notionId
 //  Runs on startup so orders created offline or before Notion was wired
-//  up get pushed the next time the app loads on the main browser.
+//  up get pushed the next time the app loads. Delivery (with retry) is
+//  handled by the Outbox; this just enqueues and waits for one attempt.
 // ════════════════════════════════════════════
 async function notionPushUnsynced() {
   const unsynced = ORDERS.filter(o => !o.notionId);
   if (!unsynced.length) return;
-  let pushed = 0;
-  for (const o of unsynced) {
-    try {
-      const notionId = await notionCreateOrder(o);
-      if (notionId) { o.notionId = notionId; pushed++; }
-    } catch(e) {}
+  unsynced.forEach(o => Outbox.push({ key: o.id, kind: 'create' }));
+  await Outbox.flush();
+  const pushed = unsynced.filter(o => o.notionId).length;
+  if (pushed && typeof toast === 'function') {
+    toast('✓ Synced ' + pushed + ' previously-unsynced order' + (pushed > 1 ? 's' : '') + ' to Notion', '↻');
   }
-  if (pushed) {
-    saveToStorage();
-    if (typeof renderKanban === 'function') renderKanban();
-    if (typeof toast === 'function') toast('✓ Synced ' + pushed + ' previously-unsynced order' + (pushed > 1 ? 's' : '') + ' to Notion', '↻');
-    console.log('notionPushUnsynced: pushed ' + pushed + ' orders to Notion');
-  }
-  const stillUnsynced = unsynced.length - pushed;
-  if (stillUnsynced > 0 && typeof setConnStatus === 'function') setConnStatus(false);
+  if (unsynced.length - pushed > 0 && typeof setConnStatus === 'function') setConnStatus(false);
 }
 
 // ════════════════════════════════════════════
@@ -311,9 +300,16 @@ async function notionStartupSync() {
       String(o.id).startsWith('u')
     );
 
+    // Orders with a queued write still in flight — keep the local version
+    // wholesale so the pull can't overwrite a change the Outbox hasn't
+    // delivered yet (Notion still has the pre-change state at this point).
+    const dirty = (typeof Outbox !== 'undefined') ? Outbox.dirtyKeys() : new Set();
+
     // Full replacement — Notion is the source of truth
     ORDERS.length = 0;
     for (const no of notionOrders) {
+      const dirtyLocal = byAppId[no.id] || (no.notionId && byNotionId[no.notionId]);
+      if (dirtyLocal && dirty.has(dirtyLocal.id)) { ORDERS.push(dirtyLocal); continue; }
       const alreadyCompleted = completedMap[no.id] || completedMap['n:' + no.notionId];
       if (alreadyCompleted) no.stage = alreadyCompleted;
       // Restore local-only fields that Notion doesn't store

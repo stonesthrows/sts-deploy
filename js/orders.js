@@ -652,7 +652,7 @@ function submitOrder() {
         if (typeof setConnStatus === 'function') setConnStatus(true);
       } else {
         if (typeof setConnStatus === 'function') setConnStatus(false);
-        toast('⚠ Saved locally — Notion sync failed, will retry on next app open', '⚠');
+        toast('⚠ Saved locally — Notion sync failed, retrying automatically in the background', '⚠');
         renderKanban();
       }
     });
@@ -1333,6 +1333,7 @@ function dragLeave(ev) {
 
 function applyStageChange(order, stageId) {
   order.stage = stageId;
+  order.localEditedAt = Date.now();
   if (stageId === 'complete') completedHidden.add(order.id);
   if (stageId === 'contact-done' && !order.contactedAt) {
     order.contactedAt = new Date().toISOString().slice(0, 10);
@@ -1401,6 +1402,7 @@ function dropWithPickup(ev, stageId, location) {
   if (order) {
     order.stage  = stageId;
     order.pickup = location;
+    order.localEditedAt = Date.now();
     if (stageId === 'contact-done' && !order.contactedAt) {
       order.contactedAt = new Date().toISOString().slice(0, 10);
     }
@@ -1473,35 +1475,12 @@ async function retrySyncOrder(id) {
   const order = ORDERS.find(o => o.id === id);
   if (!order || order.notionId) return;
   toast('Retrying Notion sync…', '⟳');
-
-  let notionId = null, errMsg = '';
-  try {
-    const r = await fetch('/api/notion-pipeline', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(order),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      notionId = d.notionId || null;
-      if (!notionId) errMsg = 'No notionId in response (status ' + r.status + ')';
-    } else {
-      errMsg = 'HTTP ' + r.status + ': ' + (d.error || JSON.stringify(d) || 'unknown error');
-    }
-  } catch(e) {
-    errMsg = 'Network error: ' + (e && e.message ? e.message : String(e));
-  }
-
-  if (notionId) {
-    order.notionId = notionId;
-    saveToStorage();
-    renderKanban();
-    if (typeof setConnStatus === 'function') setConnStatus(true);
+  Outbox.push({ key: order.id, kind: 'create' });
+  await Outbox.flush();
+  if (order.notionId) {
     toast('✓ Synced to Notion', '✓');
   } else {
-    if (typeof setConnStatus === 'function') setConnStatus(false);
-    console.error('retrySyncOrder failed:', errMsg);
-    alert('Notion sync failed:\n\n' + errMsg);
+    toast('⚠ Still unsynced — will keep retrying in the background', '⚠');
   }
 }
 
