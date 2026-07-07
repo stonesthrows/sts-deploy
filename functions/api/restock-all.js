@@ -1,17 +1,19 @@
 // ════════════════════════════════════════════
 //  Restock Queue Aggregate Read  —  /api/restock-all
-//  Read-only. Returns { meta, sizes, notes } in ONE Notion DB query instead
-//  of three separate GETs (restock-meta + restock-sizes + restock-notes).
-//  Writes are DELIBERATELY left on the three separate endpoints so a size- or
+//  Read-only. Returns { meta, sizes, notes, matches } in ONE Notion DB query
+//  instead of four separate GETs (restock-meta + restock-sizes +
+//  restock-notes + restock-matches).
+//  Writes are DELIBERATELY left on the separate endpoints so a size- or
 //  notes-overflow can never corrupt the meta blob — see those files' headers.
 // ════════════════════════════════════════════
 
 const NOTION_API  = 'https://api.notion.com/v1';
 const NOTION_VER  = '2022-06-28';
 const DB_ID       = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
-const META_BLOCK  = '__rq_meta__';
-const SIZES_BLOCK = '__rq_sizes__';
-const NOTES_BLOCK = '__rq_notes__';
+const META_BLOCK    = '__rq_meta__';
+const SIZES_BLOCK   = '__rq_sizes__';
+const NOTES_BLOCK   = '__rq_notes__';
+const MATCHES_BLOCK = '__rq_matches__';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -56,6 +58,7 @@ export async function onRequest({ request, env }) {
         { property: 'Block', select: { equals: META_BLOCK } },
         { property: 'Block', select: { equals: SIZES_BLOCK } },
         { property: 'Block', select: { equals: NOTES_BLOCK } },
+        { property: 'Block', select: { equals: MATCHES_BLOCK } },
       ] },
       page_size: 10,
     }),
@@ -70,8 +73,9 @@ export async function onRequest({ request, env }) {
   }
 
   return json({
-    meta:  byBlock[META_BLOCK]  || {},
-    sizes: byBlock[SIZES_BLOCK] || {},
-    notes: byBlock[NOTES_BLOCK] || {},
+    meta:    byBlock[META_BLOCK]    || {},
+    sizes:   byBlock[SIZES_BLOCK]   || {},
+    notes:   byBlock[NOTES_BLOCK]   || {},
+    matches: byBlock[MATCHES_BLOCK] || {},
   });
 }

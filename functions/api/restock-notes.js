@@ -14,7 +14,7 @@ const MAX_LEN     = 2000; // Notion title rich_text segment limit
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -45,6 +45,31 @@ async function findNotesPage(h) {
   return (d.results || [])[0] || null;
 }
 
+async function writeNotes(h, page, content) {
+  if (page) {
+    await fetch(`${NOTION_API}/pages/${page.id}`, {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({
+        properties: {
+          'Note': { title: [{ text: { content } }] },
+        },
+      }),
+    });
+  } else {
+    await fetch(`${NOTION_API}/pages`, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        parent: { database_id: DB_ID },
+        properties: {
+          'Note':  { title: [{ text: { content } }] },
+          'Block': { select: { name: NOTES_BLOCK } },
+          'Done':  { checkbox: false },
+        },
+      }),
+    });
+  }
+}
+
 export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
@@ -72,29 +97,34 @@ export async function onRequest({ request, env }) {
       return json({ error: 'Notes data too large (' + content.length + '/' + MAX_LEN + ' chars) — not saved' }, 413);
     }
     const page = await findNotesPage(h);
+    await writeNotes(h, page, content);
+    return json({ ok: true });
+  }
 
-    if (page) {
-      await fetch(`${NOTION_API}/pages/${page.id}`, {
-        method: 'PATCH', headers: h,
-        body: JSON.stringify({
-          properties: {
-            'Note': { title: [{ text: { content } }] },
-          },
-        }),
-      });
-    } else {
-      await fetch(`${NOTION_API}/pages`, {
-        method: 'POST', headers: h,
-        body: JSON.stringify({
-          parent: { database_id: DB_ID },
-          properties: {
-            'Note':  { title: [{ text: { content } }] },
-            'Block': { select: { name: NOTES_BLOCK } },
-            'Done':  { checkbox: false },
-          },
-        }),
-      });
+  // ── PATCH — merge a partial update { [pid]: text | null } ──
+  // Read-merge-write on the server so a client only ever sends the notes it
+  // actually changed — two devices editing different items can't clobber
+  // each other the way whole-map PUTs from stale snapshots do.
+  if (request.method === 'PATCH') {
+    const patch = await request.json();
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      return json({ error: 'PATCH body must be an object of { pid: text | null }' }, 400);
     }
+    const page = await findNotesPage(h);
+    let current = {};
+    if (page) {
+      const raw = page.properties['Note']?.title?.[0]?.plain_text || '{}';
+      try { current = JSON.parse(raw); } catch (e) { current = {}; }
+    }
+    for (const pid of Object.keys(patch)) {
+      if (patch[pid] === null) delete current[pid];
+      else current[pid] = patch[pid];
+    }
+    const content = JSON.stringify(current);
+    if (content.length > MAX_LEN) {
+      return json({ error: 'Notes data too large (' + content.length + '/' + MAX_LEN + ' chars) — not saved' }, 413);
+    }
+    await writeNotes(h, page, content);
     return json({ ok: true });
   }
 

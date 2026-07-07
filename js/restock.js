@@ -12,8 +12,10 @@ var _rqSizesLoaded = false;
 var _rqNotes       = {};    // { [pid]: noteText } — free-text notes per item, via /api/restock-notes
 var _rqNotesLoaded = false;
 var _rqNotesSaveDebounce = null;
+var _rqNotesPending = {};    // { [pid]: text|null } queued for the debounced per-item notes PATCH
+var _rqLastLoadTs = 0;       // when the shared stores were last fetched — drives the staleness re-fetch
 var _rqLoadingAll = false;   // in-flight guard so re-entrant renders don't fire duplicate load batches
-var _rqPrefetch   = null;    // { meta, sizes, notes } from /api/restock-all — consumed by the individual loaders in place of their own fetch
+var _rqPrefetch   = null;    // { meta, sizes, notes, matches } from /api/restock-all — consumed by the individual loaders in place of their own fetch
 var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
@@ -576,9 +578,58 @@ function _rqLoadNotes(cb) {
     .catch(function() { _rqNotesLoaded = true; if (cb) cb(); });
 }
 
-// Fire the three independent stores concurrently (meta / sizes / notes live on
-// separate Notion pages with no cross-dependency) and render once when all
-// three settle — replaces the old load→render→load→render→load waterfall.
+// ── Matches persistence (cross-device Square item choice per queue row) ─────
+
+// Merges the shared match store into the local cache. The server copy wins
+// whenever it points at a different Square item than this device's cache —
+// that's exactly the "picked on desktop, never showed on iPad" case. Local
+// wins only while this device is actively working on the row (running timer /
+// open setup panel, where _rqAutoMatches holds display placeholders, or an
+// auto-match in flight) or when it already caches the same item (which may
+// carry resolved selectedVariants).
+function _rqApplyServerMatches(d) {
+  if (!d || typeof d !== 'object' || d.error) return;
+  var changed = false;
+  Object.keys(d).forEach(function(pid) {
+    var sv = d[pid];
+    if (!sv || typeof sv !== 'object' || !sv.id) return;
+    if (_rqTimers[pid] || _rqSetups[pid]) return;
+    var local = _rqAutoMatches[pid];
+    if (local === '_loading_') return;
+    if (local && typeof local === 'object' && local.id === sv.id) return;
+    _rqAutoMatches[pid] = sv;
+    changed = true;
+  });
+  if (changed) _rqAmSave();
+  // One-time backfill: push matches that exist only in this browser's
+  // localStorage (picked before the shared store existed) up to the server,
+  // so historical desktop selections reach other devices without re-picking.
+  // After the first upload the server has them, so this stops firing.
+  var upload = {};
+  var uploadCount = 0;
+  Object.keys(_rqAutoMatches).forEach(function(pid) {
+    if (d[pid] !== undefined) return;
+    if (_rqTimers[pid] || _rqSetups[pid]) return;
+    var v = _rqAutoMatches[pid];
+    if (!v || typeof v !== 'object' || !v.id) return;
+    var slim = Object.assign({}, v);
+    delete slim.selectedVariants;
+    upload[pid] = slim;
+    uploadCount++;
+  });
+  if (uploadCount) _rqPatchStore('/api/restock-matches', upload, 'Failed to sync Square matches');
+}
+function _rqLoadMatches(cb) {
+  if (_rqPrefetch) { _rqApplyServerMatches(_rqPrefetch.matches); if (cb) cb(); return; }
+  fetch('/api/restock-matches')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { _rqApplyServerMatches(d); if (cb) cb(); })
+    .catch(function() { if (cb) cb(); });
+}
+
+// Fire the four independent stores concurrently (meta / sizes / notes /
+// matches live on separate Notion pages with no cross-dependency) and render
+// once when all settle — replaces the old load→render→load→render waterfall.
 // _rqAmLoad() (synchronous localStorage) is already called at the top of
 // restockQueueRender before this runs, so _rqReconcileSizes has its data.
 function _rqLoadAll(cb) {
@@ -588,55 +639,65 @@ function _rqLoadAll(cb) {
   var runLoaders = function() {
     // With _rqPrefetch set the loaders consume the cache synchronously (no
     // network); with it null they each fetch their own endpoint in parallel.
-    Promise.all([ wrap(_rqLoadMeta), wrap(_rqLoadSizes), wrap(_rqLoadNotes) ])
-      .then(function() { _rqPrefetch = null; _rqLoadingAll = false; if (cb) cb(); });
+    Promise.all([ wrap(_rqLoadMeta), wrap(_rqLoadSizes), wrap(_rqLoadNotes), wrap(_rqLoadMatches) ])
+      .then(function() {
+        _rqPrefetch = null;
+        _rqLoadingAll = false;
+        _rqLastLoadTs = Date.now();
+        // Loader order is nondeterministic without the prefetch — run the
+        // reconcile again now that both sizes AND server matches are in, so
+        // a match that arrived after sizes still gets its selectedVariants.
+        if (_rqSizesLoaded) _rqReconcileSizes();
+        if (cb) cb();
+      });
   };
-  // Prefer the single-query aggregator; fall back to the three individual
+  // Prefer the single-query aggregator; fall back to the individual
   // endpoints if it errors, so a bad deploy can't break loading.
   fetch('/api/restock-all')
     .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function(d) {
       if (!d || d.error) return Promise.reject();
-      _rqPrefetch = { meta: d.meta || {}, sizes: d.sizes || {}, notes: d.notes || {} };
+      _rqPrefetch = { meta: d.meta || {}, sizes: d.sizes || {}, notes: d.notes || {}, matches: d.matches || {} };
       runLoaders();
     })
     .catch(function() { _rqPrefetch = null; runLoaders(); });
 }
 
-function _rqSaveNotes() {
-  fetch('/api/restock-notes', {
-    method: 'PUT',
+// Sends a per-item partial update ({ [pid]: value|null }, null = delete) to
+// one of the shared stores. The server merges it into the stored blob, so a
+// device holding a stale snapshot of the whole map can no longer wipe out
+// changes other devices saved since it last loaded — the old whole-map PUTs
+// were exactly how selections saved on the desktop kept vanishing.
+function _rqPatchStore(url, patch, failMsg) {
+  fetch(url, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(_rqNotes),
+    body: JSON.stringify(patch),
   })
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
     .then(function(res) {
-      if (!res.ok) toast(res.data.error || 'Failed to save note', '⚠');
+      if (!res.ok) toast(res.data.error || failMsg, '⚠');
     })
-    .catch(function() { toast('Failed to save note', '⚠'); });
+    .catch(function() { toast(failMsg, '⚠'); });
 }
 
-// Debounced so typing doesn't fire a PUT per keystroke.
+function _rqFlushNotes() {
+  var patch = _rqNotesPending;
+  if (!Object.keys(patch).length) return;
+  _rqNotesPending = {};
+  _rqPatchStore('/api/restock-notes', patch, 'Failed to save note');
+}
+
+// Debounced so typing doesn't fire a request per keystroke. Pending edits
+// accumulate per-pid, so quickly editing two items' notes loses neither.
 function rqSetNote(pid, value) {
   if (!pid) return;
   var text = (value || '').trim();
   if (text) _rqNotes[pid] = text;
   else delete _rqNotes[pid];
+  _rqNotesPending[pid] = text || null;
   if (_rqNotesSaveDebounce) clearTimeout(_rqNotesSaveDebounce);
-  _rqNotesSaveDebounce = setTimeout(_rqSaveNotes, 600);
-}
-
-function _rqSaveSizes() {
-  fetch('/api/restock-sizes', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(_rqSizes),
-  })
-    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-    .then(function(res) {
-      if (!res.ok) toast(res.data.error || 'Failed to save sizes', '⚠');
-    })
-    .catch(function() { toast('Failed to save sizes', '⚠'); });
+  _rqNotesSaveDebounce = setTimeout(_rqFlushNotes, 600);
 }
 
 // Writes the chosen variant quantities for one item into the shared
@@ -654,7 +715,9 @@ function _rqSaveSizesFor(pid, selectedVariants) {
   });
   if (Object.keys(map).length) _rqSizes[pid] = map;
   else delete _rqSizes[pid];
-  _rqSaveSizes();
+  var patch = {};
+  patch[pid] = _rqSizes[pid] || null;
+  _rqPatchStore('/api/restock-sizes', patch, 'Failed to save sizes');
 }
 
 // Resolves a parent item's selectedVariants from the saved cross-device
@@ -695,11 +758,27 @@ function _rqAmSave() {
   localStorage.setItem('sts_rqAutoMatch', JSON.stringify(out));
 }
 
-function _rqAmSet(pid, item) {
+function _rqAmSet(pid, item, localOnly) {
   _rqAutoMatches[pid] = item;
   _rqAmSave();
+  if (!localOnly) _rqAmServerSave(pid);
   _rqUpdateMatchRow(pid);
   _rqFetchInvCounts(); // pick up inventory counts for this item's variant id(s), now that it has matched
+}
+
+// Pushes one item's match to the shared cross-device store, so a Square item
+// picked on the desktop shows up on the phone/iPad too (localStorage alone
+// never leaves this browser). selectedVariants are stripped — every device
+// re-derives them from /api/restock-sizes, so the stored match stays small
+// and never carries another device's stale qty picks.
+function _rqAmServerSave(pid) {
+  var v = _rqAutoMatches[pid];
+  if (!v || typeof v !== 'object') return; // '_none_'/'_loading_' stay device-local
+  var slim = Object.assign({}, v);
+  delete slim.selectedVariants;
+  var patch = {};
+  patch[pid] = slim;
+  _rqPatchStore('/api/restock-matches', patch, 'Failed to sync Square match');
 }
 
 function _rqUpdateMatchRow(pid) {
@@ -946,9 +1025,15 @@ function _rqAutoMatchSingle(pid, rawText) {
       // anything parsed from the note text — that's only a one-time
       // seed for brand-new notes that haven't been saved anywhere yet.
       var fromStore = _rqResolveSelectedVariants(pid, best);
-      var selectedVariants = fromStore || _rqMatchSizesToVariants(best.variants, rawText);
+      // If the shared store HAS sizes for this item but none of them
+      // resolve against this match's variants, another device saved them
+      // against a different (likely hand-picked) Square item. Seeding from
+      // the note text here used to overwrite that device's real selections
+      // with guesses — never write in that case.
+      var storeHasEntry = _rqSizes[pid] && Object.keys(_rqSizes[pid]).length > 0;
+      var selectedVariants = fromStore || (storeHasEntry ? [] : _rqMatchSizesToVariants(best.variants, rawText));
       best = Object.assign({}, best, { selectedVariants: selectedVariants });
-      if (!fromStore && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
+      if (!storeHasEntry && selectedVariants.length) _rqSaveSizesFor(pid, selectedVariants);
     }
     _rqAmSet(pid, best);
   }).catch(function() {
@@ -1285,6 +1370,30 @@ function _rqRestartTicks() {
 
 // ── Queue render ──────────────────────────────────────────────────────────────
 
+// True while the user is mid-interaction in the queue UI — a background
+// refresh re-render would rebuild the DOM under their cursor (losing an open
+// search dropdown, input focus, or half-typed note), so refresh waits.
+function _rqRefreshBlocked() {
+  if (Object.keys(_rqSetups).length || Object.keys(_rqMatchEdits).length) return true;
+  if (_rqAddPendingMatch) return true;
+  for (var pid in _rqEditMode) { if (_rqEditMode[pid]) return true; }
+  var ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')
+      && ae.closest && ae.closest('#rq-add-bar, #restock-queue-list')) return true;
+  return false;
+}
+
+// An installed-PWA tab on a phone/iPad can sit suspended for days without
+// ever reloading the page — without this, it would show whatever the shared
+// stores held when it was first opened, forever. Re-render on wake; the
+// staleness check inside restockQueueRender does the actual re-fetch.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  var list = document.getElementById('restock-queue-list');
+  if (!list || !list.offsetParent) return; // Restock Queue tab not currently shown
+  restockQueueRender();
+});
+
 function restockQueueRender() {
   var list  = document.getElementById('restock-queue-list');
   var empty = document.getElementById('restock-queue-empty');
@@ -1300,6 +1409,14 @@ function restockQueueRender() {
       _rqLoadAll(restockQueueRender);
     }
     return;
+  }
+
+  // Data is loaded but may be stale — this render fires on every tab switch
+  // and on visibilitychange, so quietly re-pull the shared stores when
+  // they're over a minute old (keep showing the current data meanwhile; the
+  // _rqLoadAll callback re-renders with whatever changed).
+  if (_rqLastLoadTs && (Date.now() - _rqLastLoadTs > 60000) && !_rqLoadingAll && !_rqRefreshBlocked()) {
+    _rqLoadAll(restockQueueRender);
   }
 
   var items = _rqSortedItems();
@@ -1557,11 +1674,25 @@ function rqStopTimer(pid) {
   };
   delete _rqTimers[pid];
   _rqUnpersistTimer(pid);
+  // The log's edit/push panels are keyed by array index — keep any open one
+  // pointing at the same session across the unshift.
+  if (_rqEditingSession.log != null) _rqEditingSession.log++;
+  if (_rqPushingSession.log != null) _rqPushingSession.log++;
   _rqSessions.unshift(session);
   rqRenderSessions();
   // Stopping the timer means the work is done — clear the card from the
   // queue instead of leaving it for a manual × removal.
   _rqDeleteItemByPid(pid);
+  // Prompt right away to push the restocked pieces into Square inventory —
+  // skipped when nothing in the session is Square-linked.
+  if (expandedItems.some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; })) {
+    rqEnsureLogOpen();
+    _rqEditingSession.log = null;
+    _rqPushingSession.log = 0;
+    rqRenderSessions();
+    var pushPanel = document.querySelector('.rq-push-panel');
+    if (pushPanel) pushPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
   _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
     session.items = pricedItems;
@@ -2020,11 +2151,14 @@ function rqStartTimerConfirm(pid) {
   var primaryItem  = items[0] || {};
   var richMatch    = s.richMatch || null;
   delete _rqSetups[pid];
-  // Write confirmed item back to bar match cache (strip pieces)
+  // Write confirmed item back to bar match cache (strip pieces).
+  // localOnly: this is a flattened display placeholder for the running
+  // timer, not the real match — don't push it to the shared store where
+  // other devices would pick it up (rqStopTimer restores/syncs the rich one).
   if (items.length && primaryItem.id) {
     var matchItem = Object.assign({}, primaryItem);
     delete matchItem.pieces;
-    _rqAmSet(pid, matchItem);
+    _rqAmSet(pid, matchItem, true);
   }
   _rqTimers[pid] = {
     startTime: startTimeMs,
@@ -2339,10 +2473,14 @@ function _rqDeleteItemObj(item) {
     delete _rqMatchEdits[pid];
     delete _rqExpanded[pid];
     delete _rqEditMode[pid];
+    var hadMatch = _rqAutoMatches[pid] && typeof _rqAutoMatches[pid] === 'object';
     delete _rqAutoMatches[pid];
     _rqAmSave();
-    if (_rqSizes[pid]) { delete _rqSizes[pid]; _rqSaveSizes(); }
-    if (_rqNotes[pid]) { delete _rqNotes[pid]; _rqSaveNotes(); }
+    var removal = {};
+    removal[pid] = null;
+    if (hadMatch)       _rqPatchStore('/api/restock-matches', removal, 'Failed to sync removal');
+    if (_rqSizes[pid])  { delete _rqSizes[pid]; _rqPatchStore('/api/restock-sizes', removal, 'Failed to sync removal'); }
+    if (_rqNotes[pid])  { delete _rqNotes[pid]; _rqPatchStore('/api/restock-notes', removal, 'Failed to sync removal'); }
   }
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);

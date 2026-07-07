@@ -413,7 +413,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=5"></script>
+<script src="js/restock.js?v=6"></script>
 <script>
   // ── Tab switching ──────────────────────────────
   function showTab(name) {
@@ -476,11 +476,11 @@
   //
   // restock.js normally loads _rqAutoMatches (localStorage) and _rqSizes
   // (server) lazily, the first time the desktop queue list renders. There's
-  // no queue list on this page, so that lazy path never fires — without
-  // loading them explicitly first, _rqAmSet/_rqSaveSizesFor would each
-  // overwrite the shared store with only this page's one new item, wiping
-  // out every other item's saved match/sizes. Submit stays disabled until
-  // both have loaded.
+  // no queue list on this page, so that lazy path never fires — load them
+  // explicitly. (Saves are per-item PATCHes now, so a stale snapshot can no
+  // longer wipe other items' saved match/sizes, but the loaded data still
+  // feeds duplicate detection and size resolution.) Submit stays disabled
+  // until the sizes store has loaded.
   var INV_LOCATION_ID = 'D7EZ98V48F79A'; // used by notes.js's on-hand-stock badges
   _rqAmLoad();
   _rqAmLoaded = true;
