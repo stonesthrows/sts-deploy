@@ -168,6 +168,7 @@ function pageToOrder(page) {
   return {
     id:            appId || ('n_' + page.id.replace(/-/g, '')),
     notionId:      page.id,
+    lastEdited:    page.last_edited_time || null,
     name:          p['Customer Name']?.title?.[0]?.plain_text || '',
     stage:         stage,
     price:         num(p['Price'])       || 0,
@@ -217,11 +218,32 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-// GET /api/notion-pipeline  →  return all pipeline orders
+// GET /api/notion-pipeline           →  { syncedAt, orders: [all orders] }
+// GET /api/notion-pipeline?since=ISO →  { syncedAt, orders: [orders edited since] }
+// Clients feed syncedAt back as the next request's `since` for delta pulls.
 export async function onRequestGet(context) {
   const token = context.env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const hdrs = notionHdrs(token);
+
+  // Captured BEFORE the query runs, so an edit landing mid-query falls after
+  // this stamp and gets re-delivered on the next delta instead of skipped.
+  const syncedAt = new Date().toISOString();
+
+  const sinceRaw = new URL(context.request.url).searchParams.get('since');
+  let filter = null;
+  if (sinceRaw) {
+    const t = Date.parse(sinceRaw);
+    // 2-minute overlap: Notion truncates last_edited_time to the minute, so a
+    // strict boundary would miss same-minute edits. Re-delivered orders are
+    // harmless — the client merge is idempotent.
+    if (!isNaN(t)) {
+      filter = {
+        timestamp: 'last_edited_time',
+        last_edited_time: { on_or_after: new Date(t - 120000).toISOString() },
+      };
+    }
+  }
 
   const orders = [];
   let cursor;
@@ -230,6 +252,7 @@ export async function onRequestGet(context) {
       page_size: 100,
       sorts: [{ property: 'Customer Name', direction: 'ascending' }],
     };
+    if (filter) body.filter = filter;
     if (cursor) body.start_cursor = cursor;
     const r = await fetch(`${NOTION_API}/databases/${PIPELINE_DB}/query`, {
       method: 'POST', headers: hdrs, body: JSON.stringify(body),
@@ -243,7 +266,7 @@ export async function onRequestGet(context) {
     cursor = d.has_more ? d.next_cursor : null;
   } while (cursor);
 
-  return json(orders);
+  return json({ syncedAt, orders });
 }
 
 // POST /api/notion-pipeline  →  create or update a pipeline order

@@ -137,7 +137,11 @@ async function notionSyncFromNotion() {
       return;
     }
     setConnStatus(true);
-    const notionOrders = await r.json();
+    const payload = await r.json();
+    // Tolerate both response shapes across deploys: bare array (legacy) and
+    // { syncedAt, orders } (delta-sync envelope).
+    const notionOrders = Array.isArray(payload) ? payload : (payload.orders || []);
+    if (!Array.isArray(payload)) _setLastSync(payload.syncedAt);
 
     // ── Build lookup maps for existing local orders ───────────
     const byAppId    = {};
@@ -248,11 +252,13 @@ async function notionStartupSync() {
       console.warn('notionStartupSync: API returned', r.status);
       return;
     }
-    const notionOrders = await r.json();
+    const payload = await r.json();
+    const notionOrders = Array.isArray(payload) ? payload : (payload.orders || []);
     if (!Array.isArray(notionOrders) || !notionOrders.length) {
       console.warn('notionStartupSync: Notion returned 0 orders — skipping replacement to avoid data loss');
       return;
     }
+    if (!Array.isArray(payload)) _setLastSync(payload.syncedAt);
     setConnStatus(true);
     console.log('notionStartupSync: loaded', notionOrders.length, 'orders from Notion');
 
@@ -335,3 +341,111 @@ async function notionStartupSync() {
     // Startup sync is best-effort — fail silently
   }
 }
+
+// ════════════════════════════════════════════
+//  DELTA SYNC  —  background pull of recent Notion changes
+//  Every 60s while the tab is visible (plus on tab focus), asks the API
+//  for orders edited since the last sync and merges them per record.
+//  This keeps every open browser converged without reloads.
+//
+//  Merge rules, in priority order:
+//  1. An order with a queued Outbox write is skipped — the local change
+//     wins until Notion has confirmed it.
+//  2. An order completed locally is never un-completed by a pull
+//     (same rule as the full syncs).
+//  3. Otherwise per-record last-writer-wins: if our local edit is newer
+//     than Notion's stamp it's either still queued (rule 1) or already
+//     delivered and about to echo back — skipping is safe either way.
+// ════════════════════════════════════════════
+
+let _lastSyncAt = null;
+try { _lastSyncAt = localStorage.getItem('sts-last-sync') || null; } catch(e) {}
+
+function _setLastSync(iso) {
+  if (!iso) return;
+  _lastSyncAt = iso;
+  try { localStorage.setItem('sts-last-sync', iso); } catch(e) {}
+}
+
+// Local-only / sticky fields — never overwrite with an empty Notion value
+// (same list the startup sync preserves across full replacement)
+function _preserveLocalOnlyFields(local, incoming) {
+  ['photo', 'pickup', 'contactedAt', 'deliveredAt', 'cancelledAt', 'pdfUrl'].forEach(f => {
+    if (!incoming[f] && local[f]) incoming[f] = local[f];
+  });
+}
+
+// Stage to force if this order was completed locally (never un-complete)
+function _completedGuardStage(no, local) {
+  if (local && (local.stage === 'complete' || local.stage === 'delivered')) return local.stage;
+  try {
+    const reg = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]');
+    if (reg.some(e => e.id === no.id || (no.notionId && e.notionId === no.notionId))) return 'complete';
+  } catch(e) {}
+  return null;
+}
+
+async function notionDeltaSync() {
+  if (document.hidden) return;
+  // Don't reshuffle the board under an in-progress drag
+  if (typeof draggedId !== 'undefined' && draggedId) return;
+  try {
+    const url = PIPELINE_PROXY + (_lastSyncAt ? '?since=' + encodeURIComponent(_lastSyncAt) : '');
+    const r = await fetch(url);
+    if (!r.ok) { setConnStatus(false); return; }
+    setConnStatus(true);
+
+    const payload  = await r.json();
+    const changed  = Array.isArray(payload) ? payload : (payload.orders || []);
+    const syncedAt = Array.isArray(payload) ? null : payload.syncedAt;
+
+    const dirty = (typeof Outbox !== 'undefined') ? Outbox.dirtyKeys() : new Set();
+    let touched = false;
+
+    for (const no of changed) {
+      const local = ORDERS.find(o =>
+        (no.notionId && o.notionId === no.notionId) || (no.id && o.id === no.id));
+
+      // Rule 1: pending local write wins
+      if (local && (dirty.has(local.id) || (local.notionId && dirty.has(local.notionId)))) continue;
+      if (!local && no.id && dirty.has(no.id)) continue;
+
+      // Rule 2: never un-complete
+      const keepStage = _completedGuardStage(no, local);
+      if (keepStage) no.stage = keepStage;
+
+      if (!local) {
+        ORDERS.push(no);
+        if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
+        touched = true;
+        continue;
+      }
+
+      // Rule 3: per-record last-writer-wins. Ties inside Notion's one-minute
+      // timestamp granularity fall to the local edit; the next echo converges.
+      if (local.localEditedAt && no.lastEdited &&
+          local.localEditedAt > new Date(no.lastEdited).getTime()) continue;
+
+      _preserveLocalOnlyFields(local, no);
+      Object.assign(local, no);
+      if (local.stage === 'complete' || local.stage === 'delivered') completedHidden.add(local.id);
+      touched = true;
+    }
+
+    _setLastSync(syncedAt);
+
+    if (touched) {
+      saveToStorage();
+      if (typeof renderKanban === 'function') renderKanban();
+      if (typeof renderProduction === 'function') renderProduction();
+      if (typeof updateCompletedToggle === 'function') updateCompletedToggle();
+      // Backfill guessed completion dates on anything the merge flagged
+      notionHealGuessedDates(ORDERS.filter(o => o.dateGuessed));
+    }
+  } catch(e) {
+    // Background sync is best-effort — the next tick retries
+  }
+}
+
+setInterval(notionDeltaSync, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) notionDeltaSync(); });
