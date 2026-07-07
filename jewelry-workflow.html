@@ -889,6 +889,30 @@
       accent-color: var(--accent);
     }
 
+    /* ── Step navigation (New Order form) ── */
+    .step-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+    .step-tab {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: #7A7268;
+      border-radius: var(--rad-sm); padding: 8px 14px; min-height: 40px;
+      font-family: inherit; font-size: 11.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
+      transition: all var(--dur-fast) var(--ease-smooth);
+    }
+    .step-tab:hover:not(.active) { border-color: #C4B49A; }
+    .step-tab .step-num {
+      width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #E4DDD4; color: #7A7268; font-size: 11px;
+    }
+    .step-tab.active { border-color: var(--accent); background: #fff; color: var(--text); }
+    .step-tab.active .step-num { background: var(--accent); color: #fff; }
+    .form-step { display: none; }
+    .form-step.active { display: block; }
+    /* Legacy fields hidden at intake; class removed in edit mode when the order has data */
+    .fg.legacy-hide { display: none; }
+    .hw-collapsed { display: none; }
+
     /* ── Design sketchpad + handwriting strip (New Order form) ── */
     .sketch-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
     .sketch-btn {
@@ -902,10 +926,42 @@
     .sketch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
     .sketch-btn.sk-w { padding: 6px 10px; min-width: 34px; line-height: 1; }
     .sketch-sep { width: 1px; height: 22px; background: #E4DDD4; margin: 0 4px; }
+    /* Height-driven canvas sizing: explicit height + width:auto preserves the
+       intrinsic aspect ratio (Chrome distorts when only max-w/max-h are set),
+       and the viewport-based height keeps each step on one iPad screen */
     #sketch-canvas, #hw-canvas {
-      width: 100%; height: auto; display: block;
+      height: auto; width: auto; max-width: 100%; display: block;
+      align-self: flex-start; /* .fg is a column flexbox — stop the stretch that distorts the ratio */
       background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
       touch-action: none; cursor: crosshair;
+    }
+    /* Height budget from the viewport, additionally bounded by width
+       (~62% / ~36% of usable width; hard caps keep the canvas narrower than
+       the ~804px card body so max-width never kicks in and distorts) */
+    #sketch-canvas { height: min(clamp(150px, calc(100vh - 555px), 495px), calc(62vw - 62px)); }
+    #hw-canvas    { height: min(clamp(140px, calc(100vh - 460px), 280px), calc(36vw - 36px)); }
+    /* "Handwrite instead" is literal: while the strip is open it replaces the
+       typed customer fields (Convert fills them and swaps back) */
+    #order-step-1 .form-grid.hw-open > div:not(#hw-fg):not(.hw-toggle-row) { display: none; }
+
+    /* Wide screens (incl. iPad portrait): 3-column grids keep steps 1–2 short */
+    @media (min-width: 800px) {
+      #order-step-1 .form-grid, #order-step-2 .form-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    /* iPad-and-below viewport heights: trim the New Order tab's vertical chrome */
+    @media (max-height: 1250px) {
+      /* 50px fixed topbar + 14px gap; bottom breathing room trimmed */
+      .content:has(> #tab-new-order.active) { padding-top: 64px; padding-bottom: 24px; }
+      #tab-new-order .form-head { padding: 12px 28px 10px; }
+      #tab-new-order .form-head-sub { display: none; }
+      #tab-new-order .form-body { padding: 12px 28px; }
+      #tab-new-order .form-grid { gap: 8px var(--sp-4); }
+      #tab-new-order .fg { gap: 3px; }
+      #tab-new-order .fg input, #tab-new-order .fg textarea, #tab-new-order .fg select { padding: 7px 10px; }
+      #tab-new-order .form-sec { margin-bottom: 10px; }
+      #tab-new-order .step-nav { margin-bottom: 8px; }
+      #tab-new-order .ot-hint { margin-top: 4px; min-height: 0; }
+      #tab-new-order .form-foot { padding: 10px 28px; }
     }
     .hw-status { font-size: 11.5px; color: var(--text3); margin-left: auto; }
     .card-sketch img { background: #fff; }
@@ -4350,6 +4406,13 @@
     .form-foot { padding: 14px 14px; }
     .form-wrap { max-width: 100%; }
 
+    /* Step nav: tabs share the row, Back/Next wrap below */
+    .step-nav { gap: 6px; }
+    .step-tab { flex: 1; justify-content: center; padding: 8px 6px; font-size: 10.5px; }
+    .step-nav .btn { flex-basis: 100%; }
+    /* Phones scroll anyway — let canvases use the full width again */
+    #sketch-canvas, #hw-canvas { width: 100%; height: auto; }
+
     /* Order type toggle: full width */
     .order-type-toggle { width: 100%; }
     .ot-option { flex: 1; justify-content: center; padding: 9px 10px; font-size: 12px; }
@@ -5356,9 +5419,6 @@
 </div>
 
 <div id="tab-new-order" class="tab-panel">
-  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
-    <button class="btn btn-gold" style="display:flex;align-items:center;gap:7px;font-size:13px;" onclick="sbNav('custom-orders','print-bag',null)">🖨 Print Order Bag</button>
-  </div>
   <div class="new-order-cols">
     <div class="form-card">
       <div class="form-head">
@@ -5366,6 +5426,19 @@
         <div class="form-head-sub" id="order-form-sub">Submitting creates a Notion record automatically.</div>
       </div>
       <div class="form-body">
+        <input type="hidden" id="f-editing-id">
+        <input type="hidden" id="f-items-json" value="[]">
+        <div class="step-nav" id="order-step-nav">
+          <button type="button" class="step-tab active" id="step-tab-1" onclick="orderFormStep(1)"><span class="step-num">1</span> Customer</button>
+          <button type="button" class="step-tab" id="step-tab-2" onclick="orderFormStep(2)"><span class="step-num">2</span> Design</button>
+          <button type="button" class="step-tab" id="step-tab-3" onclick="orderFormStep(3)"><span class="step-num">3</span> Items &amp; Price</button>
+          <span style="flex:1"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="order-step-back" style="visibility:hidden;" onclick="orderFormStepBack()">‹ Back</button>
+          <button type="button" class="btn btn-outline btn-sm" id="order-step-next" onclick="orderFormStepNext()">Next ›</button>
+        </div>
+
+        <!-- ── Step 1 · Customer ── -->
+        <div class="form-step active" id="order-step-1">
         <div class="form-sec" id="order-type-section">
           <div class="form-sec-label">Order Type</div>
           <select id="f-order-type" onchange="onOrderTypeChange()" class="fg-select" style="width:100%;">
@@ -5378,7 +5451,6 @@
           <div class="ot-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
         </div>
         <div class="form-grid">
-          <input type="hidden" id="f-editing-id">
           <div class="fg full" id="f-stage-row" style="display:none;">
             <label>Stage</label>
             <select id="f-stage">
@@ -5430,19 +5502,6 @@
             <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
           </div>
           <div class="fg">
-            <label>Pickup Location</label>
-            <select id="f-pickup" onchange="toggleShippingAddress()">
-              <option value="">— Select location —</option>
-              <option value="Bell Market">Bell Market</option>
-              <option value="Mueller Market">Mueller Market</option>
-              <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
-              <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
-              <option value="Austin Flea">Austin Flea</option>
-              <option value="Studio">Studio</option>
-              <option value="To be Shipped">📦 To be Shipped</option>
-            </select>
-          </div>
-          <div class="fg">
             <label>Contacted Via</label>
             <select id="f-source">
               <option value="">— Select source —</option>
@@ -5457,6 +5516,19 @@
             </select>
           </div>
           <div class="fg">
+            <label>Pickup Location</label>
+            <select id="f-pickup" onchange="toggleShippingAddress()">
+              <option value="">— Select location —</option>
+              <option value="Bell Market">Bell Market</option>
+              <option value="Mueller Market">Mueller Market</option>
+              <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+              <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+              <option value="Austin Flea">Austin Flea</option>
+              <option value="Studio">Studio</option>
+              <option value="To be Shipped">📦 To be Shipped</option>
+            </select>
+          </div>
+          <div class="fg">
             <label>Assigned To</label>
             <select id="f-assignee">
               <option value="">— Unassigned —</option>
@@ -5464,6 +5536,14 @@
               <option value="Vanessa">Vanessa</option>
               <option value="Stevie">Stevie</option>
             </select>
+          </div>
+          <div class="fg">
+            <label>Deadline</label>
+            <input type="date" id="f-deadline">
+          </div>
+          <div class="fg">
+            <label>Take In Date</label>
+            <input type="date" id="f-takein">
           </div>
           <div class="fg full" id="addr-street-fg">
             <label>Street Address</label>
@@ -5508,15 +5588,68 @@
                       onclick="orderLookupTracking(this)">🔎</button>
             </div>
           </div>
+          <div class="fg legacy-hide" id="contact-method-fg">
+            <label>Preferred Contact</label>
+            <select id="f-contact-method">
+              <option value="">— Select —</option>
+              <option value="Email">Email</option>
+              <option value="Text">Text</option>
+              <option value="Phone">Phone</option>
+            </select>
+          </div>
+          <div class="fg full hw-toggle-row">
+            <button type="button" class="btn btn-outline btn-sm" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
+          </div>
+          <div class="fg full hw-collapsed" id="hw-fg">
+            <label>✍ Handwrite Customer Info <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ write on the lines, then convert to fill the fields</span></label>
+            <div class="sketch-toolbar">
+              <button type="button" class="sketch-btn" onclick="hwConvert(this)">✨ Convert to Type</button>
+              <button type="button" class="sketch-btn" onclick="hwClear()">🗑 Clear</button>
+              <span class="hw-status" id="hw-status"></span>
+            </div>
+            <canvas id="hw-canvas" width="1000" height="360"></canvas>
+          </div>
+        </div>
+        </div>
+
+        <!-- ── Step 2 · Design ── -->
+        <div class="form-step" id="order-step-2">
+        <div class="form-grid">
           <div class="fg">
-            <label>Take In Date</label>
-            <input type="date" id="f-takein">
+            <label>Piece Type</label>
+            <select id="f-piece-type">
+              <option value="">— Select —</option>
+              <option value="Ring">Ring</option>
+              <option value="Ear Cuff">Ear Cuff</option>
+              <option value="Necklace">Necklace</option>
+              <option value="Bracelet">Bracelet</option>
+              <option value="Earrings">Earrings</option>
+              <option value="Pendant">Pendant</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg" id="materials-fg">
+            <label>Materials / Metal</label>
+            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
           </div>
           <div class="fg">
-            <label>Deadline</label>
-            <input type="date" id="f-deadline">
+            <label>Sizing / Dimensions</label>
+            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
           </div>
-          <div class="fg full" id="jobdesc-fg">
+          <div class="fg">
+            <label>Texture / Finish</label>
+            <div class="finish-checks" id="f-finish">
+              <label><input type="checkbox" value="Polished"> Polished</label>
+              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
+              <label><input type="checkbox" value="Matte"> Matte</label>
+              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+            </div>
+          </div>
+          <div class="fg">
+            <label>Gemstones / Components</label>
+            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
+          </div>
+          <div class="fg" id="jobdesc-fg">
             <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
             <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
               <option value="custom">Custom Item</option>
@@ -5532,51 +5665,34 @@
           </div>
           <div class="fg full" id="orderdesc-fg">
             <label>Order Description</label>
-            <textarea id="f-description" placeholder="Describe the piece — type, style, size, stone, any inspiration or reference images…"></textarea>
+            <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
           </div>
-          <div class="fg" id="materials-fg">
-            <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+          <div class="fg full legacy-hide" id="sketch-fg">
+            <label>Sketch Notes</label>
+            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
           </div>
-          <div class="fg">
-            <label>Preferred Contact</label>
-            <select id="f-contact-method">
-              <option value="">— Select —</option>
-              <option value="Email">Email</option>
-              <option value="Text">Text</option>
-              <option value="Phone">Phone</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>Piece Type</label>
-            <select id="f-piece-type">
-              <option value="">— Select —</option>
-              <option value="Ring">Ring</option>
-              <option value="Ear Cuff">Ear Cuff</option>
-              <option value="Necklace">Necklace</option>
-              <option value="Bracelet">Bracelet</option>
-              <option value="Earrings">Earrings</option>
-              <option value="Pendant">Pendant</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>Sizing / Dimensions</label>
-            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
-          </div>
-          <div class="fg">
-            <label>Texture / Finish</label>
-            <div class="finish-checks" id="f-finish">
-              <label><input type="checkbox" value="Polished"> Polished</label>
-              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
-              <label><input type="checkbox" value="Matte"> Matte</label>
-              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+          <div class="fg full" id="sketchpad-fg">
+            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ saved on the order card + synced to Notion</span></label>
+            <div class="sketch-toolbar">
+              <button type="button" class="sketch-btn active" id="sk-pen" onclick="sketchSetTool('pen',this)">✏️ Pen</button>
+              <button type="button" class="sketch-btn" id="sk-eraser" onclick="sketchSetTool('eraser',this)">🧽 Eraser</button>
+              <span class="sketch-sep"></span>
+              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(2.5,this)" title="Fine"><span style="font-size:7px;">●</span></button>
+              <button type="button" class="sketch-btn sk-w active" onclick="sketchSetWidth(5,this)" title="Medium"><span style="font-size:11px;">●</span></button>
+              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(10,this)" title="Thick"><span style="font-size:15px;">●</span></button>
+              <span class="sketch-sep"></span>
+              <button type="button" class="sketch-btn" onclick="sketchUndo()">↩ Undo</button>
+              <button type="button" class="sketch-btn" onclick="sketchRedo()">↪ Redo</button>
+              <button type="button" class="sketch-btn" onclick="sketchClear()">🗑 Clear</button>
             </div>
+            <canvas id="sketch-canvas" width="1000" height="620"></canvas>
           </div>
-          <div class="fg full">
-            <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:60px;"></textarea>
-          </div>
+        </div>
+        </div>
+
+        <!-- ── Step 3 · Items & Price ── -->
+        <div class="form-step" id="order-step-3">
+        <div class="form-grid">
           <div class="fg full" id="oi-section">
             <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
             <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
@@ -5598,14 +5714,9 @@
             <label>Balance Due ($)</label>
             <input type="number" id="f-balance-due" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
           </div>
-          <input type="hidden" id="f-items-json" value="[]">
           <div class="fg full">
             <label>Internal Notes</label>
-            <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:60px;"></textarea>
-          </div>
-          <div class="fg full">
-            <label>Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent with estimate</span></label>
-            <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
+            <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:48px;"></textarea>
           </div>
           <div class="fg" id="f-paid-by-row" style="display:none;">
             <label>Deposit Paid By</label>
@@ -5625,35 +5736,7 @@
               <option value="Cash">Cash</option>
             </select>
           </div>
-          <div class="fg full" id="sketch-fg">
-            <label>Sketch Notes</label>
-            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
-          </div>
-          <div class="fg full" id="hw-fg">
-            <label>✍ Handwrite Customer Info <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ write on the lines, then convert to fill the fields above</span></label>
-            <div class="sketch-toolbar">
-              <button type="button" class="sketch-btn" onclick="hwConvert(this)">✨ Convert to Type</button>
-              <button type="button" class="sketch-btn" onclick="hwClear()">🗑 Clear</button>
-              <span class="hw-status" id="hw-status"></span>
-            </div>
-            <canvas id="hw-canvas" width="1000" height="360"></canvas>
-          </div>
-          <div class="fg full" id="sketchpad-fg">
-            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ saved on the order card + synced to Notion</span></label>
-            <div class="sketch-toolbar">
-              <button type="button" class="sketch-btn active" id="sk-pen" onclick="sketchSetTool('pen',this)">✏️ Pen</button>
-              <button type="button" class="sketch-btn" id="sk-eraser" onclick="sketchSetTool('eraser',this)">🧽 Eraser</button>
-              <span class="sketch-sep"></span>
-              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(2.5,this)" title="Fine"><span style="font-size:7px;">●</span></button>
-              <button type="button" class="sketch-btn sk-w active" onclick="sketchSetWidth(5,this)" title="Medium"><span style="font-size:11px;">●</span></button>
-              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(10,this)" title="Thick"><span style="font-size:15px;">●</span></button>
-              <span class="sketch-sep"></span>
-              <button type="button" class="sketch-btn" onclick="sketchUndo()">↩ Undo</button>
-              <button type="button" class="sketch-btn" onclick="sketchRedo()">↪ Redo</button>
-              <button type="button" class="sketch-btn" onclick="sketchClear()">🗑 Clear</button>
-            </div>
-            <canvas id="sketch-canvas" width="1000" height="620"></canvas>
-          </div>
+        </div>
         </div>
       </div>
       <div class="form-foot">
@@ -5661,6 +5744,7 @@
         <button class="btn btn-outline" id="order-form-gmail-btn" onclick="openGmailPanel()">✉ Pull from Gmail</button>
         <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
         <button class="btn btn-outline" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
+        <button class="btn btn-outline" onclick="sbNav('custom-orders','print-bag',null)">🖨 Print Bag</button>
         <button class="btn btn-ghost" id="order-form-back-btn" style="display:none;" onclick="closeEditOrderModal()">← Back</button>
         <span id="order-form-foot-note" style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in Notion</span>
       </div>
@@ -5737,6 +5821,14 @@
           <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
           Apply 8.25% sales tax
         </label>
+      </div>
+
+      <!-- Notes for Customer (moved from the intake form — used when sending the estimate) -->
+      <div class="form-sec">
+        <div class="form-sec-label">Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ sent with estimate</span></div>
+        <div class="fg">
+          <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
+        </div>
       </div>
 
       <!-- Total breakdown -->
@@ -9329,10 +9421,10 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js?v=2"></script>
 <script src="js/notion.js?v=20260707a"></script>
-<script src="js/customers.js"></script>
+<script src="js/customers.js?v=20260707b"></script>
 <script src="js/app.js"></script>
-<script src="js/sketchpad.js?v=1"></script>
-<script src="js/orders.js?v=20260707a"></script>
+<script src="js/sketchpad.js?v=2"></script>
+<script src="js/orders.js?v=20260707b"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>

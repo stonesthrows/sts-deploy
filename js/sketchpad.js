@@ -223,6 +223,21 @@ function _hwBackground(ctx, w, h) {
   });
 }
 
+// Collapse/expand the handwriting strip (collapsed by default on Step 1).
+// While open it REPLACES the typed customer fields (via .hw-open CSS) so the
+// writing surface gets the full step height; Convert fills the fields and
+// swaps back to typed view.
+function hwToggle(open) {
+  const fg  = document.getElementById('hw-fg');
+  const btn = document.getElementById('hw-toggle-btn');
+  if (!fg) return;
+  const show = (open !== undefined) ? open : fg.classList.contains('hw-collapsed');
+  fg.classList.toggle('hw-collapsed', !show);
+  const grid = fg.closest('.form-grid');
+  if (grid) grid.classList.toggle('hw-open', show);
+  if (btn) btn.textContent = show ? '⌨ Type instead' : '✍ Handwrite instead';
+}
+
 function hwClear() {
   if (!HW) return;
   HW.undo.length = 0;
@@ -281,6 +296,7 @@ async function hwConvert(btn) {
     fillIfEmpty('f-deadline', /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline || '') ? parsed.deadline : '');
     if (status) status.textContent = filled ? ('✓ Filled ' + filled + ' field' + (filled > 1 ? 's' : '') + ' — review above') : 'No empty fields to fill';
     toast(filled ? '✓ Converted — review the fields' : 'Nothing converted — fields already filled or unreadable', filled ? '✓' : '⚠');
+    if (filled) hwToggle(false); // swap back to the typed fields to review the result
   } catch (err) {
     if (status) status.textContent = '❌ ' + (err.message || err);
     toast('Handwriting conversion failed: ' + (err.message || err), '✗');

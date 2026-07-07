@@ -302,6 +302,9 @@ function openOrderCard(id) {
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = (o.finish || []).includes(c.value));
   if (typeof sketchLoad === 'function') { o.sketchImg ? sketchLoad(o.sketchImg) : sketchReset(); }
   if (typeof hwClear === 'function') hwClear();
+  if (typeof hwToggle === 'function') hwToggle(false);
+  _orderFormLegacyFields(o);
+  orderFormStep(1);
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
@@ -520,6 +523,7 @@ function fillFromThread(i) {
   if (t.email) document.getElementById('f-email').value = t.email;
   closeGmailPanel();
   switchTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'));
+  orderFormStep(1);
   toast('Customer info filled from Gmail thread');
 }
 
@@ -571,6 +575,11 @@ function submitOrder() {
         el.addEventListener('input', () => el.style.borderColor = '', { once: true });
       }
     });
+    // Jump to the step holding the first missing field so the highlight is visible
+    const firstMissing = highlightIds
+      .map(id => document.getElementById(id))
+      .find(el => el && !el.value.trim());
+    if (firstMissing) orderFormStep(_orderStepOf(firstMissing));
     if (submitBtn) submitBtn.disabled = false;
     return;
   }
@@ -735,10 +744,56 @@ function orderLookupTracking(btn) {
 function toggleShippingAddress() {
   const pickup    = document.getElementById('f-pickup');
   const isShipped = pickup && pickup.value === 'To be Shipped';
-  ['addr-street-fg', 'addr-street2-fg', 'addr-city-fg', 'addr-state-fg', 'addr-zip-fg', 'addr-country-fg', 'tracking-carrier-fg', 'tracking-number-fg'].forEach(id => {
+  const editing   = !!(document.getElementById('f-editing-id') || {}).value;
+  ['addr-street-fg', 'addr-street2-fg', 'addr-city-fg', 'addr-state-fg', 'addr-zip-fg', 'addr-country-fg'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isShipped ? '' : 'none';
   });
+  // Tracking is never known at intake — only show when editing a shipped order
+  ['tracking-carrier-fg', 'tracking-number-fg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (isShipped && editing) ? '' : 'none';
+  });
+}
+
+// ════════════════════════════════════════════
+
+//  ORDER FORM STEPS  —  3-page intake layout (Customer / Design / Items)
+// ════════════════════════════════════════════
+let _orderStep = 1;
+
+function orderFormStep(n) {
+  _orderStep = Math.min(3, Math.max(1, n));
+  for (let i = 1; i <= 3; i++) {
+    const step = document.getElementById('order-step-' + i);
+    if (step) step.classList.toggle('active', i === _orderStep);
+    const tab = document.getElementById('step-tab-' + i);
+    if (tab) tab.classList.toggle('active', i === _orderStep);
+  }
+  const back = document.getElementById('order-step-back');
+  if (back) back.style.visibility = _orderStep === 1 ? 'hidden' : '';
+  const next = document.getElementById('order-step-next');
+  if (next) next.style.visibility = _orderStep === 3 ? 'hidden' : '';
+  const panel = document.getElementById('tab-new-order');
+  if (panel) panel.scrollTop = 0;
+}
+
+function orderFormStepNext() { orderFormStep(_orderStep + 1); }
+function orderFormStepBack() { orderFormStep(_orderStep - 1); }
+
+// Which step contains an element (for the validation jump)
+function _orderStepOf(el) {
+  const s = el && el.closest ? el.closest('.form-step') : null;
+  return s ? (parseInt(s.id.replace('order-step-', ''), 10) || 1) : 1;
+}
+
+// Legacy fields (Sketch Notes, Preferred Contact) are hidden at intake and
+// only shown in edit mode when the order already carries a value.
+function _orderFormLegacyFields(o) {
+  const sk = document.getElementById('sketch-fg');
+  if (sk) sk.classList.toggle('legacy-hide', !(o && (o.sketchDesc || '').trim()));
+  const cm = document.getElementById('contact-method-fg');
+  if (cm) cm.classList.toggle('legacy-hide', !(o && (o.contactMethod || '').trim()));
 }
 
 function clearForm() {
@@ -752,6 +807,11 @@ function clearForm() {
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = false);
   if (typeof sketchReset === 'function') sketchReset();
   if (typeof hwClear === 'function') hwClear();
+  if (typeof hwToggle === 'function') hwToggle(false);
+  const takeinEl = document.getElementById('f-takein');
+  if (takeinEl) takeinEl.value = new Date().toISOString().slice(0, 10);
+  _orderFormLegacyFields(null);
+  orderFormStep(1);
   const countryEl = document.getElementById('f-addr-country');
   if (countryEl) countryEl.value = 'United States';
   const pickup = document.getElementById('f-pickup');
@@ -2067,3 +2127,10 @@ function eoSubmitInvoice() {
 expandedCards.clear();
 renderKanban();
 syncCollapseBtn();
+
+// Fresh-form defaults at load — covers tab restore paths that skip clearForm()
+(function orderFormInit() {
+  const takein = document.getElementById('f-takein');
+  if (takein && !takein.value) takein.value = new Date().toISOString().slice(0, 10);
+  toggleShippingAddress(); // hide address + tracking fields until pickup demands them
+})();
