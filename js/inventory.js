@@ -70,6 +70,55 @@ const INV_CAT_NAME_HINTS = {
   'hoops': 'seamless hoop',
 };
 
+// ── Custom tabs (created via ⚙ Manage Items) ──
+// localStorage 'sts-inv-custom-tabs': { mains:[{key,label,icon}], subs:{ [mainKey]: [{key,label}] } }
+// Falls back to a hardcoded INV_CUSTOM_TABS constant (from "Copy JS Config") if present.
+const INV_SUB_PREFIX = { earrings: 'inv-sub-', rings: 'inv-rsub-', pendants: 'inv-psub-', permjewelry: 'inv-pjsub-', noserings: 'inv-nrsub-' };
+const INV_SUB_SEARCH = { earrings: 'invSearch', rings: 'invRingSearch', pendants: 'invPendantSearch', permjewelry: 'invPermJewelrySearch', noserings: 'invNoseRingSearch' };
+
+function _invCustomGet() {
+  try {
+    const stored = localStorage.getItem('sts-inv-custom-tabs');
+    if (stored) {
+      const c = JSON.parse(stored);
+      return { mains: c.mains || [], subs: c.subs || {} };
+    }
+  } catch {}
+  return (typeof INV_CUSTOM_TABS !== 'undefined')
+    ? { mains: INV_CUSTOM_TABS.mains || [], subs: INV_CUSTOM_TABS.subs || {} }
+    : { mains: [], subs: {} };
+}
+
+// Which main tab a custom sub-tab belongs to (null if not a custom sub)
+function _invCustomSubMain(sub) {
+  const c = _invCustomGet();
+  for (const [main, subs] of Object.entries(c.subs)) {
+    if (subs.some(s => s.key === sub)) return main;
+  }
+  return null;
+}
+
+// Panel-id prefix for any sub-tab, built-in or custom
+function _invPanelPrefix(sub) {
+  if (INV_RING_CAT_IDS[sub])     return 'inv-rsub-';
+  if (INV_PENDANT_CAT_IDS[sub])  return 'inv-psub-';
+  if (INV_PERM_CAT_IDS[sub])     return 'inv-pjsub-';
+  if (INV_NOSERING_CAT_IDS[sub]) return 'inv-nrsub-';
+  if (INV_CAT_IDS[sub])          return 'inv-sub-';
+  return INV_SUB_PREFIX[_invCustomSubMain(sub)] || 'inv-xsub-';
+}
+
+// Search-input id for any sub-tab, built-in or custom
+function _invSearchIdFor(sub) {
+  if (INV_RING_CAT_IDS[sub])     return 'invRingSearch';
+  if (INV_PENDANT_CAT_IDS[sub])  return 'invPendantSearch';
+  if (INV_PERM_CAT_IDS[sub])     return 'invPermJewelrySearch';
+  if (INV_NOSERING_CAT_IDS[sub]) return 'invNoseRingSearch';
+  if (INV_CAT_IDS[sub])          return 'invSearch';
+  const main = _invCustomSubMain(sub);
+  return INV_SUB_SEARCH[main] || ('invXSearch-' + main);
+}
+
 let _invData       = {};  // { [sub]: { items, counts } }
 let _invDirty      = {};  // { varId: newQty } — unsaved edits
 let _invCurSub     = 'ear-cuffs';
@@ -292,7 +341,10 @@ async function invLoad() {
 
 async function _invLoadSub(sub) {
   let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub] || INV_NOSERING_CAT_IDS[sub];
-  if (!catIds) return;
+  if (!catIds) {
+    if (!_invCustomSubMain(sub)) return;
+    catIds = []; // custom sub-tab — items come only from Inventory Manager assignments
+  }
 
   // Merge any extra categories/items added via the Inventory Manager
   const extraEntries = _invGetExtraEntries(sub);
@@ -442,7 +494,7 @@ function _invRenderSub(sub) {
   if (!data) return;
 
   const { items, counts } = data;
-  const searchId = INV_RING_CAT_IDS[sub] ? 'invRingSearch' : INV_PENDANT_CAT_IDS[sub] ? 'invPendantSearch' : INV_PERM_CAT_IDS[sub] ? 'invPermJewelrySearch' : INV_NOSERING_CAT_IDS[sub] ? 'invNoseRingSearch' : 'invSearch';
+  const searchId = _invSearchIdFor(sub);
   const q = (document.getElementById(searchId)?.value || '').toLowerCase();
 
   if (!items.length) {
@@ -565,8 +617,7 @@ function _invRenderSub(sub) {
 }
 
 function _invSetPanelHtml(sub, html) {
-  const prefix = INV_RING_CAT_IDS[sub] ? 'inv-rsub-' : INV_PENDANT_CAT_IDS[sub] ? 'inv-psub-' : INV_PERM_CAT_IDS[sub] ? 'inv-pjsub-' : INV_NOSERING_CAT_IDS[sub] ? 'inv-nrsub-' : 'inv-sub-';
-  const panel = document.getElementById(prefix + sub);
+  const panel = document.getElementById(_invPanelPrefix(sub) + sub);
   if (panel) panel.innerHTML = html;
 }
 
@@ -1366,4 +1417,213 @@ function invCloseSplitPopover() {
   const pop = document.getElementById('inv-split-popover');
   if (pop) pop.style.display = 'none';
   _invSplitActiveVar = null;
+}
+
+// ════════════════════════════════════════════
+//  CUSTOM TABS — injects user-created tabs/sub-tabs
+//  (from ⚙ Manage Items) into the Inventory tab.
+// ════════════════════════════════════════════
+
+let _invCustomCurSub = {};  // { mainKey: current sub key } for custom mains + nose rings
+
+function _invCustomRender() {
+  const root = document.getElementById('tab-inv-adjust');
+  if (!root) return;
+
+  // Remove anything injected by a previous run, then re-inject fresh
+  root.querySelectorAll('[data-inv-custom]').forEach(n => n.remove());
+
+  const custom = _invCustomGet();
+  const LOADING = '<div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div>';
+
+  // 1. Custom sub-tabs under the built-in mains (reuse each main's own switcher)
+  const BUILTIN = {
+    earrings:    { subtabId: 'inv-ear-subtab-',     btnCls: 'inv-ear-sub',                     panelCls: 'inv-sub-panel',     fn: 'invSwitchSub' },
+    rings:       { subtabId: 'inv-ring-subtab-',    btnCls: 'inv-ring-sub-btn inv-ear-sub',    panelCls: 'inv-ring-panel',    fn: 'invSwitchRingSub' },
+    pendants:    { subtabId: 'inv-pendant-subtab-', btnCls: 'inv-pendant-sub-btn inv-ear-sub', panelCls: 'inv-pendant-panel', fn: 'invSwitchPendantSub' },
+    permjewelry: { subtabId: 'inv-pj-subtab-',      btnCls: 'inv-pj-sub-btn inv-ear-sub',      panelCls: 'inv-pj-panel',      fn: 'invSwitchPermJewelrySub' },
+  };
+
+  Object.entries(BUILTIN).forEach(([main, cfg]) => {
+    const subs = custom.subs[main] || [];
+    if (!subs.length) return;
+    const mainPanel = document.getElementById('inv-main-' + main);
+    const row  = mainPanel?.querySelector('.inv-subtab-row');
+    const body = mainPanel?.querySelector('.inv-panel-body');
+    if (!row || !body) return;
+
+    subs.forEach(s => {
+      const btn = document.createElement('button');
+      btn.id = cfg.subtabId + s.key;
+      btn.className = cfg.btnCls;
+      btn.setAttribute('data-inv-custom', '1');
+      btn.setAttribute('onclick', `${cfg.fn}('${s.key}',this)`);
+      btn.textContent = s.label;
+      row.appendChild(btn);
+
+      const panel = document.createElement('div');
+      panel.id = INV_SUB_PREFIX[main] + s.key;
+      panel.className = cfg.panelCls;
+      panel.style.display = 'none';
+      panel.setAttribute('data-inv-custom', '1');
+      panel.innerHTML = LOADING;
+      body.appendChild(panel);
+    });
+  });
+
+  // 2. Custom sub-tabs under Faux Nose Rings (has no sub-tab row of its own,
+  //    so we create one that includes the built-in panel as its first tab)
+  const nrSubs = custom.subs.noserings || [];
+  if (nrSubs.length) {
+    const mainPanel = document.getElementById('inv-main-noserings');
+    const body = mainPanel?.querySelector('.inv-panel-body');
+    if (mainPanel && body) {
+      const row = document.createElement('div');
+      row.className = 'inv-subtab-row';
+      row.setAttribute('data-inv-custom', '1');
+      row.innerHTML =
+        `<button id="inv-nr-subtab-nose-rings" class="inv-ear-sub active" onclick="invSwitchCustomSub('nose-rings',this)">Faux Nose Rings</button>` +
+        nrSubs.map(s => `<button id="inv-nr-subtab-${s.key}" class="inv-ear-sub" onclick="invSwitchCustomSub('${s.key}',this)">${_esc(s.label)}</button>`).join('');
+      mainPanel.insertBefore(row, mainPanel.querySelector('.inv-toolbar'));
+
+      nrSubs.forEach(s => {
+        const panel = document.createElement('div');
+        panel.id = 'inv-nrsub-' + s.key;
+        panel.className = 'inv-nosering-panel';
+        panel.style.display = 'none';
+        panel.setAttribute('data-inv-custom', '1');
+        panel.innerHTML = LOADING;
+        body.appendChild(panel);
+      });
+      _invCustomCurSub.noserings = _invNoseRingCurSub;
+    }
+  }
+
+  // 3. Whole custom main tabs
+  if (custom.mains.length) {
+    const catNav    = root.querySelector('.inv-cat-nav');
+    const manageBtn = catNav?.querySelector('button[onclick*="invMgrOpen"]');
+    let anchor      = document.getElementById('inv-main-noserings');
+
+    custom.mains.forEach(m => {
+      const subs = custom.subs[m.key] || [];
+      const icon = m.icon || '💎';
+
+      if (catNav) {
+        const btn = document.createElement('button');
+        btn.id = 'inv-main-tab-' + m.key;
+        btn.className = 'inv-ear-sub';
+        btn.setAttribute('data-inv-custom', '1');
+        btn.setAttribute('onclick', `invSwitchMain('${m.key}');invLoadCustomMain('${m.key}')`);
+        btn.textContent = icon + ' ' + m.label;
+        catNav.insertBefore(btn, manageBtn || null);
+      }
+
+      const panel = document.createElement('div');
+      panel.id = 'inv-main-' + m.key;
+      panel.className = 'inv-main-panel';
+      panel.style.display = 'none';
+      panel.setAttribute('data-inv-custom', '1');
+      panel.innerHTML = `
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">${_esc(icon)} ${_esc(m.label)} Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
+  </div>
+</div>
+<div class="inv-subtab-row">${
+  subs.map((s, i) => `<button id="inv-x-subtab-${s.key}" class="inv-ear-sub${i === 0 ? ' active' : ''}" onclick="invSwitchCustomSub('${s.key}',this)">${_esc(s.label)}</button>`).join('')
+  || '<span style="font-size:12px;color:var(--text-dim);padding:4px 0;">No sub-tabs yet — open ⚙ Manage Items to add one.</span>'
+}</div>
+<div class="inv-toolbar">
+  <input id="invXSearch-${m.key}" type="text" placeholder="Filter items…" class="inv-search" oninput="invCustomFilter('${m.key}')">
+  <button class="btn btn-gold btn-sm" id="invXUpdateAllBtn-${m.key}" onclick="invUpdateAllCustom('${m.key}')">Update All</button>
+  <button class="btn btn-outline btn-sm" onclick="invRefreshCustom('${m.key}')">↻ Refresh</button>
+</div>
+<div class="inv-count-label" id="invXCountLabel-${m.key}"></div>
+<div class="inv-panel-body">${
+  subs.map((s, i) => `<div id="inv-xsub-${s.key}" class="inv-x-panel"${i === 0 ? '' : ' style="display:none"'}>${LOADING}</div>`).join('')
+}</div>`;
+
+      if (anchor) { anchor.insertAdjacentElement('afterend', panel); anchor = panel; }
+      else root.appendChild(panel);
+
+      if (subs.length && !_invCustomCurSub[m.key]) _invCustomCurSub[m.key] = subs[0].key;
+    });
+  }
+}
+
+// Generic sub-tab switcher for custom mains and the nose-rings row
+function invSwitchCustomSub(sub, el) {
+  const mainPanel = el.closest('.inv-main-panel');
+  if (!mainPanel) return;
+  mainPanel.querySelectorAll('.inv-subtab-row button').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  mainPanel.querySelectorAll('.inv-panel-body > div').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById(_invPanelPrefix(sub) + sub);
+  if (panel) panel.style.display = '';
+
+  const main = mainPanel.id.replace('inv-main-', '');
+  _invCustomCurSub[main] = sub;
+  if (main === 'noserings') _invNoseRingCurSub = sub; // keeps built-in filter/count in sync
+
+  if (!_invData[sub]) _invLoadSub(sub).then(() => _invCustomCountLabel(main));
+  else _invRenderSub(sub);
+  _invCustomCountLabel(main);
+}
+
+function invLoadCustomMain(main) {
+  const cur = _invCustomCurSub[main];
+  if (!cur || _invData[cur]) return;
+  _invLoadSub(cur).then(() => _invCustomCountLabel(main));
+}
+
+function invCustomFilter(main) {
+  const sub = _invCustomCurSub[main];
+  if (sub && _invData[sub]) _invRenderSub(sub);
+}
+
+async function invUpdateAllCustom(main) {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+
+  const btn = document.getElementById('invXUpdateAllBtn-' + main);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    await _invSaveCount(Object.fromEntries(entries));
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshCustom(main) {
+  const c = _invCustomGet();
+  (c.subs[main] || []).forEach(s => delete _invData[s.key]);
+  const cur = _invCustomCurSub[main];
+  if (cur) {
+    await _invLoadSub(cur);
+    _invCustomCountLabel(main);
+  }
+}
+
+function _invCustomCountLabel(main) {
+  const mainPanel = document.getElementById('inv-main-' + main);
+  const label = mainPanel?.querySelector('.inv-count-label');
+  if (!label) return;
+  const data = _invData[_invCustomCurSub[main]];
+  if (!data) { label.textContent = ''; return; }
+  const total      = data.items.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _invCustomRender);
+} else {
+  _invCustomRender();
 }

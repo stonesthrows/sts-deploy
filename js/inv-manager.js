@@ -10,11 +10,13 @@
 //  Hardcoded: use "Copy JS Config" to bake into inventory.js as INV_EXTRA.
 // ════════════════════════════════════════════
 
-const _INVMGR_KEY = 'sts-inv-extra';
+const _INVMGR_KEY        = 'sts-inv-extra';
+const _INVMGR_CUSTOM_KEY = 'sts-inv-custom-tabs';
 
 const _INVMGR_TABS = {
   earrings: {
     icon: '🪬',
+    label: 'Earrings',
     subs: [
       { key: 'ear-cuffs', label: 'Ear Cuffs' },
       { key: 'dangle',    label: 'Dangle' },
@@ -25,6 +27,7 @@ const _INVMGR_TABS = {
   },
   rings: {
     icon: '💍',
+    label: 'Rings',
     subs: [
       { key: 'stackable',  label: 'Stackable' },
       { key: 'spirit',     label: 'Spirit Animal' },
@@ -35,6 +38,7 @@ const _INVMGR_TABS = {
   },
   pendants: {
     icon: '📿',
+    label: 'Pendants',
     subs: [
       { key: 'p-spirit',    label: 'Spirit Animal' },
       { key: 'p-geometric', label: 'Geometric' },
@@ -43,6 +47,7 @@ const _INVMGR_TABS = {
   },
   permjewelry: {
     icon: '🔗',
+    label: 'Perm. Jewelry',
     subs: [
       { key: 'pj-birthstone', label: 'Silver Birthstone Charms' },
       { key: 'pj-giftfill',   label: 'Silver and Gold Fill Charms' },
@@ -50,6 +55,7 @@ const _INVMGR_TABS = {
   },
   noserings: {
     icon: '👃',
+    label: 'Nose Rings',
     subs: [
       { key: 'nose-rings', label: 'Faux Nose Rings' },
     ],
@@ -68,9 +74,41 @@ function _invMgrLoadState() {
   try { return JSON.parse(localStorage.getItem(_INVMGR_KEY) || '{}'); } catch { return {}; }
 }
 
+// Custom tabs created by the user in this modal.
+// Format: { mains: [ {key,label,icon} ], subs: { [mainKey]: [ {key,label} ] } }
+function _invMgrCustomGet() {
+  try {
+    const c = JSON.parse(localStorage.getItem(_INVMGR_CUSTOM_KEY) || 'null');
+    if (c) return { mains: c.mains || [], subs: c.subs || {} };
+  } catch {}
+  return { mains: [], subs: {} };
+}
+
+function _invMgrCustomSave(c) {
+  localStorage.setItem(_INVMGR_CUSTOM_KEY, JSON.stringify(c));
+  // Re-inject the custom tabs into the live Inventory tab immediately
+  if (typeof _invCustomRender === 'function') _invCustomRender();
+}
+
+// Built-in tabs merged with user-created ones
+function _invMgrTabs() {
+  const merged = {};
+  Object.entries(_INVMGR_TABS).forEach(([k, t]) => {
+    merged[k] = { icon: t.icon, label: t.label, subs: t.subs.map(s => ({ ...s })), custom: false };
+  });
+  const c = _invMgrCustomGet();
+  c.mains.forEach(m => {
+    merged[m.key] = { icon: m.icon || '💎', label: m.label, subs: [], custom: true };
+  });
+  Object.entries(c.subs).forEach(([main, subs]) => {
+    if (merged[main]) subs.forEach(s => merged[main].subs.push({ key: s.key, label: s.label, custom: true }));
+  });
+  return merged;
+}
+
 function _invMgrAllKeys() {
   const seen = new Set();
-  return Object.values(_INVMGR_TABS).flatMap(t => t.subs.map(s => s.key)).filter(k => {
+  return Object.values(_invMgrTabs()).flatMap(t => t.subs.map(s => s.key)).filter(k => {
     if (seen.has(k)) return false;
     seen.add(k); return true;
   });
@@ -92,6 +130,7 @@ async function invMgrOpen() {
   }
   root.innerHTML = _invMgrBuildShell();
 
+  _invMgrRenderMainTabs();
   _invMgrRenderRight();
 
   if (!_invMgrCatalogData) {
@@ -143,13 +182,9 @@ function _invMgrBuildShell() {
       <!-- RIGHT: App sub-tab drop zones -->
       <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
 
-        <!-- Main tab switcher -->
-        <div style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--card-head-bg);">
-          <button id="invMgrMainBtn-earrings"    class="inv-ear-sub active" onclick="invMgrSwitchMain('earrings')">🪬 Earrings</button>
-          <button id="invMgrMainBtn-rings"       class="inv-ear-sub"        onclick="invMgrSwitchMain('rings')">💍 Rings</button>
-          <button id="invMgrMainBtn-pendants"    class="inv-ear-sub"        onclick="invMgrSwitchMain('pendants')">📿 Pendants</button>
-          <button id="invMgrMainBtn-permjewelry" class="inv-ear-sub"        onclick="invMgrSwitchMain('permjewelry')">🔗 Perm. Jewelry</button>
-          <button id="invMgrMainBtn-noserings"   class="inv-ear-sub"        onclick="invMgrSwitchMain('noserings')">👃 Nose Rings</button>
+        <!-- Main tab switcher (rendered by _invMgrRenderMainTabs) -->
+        <div style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--card-head-bg);flex-wrap:wrap;">
+          <div id="invMgrMainTabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;"></div>
           <span style="margin-left:8px;font-size:11px;color:var(--text-dim);">← drop into a sub-tab below</span>
         </div>
 
@@ -410,20 +445,32 @@ function invMgrFilter(q) {
 
 function invMgrSwitchMain(main) {
   _invMgrCurMain = main;
-  ['earrings', 'rings', 'pendants', 'permjewelry', 'noserings'].forEach(m => {
+  Object.keys(_invMgrTabs()).forEach(m => {
     const btn = document.getElementById('invMgrMainBtn-' + m);
     if (btn) btn.classList.toggle('active', m === main);
   });
   _invMgrRenderRight();
 }
 
+function _invMgrRenderMainTabs() {
+  const el = document.getElementById('invMgrMainTabs');
+  if (!el) return;
+  const tabs = _invMgrTabs();
+  el.innerHTML = Object.entries(tabs).map(([k, t]) =>
+    `<button id="invMgrMainBtn-${k}" class="inv-ear-sub${k === _invMgrCurMain ? ' active' : ''}" onclick="invMgrSwitchMain('${k}')">${t.icon} ${_invMgrEsc(t.label)}</button>`
+  ).join('') +
+  `<button onclick="invMgrAddMain()" class="inv-ear-sub" title="Add a new main tab" style="border-style:dashed;">＋ Tab</button>`;
+}
+
 function _invMgrRenderRight() {
   const el = document.getElementById('invMgrZones');
   if (!el) return;
 
-  const subs = _INVMGR_TABS[_invMgrCurMain]?.subs || [];
+  const tabs = _invMgrTabs();
+  const tab  = tabs[_invMgrCurMain];
+  const subs = tab?.subs || [];
 
-  el.innerHTML = subs.map(({ key, label }) => {
+  let html = subs.map(({ key, label, custom }) => {
     const entries = _invMgrState[key] || [];
 
     const chips = entries.map((e, idx) => {
@@ -444,12 +491,125 @@ function _invMgrRenderRight() {
       ondragleave="this.querySelector('.invMgrZoneInner').style.borderColor=''"
       ondrop="invMgrDrop(event,'${key}');this.querySelector('.invMgrZoneInner').style.borderColor=''">
       <div class="invMgrZoneInner" style="border:2px dashed var(--bdr);border-radius:8px;padding:8px 10px;min-height:76px;transition:border-color 0.15s;background:var(--card-bg);">
-        <div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.3px;margin-bottom:5px;text-transform:uppercase;">${_invMgrEsc(label)}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+          <div style="flex:1;font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.3px;text-transform:uppercase;">${_invMgrEsc(label)}</div>
+          ${custom ? `<button onclick="invMgrDeleteSub('${key}')" title="Delete this sub-tab" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:0 2px;line-height:1;opacity:0.5;">🗑</button>` : ''}
+        </div>
         <div style="display:flex;flex-wrap:wrap;">${chips}</div>
         ${placeholder}
       </div>
     </div>`;
   }).join('');
+
+  // "＋ Add Sub-tab" tile (always) + "Delete Tab" tile (custom main tabs only)
+  html += `<div>
+    <div onclick="invMgrAddSub()"
+      style="border:2px dashed var(--bdr);border-radius:8px;min-height:76px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--text-dim);font-size:12.5px;font-weight:600;transition:border-color 0.15s,color 0.15s;"
+      onmouseenter="this.style.borderColor='var(--accent,#C9A96E)';this.style.color='var(--accent,#C9A96E)'"
+      onmouseleave="this.style.borderColor='';this.style.color=''">＋ Add Sub-tab</div>
+  </div>`;
+
+  if (tab?.custom) {
+    html += `<div>
+      <div onclick="invMgrDeleteMain()"
+        style="border:2px dashed var(--bdr);border-radius:8px;min-height:76px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--text-dim);font-size:12.5px;transition:border-color 0.15s,color 0.15s;"
+        onmouseenter="this.style.borderColor='#dc2626';this.style.color='#dc2626'"
+        onmouseleave="this.style.borderColor='';this.style.color=''">🗑 Delete "${_invMgrEsc(tab.label)}" Tab</div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ── Add / delete tabs & sub-tabs ──────────────
+
+function _invMgrSlug(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tab';
+}
+
+function _invMgrUniqueKey(base, taken) {
+  let k = base, i = 2;
+  while (taken.has(k)) k = base + '-' + i++;
+  return k;
+}
+
+function invMgrAddMain() {
+  const name = (prompt('Name for the new main tab (e.g. "Bracelets"):') || '').trim();
+  if (!name) return;
+  const icon = (prompt('Emoji icon for the tab:', '💎') || '').trim() || '💎';
+  const c = _invMgrCustomGet();
+  const taken = new Set(Object.keys(_invMgrTabs()));
+  const key = _invMgrUniqueKey(_invMgrSlug(name), taken);
+  c.mains.push({ key, label: name, icon });
+  if (!c.subs[key]) c.subs[key] = [];
+  _invMgrCustomSave(c);
+  _invMgrCurMain = key;
+  _invMgrRenderMainTabs();
+  _invMgrRenderRight();
+  toast(`Tab "${name}" added — now add a sub-tab to it`, '✓');
+}
+
+function invMgrAddSub() {
+  const tabs = _invMgrTabs();
+  const tab  = tabs[_invMgrCurMain];
+  if (!tab) return;
+  const name = (prompt(`Name for the new sub-tab under "${tab.label}":`) || '').trim();
+  if (!name) return;
+  const c = _invMgrCustomGet();
+  const taken = new Set(Object.values(tabs).flatMap(t => t.subs.map(s => s.key)));
+  const key = _invMgrUniqueKey(_invMgrSlug(name), taken);
+  if (!c.subs[_invMgrCurMain]) c.subs[_invMgrCurMain] = [];
+  c.subs[_invMgrCurMain].push({ key, label: name });
+  _invMgrCustomSave(c);
+  if (!Array.isArray(_invMgrState[key])) _invMgrState[key] = [];
+  _invMgrRenderRight();
+  toast(`Sub-tab "${name}" added — drag items into it`, '✓');
+}
+
+function invMgrDeleteSub(key) {
+  const c = _invMgrCustomGet();
+  let label = key, mainKey = null;
+  Object.entries(c.subs).forEach(([m, arr]) => arr.forEach(s => {
+    if (s.key === key) { label = s.label; mainKey = m; }
+  }));
+  if (!mainKey) return;
+  const n = (_invMgrState[key] || []).length;
+  if (!confirm(`Delete sub-tab "${label}"${n ? ` and its ${n} assigned item(s)` : ''}? Items stay in Square — they just leave this app.`)) return;
+
+  c.subs[mainKey] = c.subs[mainKey].filter(s => s.key !== key);
+  delete _invMgrState[key];
+  // Scrub persisted assignments so nothing orphans
+  try {
+    const extra = JSON.parse(localStorage.getItem(_INVMGR_KEY) || '{}');
+    delete extra[key];
+    localStorage.setItem(_INVMGR_KEY, JSON.stringify(extra));
+  } catch {}
+  _invMgrCustomSave(c);
+  _invMgrClearInvCache();
+  _invMgrRenderRight();
+  toast('Sub-tab deleted', '🗑');
+}
+
+function invMgrDeleteMain() {
+  const c = _invMgrCustomGet();
+  const main = c.mains.find(m => m.key === _invMgrCurMain);
+  if (!main) return;
+  const subs = c.subs[main.key] || [];
+  if (!confirm(`Delete tab "${main.label}"${subs.length ? ` and its ${subs.length} sub-tab(s)` : ''}? Items stay in Square — they just leave this app.`)) return;
+
+  try {
+    const extra = JSON.parse(localStorage.getItem(_INVMGR_KEY) || '{}');
+    subs.forEach(s => { delete extra[s.key]; delete _invMgrState[s.key]; });
+    localStorage.setItem(_INVMGR_KEY, JSON.stringify(extra));
+  } catch {}
+  c.mains = c.mains.filter(m => m.key !== main.key);
+  delete c.subs[main.key];
+  _invMgrCustomSave(c);
+  _invMgrClearInvCache();
+  _invMgrCurMain = 'earrings';
+  _invMgrRenderMainTabs();
+  _invMgrRenderRight();
+  toast('Tab deleted', '🗑');
 }
 
 // ── Drag & drop handlers ──────────────────────
@@ -529,6 +689,13 @@ function invMgrExportJS() {
   });
 
   lines.push('};');
+
+  const custom = _invMgrCustomGet();
+  if (custom.mains.length || Object.values(custom.subs).some(a => a.length)) {
+    lines.push('');
+    lines.push('// Custom tabs created in the Inventory Manager (fallback when localStorage is empty)');
+    lines.push('const INV_CUSTOM_TABS = ' + JSON.stringify(custom, null, 2) + ';');
+  }
 
   const text = lines.join('\n');
   navigator.clipboard.writeText(text).then(() => {
