@@ -672,11 +672,180 @@ changes, and sync merges that touch many orders.
 | 4 | #5 Incremental render + escaping | perf + security; easier after photos leave the DOM strings |
 | 5 | #3 KV cache | pure additive server win, zero client risk, do anytime |
 
-Not in the five, but worth noting: the service worker is currently a self-destruct
-stub and every load re-downloads the 471 KB monolith over `no-store`. Once sync is
-queue-based (#1) and storage is IndexedDB (#4), a versioned app-shell service worker
-(network-first HTML, stale-while-revalidate JS, `skipWaiting` + update toast) makes
-the app open instantly — and open *at all* — at a zero-signal farmers market, which
-is where this business actually operates. It was left out only because the five
-above are prerequisites for doing it without recreating the cache-staleness pain
-that led to the SW being disabled.
+Not in the five, but specified below as #6: the offline app-shell service worker.
+Its prerequisites (#1 queued writes, #4 IndexedDB storage) are now shipped.
+
+---
+
+## 6. Offline app shell — service worker implementation spec
+
+> Status: **specified, not yet implemented.** All five upgrades above are
+> shipped, which unblocks this. This section is a complete handoff spec —
+> implement it exactly as written, and do not ship without the update-path
+> test at the bottom passing.
+
+### Rationale
+`sw.js` is currently a self-destruct stub (unregisters itself, clears all
+caches) and `_headers` serves the 471 KB HTML with `no-store` — so the app
+re-downloads everything on every load and **cannot open at all without a
+network connection**. This business sells at farmers markets with unreliable
+signal; offline open is a real operational need, not a nicety. The old SW was
+disabled because of cache-staleness pain; the design below is built around
+never recreating it: HTML is always network-first (a deploy is picked up on
+the very next online load), and the versioned cache name discards everything
+older on activation.
+
+### Design rules
+1. **Network-first for HTML/navigations.** The cached copy is an *offline
+   fallback only* — never served when the network answers. Deploys behave
+   exactly as today when online.
+2. **Stale-while-revalidate for same-origin static assets** (`js/`, css,
+   icons): serve cache instantly, refresh in the background. Because every
+   deploy also bumps the `?v=` params in `jewelry-workflow.html` (keep that
+   habit!) and HTML is network-first, new HTML always references new asset
+   URLs — SWR staleness cannot serve old JS against new HTML.
+3. **Never touch `/api/*`** (data is the Outbox's and delta sync's job),
+   **never touch cross-origin** (GSI, cdnjs), **never touch non-GET**.
+4. **One versioned cache.** `SW_VERSION` is bumped on every deploy (same
+   discipline as `?v=`); `activate` deletes every other cache and calls
+   `clients.claim()`, `install` calls `skipWaiting()`.
+5. **Match with `ignoreSearch: true`** so `js/app.js?v=52` hits a cached
+   `js/app.js` — the version-bumped cache name prevents unbounded growth.
+
+### sw.js (complete replacement for the current stub)
+
+```js
+// Bump SW_VERSION on EVERY deploy — same habit as the ?v= script params.
+const SW_VERSION = 'sts-v1';
+
+const SHELL = [
+  '/jewelry-workflow.html',
+  '/js/data.js', '/js/store.js', '/js/sync.js', '/js/notion.js',
+  '/js/customers.js', '/js/app.js', '/js/orders.js', '/js/stuller.js',
+  '/js/shopify.js', '/js/etsy.js', '/js/drive.js', '/js/shipstation.js',
+  '/js/usps.js', '/js/gmail.js', '/js/sales.js', '/js/production.js',
+  '/js/notes.js', '/js/restock.js', '/js/restock-sessions.js',
+  '/js/supplier-history.js', '/js/designs.js', '/js/triplog.js',
+  '/js/inventory.js', '/js/inv-manager.js', '/js/calendar.js',
+  '/js/bgab.js', '/manifest.json', '/icon.svg',
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(SW_VERSION)
+      .then(c => c.addAll(SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== SW_VERSION).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;      // CDNs, GSI — hands off
+  if (url.pathname.startsWith('/api/')) return;    // data is network-only
+
+  if (req.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    // Network-first: a deploy is live on the next online load; the cache
+    // only answers when the network can't.
+    e.respondWith(
+      fetch(req).then(r => {
+        const copy = r.clone();
+        caches.open(SW_VERSION).then(c => c.put(req, copy));
+        return r;
+      }).catch(() =>
+        caches.match(req, { ignoreSearch: true })
+          .then(hit => hit || caches.match('/jewelry-workflow.html'))
+      )
+    );
+    return;
+  }
+
+  // Same-origin static assets: stale-while-revalidate
+  e.respondWith(
+    caches.match(req, { ignoreSearch: true }).then(hit => {
+      const refresh = fetch(req).then(r => {
+        if (r.ok) {
+          const copy = r.clone();
+          caches.open(SW_VERSION).then(c => c.put(req, copy));
+        }
+        return r;
+      }).catch(() => hit);
+      return hit || refresh;
+    })
+  );
+});
+```
+
+### app.js change (inside `bootstrapApp`)
+Replace the current "Unregister any old service workers" block with:
+
+```js
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .catch(e => console.warn('SW registration failed', e));
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) toast('App updated to the latest version', '⬆');
+    hadController = true;   // first controller on a fresh install isn't an "update"
+  });
+}
+```
+
+### _headers
+No changes required. `sw.js` already has `no-store` (mandatory — the browser
+must always fetch the latest SW to detect updates). Keep the HTML `no-store`
+too: network-first + no-store means online behavior is byte-identical to
+today; the SW cache exists purely for offline.
+
+### Deploy discipline
+Every deploy that touches JS or HTML must bump **both** the relevant `?v=`
+params (existing habit) **and** `SW_VERSION` in sw.js. A deploy that forgets
+the `SW_VERSION` bump still works (network-first HTML + `?v=` handles code
+freshness); the stale cache name only means the precache isn't refreshed
+until the next bump.
+
+### Rollback
+The current self-destruct stub is preserved in git history (`sw.js` prior to
+this change). If the SW ever misbehaves, redeploying that stub unregisters
+every installed copy and clears all caches on next load — the same
+kill-switch that was used when the original SW was retired.
+
+### Edge cases
+- **`time-tracker.html` (Timer iframe), `phone.html`, `scan.html`** are
+  navigations too — network-first covers them; add them to `SHELL` only if
+  offline Timer access is actually wanted (Timer talks to live APIs anyway).
+- **Opaque/cross-origin responses** are never cached (rule 3) — caching them
+  silently eats storage quota.
+- **iOS Safari** supports everything used here; `navigator.storage.persist()`
+  from upgrade #4 also shields the SW cache from eviction.
+- **First-ever load** installs the SW but that load itself is uncontrolled —
+  offline capability starts from the *second* visit. Don't "fix" this with
+  `clients.claim()` trickery on install; it's standard behavior.
+
+### Mandatory update-path test (do not ship without it)
+Model on `tests/browser-*.test.js` (same serve.js + playwright-core harness);
+serve a **temp copy** of the repo so the test can mutate files between loads:
+
+1. Load the app; wait for `_booted` and for
+   `navigator.serviceWorker.controller` to be non-null (may need one reload —
+   first load is uncontrolled).
+2. `context.setOffline(true)` → reload → assert the app boots (`_booted`)
+   entirely from cache. This is the feature.
+3. `setOffline(false)`. In the temp copy: bump `SW_VERSION` and inject a
+   marker into the HTML (e.g. `<script>window.__DEPLOY='v2'</script>`).
+4. Reload → assert `window.__DEPLOY === 'v2'` immediately (network-first
+   HTML picks up the deploy on the first online load — this is the
+   anti-staleness guarantee that killed the old SW).
+5. Wait for the new SW to activate → assert `caches.keys()` contains ONLY
+   the new `SW_VERSION` (old cache purged).
+6. Fetch `/api/anything` → assert it hits the network (static server 404),
+   never a cache.

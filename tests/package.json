@@ -1,0 +1,13 @@
+{
+  "name": "sts-tests",
+  "private": true,
+  "description": "Browser test dependencies for STS Workflow (sim tests need nothing)",
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  },
+  "scripts": {
+    "sims": "node sim-outbox.test.js && node sim-delta.test.js && node sim-storage.test.js && node sim-kv-cache.test.js",
+    "browser": "node browser-migration.test.js && node browser-render.test.js",
+    "all": "npm run sims && npm run browser"
+  }
+}

@@ -44,6 +44,12 @@ Tab switching logic lives in `js/app.js`: `switchParent()`, `switchTab()`, `swit
 - After deploying, hard refresh (Ctrl+Shift+R) to clear service worker cache
 - Must touch `jewelry-workflow.html` (not just `sw.js`) for Cloudflare to detect and push the update
 
+## Testing
+- `tests/` — regression harness for the sync/storage/render architecture (see `tests/README.md`).
+- Sim tests (no deps, instant): `node tests/sim-outbox.test.js` etc. Run the matching one after touching `js/sync.js`, `js/notion.js`, storage code in `js/app.js`, or `functions/api/notion-pipeline.js`.
+- Browser tests (real Chromium against the live app): `cd tests && npm install && npm run browser`. Run after structural changes to rendering, storage, or photos.
+- `docs/architecture-upgrades.md` §6 is the implementation spec for the offline service worker — its update-path test is mandatory before shipping that change.
+
 ## Integrations
 - Google Drive folder for order bag scans: "STS Order Bag Visual Reads"
 - ClickUp list for new orders: "Custom Orders"
