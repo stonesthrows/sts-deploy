@@ -1674,24 +1674,15 @@ function rqStopTimer(pid) {
   };
   delete _rqTimers[pid];
   _rqUnpersistTimer(pid);
-  // The log's edit/push panels are keyed by array index — keep any open one
-  // pointing at the same session across the unshift.
-  if (_rqEditingSession.log != null) _rqEditingSession.log++;
-  if (_rqPushingSession.log != null) _rqPushingSession.log++;
   _rqSessions.unshift(session);
   rqRenderSessions();
   // Stopping the timer means the work is done — clear the card from the
   // queue instead of leaving it for a manual × removal.
   _rqDeleteItemByPid(pid);
-  // Prompt right away to push the restocked pieces into Square inventory —
+  // Prompt right away to add the restocked pieces to Square inventory —
   // skipped when nothing in the session is Square-linked.
   if (expandedItems.some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; })) {
-    rqEnsureLogOpen();
-    _rqEditingSession.log = null;
-    _rqPushingSession.log = 0;
-    rqRenderSessions();
-    var pushPanel = document.querySelector('.rq-push-panel');
-    if (pushPanel) pushPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    rqShowPushPrompt(session);
   }
   if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
   _rqAttachItemPrices(expandedItems).then(function(pricedItems) {

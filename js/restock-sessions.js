@@ -87,9 +87,62 @@ function rqCancelEditSession(store) {
 function rqOpenPushPanel(store, i)  { _rqPushingSession[store] = i; _rqEditingSession[store] = null; _rqStoreRender(store); }
 function rqClosePushPanel(store)    { _rqPushingSession[store] = null; _rqStoreRender(store); }
 
+// ── Post-timer inventory prompt ─────────────────────────────────────────────
+// The Session Log section (the old home of the ↑ Square push button) was
+// removed from jewelry-workflow.html on 2026-06-23 (8df2c5c), which left no
+// surface offering the inventory push after a timer stopped. This modal fills
+// that gap: rqStopTimer opens it whenever the finished session has
+// Square-linked pieces, and Confirm drives the existing rqConfirmPush flow
+// against the session's live index in _rqSessions.
+
+var _rqPushPromptSession = null;
+
+function rqShowPushPrompt(session) {
+  rqClosePushPrompt();
+  var rows = (session.items || []).map(function(it) {
+    var safeLabel = (it.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    var pushable  = it.squareId && !it.isCustom && it.pieces > 0;
+    return '<div class="rq-push-item">'
+      + '<span class="rq-push-item-name">' + safeLabel + '</span>'
+      + (it.pieces != null ? '<span class="rq-push-item-qty">' + it.pieces + ' pc' + (it.pieces !== 1 ? 's' : '') + '</span>' : '')
+      + (pushable ? '<span class="rq-push-item-ok">✓</span>' : '<span class="rq-no-sq">no Square match</span>')
+      + '</div>';
+  }).join('');
+  var overlay = document.createElement('div');
+  overlay.id = 'rq-push-prompt';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML =
+      '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
+    + '<div style="font-weight:700;margin-bottom:8px;">Add restocked pieces to inventory?</div>'
+    + rows
+    + '<div style="display:flex;gap:8px;margin-top:10px;">'
+    + '<button class="rq-start-confirm-btn" onclick="rqConfirmPromptPush()">↑ Add to Square</button>'
+    + '<button class="rq-setup-cancel-btn" onclick="rqClosePushPrompt()">Not Now</button>'
+    + '</div></div>';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) rqClosePushPrompt(); });
+  document.body.appendChild(overlay);
+  _rqPushPromptSession = session;
+}
+
+function rqClosePushPrompt() {
+  var el = document.getElementById('rq-push-prompt');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  _rqPushPromptSession = null;
+}
+
+function rqConfirmPromptPush() {
+  // Resolve the index at click time — another stopped timer may have
+  // unshifted more sessions in front since this prompt opened.
+  var session = _rqPushPromptSession;
+  var i = session ? _rqSessions.indexOf(session) : -1;
+  if (i === -1) { rqClosePushPrompt(); return; }
+  rqConfirmPush('log', i);
+}
+
 function rqConfirmPush(store, i) {
   var s = _rqStoreList(store)[i]; if (!s) return;
   var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
+  var confirmLabel = confirmBtn ? confirmBtn.textContent : 'Confirm Push';
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
   // Single source of truth for the Square location — same constant used by
   // the inventory-count fetch below and by js/inventory.js. This used to be
@@ -124,6 +177,7 @@ function rqConfirmPush(store, i) {
     s.pushed = true;
     _rqPushingSession[store] = null;
     _rqStoreRender(store);
+    rqClosePushPrompt();
     toast('Pushed to Square ✓', '✓');
     if (s.notionPageId) {
       fetch('/api/notion-timesession', {
@@ -134,7 +188,7 @@ function rqConfirmPush(store, i) {
     }
   }).catch(function() {
     toast('Square push failed', '⚠');
-    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Push'; }
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = confirmLabel; }
   });
 }
 
@@ -791,8 +845,11 @@ function rqRenderSessions() {
     (s.items || []).forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
     var piecesLabel = totalPcs != null ? totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + ' made' : '';
 
-    // Push button — only show when saved, not yet pushed, and at least one real Square item has pieces
-    var canPush = !s.pushed && s.saved && !s.error
+    // Push button — show when not yet pushed and at least one real Square item
+    // has pieces. Deliberately independent of the Notion save state (saved /
+    // error): the Square push never touches Notion, so a slow or failed
+    // Notion save must not hide the inventory push.
+    var canPush = !s.pushed
       && (s.items || []).some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
     var pushBtn = s.pushed
       ? '<span class="rq-pushed-label">↑ Pushed</span>'
