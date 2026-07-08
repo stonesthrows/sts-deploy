@@ -282,6 +282,9 @@ function eoApplyOrderTypeModule(type) {
 // modal is first opened and to silently discard unsaved edits when leaving
 // Edit mode without saving (see eoSetMode below).
 function eoPopulateFields(o) {
+  // Discard any staged-but-unsaved sketch draft — matches every other
+  // field's "re-populate from last-saved data" behavior on open/discard.
+  _eoSketchDraft = null;
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
@@ -398,10 +401,27 @@ function openOrderCard(id) {
 // (intake.html); locally-drawn ones live on o.sketchImg, iPad-drawn ones
 // only exist in Notion, whose S3 file URLs expire hourly — so those are
 // streamed fresh through the pipeline proxy on every view.
+// Newly drawn/uploaded sketch, staged from the Edit Order modal but not yet
+// saved — takes priority over o.sketchImg in the viewer until Save Changes
+// commits it (see saveOrderEdit) or the edit is discarded (see eoSetMode).
+let _eoSketchDraft = null;
+
 function eoLoadSketch(o) {
   const box = document.getElementById('eo-sketch-view');
   if (!box) return;
   box.innerHTML = '';
+  eoUpdateSketchBtnLabel(o);
+  if (_eoSketchDraft) {
+    const img = document.createElement('img');
+    img.alt = 'Design sketch (unsaved)';
+    img.src = _eoSketchDraft;
+    box.appendChild(img);
+    const note = document.createElement('div');
+    note.className = 'eo-sketch-draft-note';
+    note.textContent = '● Unsaved — click Save Changes to keep this sketch';
+    box.appendChild(note);
+    return;
+  }
   if (o.sketchImg) {
     const img = document.createElement('img');
     img.alt = 'Design sketch';
@@ -425,6 +445,52 @@ function eoLoadSketch(o) {
     return;
   }
   box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>';
+}
+
+function eoUpdateSketchBtnLabel(o) {
+  const btn = document.getElementById('eo-sketch-draw-btn');
+  if (!btn) return;
+  const hasSketch = !!(_eoSketchDraft || (o && o.sketchImg));
+  btn.textContent = hasSketch ? '✎ Replace Sketch' : '✎ Draw Sketch';
+}
+
+// ── Draw Sketch modal — Add/Replace a sketch on an already-taken-in order ──
+function openSketchDrawModal() {
+  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  if (!o) return;
+  if (typeof sketchReset === 'function') sketchReset();
+  // Seed the canvas from whichever sketch is currently "current" — a draft
+  // staged earlier this session takes priority, else the order's saved one.
+  const seed = _eoSketchDraft || o.sketchImg || null;
+  if (seed && typeof sketchLoad === 'function') sketchLoad(seed);
+  const bg = document.getElementById('sketchDrawModalBg');
+  if (bg) bg.classList.add('open');
+}
+
+function closeSketchDrawModal() {
+  const bg = document.getElementById('sketchDrawModalBg');
+  if (bg) bg.classList.remove('open');
+}
+
+function eoUseDrawnSketch() {
+  const dataUrl = (typeof sketchExport === 'function') ? sketchExport() : null;
+  if (!dataUrl) { toast('Draw something first', '⚠'); return; }
+  _eoSketchDraft = dataUrl;
+  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  eoLoadSketch(o || {});
+  closeSketchDrawModal();
+}
+
+function eoUploadSketchFile(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _eoSketchDraft = e.target.result;
+    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    eoLoadSketch(o || {});
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value = ''; // allow re-selecting the same file later
 }
 
 function closeEditOrderModal() {
@@ -554,8 +620,12 @@ function saveOrderEdit() {
   o.sizing        = document.getElementById('f-sizing').value.trim()   || '';
   o.gemstones     = document.getElementById('f-gemstones').value.trim() || '';
   o.finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
-  // The modal only VIEWS the sketch (drawn in intake.html) — never touch
-  // o.sketchImg here, so a desktop edit can't clobber an iPad sketch.
+  // The modal otherwise only VIEWS the sketch drawn in intake.html — it
+  // never touches o.sketchImg unless the user explicitly drew/uploaded a
+  // new one this session (staged in _eoSketchDraft via the Draw/Replace
+  // Sketch actions), so a desktop edit can't accidentally clobber an
+  // iPad-drawn sketch just by opening and saving the order.
+  if (_eoSketchDraft) { o.sketchImg = _eoSketchDraft; _eoSketchDraft = null; }
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
   o.repairNotes   = document.getElementById('f-repair-notes').value.trim() || '';
   o.resizeFrom    = document.getElementById('f-resize-from').value.trim()  || '';
