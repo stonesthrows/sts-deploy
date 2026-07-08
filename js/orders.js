@@ -240,10 +240,51 @@ function cardHTML(o) {
     </div>`;
 }
 
-function openOrderCard(id) {
-  const o = ORDERS.find(x => x.id === id);
-  if (!o) return;
+// Order-type-driven module state (this modal only — intake.html has its
+// own equivalent layout switch, intakeApplyTypeLayout, with a different
+// container-id scheme, so this stays here rather than in order-widgets.js).
+let _eoOrderTypeModule = 'design'; // 'design' | 'repair' | 'resize' | 'square'
 
+function eoApplyOrderTypeModule(type) {
+  _eoOrderTypeModule = type === 'repair' ? 'repair' : type === 'resize' ? 'resize'
+                     : type === 'square-item' ? 'square' : 'design';
+  ['eo-design-module', 'eo-repair-module', 'eo-resize-module', 'eo-square-module'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === 'eo-' + _eoOrderTypeModule + '-module') ? '' : 'none';
+  });
+  const isDesign = _eoOrderTypeModule === 'design';
+  const isSquare = _eoOrderTypeModule === 'square';
+  const oiGrid = document.getElementById('oi-section') && document.getElementById('oi-section').closest('.form-grid');
+  if (oiGrid) oiGrid.style.display = (isDesign || isSquare) ? 'none' : '';
+  const estModule = document.getElementById('eo-estimate-module');
+  if (estModule) estModule.style.display = isDesign ? '' : 'none';
+  if (isSquare) {
+    _jdMode = 'square';
+    if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
+  } else if (!isDesign) {
+    _jdMode = 'custom';
+  }
+  // jdApplyVisibility toggles #oi-section's own inline display based on
+  // _jdMode, independent of the parent .form-grid toggle above — re-run it
+  // so a leftover Job-Description-Square hide from Design mode doesn't
+  // stick around after switching to Repair/Resize (whose parent grid we
+  // just re-showed).
+  jdApplyVisibility(_jdMode);
+  oiRender();
+  // oiRender()/oiRecalcTotal() just set Total ($) from _oiItems, which is
+  // stale if the Estimate module is the one now active (or just became
+  // inactive) — recompute so Total ($) is correct immediately after a live
+  // order-type switch, not just after the user next edits an Estimate field.
+  if (typeof calcEstimate === 'function') calcEstimate();
+}
+
+// Populates every modal field from an order object — used both when the
+// modal is first opened and to silently discard unsaved edits when leaving
+// Edit mode without saving (see eoSetMode below).
+function eoPopulateFields(o) {
+  // Discard any staged-but-unsaved sketch draft — matches every other
+  // field's "re-populate from last-saved data" behavior on open/discard.
+  _eoSketchDraft = null;
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
@@ -289,15 +330,68 @@ function openOrderCard(id) {
   document.getElementById('f-addr-country').value  = sa.country || o.addrCountry || 'United States';
   toggleShippingAddress();
 
+  // Repair Notes — falls back to displaying legacy Internal Notes (pre-split
+  // orders folded repair instructions into `notes`) without touching notes.
+  document.getElementById('f-repair-notes').value = o.repairNotes || '';
+  const legacyHint = document.getElementById('repair-legacy-hint');
+  if (legacyHint) {
+    const showLegacy = !(o.repairNotes || '').trim() && !!(o.notes || '').trim();
+    legacyHint.style.display = showLegacy ? '' : 'none';
+    legacyHint.textContent = showLegacy ? 'No repair notes on file — Internal Notes: ' + o.notes : '';
+  }
+
+  // Resize From/To — auto-split from the legacy combined `sizing` string
+  // ("Resize X → Y") for orders created before these were separate fields.
+  // The next Save persists the split fields going forward.
+  let rFrom = o.resizeFrom || '', rTo = o.resizeTo || '';
+  if (!rFrom && !rTo && o.sizing) {
+    const m = o.sizing.match(/^Resize\s+(.*?)\s*→\s*(.*)$/);
+    if (m) { rFrom = m[1] === '?' ? '' : m[1]; rTo = m[2] === '?' ? '' : m[2]; }
+  }
+  document.getElementById('f-resize-from').value = rFrom;
+  document.getElementById('f-resize-to').value   = rTo;
+
   // Auto-select Etsy/Shopify in the Order Type dropdown for synced orders —
   // only when orderType is still the generic default, so a manual
   // recategorization (e.g. to Repair) sticks on future edits.
   const platformType = o.id.startsWith('etsy-') ? 'etsy-order' : o.id.startsWith('shopify-') ? 'website-order' : null;
-  setOrderType(platformType && (!o.orderType || o.orderType === 'order') ? platformType : (o.orderType || 'order'));
+  const resolvedType = platformType && (!o.orderType || o.orderType === 'order') ? platformType : (o.orderType || 'order');
+  setOrderType(resolvedType);
+  eoApplyOrderTypeModule(resolvedType);
+
+  populateEstimateFromOrder(o);
+}
+
+// View/Edit mode — the modal opens read-only by default; every field
+// (Stage included) requires Edit mode to change. Toggling back to View
+// without saving silently discards unsaved edits by re-populating from the
+// last-saved order.
+let _eoMode = 'view';
+
+function eoSetMode(mode) {
+  if (_eoMode === 'edit' && mode === 'view') {
+    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    if (o) eoPopulateFields(o);
+  }
+  _eoMode = mode;
+  const modal = document.querySelector('#editOrderModalBg .eo-modal');
+  if (modal) modal.classList.toggle('eo-view-mode', mode === 'view');
+  const btn = document.getElementById('eo-mode-toggle');
+  if (btn) btn.textContent = mode === 'view' ? '✎ Edit' : '👁 View';
+  oiRender();
+}
+
+function eoToggleMode() { eoSetMode(_eoMode === 'view' ? 'edit' : 'view'); }
+
+function openOrderCard(id) {
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+
+  eoPopulateFields(o);
 
   const title = document.getElementById('eo-title');
   if (title) title.textContent = 'Edit Order — ' + o.name;
-  populateEstimateFromOrder(o);
+  eoSetMode('view');
   document.getElementById('editOrderModalBg').classList.add('open');
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
@@ -307,10 +401,27 @@ function openOrderCard(id) {
 // (intake.html); locally-drawn ones live on o.sketchImg, iPad-drawn ones
 // only exist in Notion, whose S3 file URLs expire hourly — so those are
 // streamed fresh through the pipeline proxy on every view.
+// Newly drawn/uploaded sketch, staged from the Edit Order modal but not yet
+// saved — takes priority over o.sketchImg in the viewer until Save Changes
+// commits it (see saveOrderEdit) or the edit is discarded (see eoSetMode).
+let _eoSketchDraft = null;
+
 function eoLoadSketch(o) {
   const box = document.getElementById('eo-sketch-view');
   if (!box) return;
   box.innerHTML = '';
+  eoUpdateSketchBtnLabel(o);
+  if (_eoSketchDraft) {
+    const img = document.createElement('img');
+    img.alt = 'Design sketch (unsaved)';
+    img.src = _eoSketchDraft;
+    box.appendChild(img);
+    const note = document.createElement('div');
+    note.className = 'eo-sketch-draft-note';
+    note.textContent = '● Unsaved — click Save Changes to keep this sketch';
+    box.appendChild(note);
+    return;
+  }
   if (o.sketchImg) {
     const img = document.createElement('img');
     img.alt = 'Design sketch';
@@ -336,6 +447,52 @@ function eoLoadSketch(o) {
   box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>';
 }
 
+function eoUpdateSketchBtnLabel(o) {
+  const btn = document.getElementById('eo-sketch-draw-btn');
+  if (!btn) return;
+  const hasSketch = !!(_eoSketchDraft || (o && o.sketchImg));
+  btn.textContent = hasSketch ? '✎ Replace Sketch' : '✎ Draw Sketch';
+}
+
+// ── Draw Sketch modal — Add/Replace a sketch on an already-taken-in order ──
+function openSketchDrawModal() {
+  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  if (!o) return;
+  if (typeof sketchReset === 'function') sketchReset();
+  // Seed the canvas from whichever sketch is currently "current" — a draft
+  // staged earlier this session takes priority, else the order's saved one.
+  const seed = _eoSketchDraft || o.sketchImg || null;
+  if (seed && typeof sketchLoad === 'function') sketchLoad(seed);
+  const bg = document.getElementById('sketchDrawModalBg');
+  if (bg) bg.classList.add('open');
+}
+
+function closeSketchDrawModal() {
+  const bg = document.getElementById('sketchDrawModalBg');
+  if (bg) bg.classList.remove('open');
+}
+
+function eoUseDrawnSketch() {
+  const dataUrl = (typeof sketchExport === 'function') ? sketchExport() : null;
+  if (!dataUrl) { toast('Draw something first', '⚠'); return; }
+  _eoSketchDraft = dataUrl;
+  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  eoLoadSketch(o || {});
+  closeSketchDrawModal();
+}
+
+function eoUploadSketchFile(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _eoSketchDraft = e.target.result;
+    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    eoLoadSketch(o || {});
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value = ''; // allow re-selecting the same file later
+}
+
 function closeEditOrderModal() {
   const bg = document.getElementById('editOrderModalBg');
   if (bg) bg.classList.remove('open');
@@ -344,10 +501,7 @@ function closeEditOrderModal() {
   if (editingId) editingId.value = '';
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
-  const estCard = document.getElementById('estimateBuilderCard');
-  if (estCard) estCard.style.display = 'none';
-  const estBtn = document.getElementById('add-estimate-btn');
-  if (estBtn) estBtn.textContent = '💰 Add Estimate';
+  eoSetMode('view');
 }
 
 function markOrderComplete() {
@@ -466,9 +620,20 @@ function saveOrderEdit() {
   o.sizing        = document.getElementById('f-sizing').value.trim()   || '';
   o.gemstones     = document.getElementById('f-gemstones').value.trim() || '';
   o.finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
-  // The modal only VIEWS the sketch (drawn in intake.html) — never touch
-  // o.sketchImg here, so a desktop edit can't clobber an iPad sketch.
+  // The modal otherwise only VIEWS the sketch drawn in intake.html — it
+  // never touches o.sketchImg unless the user explicitly drew/uploaded a
+  // new one this session (staged in _eoSketchDraft via the Draw/Replace
+  // Sketch actions), so a desktop edit can't accidentally clobber an
+  // iPad-drawn sketch just by opening and saving the order.
+  if (_eoSketchDraft) { o.sketchImg = _eoSketchDraft; _eoSketchDraft = null; }
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
+  o.repairNotes   = document.getElementById('f-repair-notes').value.trim() || '';
+  o.resizeFrom    = document.getElementById('f-resize-from').value.trim()  || '';
+  o.resizeTo      = document.getElementById('f-resize-to').value.trim()    || '';
+  // Resize orders mirror Current/Desired Size into `sizing` (Notion's
+  // "Sizing / Dimensions" property) — sizing becomes a derived display copy
+  // for resize orders going forward, regenerated on every save.
+  if (o.orderType === 'resize') o.sizing = formatResizeSizing(o.resizeFrom, o.resizeTo);
   o.addrStreet  = document.getElementById('f-addr-street').value.trim();
   o.addrStreet2 = document.getElementById('f-addr-street2').value.trim();
   o.addrCity    = document.getElementById('f-addr-city').value.trim();
@@ -815,7 +980,9 @@ function printOrder(id) {
     state:     sa ? (sa.state   || '') : '',
     zip:       sa ? (sa.zip     || '') : '',
     desc:      oiPrintJobDescShort(o),
-    notes:     o.notes       || '',
+    // Repair instructions live in o.repairNotes now (not folded into
+    // o.notes) — prepend them so the printed bag still shows them.
+    notes:     [o.repairNotes, o.notes].filter(Boolean).join('\n\n'),
     materials: o.materials   || '',
     takeIn:    o.takeIn      || '',
     deadline:  o.deadline    || '',

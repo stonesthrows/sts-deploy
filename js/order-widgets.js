@@ -33,6 +33,17 @@ function setNameFields(fullName) {
   if (last)  last.value  = parts.slice(1).join(' ') || '';
 }
 
+// Shared Resize display string — combines Current/Desired Size into the
+// single text sent to Notion's "Sizing / Dimensions" property. Used by
+// both intake.html (js/intake.js) and the Edit Order modal (js/orders.js)
+// so the format only lives in one place.
+function formatResizeSizing(from, to) {
+  from = (from || '').trim();
+  to   = (to   || '').trim();
+  if (!from && !to) return '';
+  return 'Resize ' + (from || '?') + ' → ' + (to || '?');
+}
+
 // ════════════════════════════════════════════
 
 //  ORDER TYPE DROPDOWN
@@ -315,30 +326,69 @@ function oiPrintRingSizeShort(o) {
   return sizes.filter(Boolean).join(', ') || (o.ringSize || '');
 }
 
+// Which container the Order Items rows render into — the plain Order Items
+// repeater, the Job Description Square-item picker, or the Edit Order
+// modal's Square module. All three are just different mount points for the
+// same _oiItems array; typeof-guarded so intake.html (which never defines
+// _eoOrderTypeModule) keeps behaving exactly as before.
+function _oiActiveContainerId() {
+  if (typeof _eoOrderTypeModule !== 'undefined') {
+    if (_eoOrderTypeModule === 'square') return 'square-module-picker';
+    // Repair/Resize have no Job Description concept — always route into the
+    // plain repeater, even if _jdMode is left over as 'square' from an
+    // earlier Design/Square selection made in the same modal session.
+    if (_eoOrderTypeModule !== 'design') return 'oi-items-container';
+  }
+  if (_jdMode === 'square') return 'jobdesc-square-picker';
+  return 'oi-items-container';
+}
+
 function oiRender() {
-  if (_jdMode === 'square') {
-    const box = document.getElementById('jobdesc-square-picker');
-    if (box) {
-      box.innerHTML = !_oiItems.length
-        ? '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — search and select a Square item.</div>'
-        : _oiItems.map((it, idx) => oiRowHtml(it, idx, true)).join('');
-    }
-  } else {
-    const box = document.getElementById('oi-items-container');
-    if (box) {
-      box.innerHTML = !_oiItems.length
-        ? '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No items yet — add a manual item or a Square item.</div>'
-        : _oiItems.map((it, idx) => oiRowHtml(it, idx, false)).join('');
-    }
+  const containerId    = _oiActiveContainerId();
+  const hideTypeSelect = containerId !== 'oi-items-container';
+  const readOnly       = typeof _eoMode !== 'undefined' && _eoMode === 'view';
+  const box = document.getElementById(containerId);
+  if (box) {
+    const emptyMsg = containerId === 'oi-items-container'
+      ? 'No items yet — add a manual item or a Square item.'
+      : 'No items yet — search and select a Square item.';
+    box.innerHTML = !_oiItems.length
+      ? `<div style="font-size:12px;color:var(--text3);padding:4px 0;">${emptyMsg}</div>`
+      : _oiItems.map((it, idx) => oiRowHtml(it, idx, hideTypeSelect, readOnly)).join('');
   }
   oiRecalcTotal();
   const itemsJson = document.getElementById('f-items-json');
   if (itemsJson) itemsJson.value = oiSerialize();
 }
 
-function oiRowHtml(it, idx, hideTypeSelect) {
+// Static read-only summary of one item — reuses the existing
+// .rq-selected-item/.rq-result-* classes so no new CSS is needed.
+function oiRowReadHtml(it, idx) {
+  const qty = parseInt(it.quantity, 10) || 1;
+  const modParts = (it.modifierLists || []).map(list => {
+    const optId = it.selectedModifierIds && it.selectedModifierIds[list.id];
+    const opt = (list.options || []).find(o => o.id === optId);
+    return opt ? opt.name : null;
+  }).filter(Boolean);
+  const metaParts = [];
+  if (it.sku) metaParts.push('SKU ' + it.sku.replace(/</g, '&lt;'));
+  if (modParts.length) metaParts.push(modParts.join(', ').replace(/</g, '&lt;'));
+  if (it.ringSize) metaParts.push('Size ' + String(it.ringSize).replace(/</g, '&lt;'));
+  if (qty > 1) metaParts.push(qty + '×');
+  const priceTxt = (it.price != null && it.price !== '') ? '$' + (parseFloat(it.price) || 0).toFixed(2) : '—';
+  return `<div class="rq-selected-item" style="cursor:default;">
+    <div style="flex:1;">
+      <div class="rq-result-name">${(it.name || '(unnamed item)').replace(/</g, '&lt;')}</div>
+      <div class="rq-result-meta">${metaParts.join(' · ')}</div>
+    </div>
+    <div class="rq-result-price">${priceTxt}</div>
+  </div>`;
+}
+
+function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
+  if (readOnly) return oiRowReadHtml(it, idx);
   const isSquareSelected = it.type === 'square' && (it.squareVariationId || it.squareItemId);
-  const typeSel = (isSquareSelected || hideTypeSelect) ? '' : `<select onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+  const typeSel = (isSquareSelected || hideTypeSelect) ? '' : `<select class="eo-edit-only" onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
     <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
     <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
   </select>`;
@@ -357,7 +407,7 @@ function oiRowHtml(it, idx, hideTypeSelect) {
             <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);">${it.hasFixedPrice ? 'Square Price' : 'Enter Price'}</span>
             <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid ${it.hasFixedPrice ? 'var(--bdr)' : '#C98A2A'};border-radius:6px;font-size:12px;">
           </div>
-          <button type="button" class="rq-item-remove" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
+          <button type="button" class="rq-item-remove eo-edit-only" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
         </div>
         ${!it.hasFixedPrice ? `<div style="font-size:11px;color:#A0702A;">No fixed price in Square (variable pricing) — enter the price manually</div>` : ''}
         ${(it.modifierLists || []).map(list => `
@@ -401,7 +451,7 @@ function oiRowHtml(it, idx, hideTypeSelect) {
   return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);">
     ${typeSel}
     ${body}
-    <button type="button" class="rq-item-remove" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
+    <button type="button" class="rq-item-remove eo-edit-only" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
   </div>`;
 }
 
@@ -537,6 +587,13 @@ function oiRenderResults(idx, items, query) {
     </div>`;
   }).join('');
   box.style.display = 'flex';
+  // In the Edit Order modal (a long single-scrolling container) a newly
+  // revealed results panel can land below the fold with no auto-scroll —
+  // bring it into view. Restock Queue's own .rq-setup-results instances
+  // live outside #editOrderModalBg, so they're untouched by this.
+  if (box.closest('#editOrderModalBg')) {
+    requestAnimationFrame(() => box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }
 }
 
 function oiSelectSquareResult(idx, i) {
@@ -593,26 +650,10 @@ function oiSetModifier(idx, listId, modifierId) {
 
 // ════════════════════════════════════════════
 
-function toggleEstimateBuilder() {
-  const card = document.getElementById('estimateBuilderCard');
-  const btn  = document.getElementById('add-estimate-btn');
-  if (!card) return;
-  const visible = card.style.display !== 'none';
-  card.style.display = visible ? 'none' : '';
-  if (btn) btn.textContent = visible ? '💰 Add Estimate' : '✕ Hide Estimate';
-
-  // Persist open state so re-opening the order restores it
-  const editingId = document.getElementById('f-editing-id')?.value;
-  if (editingId) {
-    try {
-      const estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}');
-      estState[editingId] = Object.assign(estState[editingId] || {}, { open: !visible });
-      localStorage.setItem('sts-est-state', JSON.stringify(estState));
-    } catch(e) {}
-  }
-}
-
 //  ESTIMATE BUILDER
+//  Visibility is driven by the order-type module (js/orders.js's
+//  eoApplyOrderTypeModule) — the Estimate Builder shows in place of Items &
+//  Price for Custom/Etsy/Website order types and is not reachable otherwise.
 // ════════════════════════════════════════════
 let estMultiplier = 2.5;
 let estRowCount   = 0;
@@ -628,9 +669,9 @@ function addMaterialRow(desc = '', cost = '') {
   div.innerHTML =
     '<input class="est-input" type="text" placeholder="e.g. 14k Yellow Gold Sheet" oninput="calcEstimate()">' +
     // StullerSearch (js/stuller.js) is only loaded by the main app — guarded so intake.html doesn't throw
-    '<button class="est-stuller-btn" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
+    '<button class="est-stuller-btn eo-edit-only" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
     '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()">' +
-    '<button class="est-remove-btn" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
+    '<button class="est-remove-btn eo-edit-only" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
   const inputs = div.querySelectorAll('input');
   if (desc) inputs[0].value = desc;
@@ -666,15 +707,8 @@ function populateEstimateFromOrder(o) {
   const taxToggle = document.getElementById('est-tax-toggle');
   if (taxToggle) taxToggle.checked = saved.taxOn || false;
   setMultiplier(saved.multiplier || 2.5);
-
-  // Auto-show/hide the builder based on whether it was open when last editing this order
-  const card = document.getElementById('estimateBuilderCard');
-  const btn  = document.getElementById('add-estimate-btn');
-  if (card) {
-    const shouldOpen = !!saved.open;
-    card.style.display = shouldOpen ? '' : 'none';
-    if (btn) btn.textContent = shouldOpen ? '✕ Hide Estimate' : '💰 Add Estimate';
-  }
+  // Visibility of #eo-estimate-module is owned by the order-type module
+  // (js/orders.js's eoApplyOrderTypeModule), not by this function.
 }
 
 function removeMaterialRow(id) {
@@ -705,6 +739,16 @@ function calcEstimate() {
   const taxRow = g('est-tax-row');
   if (taxRow) taxRow.style.display = taxOn ? '' : 'none';
   if (g('est-tax-display')) g('est-tax-display').textContent = fmt(tax);
+
+  // When the Estimate module is the active pricing display (Custom/Etsy/
+  // Website order types), its Final Estimate feeds Total ($) directly —
+  // otherwise Total ($) is driven by oiRecalcTotal() from the Order Items list.
+  const estModule = g('eo-estimate-module');
+  if (estModule && estModule.style.display !== 'none') {
+    const priceEl = g('f-price');
+    if (priceEl) priceEl.value = final ? final.toFixed(2) : '';
+    if (typeof eoUpdateBalanceDue === 'function') eoUpdateBalanceDue();
+  }
 
   // Auto-save to Notion when editing an existing order
   const editingId = document.getElementById('f-editing-id')?.value;
@@ -801,7 +845,7 @@ function approveEstimate() {
 
   if (!items.length) { toast('Add at least one material or labor cost.', '⚠️'); return; }
 
-  const btn = document.querySelector('#estimateBuilderCard .btn-green');
+  const btn = document.querySelector('#eo-estimate-module .btn-green');
   if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
 
   const reset = () => { if (btn) { btn.textContent = '✓ Approve & Send to Square'; btn.disabled = false; } };

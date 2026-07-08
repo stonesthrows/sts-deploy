@@ -95,11 +95,12 @@ function intakeApplyTypeLayout(type) {
 }
 
 // Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
+// Delegates to the shared formatter (js/order-widgets.js) so the string
+// format only lives in one place — orders.js uses the same helper.
 function _intakeResizeSizing() {
   const from = (document.getElementById('f-resize-from')?.value || '').trim();
   const to   = (document.getElementById('f-resize-to')?.value   || '').trim();
-  if (!from && !to) return '';
-  return 'Resize ' + (from || '?') + ' → ' + (to || '?');
+  return formatResizeSizing(from, to);
 }
 
 // ── Sketch stage sizing — fills the ENTIRE step, edge to edge, no letterboxing.
@@ -296,12 +297,16 @@ async function intakeSubmit() {
   const addrCountry = g('f-addr-country').value.trim() || 'United States';
   const typeMap     = ORDER_TYPE_STAGES[typeVal] || ORDER_TYPE_STAGES.order;
 
-  // Type-specific fields: repair instructions fold into Internal Notes;
-  // resize combines current+desired size into Sizing/Dimensions.
+  // Type-specific fields: repair instructions and resize sizes are now
+  // first-class fields (repairNotes / resizeFrom / resizeTo), read by the
+  // Edit Order modal's Repair/Resize modules. Resize also mirrors a combined
+  // string into `sizing` for Notion's "Sizing / Dimensions" property.
   const isRepair    = typeVal === 'repair';
   const isResize    = typeVal === 'resize';
   const repairNotes = isRepair ? g('f-repair-notes').value.trim() : '';
-  const notes       = [repairNotes, g('f-notes').value.trim()].filter(Boolean).join('\n\n');
+  const resizeFrom  = isResize ? g('f-resize-from').value.trim() : '';
+  const resizeTo    = isResize ? g('f-resize-to').value.trim()   : '';
+  const notes       = g('f-notes').value.trim();
   const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
 
   const order = {
@@ -337,6 +342,9 @@ async function intakeSubmit() {
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
     notes:         notes,
+    repairNotes:   repairNotes,
+    resizeFrom:    resizeFrom,
+    resizeTo:      resizeTo,
   };
 
   ORDERS.push(order);
