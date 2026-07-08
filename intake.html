@@ -99,9 +99,8 @@
     /* ═══ Design sketch stage + floating collapsible dock
        (copied from jewelry-workflow.html so sketchpad.js hooks work) ═══ */
     .sketch-stage {
-      position: relative; margin: 0 auto;
-      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
-      overflow: hidden;
+      position: relative; width: 100%; height: 100%;
+      background: #fff; overflow: hidden;
     }
     .sketch-stage > #sketch-canvas {
       position: absolute; inset: 0; width: 100%; height: 100%;
@@ -536,10 +535,13 @@
     </section>
 
     <!-- ── Step 2 · Full-screen drawing pad ── -->
-    <section id="step-2" class="absolute inset-0 hidden flex-col px-3 py-3 md:px-4">
-      <!-- Sketch canvas fills the whole step, aspect kept by intake.js.
+    <section id="step-2" class="absolute inset-0 hidden flex-col p-0">
+      <!-- Sketch canvas fills the ENTIRE step edge-to-edge — no fixed aspect
+           ratio (the canvas backing store is resized to match in intake.js,
+           since this is the only surviving consumer of #sketch-canvas; the
+           desktop app only ever displays a static <img> of the sketch).
            id must stay "sketchpad-fg" — sketchpad.js scopes its preset-highlight sync to it. -->
-      <div id="sketchpad-fg" class="flex flex-1 min-h-0 items-center justify-center">
+      <div id="sketchpad-fg" class="flex flex-1 min-h-0">
         <div class="sketch-stage" id="sketch-stage">
           <canvas id="sketch-canvas" width="1000" height="620"></canvas>
 
@@ -708,6 +710,6 @@
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=2"></script>
-<script src="js/intake.js?v=2"></script>
+<script src="js/intake.js?v=3"></script>
 </body>
 </html>
