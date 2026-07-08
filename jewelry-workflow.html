@@ -966,6 +966,196 @@
     .hw-status { font-size: 11.5px; color: var(--text3); margin-left: auto; }
     .card-sketch img { background: #fff; }
 
+    /* ═══════════════════════════════════════════════════
+       DESIGN SKETCH — stage + floating collapsible side dock
+       (Step 2 of the Edit / New Order flow)
+       ═══════════════════════════════════════════════════ */
+    .sketch-stage {
+      position: relative; width: 100%; aspect-ratio: 1000 / 620;
+      max-width: 100%; align-self: stretch;
+      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      overflow: hidden;
+    }
+    .sketch-stage > #sketch-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none; border-radius: inherit; background: #fff;
+      touch-action: none; cursor: crosshair; display: block;
+    }
+    /* Floating vertical dock, pinned to the right edge of the drawing surface */
+    .sketch-dock {
+      position: absolute; top: 12px; right: 12px; z-index: 3;
+      display: flex; flex-direction: column; gap: 10px;
+      width: 168px; padding: 12px;
+      background: rgba(22,32,42,0.94);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.09); border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+      transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .22s;
+    }
+    .sketch-dock.collapsed { transform: translateX(calc(100% + 22px)); opacity: 0; pointer-events: none; }
+    .dock-head { display: flex; align-items: center; justify-content: space-between; }
+    .dock-title { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #7F97A8; }
+    .dock-toggle {
+      width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+      border: none; background: rgba(255,255,255,0.10); color: #DCE6EE;
+      font-size: 13px; cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .14s;
+    }
+    .dock-toggle:hover { background: rgba(255,255,255,0.22); }
+    .dock-row { display: flex; gap: 6px; }
+    .dock-btn {
+      flex: 1; height: 42px; border-radius: 9px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
+      color: #E8EEF2; font-size: 17px; cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .14s;
+    }
+    .dock-btn:hover { background: rgba(255,255,255,0.15); }
+    .dock-btn:active { transform: scale(.94); }
+    .dock-btn.tool.active {
+      background: var(--accent); color: #1A1A1A; border-color: var(--accent);
+      box-shadow: 0 2px 10px rgba(201,152,58,0.45);
+    }
+    .dock-size { display: flex; align-items: center; gap: 10px; }
+    .dock-size-preview {
+      width: 42px; height: 42px; border-radius: 9px; flex-shrink: 0;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    #sk-size-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: #E8EEF2; transition: width .1s, height .1s; }
+    .dock-slider-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .dock-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 6px; border-radius: 4px; margin: 0;
+      background: rgba(255,255,255,0.20); outline: none; cursor: pointer;
+    }
+    .dock-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .dock-slider::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+    }
+    .dock-size-val { font-size: 10.5px; font-weight: 700; color: #9FB4C4; text-align: right; }
+    .dock-presets { display: flex; gap: 6px; }
+    .dock-preset {
+      flex: 1; height: 30px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
+      color: #C7D4DE; font-size: 11.5px; font-weight: 700; cursor: pointer;
+      transition: all .14s;
+    }
+    .dock-preset:hover { background: rgba(255,255,255,0.14); }
+    .dock-preset.active { background: rgba(201,152,58,0.22); border-color: var(--accent); color: #F1DFB6; }
+    .dock-hint { font-size: 9.5px; color: #63788A; text-align: center; letter-spacing: .2px; }
+    /* Subtle trigger button that survives when the dock is folded away */
+    .dock-reopen {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      width: 46px; height: 46px; border-radius: 13px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(22,32,42,0.90);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      color: #E8EEF2; font-size: 21px; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+      animation: dockReopenIn .25s ease;
+    }
+    .sketch-dock.collapsed ~ .dock-reopen { display: flex; }
+    @keyframes dockReopenIn { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+
+    /* ═══════════════════════════════════════════════════
+       ORDER FLOW — full-screen immersive "separate app" mode
+       Promotes #tab-new-order to a stable 100vw/100vh workspace:
+       global chrome is hidden, the container never resizes between
+       the 3 steps (the body scrolls internally instead).
+       ═══════════════════════════════════════════════════ */
+    body.oflow-fs .sidebar,
+    body.oflow-fs .topbar,
+    body.oflow-fs .sidebar-overlay,
+    body.oflow-fs .botnav,
+    body.oflow-fs .sb-menu-btn { display: none !important; }
+    body.oflow-fs { overflow: hidden; }
+    body.oflow-fs .content { margin-left: 0 !important; padding: 0 !important; }
+    body.oflow-fs #tab-new-order.tab-panel.active {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh; height: 100dvh;
+      z-index: 1000; background: var(--bg, #F5F2EC);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    /* Immersive top bar: Exit · Step x of 3 · Save & Close */
+    #oflow-topbar { display: none; }
+    body.oflow-fs #oflow-topbar {
+      display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+      height: 58px; padding: 0 16px;
+      background: var(--hdr); border-bottom: 1px solid var(--hdr-bdr);
+      color: #E8EEF2; z-index: 5;
+    }
+    .oflow-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      border-radius: 9px; padding: 9px 15px; white-space: nowrap;
+      font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+      border: 1px solid transparent; transition: all .15s;
+    }
+    .oflow-exit { background: transparent; color: #B7C9D6; border-color: #35576D; }
+    .oflow-exit:hover { background: #1C3B50; color: #fff; }
+    .oflow-save { background: var(--accent); color: #201A0A; }
+    .oflow-save:hover { filter: brightness(1.07); box-shadow: 0 3px 12px rgba(201,152,58,0.4); }
+    .oflow-spacer { flex: 1; }
+    .oflow-steps { display: flex; align-items: center; gap: 12px; }
+    .oflow-steplabel { font-size: 12.5px; font-weight: 700; letter-spacing: .3px; color: #9FB4C4; }
+    .oflow-dots { display: flex; gap: 8px; }
+    .oflow-dot { width: 9px; height: 9px; border-radius: 50%; background: #35576D; transition: all .22s; }
+    .oflow-dot.done { background: #6E8CA0; }
+    .oflow-dot.active { background: var(--accent); transform: scale(1.3); box-shadow: 0 0 0 3px rgba(201,152,58,0.22); }
+    /* Form fills the leftover height; only the body scrolls → container is stable */
+    body.oflow-fs #tab-new-order .new-order-cols { display: block; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
+    body.oflow-fs #tab-new-order .new-order-cols > .form-card {
+      max-width: none; height: 100%; margin: 0;
+      display: flex; flex-direction: column;
+      border: none; border-radius: 0; box-shadow: none; background: transparent;
+    }
+    body.oflow-fs #tab-new-order .form-head { display: none; }
+    /* Estimate Builder stays a toggle (default display:none); in immersive mode
+       it floats as a centred sheet instead of stacking and breaking the layout */
+    body.oflow-fs #tab-new-order #estimateBuilderCard {
+      position: fixed; z-index: 1100;
+      top: 74px; left: 50%; transform: translateX(-50%);
+      width: min(760px, 94vw); max-height: calc(100dvh - 94px);
+      overflow-y: auto; margin: 0;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45); border-radius: 14px;
+    }
+    /* A white "sheet" centred in the slate frame — matches the app's
+       card-on-background language and keeps labels high-contrast */
+    body.oflow-fs #tab-new-order .form-body {
+      flex: 1; min-height: 0; overflow-y: auto;
+      width: 100%; max-width: 1040px; margin: 0 auto;
+      background: var(--card-bg, #fff);
+      box-shadow: 0 0 0 1px var(--bdr);
+    }
+    body.oflow-fs #tab-new-order .form-foot,
+    body.oflow-fs #tab-new-order #order-edit-actions {
+      flex-shrink: 0; width: 100%; max-width: 1040px; margin: 0 auto;
+      background: var(--card-bg, #fff);
+    }
+    /* In immersive mode the header owns Exit + step progress, so the in-body
+       step tabs stay purely as a jump-nav and the redundant Back/Clear/foot-note
+       are trimmed for the "focused micro-app" feel */
+    body.oflow-fs #order-form-back-btn,
+    body.oflow-fs #order-form-foot-note { display: none !important; }
+    body.oflow-fs #tab-new-order .form-foot { border-top: 1px solid var(--bdr); background: var(--card, #fff); }
+
+    /* Narrow screens: shrink the dock + tighten the immersive header */
+    @media (max-width: 640px) {
+      .sketch-dock { width: 138px; padding: 9px; gap: 8px; }
+      .dock-btn { height: 38px; font-size: 15px; }
+      .dock-size-preview { width: 34px; height: 34px; }
+      body.oflow-fs #oflow-topbar { height: 52px; padding: 0 10px; gap: 8px; }
+      .oflow-btn { padding: 8px 11px; font-size: 12px; }
+      .oflow-steplabel { display: none; } /* dots alone anchor the step on small screens */
+    }
+
     /* Gmail pull panel */
     .gmail-panel {
       display: none;
@@ -5423,6 +5613,19 @@
 </div>
 
 <div id="tab-new-order" class="tab-panel">
+  <!-- Immersive full-screen header — only visible while body.oflow-fs is set -->
+  <div id="oflow-topbar">
+    <button type="button" class="oflow-btn oflow-exit" onclick="orderFlowExit()">✕ <span id="oflow-exit-label">Cancel</span></button>
+    <div class="oflow-spacer"></div>
+    <div class="oflow-steps" role="status" aria-live="polite">
+      <span class="oflow-steplabel" id="oflow-step-label">Step 1 of 3</span>
+      <div class="oflow-dots" id="oflow-dots">
+        <span class="oflow-dot active"></span><span class="oflow-dot"></span><span class="oflow-dot"></span>
+      </div>
+    </div>
+    <div class="oflow-spacer"></div>
+    <button type="button" class="oflow-btn oflow-save" onclick="orderFlowSaveClose()"><span id="oflow-save-label">Save &amp; Close</span></button>
+  </div>
   <div class="new-order-cols">
     <div class="form-card">
       <div class="form-head">
@@ -5676,20 +5879,45 @@
             <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
           </div>
           <div class="fg full" id="sketchpad-fg">
-            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ saved on the order card + synced to Notion</span></label>
-            <div class="sketch-toolbar">
-              <button type="button" class="sketch-btn active" id="sk-pen" onclick="sketchSetTool('pen',this)">✏️ Pen</button>
-              <button type="button" class="sketch-btn" id="sk-eraser" onclick="sketchSetTool('eraser',this)">🧽 Eraser</button>
-              <span class="sketch-sep"></span>
-              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(2.5,this)" title="Fine"><span style="font-size:7px;">●</span></button>
-              <button type="button" class="sketch-btn sk-w active" onclick="sketchSetWidth(5,this)" title="Medium"><span style="font-size:11px;">●</span></button>
-              <button type="button" class="sketch-btn sk-w" onclick="sketchSetWidth(10,this)" title="Thick"><span style="font-size:15px;">●</span></button>
-              <span class="sketch-sep"></span>
-              <button type="button" class="sketch-btn" onclick="sketchUndo()">↩ Undo</button>
-              <button type="button" class="sketch-btn" onclick="sketchRedo()">↪ Redo</button>
-              <button type="button" class="sketch-btn" onclick="sketchClear()">🗑 Clear</button>
+            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ Apple&nbsp;Pencil only · saved on the order card + synced to Notion</span></label>
+            <div class="sketch-stage" id="sketch-stage">
+              <canvas id="sketch-canvas" width="1000" height="620"></canvas>
+
+              <!-- Floating, collapsible vertical dock of drawing tools -->
+              <div class="sketch-dock" id="sketch-dock">
+                <div class="dock-head">
+                  <span class="dock-title">Tools</span>
+                  <button type="button" class="dock-toggle" onclick="sketchDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
+                </div>
+                <div class="dock-row">
+                  <button type="button" class="dock-btn tool active" id="sk-pen"    onclick="sketchSetTool('pen',this)"    title="Pen">🖊</button>
+                  <button type="button" class="dock-btn tool"        id="sk-pencil" onclick="sketchSetTool('pencil',this)" title="Pencil">✏️</button>
+                  <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
+                </div>
+                <div class="dock-size">
+                  <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
+                  <div class="dock-slider-wrap">
+                    <input type="range" class="dock-slider" id="sk-size-slider" min="1" max="60" step="0.5" value="5"
+                           oninput="sketchSliderInput(this.value)" aria-label="Stroke size">
+                    <div class="dock-size-val" id="sk-size-val">5 px</div>
+                  </div>
+                </div>
+                <div class="dock-presets">
+                  <button type="button" class="dock-preset" onclick="sketchSetWidth('S',this)" title="Fine">S</button>
+                  <button type="button" class="dock-preset active" onclick="sketchSetWidth('M',this)" title="Medium">M</button>
+                  <button type="button" class="dock-preset" onclick="sketchSetWidth('L',this)" title="Thick">L</button>
+                </div>
+                <div class="dock-row">
+                  <button type="button" class="dock-btn" onclick="sketchUndo()"  title="Undo">↩</button>
+                  <button type="button" class="dock-btn" onclick="sketchRedo()"  title="Redo">↪</button>
+                  <button type="button" class="dock-btn" onclick="sketchClear()" title="Clear">🗑</button>
+                </div>
+                <div class="dock-hint">✎ Apple Pencil only</div>
+              </div>
+
+              <!-- Subtle trigger left behind when the dock is folded away -->
+              <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
             </div>
-            <canvas id="sketch-canvas" width="1000" height="620"></canvas>
           </div>
         </div>
         </div>
@@ -9427,8 +9655,8 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/customers.js?v=20260707b"></script>
 <script src="js/app.js"></script>
-<script src="js/sketchpad.js?v=2"></script>
-<script src="js/orders.js?v=20260707b"></script>
+<script src="js/sketchpad.js?v=3"></script>
+<script src="js/orders.js?v=20260708a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>

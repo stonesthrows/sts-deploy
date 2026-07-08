@@ -776,10 +776,64 @@ function orderFormStep(n) {
   if (next) next.style.visibility = _orderStep === 3 ? 'hidden' : '';
   const panel = document.getElementById('tab-new-order');
   if (panel) panel.scrollTop = 0;
+  // Keep the immersive header's scroll position + progress dots in sync, and
+  // reset the internal body scroll so the full-screen container never appears
+  // to "jump" between steps.
+  const body = panel && panel.querySelector('.form-body');
+  if (body) body.scrollTop = 0;
+  orderFlowSyncSteps();
 }
 
 function orderFormStepNext() { orderFormStep(_orderStep + 1); }
 function orderFormStepBack() { orderFormStep(_orderStep - 1); }
+
+// ── Full-screen "separate app" flow chrome ────────────────────
+// Mirrors the current step into the immersive top bar (Step x of 3 + dots)
+// and relabels Exit/Save for create-vs-edit. Safe to call anytime.
+function orderFlowSyncSteps() {
+  const label = document.getElementById('oflow-step-label');
+  if (label) label.textContent = 'Step ' + _orderStep + ' of 3';
+  const dots = document.querySelectorAll('#oflow-dots .oflow-dot');
+  dots.forEach((d, i) => {
+    const n = i + 1;
+    d.classList.toggle('active', n === _orderStep);
+    d.classList.toggle('done', n < _orderStep);
+  });
+  const editing = !!(document.getElementById('f-editing-id') || {}).value;
+  const exitLbl = document.getElementById('oflow-exit-label');
+  if (exitLbl) exitLbl.textContent = editing ? 'Cancel' : 'Discard';
+  const saveLbl = document.getElementById('oflow-save-label');
+  if (saveLbl) saveLbl.textContent = editing ? 'Save & Close' : 'Create Order';
+}
+
+// Exit the immersive flow WITHOUT saving — confirm only when there are edits
+// in flight so an accidental tap can't lose work.
+function orderFlowExit() {
+  const editing = !!(document.getElementById('f-editing-id') || {}).value;
+  const dirty = (typeof sketchIsDirty === 'function' && sketchIsDirty()) || _orderFormHasInput();
+  if (dirty && !confirm(editing
+        ? 'Discard unsaved changes to this order?'
+        : 'Discard this order? Nothing will be saved.')) return;
+  if (editing) { closeEditOrderModal(); return; }
+  clearForm();
+  switchTab('dashboard', document.querySelector('[data-tab=dashboard]'));
+}
+
+// Save (create or update) and return to the main app. submitOrder() already
+// handles both modes and navigates away on success, which drops full-screen.
+function orderFlowSaveClose() {
+  submitOrder();
+}
+
+// Cheap "is anything filled in?" probe for the discard guard.
+function _orderFormHasInput() {
+  const ids = ['f-firstname','f-lastname','f-email','f-phone','f-materials',
+               'f-sizing','f-gemstones','f-description','f-job-desc','f-notes'];
+  return ids.some(id => {
+    const el = document.getElementById(id);
+    return el && el.value && el.value.trim();
+  });
+}
 
 // Which step contains an element (for the validation jump)
 function _orderStepOf(el) {
