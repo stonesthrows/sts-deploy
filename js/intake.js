@@ -102,25 +102,58 @@ function _intakeResizeSizing() {
   return 'Resize ' + (from || '?') + ' → ' + (to || '?');
 }
 
-// ── Sketch stage sizing — largest 1000:620 box that fits the free space.
-//    The canvas backing store is fixed; only its CSS box is sized here, so
-//    strokes are never distorted between what was drawn and what exports. ──
+// ── Sketch stage sizing — fills the ENTIRE step, edge to edge, no letterboxing.
+//    #sketch-stage is 100%/100% of its flex parent via CSS; the only job here
+//    is keeping the CANVAS's backing store (its actual pixel grid) in sync
+//    with that rendered size, since a canvas defaults to a fixed resolution
+//    (was 1000×620) regardless of its CSS box — leaving it fixed is exactly
+//    what caused the unused strips of space. Resizing a canvas element clears
+//    it by spec, so any existing ink is snapshotted and redrawn at the new
+//    size first. This is safe because intake.html is the ONLY place
+//    #sketch-canvas is ever drawn on — the desktop app just displays a
+//    static <img> of the finished sketch (js/orders.js eoLoadSketch), never
+//    the live canvas — so there's no fixed-resolution export format to protect.
 function intakeSizeSketchStage() {
-  const wrap  = document.getElementById('sketchpad-fg');
   const stage = document.getElementById('sketch-stage');
-  if (!wrap || !stage) return;
+  if (!stage) return;
   requestAnimationFrame(() => {
-    const w = wrap.clientWidth, h = wrap.clientHeight;
-    if (!w || !h) return;
-    const ratio = 1000 / 620;
-    let sw = w, sh = w / ratio;
-    if (sh > h) { sh = h; sw = h * ratio; }
-    stage.style.width  = Math.floor(sw) + 'px';
-    stage.style.height = Math.floor(sh) + 'px';
+    const w = Math.round(stage.clientWidth);
+    const h = Math.round(stage.clientHeight);
+    if (!w || !h || typeof SK === 'undefined' || !SK) return;
+    const canvas = SK.canvas;
+    if (canvas.width === w && canvas.height === h) return; // already sized — don't wipe ink for nothing
+    const prevURL = SK.hasInk ? canvas.toDataURL('image/png') : null;
+    canvas.width  = w;
+    canvas.height = h;
+    _padBlank(SK);
+    // Old undo/redo snapshots were captured at the previous resolution —
+    // replaying them now would draw at the wrong scale, so drop them.
+    SK.undo.length = 0;
+    SK.redo.length = 0;
+    if (prevURL) {
+      const img = new Image();
+      img.onload = () => { SK.ctx.drawImage(img, 0, 0, w, h); };
+      img.src = prevURL;
+    }
+    _intakeClampDockToStage();
   });
 }
 window.addEventListener('resize', intakeSizeSketchStage);
 window.addEventListener('orientationchange', () => setTimeout(intakeSizeSketchStage, 300));
+
+// Keep a dragged dock inside the stage after the stage itself resizes
+// (e.g. rotating the iPad) — otherwise it could end up stranded off-canvas.
+function _intakeClampDockToStage() {
+  const dock  = document.getElementById('sketch-dock');
+  const stage = document.getElementById('sketch-stage');
+  if (!dock || !stage || (!dock.style.left && !dock.style.top)) return; // still in its default CSS corner
+  const sr = stage.getBoundingClientRect();
+  const dr = dock.getBoundingClientRect();
+  const left = Math.max(0, Math.min(parseFloat(dock.style.left) || 0, sr.width  - dr.width));
+  const top  = Math.max(0, Math.min(parseFloat(dock.style.top)  || 0, sr.height - dr.height));
+  dock.style.left = left + 'px';
+  dock.style.top  = top  + 'px';
+}
 
 // ── Draggable tool dock — grab the header bar, drop anywhere over the canvas ──
 let _dockDrag = null;
