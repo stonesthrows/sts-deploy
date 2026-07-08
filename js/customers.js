@@ -658,49 +658,26 @@ function loadCustomerGmail(email, idx) {
     });
 }
 
-// Pre-fill New Order form from an existing order (used by Current Orders click)
+// New orders are created in the standalone Intake app (intake.html) —
+// these open it pre-filled via query params (read by js/intake.js).
+function _openIntakePrefilled(name, email, type) {
+  const p = new URLSearchParams();
+  if (name)  p.set('name', name);
+  if (email) p.set('email', email);
+  if (type)  p.set('type', type);
+  window.open('intake.html' + (p.toString() ? '?' + p.toString() : ''), '_blank');
+}
+
+// Start a new order from an existing order (used by Current Orders click)
 function prefillFromOrder(orderId) {
   const o = ORDERS.find(x => x.id === orderId);
   if (!o) return;
-  const parentEl = document.querySelector('[data-parent="custom-orders"]');
-  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
-  const subEl = document.querySelector('.sub-nav-tab[data-tab="new-order"]');
-  if (typeof switchSubTab === 'function') switchSubTab('new-order', subEl);
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
-  if (typeof setNameFields === 'function') setNameFields(o.name); else set('f-name', o.name);
-  set('f-email',       o.email);
-  set('f-phone',       fmtPhone(o.phone));
-  set('f-description', o.desc);
-  set('f-price',       o.price || '');
-  set('f-deposit',     o.deposit || '');
-  set('f-deadline',    o.deadline || '');
-  set('f-takein',      o.takeIn || '');
-  set('f-materials',   o.materials || '');
-  set('f-notes',       o.notes || '');
-  set('f-pickup',      o.pickup || '');
-  if (typeof setOrderType === 'function') setOrderType(o.type || 'order');
-  if (typeof toggleShippingAddress === 'function') toggleShippingAddress();
-  if (typeof orderFormStep === 'function') orderFormStep(1);
-  const panel = document.getElementById('tab-new-order');
-  if (panel) panel.scrollTop = 0;
-  if (typeof toast === 'function') toast(`Form pre-filled for ${o.name} — review and submit`, '✓');
+  _openIntakePrefilled(o.name, o.email, o.orderType || o.type || 'order');
 }
 
-// Pre-fill New Order form with a past customer's info
+// Start a new order for a past customer
 function prefillFromCustomer(name, email, type) {
-  // Navigate to custom-orders parent, then to the new-order sub-tab
-  const parentEl = document.querySelector('[data-parent="custom-orders"]');
-  if (typeof switchParent === 'function') switchParent('custom-orders', parentEl);
-  const subEl = document.querySelector('.sub-nav-tab[data-tab="new-order"]');
-  if (typeof switchSubTab === 'function') switchSubTab('new-order', subEl);
-  document.getElementById('f-name').value  = name;
-  document.getElementById('f-email').value = email;
-  if (typeof setOrderType === 'function') setOrderType(type);
-  if (typeof orderFormStep === 'function') orderFormStep(1);
-  const panel = document.getElementById('tab-new-order');
-  if (panel) panel.scrollTop = 0;
-  if (typeof toast === 'function') toast(`Form pre-filled for ${name} — fill in the details and submit`, '✓');
+  _openIntakePrefilled(name, email, type);
 }
 
 // ════════════════════════════════════════════

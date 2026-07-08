@@ -9,6 +9,9 @@
 /jewelry-workflow.html
   Cache-Control: no-store, no-cache, must-revalidate
 
+/intake.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /time-tracker.html
   Cache-Control: no-store, no-cache, must-revalidate
 

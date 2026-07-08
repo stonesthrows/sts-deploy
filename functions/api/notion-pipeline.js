@@ -295,16 +295,50 @@ async function uploadSketchToNotion(token, dataURL) {
   return cu.id;
 }
 
+// ── Sketch fetch-on-view ──────────────────────────────────────
+// GET ?sketch=<notionPageId> streams the current sketch PNG for a page.
+// Notion's S3 file URLs expire hourly and send no CORS headers, so the
+// client can't hold onto them — this proxies fresh bytes on every view,
+// which is what lets a sketch drawn on the iPad show up on desktop.
+async function getSketch(hdrs, pageId) {
+  if (!/^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
+    return json({ error: 'bad page id' }, 400);
+  }
+  const r = await fetch(`${NOTION_API}/pages/${pageId}`, { headers: hdrs });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    return json({ error: err.message || 'page fetch failed' }, r.status);
+  }
+  const page = await r.json();
+  const f = page.properties?.['Sketch']?.files?.[0];
+  const fileUrl = f && (f.file?.url || f.external?.url);
+  if (!fileUrl) return json({ error: 'no-sketch' }, 404);
+
+  const img = await fetch(fileUrl);
+  if (!img.ok) return json({ error: 'file fetch failed' }, 502);
+  return new Response(img.body, {
+    headers: {
+      ...CORS,
+      'Content-Type':  img.headers.get('content-type') || 'image/png',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 // ── Route handlers ────────────────────────────────────────────
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
 // GET /api/notion-pipeline  →  return all pipeline orders
+// GET /api/notion-pipeline?sketch=<id>  →  stream that page's sketch image
 export async function onRequestGet(context) {
   const token = context.env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const hdrs = notionHdrs(token);
+
+  const sketchId = new URL(context.request.url).searchParams.get('sketch');
+  if (sketchId) return getSketch(hdrs, sketchId);
 
   const orders = [];
   let cursor;
