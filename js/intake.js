@@ -71,15 +71,35 @@ function intakeStep(n) {
   if (_intakeStep === 2) intakeSizeSketchStage();
 }
 
-// ── Design-details drawer (step 2) ────────────────────────────
-function intakeToggleDrawer() {
-  const drawer = document.getElementById('design-drawer');
-  const chev   = document.getElementById('design-drawer-chev');
-  if (!drawer) return;
-  const open = drawer.style.display !== 'none';
-  drawer.style.display = open ? 'none' : '';
-  if (chev) chev.style.transform = open ? 'rotate(-90deg)' : '';
-  intakeSizeSketchStage();
+// ── Order-type layout switch (step 1 Design Details) ──────────
+// One dropdown drives both the fields shown AND Notion categorization.
+// square-item reuses the shared square item-entry mode (_jdMode); every
+// other type is plain-text custom mode.
+const _TYPE_BLOCKS = { order: 'type-custom', repair: 'type-repair', resize: 'type-resize', 'square-item': 'type-square' };
+
+function intakeApplyTypeLayout(type) {
+  type = _TYPE_BLOCKS[type] ? type : 'order';
+  const sel = document.getElementById('f-order-type');
+  if (sel && sel.value !== type) sel.value = type;
+  _jdMode = (type === 'square-item') ? 'square' : 'custom';
+  Object.entries(_TYPE_BLOCKS).forEach(([t, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (t === type) ? '' : 'none';
+  });
+  // The step-3 manual item repeater is redundant for Square Item — items are
+  // chosen in the step-1 picker; the Total still computes from _oiItems.
+  const oiSection = document.getElementById('oi-section');
+  if (oiSection) oiSection.style.display = (type === 'square-item') ? 'none' : '';
+  if (typeof onOrderTypeChange === 'function') onOrderTypeChange(); // #ot-hint stage label
+  if (typeof oiRender === 'function') oiRender(); // route items into the now-active container
+}
+
+// Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
+function _intakeResizeSizing() {
+  const from = (document.getElementById('f-resize-from')?.value || '').trim();
+  const to   = (document.getElementById('f-resize-to')?.value   || '').trim();
+  if (!from && !to) return '';
+  return 'Resize ' + (from || '?') + ' → ' + (to || '?');
 }
 
 // ── Sketch stage sizing — largest 1000:620 box that fits the free space.
@@ -102,6 +122,52 @@ function intakeSizeSketchStage() {
 window.addEventListener('resize', intakeSizeSketchStage);
 window.addEventListener('orientationchange', () => setTimeout(intakeSizeSketchStage, 300));
 
+// ── Draggable tool dock — grab the header bar, drop anywhere over the canvas ──
+let _dockDrag = null;
+
+function intakeDockDragStart(e) {
+  const dock  = document.getElementById('sketch-dock');
+  const stage = document.getElementById('sketch-stage');
+  if (!dock || !stage) return;
+  const dr = dock.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect();
+  _dockDrag = { id: e.pointerId, dx: e.clientX - dr.left, dy: e.clientY - dr.top, sr, dw: dr.width, dh: dr.height };
+  // Switch from right-anchored to left/top so JS can position it freely.
+  dock.style.left  = (dr.left - sr.left) + 'px';
+  dock.style.top   = (dr.top  - sr.top)  + 'px';
+  dock.style.right = 'auto';
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+  window.addEventListener('pointermove',   intakeDockDragMove);
+  window.addEventListener('pointerup',     intakeDockDragEnd);
+  window.addEventListener('pointercancel', intakeDockDragEnd);
+  e.preventDefault();
+}
+
+function intakeDockDragMove(e) {
+  if (!_dockDrag || e.pointerId !== _dockDrag.id) return;
+  const dock = document.getElementById('sketch-dock');
+  const { sr, dx, dy, dw, dh } = _dockDrag;
+  let left = e.clientX - sr.left - dx;
+  let top  = e.clientY - sr.top  - dy;
+  left = Math.max(0, Math.min(left, sr.width  - dw));
+  top  = Math.max(0, Math.min(top,  sr.height - dh));
+  dock.style.left = left + 'px';
+  dock.style.top  = top  + 'px';
+}
+
+function intakeDockDragEnd() {
+  _dockDrag = null;
+  window.removeEventListener('pointermove',   intakeDockDragMove);
+  window.removeEventListener('pointerup',     intakeDockDragEnd);
+  window.removeEventListener('pointercancel', intakeDockDragEnd);
+}
+
+// Restore the dock to its default top-right corner (used on a fresh intake).
+function intakeResetDockPos() {
+  const dock = document.getElementById('sketch-dock');
+  if (dock) { dock.style.left = ''; dock.style.top = ''; dock.style.right = ''; dock.classList.remove('collapsed'); }
+}
+
 // ── Apple Pencil ⇄ finger toggle (session-only — resets on relaunch) ──
 function intakeToggleFingerDraw() {
   if (typeof SK === 'undefined' || !SK) return;
@@ -116,7 +182,8 @@ function intakeToggleFingerDraw() {
 // ── Dirty check + exit ────────────────────────────────────────
 function _intakeDirty() {
   const ids = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-materials',
-               'f-sizing', 'f-gemstones', 'f-description', 'f-job-desc', 'f-notes'];
+               'f-sizing', 'f-gemstones', 'f-description', 'f-job-desc', 'f-notes',
+               'f-repair-notes', 'f-resize-from', 'f-resize-to'];
   const fields = ids.some(id => {
     const el = document.getElementById(id);
     return el && el.value && el.value.trim();
@@ -168,25 +235,25 @@ async function intakeSubmit() {
   const btn = document.getElementById('intake-save-btn');
   if (btn && btn.disabled) return;
 
+  const g = id => document.getElementById(id);
+  const typeVal = (g('f-order-type') || {}).value || 'order';
+  const isSquare = typeVal === 'square-item';
+
   const name = getFullName();
-  const desc = jdGetDescValue();
-  if (!name || !desc) {
-    toast(_jdMode === 'square' ? 'Please fill in Name and select a Square Item' : 'Please fill in Name and Description', '⚠');
-    const highlightIds = _jdMode === 'square' ? ['f-firstname'] : ['f-firstname', 'f-description'];
-    let jumped = false;
-    highlightIds.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && !el.value.trim()) {
-        el.style.borderColor = '#E05050';
-        el.addEventListener('input', () => el.style.borderColor = '', { once: true });
-        if (!jumped) { intakeStep(id === 'f-firstname' ? 1 : 2); jumped = true; }
-      }
-    });
-    return;
-  }
+  // Order Name / Order Description are plain fields now (no _jdMode switch).
+  const orderName = g('f-job-desc').value.trim();
+  let   desc      = g('f-description').value.trim();
+  // Square Item: fall back to the picked catalog item names if no description typed.
+  if (isSquare && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
+
+  const flag = (id) => {
+    const el = g(id);
+    if (el) { el.style.borderColor = '#E05050'; el.addEventListener('input', () => el.style.borderColor = '', { once: true }); }
+  };
+  if (!name) { toast('Please fill in the customer name', '⚠'); flag('f-firstname'); intakeStep(1); return; }
+  if (!desc) { toast('Please add an Order Description', '⚠'); flag('f-description'); intakeStep(1); return; }
   if (btn) btn.disabled = true;
 
-  const g = id => document.getElementById(id);
   const items       = _oiItems.map(it => ({ ...it }));
   const addrStreet  = g('f-addr-street').value.trim();
   const addrStreet2 = g('f-addr-street2').value.trim();
@@ -194,13 +261,20 @@ async function intakeSubmit() {
   const addrState   = g('f-addr-state').value.trim();
   const addrZip     = g('f-addr-zip').value.trim();
   const addrCountry = g('f-addr-country').value.trim() || 'United States';
-  const typeVal     = (g('f-order-type') || {}).value || 'order';
   const typeMap     = ORDER_TYPE_STAGES[typeVal] || ORDER_TYPE_STAGES.order;
+
+  // Type-specific fields: repair instructions fold into Internal Notes;
+  // resize combines current+desired size into Sizing/Dimensions.
+  const isRepair    = typeVal === 'repair';
+  const isResize    = typeVal === 'resize';
+  const repairNotes = isRepair ? g('f-repair-notes').value.trim() : '';
+  const notes       = [repairNotes, g('f-notes').value.trim()].filter(Boolean).join('\n\n');
+  const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
 
   const order = {
     id:        'u' + Date.now(),
     name:      name,
-    jobDesc:   jdGetJobDescValue(),
+    jobDesc:   orderName,
     jobDescMode: _jdMode,
     desc:      desc,
     stage:     typeMap.stage,
@@ -224,12 +298,12 @@ async function intakeSubmit() {
     orderType:     typeVal,
     contactMethod: '',
     pieceType:     g('f-piece-type').value || '',
-    sizing:        g('f-sizing').value.trim(),
+    sizing:        sizing,
     gemstones:     g('f-gemstones').value.trim(),
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
-    notes:         g('f-notes').value.trim() || '',
+    notes:         notes,
   };
 
   ORDERS.push(order);
@@ -258,7 +332,7 @@ async function intakeSubmit() {
 function intakeReset() {
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
-   'f-piece-type', 'f-sizing', 'f-gemstones',
+   'f-piece-type', 'f-sizing', 'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
    'f-addr-street', 'f-addr-street2', 'f-addr-city', 'f-addr-state', 'f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
@@ -273,15 +347,12 @@ function intakeReset() {
   if (typeof sketchReset === 'function') sketchReset();
   if (typeof hwClear === 'function') hwClear();
   if (typeof hwToggle === 'function') hwToggle(false);
-  const jdType = document.getElementById('f-jobdesc-type');
-  if (jdType) jdType.value = 'custom';
-  _jdMode = 'custom';
-  jdApplyVisibility('custom');
   oiInit();
   clearEstimate();
   const custNotes = document.getElementById('f-customer-notes');
   if (custNotes) custNotes.value = '';
-  setOrderType('order');
+  intakeApplyTypeLayout('order');
+  intakeResetDockPos();
   toggleShippingAddress();
   intakeStep(1);
 }
@@ -309,7 +380,7 @@ function intakeSetKey() {
   if (takein && !takein.value) takein.value = new Date().toISOString().slice(0, 10);
 
   oiInit();
-  jdApplyVisibility('custom');
+  intakeApplyTypeLayout('order');
   toggleShippingAddress();
   addMaterialRow();      // one empty estimate line ready to go
   setMultiplier(2.5);
@@ -317,11 +388,13 @@ function intakeSetKey() {
   intakeSizeSketchStage();
   intakeUpdateUnsynced();
 
-  // Prefill via query params (main app's "New Order for <customer>" links)
+  // Prefill via query params (main app's "New Order for <customer>" links).
+  // Only the 4 intake-supported types apply — anything else (e.g. a synced
+  // order's 'etsy-order') falls back to Custom Design.
   const params = new URLSearchParams(location.search);
   if (params.get('name'))  setNameFields(params.get('name'));
   if (params.get('email')) { const el = document.getElementById('f-email'); if (el) el.value = params.get('email'); }
-  if (params.get('type')  && ORDER_TYPE_STAGES[params.get('type')]) setOrderType(params.get('type'));
+  if (params.get('type')  && _TYPE_BLOCKS[params.get('type')]) intakeApplyTypeLayout(params.get('type'));
 
   // Push any orders that never made it to Notion (offline intake at a market)
   if (navigator.onLine) notionPushUnsynced().then(intakeUpdateUnsynced);

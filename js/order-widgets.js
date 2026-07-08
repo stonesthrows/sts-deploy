@@ -44,6 +44,7 @@ const ORDER_TYPE_STAGES = {
   'etsy-order':    { stage: 'intake-custom',  label: 'Custom Intake'        },
   'website-order': { stage: 'intake-website', label: 'Website Order Intake' },
   estimate:        { stage: 'needs-est',      label: 'Estimate Intake'      },
+  'square-item':   { stage: 'intake-custom',  label: 'Custom Intake'        },
 };
 
 function onOrderTypeChange() {

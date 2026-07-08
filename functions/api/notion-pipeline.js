@@ -53,9 +53,11 @@ Object.entries(STAGE_TO_NOTION).forEach(([k, v]) => {
 });
 
 const ORDER_TYPE_TO_NOTION = {
-  'order':    'Custom Order',
-  'estimate': 'Estimate Request',
-  'repair':   'Repair',
+  'order':       'Custom Order',
+  'estimate':    'Estimate Request',
+  'repair':      'Repair',
+  'resize':      'Resize',
+  'square-item': 'Square Item',
 };
 const NOTION_TO_ORDER_TYPE = {};
 Object.entries(ORDER_TYPE_TO_NOTION).forEach(([k, v]) => {
