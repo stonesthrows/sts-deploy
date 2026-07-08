@@ -955,13 +955,50 @@
       animation: rq-spin 0.7s linear infinite;
     }
     /* Estimate builder + invoice compose live inside the modal now */
-    .eo-body #estimateBuilderCard {
+    .eo-body #eo-estimate-module {
       margin-top: 16px; border: 1px solid var(--accent-border);
       border-radius: var(--rad-md); box-shadow: none; max-width: none;
     }
     #eo-invoice-compose { background: var(--hdr); }
     /* Legacy fields hidden unless the order carries data (toggled by JS) */
     .fg.legacy-hide { display: none; }
+
+    /* ── Edit Order Modal — View/Edit mode toggle ──────────────
+       View mode (default on open) flattens ordinary .fg-wrapped controls to
+       read-only text with zero duplicate DOM — they already hold the right
+       value once populated by openOrderCard(). Composite widgets that can't
+       be flattened this way (Order Items/Square rows, Estimate materials
+       rows) render their own read-only markup instead (see oiRowReadHtml in
+       js/order-widgets.js) and are hidden here via .eo-edit-only. */
+    .eo-modal.eo-view-mode .fg input:not([type=checkbox]),
+    .eo-modal.eo-view-mode .fg select,
+    .eo-modal.eo-view-mode .fg textarea,
+    .eo-modal.eo-view-mode .est-input {
+      border-color: transparent; background: transparent;
+      padding-left: 0; padding-right: 0; resize: none;
+      pointer-events: none; color: var(--text);
+    }
+    .eo-modal.eo-view-mode .fg input:focus,
+    .eo-modal.eo-view-mode .fg select:focus,
+    .eo-modal.eo-view-mode .fg textarea:focus { box-shadow: none; border-color: transparent; }
+    .eo-modal.eo-view-mode .finish-checks label,
+    .eo-modal.eo-view-mode .eo-checkbox-label,
+    .eo-modal.eo-view-mode .mult-toggle { pointer-events: none; }
+    .eo-modal.eo-view-mode .eo-edit-only { display: none !important; }
+
+    /* Design Sketch reads as a compact attachment in view mode */
+    .eo-modal.eo-view-mode #eo-sketch-view { padding: 6px; }
+    .eo-modal.eo-view-mode #eo-sketch-view img { max-height: 140px; }
+
+    /* Square search results overlay — scoped to this modal only. Restock
+       Queue's own .rq-setup-results instances (rendered outside
+       #editOrderModalBg) are completely untouched by this rule. Fixes
+       results rendering in normal flow and landing below the fold in the
+       modal's long single-scrolling body. */
+    #editOrderModalBg .rq-setup-results {
+      position: absolute; left: 0; right: 0; margin-top: 4px;
+      z-index: 20; max-height: 260px; box-shadow: var(--shadow-md);
+    }
 
 
     /* ── Customers Tab ───────────────────────── */
@@ -5370,6 +5407,7 @@
   <div class="eo-modal">
     <div class="eo-head">
       <div class="eo-head-title" id="eo-title">✏️ Edit Order</div>
+      <button class="btn btn-outline btn-sm" id="eo-mode-toggle" onclick="eoToggleMode()">✎ Edit</button>
       <button class="eo-close" onclick="closeEditOrderModal()" title="Close">×</button>
     </div>
 
@@ -5415,7 +5453,7 @@
         </div>
         <div class="fg">
           <label>Order Type</label>
-          <select id="f-order-type" onchange="onOrderTypeChange()">
+          <select id="f-order-type" onchange="onOrderTypeChange(); eoApplyOrderTypeModule(this.value)">
             <option value="order">💍 Custom Order</option>
             <option value="repair">🔧 Repair</option>
             <option value="resize">💎 Resize</option>
@@ -5532,84 +5570,246 @@
           <label>Tracking Number</label>
           <div style="display:flex;gap:6px;">
             <input type="text" id="f-tracking-number" placeholder="9400150106151262058002" style="flex:1;">
-            <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation"
+            <button type="button" class="btn btn-outline btn-sm eo-edit-only" title="Look up via ShipStation"
                     onclick="orderLookupTracking(this)">🔎</button>
           </div>
         </div>
       </div>
 
-      <div class="eo-sec-label">Design</div>
-      <div class="form-grid">
-        <div class="fg">
-          <label>Piece Type</label>
-          <select id="f-piece-type">
-            <option value="">— Select —</option>
-            <option value="Ring">Ring</option>
-            <option value="Ear Cuff">Ear Cuff</option>
-            <option value="Necklace">Necklace</option>
-            <option value="Bracelet">Bracelet</option>
-            <option value="Earrings">Earrings</option>
-            <option value="Pendant">Pendant</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="fg" id="materials-fg">
-          <label>Materials / Metal</label>
-          <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
-        </div>
-        <div class="fg">
-          <label>Sizing / Dimensions</label>
-          <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
-        </div>
-        <div class="fg">
-          <label>Texture / Finish</label>
-          <div class="finish-checks" id="f-finish">
-            <label><input type="checkbox" value="Polished"> Polished</label>
-            <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
-            <label><input type="checkbox" value="Matte"> Matte</label>
-            <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+      <!-- ── Order-Type-driven module: Design (Custom/Etsy/Website), Repair,
+           Resize, or Square — only one shown at a time, switched by
+           eoApplyOrderTypeModule() in js/orders.js. ── -->
+      <div id="eo-design-module">
+        <div class="eo-sec-label">Design</div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>Piece Type</label>
+            <select id="f-piece-type">
+              <option value="">— Select —</option>
+              <option value="Ring">Ring</option>
+              <option value="Ear Cuff">Ear Cuff</option>
+              <option value="Necklace">Necklace</option>
+              <option value="Bracelet">Bracelet</option>
+              <option value="Earrings">Earrings</option>
+              <option value="Pendant">Pendant</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg" id="materials-fg">
+            <label>Materials / Metal</label>
+            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+          </div>
+          <div class="fg">
+            <label>Sizing / Dimensions</label>
+            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
+          </div>
+          <div class="fg">
+            <label>Texture / Finish</label>
+            <div class="finish-checks" id="f-finish">
+              <label><input type="checkbox" value="Polished"> Polished</label>
+              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
+              <label><input type="checkbox" value="Matte"> Matte</label>
+              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+            </div>
+          </div>
+          <div class="fg">
+            <label>Gemstones / Components</label>
+            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
+          </div>
+          <div class="fg full" id="jobdesc-fg">
+            <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
+            <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
+              <option value="custom">Custom Item</option>
+              <option value="square">Square Item</option>
+            </select>
+            <div id="jobdesc-custom-wrap">
+              <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+            </div>
+            <div id="jobdesc-square-wrap" style="display:none;">
+              <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+              <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
+            </div>
+          </div>
+          <div class="fg full" id="orderdesc-fg">
+            <label>Order Description</label>
+            <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
+          </div>
+          <div class="fg full legacy-hide" id="sketch-fg">
+            <label>Sketch Notes</label>
+            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
           </div>
         </div>
-        <div class="fg">
-          <label>Gemstones / Components</label>
-          <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
-        </div>
-        <div class="fg" id="jobdesc-fg">
-          <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
-          <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
-            <option value="custom">Custom Item</option>
-            <option value="square">Square Item</option>
-          </select>
-          <div id="jobdesc-custom-wrap">
-            <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+
+        <div class="eo-sec-label">Design Sketch <span class="eo-sec-note">→ drawn in the Intake app on the iPad</span></div>
+        <div id="eo-sketch-view"><div class="eo-sketch-empty">No sketch on this order</div></div>
+      </div>
+
+      <div id="eo-repair-module" style="display:none;">
+        <div class="eo-sec-label">Repair</div>
+        <div class="form-grid">
+          <div class="fg full">
+            <label>Repair Notes</label>
+            <textarea id="f-repair-notes" style="min-height:120px;" placeholder="Describe the repair — what's broken, what to do…"></textarea>
+            <div class="eo-sec-note" id="repair-legacy-hint" style="display:none;margin-top:6px;"></div>
           </div>
-          <div id="jobdesc-square-wrap" style="display:none;">
-            <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-            <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
-          </div>
-        </div>
-        <div class="fg full" id="orderdesc-fg">
-          <label>Order Description</label>
-          <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
-        </div>
-        <div class="fg full legacy-hide" id="sketch-fg">
-          <label>Sketch Notes</label>
-          <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
         </div>
       </div>
 
-      <div class="eo-sec-label">Design Sketch <span class="eo-sec-note">→ drawn in the Intake app on the iPad</span></div>
-      <div id="eo-sketch-view"><div class="eo-sketch-empty">No sketch on this order</div></div>
+      <div id="eo-resize-module" style="display:none;">
+        <div class="eo-sec-label">Resize</div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>Current Size</label>
+            <input type="text" id="f-resize-from" placeholder="e.g. 6">
+          </div>
+          <div class="fg">
+            <label>Desired Size</label>
+            <input type="text" id="f-resize-to" placeholder="e.g. 7.5">
+          </div>
+        </div>
+      </div>
+
+      <div id="eo-square-module" style="display:none;">
+        <div class="eo-sec-label">Square Item(s)</div>
+        <div class="form-grid">
+          <div class="fg full">
+            <label>Item(s) <span class="eo-sec-note">→ picked from the Square catalog</span></label>
+            <div id="square-module-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+            <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
+          </div>
+        </div>
+      </div>
 
       <div class="eo-sec-label">Items &amp; Price</div>
-      <div class="form-grid">
-        <div class="fg full" id="oi-section">
-          <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
-          <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-          <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="oiAddItem()">+ Add Item</button>
+      <div id="eo-items-top">
+        <div class="form-grid">
+          <div class="fg full" id="oi-section">
+            <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
+            <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+            <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="oiAddItem()">+ Add Item</button>
+          </div>
         </div>
+
+        <!-- Estimate Builder — replaces Order Items for Custom/Etsy/Website
+             order types (see eoApplyOrderTypeModule in js/orders.js). -->
+        <div class="form-card" id="eo-estimate-module" style="display:none;">
+          <div class="form-head">
+            <div class="form-head-title">💰 Estimate Builder</div>
+            <div class="form-head-sub">Add materials + labor, choose your markup — the Final Estimate becomes the order Total.</div>
+          </div>
+          <div class="form-body">
+
+            <!-- Materials -->
+            <div class="form-sec">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div class="form-sec-label" style="margin-bottom:0;">Materials</div>
+                <button class="btn btn-ghost btn-sm eo-edit-only" onclick="addMaterialRow()">＋ Add Line</button>
+              </div>
+              <div class="est-col-labels">
+                <div class="est-col-label">Description</div>
+                <div class="est-col-label"></div>
+                <div class="est-col-label">Cost ($)</div>
+                <div class="est-col-label"></div>
+              </div>
+              <div id="est-materials"></div>
+            </div>
+
+            <!-- Labor -->
+            <div class="form-sec">
+              <div class="form-sec-label">Labor</div>
+              <div style="max-width:220px;">
+                <div class="fg">
+                  <input type="number" id="est-labor" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Shipping -->
+            <div class="form-sec">
+              <div class="form-sec-label">Shipping</div>
+              <div style="max-width:220px;">
+                <div class="fg">
+                  <input type="number" id="est-shipping" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Multiplier -->
+            <div class="form-sec">
+              <div class="form-sec-label">Markup Multiplier</div>
+              <div class="mult-toggle">
+                <button class="mult-btn"           id="mult-1"   onclick="setMultiplier(1)">None</button>
+                <button class="mult-btn selected"  id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
+                <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
+              </div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
+                (Materials + Labor) × 2.5
+              </div>
+            </div>
+
+            <!-- Sales Tax -->
+            <div class="form-sec">
+              <div class="form-sec-label">Sales Tax</div>
+              <label class="eo-checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
+                <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+                Apply 8.25% sales tax
+              </label>
+            </div>
+
+            <!-- Notes for Customer (used when sending the estimate) -->
+            <div class="form-sec">
+              <div class="form-sec-label">Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ sent with estimate</span></div>
+              <div class="fg">
+                <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
+              </div>
+            </div>
+
+            <!-- Total breakdown -->
+            <div class="est-total-box">
+              <div class="est-total-row">
+                <span>Materials Total</span>
+                <span id="est-mat-total">$0.00</span>
+              </div>
+              <div class="est-total-row">
+                <span>Labor</span>
+                <span id="est-labor-display">$0.00</span>
+              </div>
+              <hr class="est-total-divider">
+              <div class="est-total-row">
+                <span>Subtotal</span>
+                <span id="est-subtotal">$0.00</span>
+              </div>
+              <div class="est-total-row" style="margin-top:2px;">
+                <span id="est-mult-label">× 2.5 markup</span>
+                <span></span>
+              </div>
+              <div class="est-total-row" id="est-shipping-row" style="display:none;">
+                <span>Shipping</span>
+                <span id="est-shipping-display">$0.00</span>
+              </div>
+              <div class="est-total-row" id="est-tax-row" style="display:none;">
+                <span>Sales Tax (8.25%)</span>
+                <span id="est-tax-display">$0.00</span>
+              </div>
+              <div class="est-total-final">
+                <span>Final Estimate</span>
+                <span id="est-final">$0.00</span>
+              </div>
+            </div>
+
+          </div>
+          <div class="form-foot">
+            <button class="btn btn-green eo-edit-only" onclick="approveEstimate()">✓ Approve &amp; Send to Square</button>
+            <button class="btn btn-gold eo-edit-only" onclick="saveEstimateToNotion()">💾 Save Estimate</button>
+            <button class="btn btn-ghost eo-edit-only" onclick="clearEstimate()">Clear Estimate</button>
+            <span id="est-save-status" style="margin-left:auto;font-size:11.5px;color:var(--accent);opacity:0;transition:opacity 0.4s;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid">
         <div class="fg">
-          <label>Total ($) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sum of items</span></label>
+          <label>Total ($) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sum of items, or the Estimate's Final total</span></label>
           <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
         </div>
         <div class="fg">
@@ -5648,128 +5848,12 @@
         </div>
       </div>
 
-  <!-- Estimate Builder Card -->
-  <div class="form-card" id="estimateBuilderCard" style="display:none;">
-    <div class="form-head">
-      <div class="form-head-title">💰 Estimate Builder</div>
-      <div class="form-head-sub">Add materials + labor, choose your markup, then approve and send a draft to Square.</div>
-    </div>
-    <div class="form-body">
-
-      <!-- Materials -->
-      <div class="form-sec">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div class="form-sec-label" style="margin-bottom:0;">Materials</div>
-          <button class="btn btn-ghost btn-sm" onclick="addMaterialRow()">＋ Add Line</button>
-        </div>
-        <div class="est-col-labels">
-          <div class="est-col-label">Description</div>
-          <div class="est-col-label"></div>
-          <div class="est-col-label">Cost ($)</div>
-          <div class="est-col-label"></div>
-        </div>
-        <div id="est-materials"></div>
-      </div>
-
-      <!-- Labor -->
-      <div class="form-sec">
-        <div class="form-sec-label">Labor</div>
-        <div style="max-width:220px;">
-          <div class="fg">
-            <input type="number" id="est-labor" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
-          </div>
-        </div>
-      </div>
-
-      <!-- Shipping -->
-      <div class="form-sec">
-        <div class="form-sec-label">Shipping</div>
-        <div style="max-width:220px;">
-          <div class="fg">
-            <input type="number" id="est-shipping" placeholder="$0.00" step="0.01" min="0" oninput="calcEstimate()">
-          </div>
-        </div>
-      </div>
-
-      <!-- Multiplier -->
-      <div class="form-sec">
-        <div class="form-sec-label">Markup Multiplier</div>
-        <div class="mult-toggle">
-          <button class="mult-btn"           id="mult-1"   onclick="setMultiplier(1)">None</button>
-          <button class="mult-btn selected"  id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
-          <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
-        </div>
-        <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
-          (Materials + Labor) × 2.5
-        </div>
-      </div>
-
-      <!-- Sales Tax -->
-      <div class="form-sec">
-        <div class="form-sec-label">Sales Tax</div>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
-          <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
-          Apply 8.25% sales tax
-        </label>
-      </div>
-
-      <!-- Notes for Customer (moved from the intake form — used when sending the estimate) -->
-      <div class="form-sec">
-        <div class="form-sec-label">Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ sent with estimate</span></div>
-        <div class="fg">
-          <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…" style="min-height:60px;"></textarea>
-        </div>
-      </div>
-
-      <!-- Total breakdown -->
-      <div class="est-total-box">
-        <div class="est-total-row">
-          <span>Materials Total</span>
-          <span id="est-mat-total">$0.00</span>
-        </div>
-        <div class="est-total-row">
-          <span>Labor</span>
-          <span id="est-labor-display">$0.00</span>
-        </div>
-        <hr class="est-total-divider">
-        <div class="est-total-row">
-          <span>Subtotal</span>
-          <span id="est-subtotal">$0.00</span>
-        </div>
-        <div class="est-total-row" style="margin-top:2px;">
-          <span id="est-mult-label">× 2.5 markup</span>
-          <span></span>
-        </div>
-        <div class="est-total-row" id="est-shipping-row" style="display:none;">
-          <span>Shipping</span>
-          <span id="est-shipping-display">$0.00</span>
-        </div>
-        <div class="est-total-row" id="est-tax-row" style="display:none;">
-          <span>Sales Tax (8.25%)</span>
-          <span id="est-tax-display">$0.00</span>
-        </div>
-        <div class="est-total-final">
-          <span>Final Estimate</span>
-          <span id="est-final">$0.00</span>
-        </div>
-      </div>
-
-    </div>
-    <div class="form-foot">
-      <button class="btn btn-green" onclick="approveEstimate()">✓ Approve &amp; Send to Square</button>
-      <button class="btn btn-gold" onclick="saveEstimateToNotion()">💾 Save Estimate</button>
-      <button class="btn btn-ghost" onclick="clearEstimate()">Clear Estimate</button>
-      <span id="est-save-status" style="margin-left:auto;font-size:11.5px;color:var(--accent);opacity:0;transition:opacity 0.4s;"></span>
-    </div>
-  </div>
-
     </div>
 
     <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);"></div>
 
     <div class="eo-foot">
-      <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">✓ Save Changes</button>
-      <button class="btn btn-outline btn-sm" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
+      <button class="btn btn-gold btn-sm eo-edit-only" onclick="saveOrderEdit()">✓ Save Changes</button>
       <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
       <button class="btn btn-outline btn-sm" onclick="printOrder(document.getElementById('f-editing-id').value)">🖨 Print</button>
       <div style="flex:1"></div>
@@ -9329,8 +9413,8 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/customers.js?v=20260708a"></script>
 <script src="js/app.js"></script>
 <script src="js/sketchpad.js?v=3"></script>
-<script src="js/order-widgets.js?v=2"></script>
-<script src="js/orders.js?v=20260708b"></script>
+<script src="js/order-widgets.js?v=3"></script>
+<script src="js/orders.js?v=20260708c"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>

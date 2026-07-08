@@ -146,6 +146,11 @@ function orderToProps(o) {
   if (o.gemstones != null) props['Gemstones / Components'] = { rich_text: [{ text: { content: (o.gemstones || '').slice(0, 2000) } }] };
   if (o.finish    != null) props['Texture / Finish']       = { multi_select: (Array.isArray(o.finish) ? o.finish : []).map(name => ({ name })) };
 
+  // Repair / Resize module fields
+  if (o.repairNotes != null) props['Repair Notes'] = { rich_text: [{ text: { content: (o.repairNotes || '').slice(0, 2000) } }] };
+  if (o.resizeFrom  != null) props['Resize From']  = { rich_text: [{ text: { content: (o.resizeFrom  || '').slice(0, 2000) } }] };
+  if (o.resizeTo    != null) props['Resize To']    = { rich_text: [{ text: { content: (o.resizeTo    || '').slice(0, 2000) } }] };
+
   return props;
 }
 
@@ -226,6 +231,10 @@ function pageToOrder(page) {
     sizing:        txt(p['Sizing / Dimensions']),
     gemstones:     txt(p['Gemstones / Components']),
     finish:        (p['Texture / Finish']?.multi_select || []).map(t => t.name),
+    // Repair / Resize module fields
+    repairNotes:   txt(p['Repair Notes']),
+    resizeFrom:    txt(p['Resize From']),
+    resizeTo:      txt(p['Resize To']),
   };
 }
 
@@ -242,6 +251,9 @@ const NEW_SCHEMA_PROPS = {
   'Gemstones / Components': { rich_text: {} },
   'Texture / Finish':       { multi_select: {} },
   'Sketch':                 { files: {} },
+  'Repair Notes':           { rich_text: {} },
+  'Resize From':            { rich_text: {} },
+  'Resize To':              { rich_text: {} },
 };
 
 async function ensureSchema(hdrs) {

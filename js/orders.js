@@ -240,10 +240,48 @@ function cardHTML(o) {
     </div>`;
 }
 
-function openOrderCard(id) {
-  const o = ORDERS.find(x => x.id === id);
-  if (!o) return;
+// Order-type-driven module state (this modal only — intake.html has its
+// own equivalent layout switch, intakeApplyTypeLayout, with a different
+// container-id scheme, so this stays here rather than in order-widgets.js).
+let _eoOrderTypeModule = 'design'; // 'design' | 'repair' | 'resize' | 'square'
 
+function eoApplyOrderTypeModule(type) {
+  _eoOrderTypeModule = type === 'repair' ? 'repair' : type === 'resize' ? 'resize'
+                     : type === 'square-item' ? 'square' : 'design';
+  ['eo-design-module', 'eo-repair-module', 'eo-resize-module', 'eo-square-module'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === 'eo-' + _eoOrderTypeModule + '-module') ? '' : 'none';
+  });
+  const isDesign = _eoOrderTypeModule === 'design';
+  const isSquare = _eoOrderTypeModule === 'square';
+  const oiGrid = document.getElementById('oi-section') && document.getElementById('oi-section').closest('.form-grid');
+  if (oiGrid) oiGrid.style.display = (isDesign || isSquare) ? 'none' : '';
+  const estModule = document.getElementById('eo-estimate-module');
+  if (estModule) estModule.style.display = isDesign ? '' : 'none';
+  if (isSquare) {
+    _jdMode = 'square';
+    if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
+  } else if (!isDesign) {
+    _jdMode = 'custom';
+  }
+  // jdApplyVisibility toggles #oi-section's own inline display based on
+  // _jdMode, independent of the parent .form-grid toggle above — re-run it
+  // so a leftover Job-Description-Square hide from Design mode doesn't
+  // stick around after switching to Repair/Resize (whose parent grid we
+  // just re-showed).
+  jdApplyVisibility(_jdMode);
+  oiRender();
+  // oiRender()/oiRecalcTotal() just set Total ($) from _oiItems, which is
+  // stale if the Estimate module is the one now active (or just became
+  // inactive) — recompute so Total ($) is correct immediately after a live
+  // order-type switch, not just after the user next edits an Estimate field.
+  if (typeof calcEstimate === 'function') calcEstimate();
+}
+
+// Populates every modal field from an order object — used both when the
+// modal is first opened and to silently discard unsaved edits when leaving
+// Edit mode without saving (see eoSetMode below).
+function eoPopulateFields(o) {
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
@@ -289,15 +327,68 @@ function openOrderCard(id) {
   document.getElementById('f-addr-country').value  = sa.country || o.addrCountry || 'United States';
   toggleShippingAddress();
 
+  // Repair Notes — falls back to displaying legacy Internal Notes (pre-split
+  // orders folded repair instructions into `notes`) without touching notes.
+  document.getElementById('f-repair-notes').value = o.repairNotes || '';
+  const legacyHint = document.getElementById('repair-legacy-hint');
+  if (legacyHint) {
+    const showLegacy = !(o.repairNotes || '').trim() && !!(o.notes || '').trim();
+    legacyHint.style.display = showLegacy ? '' : 'none';
+    legacyHint.textContent = showLegacy ? 'No repair notes on file — Internal Notes: ' + o.notes : '';
+  }
+
+  // Resize From/To — auto-split from the legacy combined `sizing` string
+  // ("Resize X → Y") for orders created before these were separate fields.
+  // The next Save persists the split fields going forward.
+  let rFrom = o.resizeFrom || '', rTo = o.resizeTo || '';
+  if (!rFrom && !rTo && o.sizing) {
+    const m = o.sizing.match(/^Resize\s+(.*?)\s*→\s*(.*)$/);
+    if (m) { rFrom = m[1] === '?' ? '' : m[1]; rTo = m[2] === '?' ? '' : m[2]; }
+  }
+  document.getElementById('f-resize-from').value = rFrom;
+  document.getElementById('f-resize-to').value   = rTo;
+
   // Auto-select Etsy/Shopify in the Order Type dropdown for synced orders —
   // only when orderType is still the generic default, so a manual
   // recategorization (e.g. to Repair) sticks on future edits.
   const platformType = o.id.startsWith('etsy-') ? 'etsy-order' : o.id.startsWith('shopify-') ? 'website-order' : null;
-  setOrderType(platformType && (!o.orderType || o.orderType === 'order') ? platformType : (o.orderType || 'order'));
+  const resolvedType = platformType && (!o.orderType || o.orderType === 'order') ? platformType : (o.orderType || 'order');
+  setOrderType(resolvedType);
+  eoApplyOrderTypeModule(resolvedType);
+
+  populateEstimateFromOrder(o);
+}
+
+// View/Edit mode — the modal opens read-only by default; every field
+// (Stage included) requires Edit mode to change. Toggling back to View
+// without saving silently discards unsaved edits by re-populating from the
+// last-saved order.
+let _eoMode = 'view';
+
+function eoSetMode(mode) {
+  if (_eoMode === 'edit' && mode === 'view') {
+    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    if (o) eoPopulateFields(o);
+  }
+  _eoMode = mode;
+  const modal = document.querySelector('#editOrderModalBg .eo-modal');
+  if (modal) modal.classList.toggle('eo-view-mode', mode === 'view');
+  const btn = document.getElementById('eo-mode-toggle');
+  if (btn) btn.textContent = mode === 'view' ? '✎ Edit' : '👁 View';
+  oiRender();
+}
+
+function eoToggleMode() { eoSetMode(_eoMode === 'view' ? 'edit' : 'view'); }
+
+function openOrderCard(id) {
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+
+  eoPopulateFields(o);
 
   const title = document.getElementById('eo-title');
   if (title) title.textContent = 'Edit Order — ' + o.name;
-  populateEstimateFromOrder(o);
+  eoSetMode('view');
   document.getElementById('editOrderModalBg').classList.add('open');
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
@@ -344,10 +435,7 @@ function closeEditOrderModal() {
   if (editingId) editingId.value = '';
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
-  const estCard = document.getElementById('estimateBuilderCard');
-  if (estCard) estCard.style.display = 'none';
-  const estBtn = document.getElementById('add-estimate-btn');
-  if (estBtn) estBtn.textContent = '💰 Add Estimate';
+  eoSetMode('view');
 }
 
 function markOrderComplete() {
@@ -469,6 +557,13 @@ function saveOrderEdit() {
   // The modal only VIEWS the sketch (drawn in intake.html) — never touch
   // o.sketchImg here, so a desktop edit can't clobber an iPad sketch.
   o.orderType     = (document.getElementById('f-order-type') || {}).value || o.orderType || 'order';
+  o.repairNotes   = document.getElementById('f-repair-notes').value.trim() || '';
+  o.resizeFrom    = document.getElementById('f-resize-from').value.trim()  || '';
+  o.resizeTo      = document.getElementById('f-resize-to').value.trim()    || '';
+  // Resize orders mirror Current/Desired Size into `sizing` (Notion's
+  // "Sizing / Dimensions" property) — sizing becomes a derived display copy
+  // for resize orders going forward, regenerated on every save.
+  if (o.orderType === 'resize') o.sizing = formatResizeSizing(o.resizeFrom, o.resizeTo);
   o.addrStreet  = document.getElementById('f-addr-street').value.trim();
   o.addrStreet2 = document.getElementById('f-addr-street2').value.trim();
   o.addrCity    = document.getElementById('f-addr-city').value.trim();
@@ -815,7 +910,9 @@ function printOrder(id) {
     state:     sa ? (sa.state   || '') : '',
     zip:       sa ? (sa.zip     || '') : '',
     desc:      oiPrintJobDescShort(o),
-    notes:     o.notes       || '',
+    // Repair instructions live in o.repairNotes now (not folded into
+    // o.notes) — prepend them so the printed bag still shows them.
+    notes:     [o.repairNotes, o.notes].filter(Boolean).join('\n\n'),
     materials: o.materials   || '',
     takeIn:    o.takeIn      || '',
     deadline:  o.deadline    || '',
