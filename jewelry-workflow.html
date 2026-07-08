@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v108-restock-aligned-size-columns -->
+<!-- deploy-version: v109-intake-pwa-edit-modal -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -889,309 +889,80 @@
       accent-color: var(--accent);
     }
 
-    /* ── Step navigation (New Order form) ── */
-    .step-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
-    .step-tab {
-      display: inline-flex; align-items: center; gap: 8px;
-      border: 1px solid #D8D0C8; background: #FAFAF8; color: #7A7268;
-      border-radius: var(--rad-sm); padding: 8px 14px; min-height: 40px;
-      font-family: inherit; font-size: 11.5px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
-      transition: all var(--dur-fast) var(--ease-smooth);
-    }
-    .step-tab:hover:not(.active) { border-color: #C4B49A; }
-    .step-tab .step-num {
-      width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
-      display: inline-flex; align-items: center; justify-content: center;
-      background: #E4DDD4; color: #7A7268; font-size: 11px;
-    }
-    .step-tab.active { border-color: var(--accent); background: #fff; color: var(--text); }
-    .step-tab.active .step-num { background: var(--accent); color: #fff; }
-    .form-step { display: none; }
-    .form-step.active { display: block; }
-    /* Legacy fields hidden at intake; class removed in edit mode when the order has data */
-    .fg.legacy-hide { display: none; }
-    .hw-collapsed { display: none; }
 
-    /* ── Design sketchpad + handwriting strip (New Order form) ── */
-    .sketch-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
-    .sketch-btn {
-      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text);
-      border-radius: var(--rad-sm); padding: 6px 12px;
-      font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
-      transition: all var(--dur-fast) var(--ease-smooth);
-    }
-    .sketch-btn:hover { border-color: #C4B49A; }
-    .sketch-btn.active { background: var(--text); color: var(--accent-light); border-color: var(--text); }
-    .sketch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .sketch-btn.sk-w { padding: 6px 10px; min-width: 34px; line-height: 1; }
-    .sketch-sep { width: 1px; height: 22px; background: #E4DDD4; margin: 0 4px; }
-    /* Height-driven canvas sizing: explicit height + width:auto preserves the
-       intrinsic aspect ratio (Chrome distorts when only max-w/max-h are set),
-       and the viewport-based height keeps each step on one iPad screen */
-    #sketch-canvas, #hw-canvas {
-      height: auto; width: auto; max-width: 100%; display: block;
-      align-self: flex-start; /* .fg is a column flexbox — stop the stretch that distorts the ratio */
-      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
-      touch-action: none; cursor: crosshair;
-    }
-    /* Height budget from the viewport, additionally bounded by width
-       (~62% / ~36% of usable width; hard caps keep the canvas narrower than
-       the ~804px card body so max-width never kicks in and distorts) */
-    #sketch-canvas { height: min(clamp(150px, calc(100vh - 555px), 495px), calc(62vw - 62px)); }
-    #hw-canvas    { height: min(clamp(140px, calc(100vh - 460px), 280px), calc(36vw - 36px)); }
-    /* "Handwrite instead" is literal: while the strip is open it replaces the
-       typed customer fields (Convert fills them and swaps back) */
-    #order-step-1 .form-grid.hw-open > div:not(#hw-fg):not(.hw-toggle-row) { display: none; }
 
-    /* Wide screens (incl. iPad portrait): 3-column grids keep steps 1–2 short */
-    @media (min-width: 800px) {
-      #order-step-1 .form-grid, #order-step-2 .form-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-    /* iPad-and-below viewport heights: trim the New Order tab's vertical chrome */
-    @media (max-height: 1250px) {
-      /* 50px fixed topbar + 14px gap; bottom breathing room trimmed */
-      .content:has(> #tab-new-order.active) { padding-top: 64px; padding-bottom: 24px; }
-      #tab-new-order .form-head { padding: 12px 28px 10px; }
-      #tab-new-order .form-head-sub { display: none; }
-      #tab-new-order .form-body { padding: 12px 28px; }
-      #tab-new-order .form-grid { gap: 8px var(--sp-4); }
-      #tab-new-order .fg { gap: 3px; }
-      #tab-new-order .fg input, #tab-new-order .fg textarea, #tab-new-order .fg select { padding: 7px 10px; }
-      #tab-new-order .form-sec { margin-bottom: 10px; }
-      #tab-new-order .step-nav { margin-bottom: 8px; }
-      #tab-new-order .ot-hint { margin-top: 4px; min-height: 0; }
-      #tab-new-order .form-foot { padding: 10px 28px; }
-    }
-    .hw-status { font-size: 11.5px; color: var(--text3); margin-left: auto; }
     .card-sketch img { background: #fff; }
 
-    /* ═══════════════════════════════════════════════════
-       DESIGN SKETCH — stage + floating collapsible side dock
-       (Step 2 of the Edit / New Order flow)
-       ═══════════════════════════════════════════════════ */
-    .sketch-stage {
-      position: relative; width: 100%; aspect-ratio: 1000 / 620;
-      max-width: 100%; align-self: stretch;
-      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
-      overflow: hidden;
-    }
-    .sketch-stage > #sketch-canvas {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      border: none; border-radius: inherit; background: #fff;
-      touch-action: none; cursor: crosshair; display: block;
-    }
-    /* Floating vertical dock, pinned to the right edge of the drawing surface */
-    .sketch-dock {
-      position: absolute; top: 12px; right: 12px; z-index: 3;
-      display: flex; flex-direction: column; gap: 10px;
-      width: 168px; padding: 12px;
-      background: rgba(22,32,42,0.94);
-      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.09); border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.30);
-      transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .22s;
-    }
-    .sketch-dock.collapsed { transform: translateX(calc(100% + 22px)); opacity: 0; pointer-events: none; }
-    .dock-head { display: flex; align-items: center; justify-content: space-between; }
-    .dock-title { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #7F97A8; }
-    .dock-toggle {
-      width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
-      border: none; background: rgba(255,255,255,0.10); color: #DCE6EE;
-      font-size: 13px; cursor: pointer; line-height: 1;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .14s;
-    }
-    .dock-toggle:hover { background: rgba(255,255,255,0.22); }
-    .dock-row { display: flex; gap: 6px; }
-    .dock-btn {
-      flex: 1; height: 42px; border-radius: 9px;
-      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
-      color: #E8EEF2; font-size: 17px; cursor: pointer; line-height: 1;
-      display: flex; align-items: center; justify-content: center;
-      transition: all .14s;
-    }
-    .dock-btn:hover { background: rgba(255,255,255,0.15); }
-    .dock-btn:active { transform: scale(.94); }
-    .dock-btn.tool.active {
-      background: var(--accent); color: #1A1A1A; border-color: var(--accent);
-      box-shadow: 0 2px 10px rgba(201,152,58,0.45);
-    }
-    .dock-size { display: flex; align-items: center; gap: 10px; }
-    .dock-size-preview {
-      width: 42px; height: 42px; border-radius: 9px; flex-shrink: 0;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-    }
-    #sk-size-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: #E8EEF2; transition: width .1s, height .1s; }
-    .dock-slider-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-    .dock-slider {
-      -webkit-appearance: none; appearance: none;
-      width: 100%; height: 6px; border-radius: 4px; margin: 0;
-      background: rgba(255,255,255,0.20); outline: none; cursor: pointer;
-    }
-    .dock-slider::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none;
-      width: 16px; height: 16px; border-radius: 50%;
-      background: var(--accent); border: 2px solid #fff; cursor: pointer;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-    }
-    .dock-slider::-moz-range-thumb {
-      width: 16px; height: 16px; border-radius: 50%;
-      background: var(--accent); border: 2px solid #fff; cursor: pointer;
-    }
-    .dock-size-val { font-size: 10.5px; font-weight: 700; color: #9FB4C4; text-align: right; }
-    .dock-presets { display: flex; gap: 6px; }
-    .dock-preset {
-      flex: 1; height: 30px; border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
-      color: #C7D4DE; font-size: 11.5px; font-weight: 700; cursor: pointer;
-      transition: all .14s;
-    }
-    .dock-preset:hover { background: rgba(255,255,255,0.14); }
-    .dock-preset.active { background: rgba(201,152,58,0.22); border-color: var(--accent); color: #F1DFB6; }
-    .dock-hint { font-size: 9.5px; color: #63788A; text-align: center; letter-spacing: .2px; }
-    /* Subtle trigger button that survives when the dock is folded away */
-    .dock-reopen {
-      position: absolute; top: 12px; right: 12px; z-index: 2;
-      width: 46px; height: 46px; border-radius: 13px;
-      border: 1px solid rgba(255,255,255,0.10); background: rgba(22,32,42,0.90);
-      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-      color: #E8EEF2; font-size: 21px; cursor: pointer;
-      display: none; align-items: center; justify-content: center;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.28);
-      animation: dockReopenIn .25s ease;
-    }
-    .sketch-dock.collapsed ~ .dock-reopen { display: flex; }
-    @keyframes dockReopenIn { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
 
     /* ═══════════════════════════════════════════════════
-       ORDER FLOW — full-screen immersive "separate app" mode
-       Promotes #tab-new-order to a stable 100vw/100vh workspace:
-       global chrome is hidden, the container never resizes between
-       the 3 steps (the body scrolls internally instead).
+       EDIT ORDER MODAL — compact popup opened by clicking an
+       order card. Resurrected from the pre-immersive design and
+       extended to full parity with the retired edit form.
+       New-order intake now lives in the standalone intake.html PWA.
        ═══════════════════════════════════════════════════ */
-    body.oflow-fs .sidebar,
-    body.oflow-fs .topbar,
-    body.oflow-fs .sidebar-overlay,
-    body.oflow-fs .botnav,
-    body.oflow-fs .sb-menu-btn { display: none !important; }
-    body.oflow-fs { overflow: hidden; }
-    body.oflow-fs .content { margin-left: 0 !important; padding: 0 !important; }
-    body.oflow-fs #tab-new-order.tab-panel.active {
-      position: fixed; inset: 0;
-      width: 100vw; height: 100vh; height: 100dvh;
-      z-index: 1000; background: var(--bg, #F5F2EC);
+    .eo-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(26,46,56,.55); z-index: 800;
+      align-items: center; justify-content: center; padding: 18px;
+    }
+    .eo-bg.open { display: flex; }
+    .eo-modal {
+      background: var(--card-bg); border: 1px solid var(--bdr);
+      border-radius: 16px; box-shadow: var(--shadow-lg);
+      width: min(880px, 96vw); max-height: 92dvh;
       display: flex; flex-direction: column; overflow: hidden;
     }
-    /* Immersive top bar: Exit · Step x of 3 · Save & Close */
-    #oflow-topbar { display: none; }
-    body.oflow-fs #oflow-topbar {
-      display: flex; align-items: center; gap: 14px; flex-shrink: 0;
-      height: 58px; padding: 0 16px;
-      background: var(--hdr); border-bottom: 1px solid var(--hdr-bdr);
-      color: #E8EEF2; z-index: 5;
+    .eo-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 14px 20px; border-bottom: 1px solid var(--bdr-light);
+      background: var(--card-head-bg); flex-shrink: 0;
     }
-    .oflow-btn {
-      display: inline-flex; align-items: center; gap: 7px;
-      border-radius: 9px; padding: 9px 15px; white-space: nowrap;
-      font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
-      border: 1px solid transparent; transition: all .15s;
+    .eo-head-title {
+      font-size: 15px; font-weight: 700; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .oflow-exit { background: transparent; color: #B7C9D6; border-color: #35576D; }
-    .oflow-exit:hover { background: #1C3B50; color: #fff; }
-    .oflow-save { background: var(--accent); color: #201A0A; }
-    .oflow-save:hover { filter: brightness(1.07); box-shadow: 0 3px 12px rgba(201,152,58,0.4); }
-    .oflow-spacer { flex: 1; }
-    .oflow-steps { display: flex; align-items: center; gap: 12px; }
-    .oflow-steplabel { font-size: 12.5px; font-weight: 700; letter-spacing: .3px; color: #9FB4C4; }
-    .oflow-dots { display: flex; gap: 8px; }
-    .oflow-dot { width: 9px; height: 9px; border-radius: 50%; background: #35576D; transition: all .22s; }
-    .oflow-dot.done { background: #6E8CA0; }
-    .oflow-dot.active { background: var(--accent); transform: scale(1.3); box-shadow: 0 0 0 3px rgba(201,152,58,0.22); }
-    /* Form fills the leftover height; only the body scrolls → container is stable */
-    body.oflow-fs #tab-new-order .new-order-cols { display: block; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
-    body.oflow-fs #tab-new-order .new-order-cols > .form-card {
-      max-width: none; height: 100%; margin: 0;
-      display: flex; flex-direction: column;
-      border: none; border-radius: 0; box-shadow: none; background: transparent;
+    .eo-close {
+      background: none; border: none; font-size: 22px; line-height: 1;
+      color: var(--text3); cursor: pointer; flex-shrink: 0; padding: 2px 6px;
     }
-    body.oflow-fs #tab-new-order .form-head { display: none; }
-    /* Estimate Builder stays a toggle (default display:none); in immersive mode
-       it floats as a centred sheet instead of stacking and breaking the layout */
-    body.oflow-fs #tab-new-order #estimateBuilderCard {
-      position: fixed; z-index: 1100;
-      top: 74px; left: 50%; transform: translateX(-50%);
-      width: min(760px, 94vw); max-height: calc(100dvh - 94px);
-      overflow-y: auto; margin: 0;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45); border-radius: 14px;
+    .eo-close:hover { color: var(--text); }
+    .eo-body { overflow-y: auto; padding: 16px 20px; flex: 1; min-height: 0; }
+    .eo-body .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 14px; }
+    @media (min-width: 720px) { .eo-body .form-grid { grid-template-columns: repeat(3, 1fr); } }
+    .eo-sec-label {
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--text3); margin: 18px 0 8px;
+      border-top: 1px solid var(--bdr-light); padding-top: 14px;
     }
-    /* A white "sheet" centred in the slate frame — matches the app's
-       card-on-background language and keeps labels high-contrast */
-    body.oflow-fs #tab-new-order .form-body {
-      flex: 1; min-height: 0; overflow-y: auto;
-      width: 100%; max-width: 1040px; margin: 0 auto;
-      background: var(--card-bg, #fff);
-      box-shadow: 0 0 0 1px var(--bdr);
+    .eo-sec-label:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+    .eo-sec-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .eo-foot {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 12px 20px; border-top: 1px solid var(--bdr-light);
+      background: var(--card-head-bg); flex-shrink: 0;
     }
-    body.oflow-fs #tab-new-order .form-foot,
-    body.oflow-fs #tab-new-order #order-edit-actions {
-      flex-shrink: 0; width: 100%; max-width: 1040px; margin: 0 auto;
-      background: var(--card-bg, #fff);
+    /* Sketch viewer — view-only; sketches are drawn in the intake app */
+    #eo-sketch-view {
+      border: 1px solid var(--bdr-light); border-radius: var(--rad-sm);
+      background: #fff; padding: 8px; position: relative;
+      display: flex; align-items: center; justify-content: center; min-height: 80px;
     }
-    /* In immersive mode the header owns Exit + step progress, so the in-body
-       step tabs stay purely as a jump-nav and the redundant Back/Clear/foot-note
-       are trimmed for the "focused micro-app" feel */
-    body.oflow-fs #order-form-back-btn,
-    body.oflow-fs #order-form-foot-note { display: none !important; }
-    body.oflow-fs #tab-new-order .form-foot { border-top: 1px solid var(--bdr); background: var(--card, #fff); }
+    #eo-sketch-view img { max-width: 100%; max-height: 320px; display: block; cursor: zoom-in; }
+    .eo-sketch-empty { font-size: 12.5px; color: var(--text3); }
+    .eo-sketch-spinner {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--bdr); border-top-color: var(--accent);
+      animation: rq-spin 0.7s linear infinite;
+    }
+    /* Estimate builder + invoice compose live inside the modal now */
+    .eo-body #estimateBuilderCard {
+      margin-top: 16px; border: 1px solid var(--accent-border);
+      border-radius: var(--rad-md); box-shadow: none; max-width: none;
+    }
+    #eo-invoice-compose { background: var(--hdr); }
+    /* Legacy fields hidden unless the order carries data (toggled by JS) */
+    .fg.legacy-hide { display: none; }
 
-    /* Narrow screens: shrink the dock + tighten the immersive header */
-    @media (max-width: 640px) {
-      .sketch-dock { width: 138px; padding: 9px; gap: 8px; }
-      .dock-btn { height: 38px; font-size: 15px; }
-      .dock-size-preview { width: 34px; height: 34px; }
-      body.oflow-fs #oflow-topbar { height: 52px; padding: 0 10px; gap: 8px; }
-      .oflow-btn { padding: 8px 11px; font-size: 12px; }
-      .oflow-steplabel { display: none; } /* dots alone anchor the step on small screens */
-    }
-
-    /* Gmail pull panel */
-    .gmail-panel {
-      display: none;
-      background: #fff;
-      border: 1px solid #E4DDD4;
-      border-radius: 12px;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.14);
-      width: 360px;
-      position: fixed;
-      right: 28px;
-      top: 100px;
-      z-index: 200;
-      overflow: hidden;
-    }
-    .gmail-panel.open { display: block; }
-    .gp-head {
-      padding: 13px 16px;
-      border-bottom: 1px solid #EEE6DC;
-      background: #FDFAF6;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .gp-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
-    .gp-close { cursor: pointer; color: var(--text3); font-size: 20px; line-height: 1; }
-    .gp-close:hover { color: #4A4440; }
-    .gp-thread {
-      padding: 12px 16px;
-      border-bottom: 1px solid #F4EFE8;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .gp-thread:hover { background: #FBF8F3; }
-    .gp-thread:last-child { border-bottom: none; }
-    .gp-subj { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-    .gp-from { font-size: 11.5px; color: var(--text2); margin-bottom: 3px; }
-    .gp-snip { font-size: 11.5px; color: #6A6460; line-height: 1.4; }
-    .gp-hint { padding: 10px 16px; font-size: 11px; color: #A8A098; text-align: center; border-top: 1px solid #F0EBE3; }
 
     /* ── Customers Tab ───────────────────────── */
     .cust-bar {
@@ -4600,12 +4371,6 @@
     .form-foot { padding: 14px 14px; }
     .form-wrap { max-width: 100%; }
 
-    /* Step nav: tabs share the row, Back/Next wrap below */
-    .step-nav { gap: 6px; }
-    .step-tab { flex: 1; justify-content: center; padding: 8px 6px; font-size: 10.5px; }
-    .step-nav .btn { flex-basis: 100%; }
-    /* Phones scroll anyway — let canvases use the full width again */
-    #sketch-canvas, #hw-canvas { width: 100%; height: auto; }
 
     /* Order type toggle: full width */
     .order-type-toggle { width: 100%; }
@@ -4623,8 +4388,6 @@
     /* Drawer: full-width on mobile */
     .drawer { width: 100%; left: 0; right: 0; }
 
-    /* Gmail floating pull panel: full width */
-    .gmail-panel { width: calc(100vw - 24px); right: 12px; left: 12px; top: 80px; }
 
     /* Order Materials: stacked mobile layout — search top, order below,
        catalog (browse-by-category) collapsed until a search is active. */
@@ -4974,21 +4737,6 @@
   }
 
   /* ── New Order two-column layout ─────────────────── */
-  /* auto-fit: when the Estimate Builder card is hidden (display:none) the
-     form card takes the full row — capped below for legibility — and the
-     two cards sit side by side when both are visible. */
-  .new-order-cols {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
-    gap: var(--sp-4);
-    align-items: start;
-  }
-  .new-order-cols > .form-card { max-width: 860px; }
-  @media (max-width: 900px) {
-    .new-order-cols { grid-template-columns: 1fr; }
-    .new-order-cols > .form-card { max-width: none; }
-  }
-
   /* ── Home Dashboard ───────────────────────────────── */
   .home-dash { max-width: none; }
 
@@ -5263,7 +5011,7 @@
     <div class="sb-item sb-active" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
 
     <div class="sb-section">Orders</div>
-    <div class="sb-item" data-sb="new-order"    onclick="sbNav('custom-orders','new-order',this)">✚ New Order</div>
+    <div class="sb-item" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</div>
     <div class="sb-item" data-sb="dashboard"    onclick="sbNav('custom-orders','dashboard',this)">📋 Custom Orders <span class="sb-badge" id="sb-badge-active"></span></div>
     <div class="sb-item" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
     <div class="sb-item" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
@@ -5333,8 +5081,8 @@
 
 <!-- Sub-nav (Orders) -->
 <div class="sub-nav active" id="sub-nav-custom-orders" role="tablist" aria-label="Orders">
-  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="new-order" onclick="clearForm();switchSubTab('new-order',this)">
-    ✚ New Order
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">
+    ✚ New Order ↗
   </div>
   <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="true" data-tab="dashboard" onclick="switchSubTab('dashboard',this)">
     📋 Custom Orders <span class="nav-badge" id="badge-active-sub"></span>
@@ -5591,7 +5339,7 @@
   <div class="kanban-bar">
     <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:rgba(255,255,255,0.72);font-size:13px;">— synced with Notion</span></span>
     <div style="display:flex;align-items:center;gap:8px;">
-      <button class="kb-new-btn" onclick="clearForm();switchSubTab('new-order', document.querySelector('.sub-nav-tab[data-tab=new-order]'))">✚ New Order</button>
+      <button class="kb-new-btn" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</button>
       <div class="overflow-wrap" id="kbOverflowWrap">
         <button class="overflow-btn" onclick="toggleKbOverflow()" title="More actions">⋯</button>
         <div class="overflow-menu" id="kbOverflowMenu">
@@ -5612,383 +5360,292 @@
 
 </div>
 
-<div id="tab-new-order" class="tab-panel">
-  <!-- Immersive full-screen header — only visible while body.oflow-fs is set -->
-  <div id="oflow-topbar">
-    <button type="button" class="oflow-btn oflow-exit" onclick="orderFlowExit()">✕ <span id="oflow-exit-label">Cancel</span></button>
-    <div class="oflow-spacer"></div>
-    <div class="oflow-steps" role="status" aria-live="polite">
-      <span class="oflow-steplabel" id="oflow-step-label">Step 1 of 3</span>
-      <div class="oflow-dots" id="oflow-dots">
-        <span class="oflow-dot active"></span><span class="oflow-dot"></span><span class="oflow-dot"></span>
-      </div>
+<!-- ═══════════ EDIT ORDER MODAL ═══════════
+     Compact popup opened by clicking an order card (openOrderCard in js/orders.js).
+     Resurrected from the pre-immersive design and extended to full parity with the
+     retired edit form. New-order intake now lives in the standalone intake.html PWA.
+     Field IDs intentionally match the old form (f-*) so orders.js and the shared
+     js/order-widgets.js needed no renames. -->
+<div id="editOrderModalBg" class="eo-bg" onclick="if(event.target===this)closeEditOrderModal()">
+  <div class="eo-modal">
+    <div class="eo-head">
+      <div class="eo-head-title" id="eo-title">✏️ Edit Order</div>
+      <button class="eo-close" onclick="closeEditOrderModal()" title="Close">×</button>
     </div>
-    <div class="oflow-spacer"></div>
-    <button type="button" class="oflow-btn oflow-save" onclick="orderFlowSaveClose()"><span id="oflow-save-label">Save &amp; Close</span></button>
-  </div>
-  <div class="new-order-cols">
-    <div class="form-card">
-      <div class="form-head">
-        <div class="form-head-title" id="order-form-title">Order Intake</div>
-        <div class="form-head-sub" id="order-form-sub">Submitting creates a Notion record automatically.</div>
-      </div>
-      <div class="form-body">
-        <input type="hidden" id="f-editing-id">
-        <input type="hidden" id="f-items-json" value="[]">
-        <div class="step-nav" id="order-step-nav">
-          <button type="button" class="step-tab active" id="step-tab-1" onclick="orderFormStep(1)"><span class="step-num">1</span> Customer</button>
-          <button type="button" class="step-tab" id="step-tab-2" onclick="orderFormStep(2)"><span class="step-num">2</span> Design</button>
-          <button type="button" class="step-tab" id="step-tab-3" onclick="orderFormStep(3)"><span class="step-num">3</span> Items &amp; Price</button>
-          <span style="flex:1"></span>
-          <button type="button" class="btn btn-ghost btn-sm" id="order-step-back" style="visibility:hidden;" onclick="orderFormStepBack()">‹ Back</button>
-          <button type="button" class="btn btn-outline btn-sm" id="order-step-next" onclick="orderFormStepNext()">Next ›</button>
-        </div>
 
-        <!-- ── Step 1 · Customer ── -->
-        <div class="form-step active" id="order-step-1">
-        <div class="form-sec" id="order-type-section">
-          <div class="form-sec-label">Order Type</div>
-          <select id="f-order-type" onchange="onOrderTypeChange()" class="fg-select" style="width:100%;">
+    <div class="eo-body">
+      <input type="hidden" id="f-editing-id">
+      <input type="hidden" id="f-items-json" value="[]">
+
+      <div class="eo-sec-label">Customer &amp; Logistics</div>
+      <div class="form-grid">
+        <div class="fg full" id="f-stage-row">
+          <label>Stage</label>
+          <select id="f-stage">
+            <option value="intake-custom">Custom Intake</option>
+            <option value="intake-repair">Repair Intake</option>
+            <option value="needs-est">Estimate Intake</option>
+            <option value="intake-website">Website Order Intake</option>
+            <option value="sketch-needs">Needs Sketch</option>
+            <option value="sketch-wait">Waiting on Sketch Approval</option>
+            <option value="sketch">Sketch Approved</option>
+            <option value="quote">Estimate Sent</option>
+            <option value="est-wait-appr">Waiting on Approval</option>
+            <option value="est-appr">Estimate Approved</option>
+            <option value="deposit-wait">Waiting on Deposit</option>
+            <option value="deposit-paid">Deposit Paid</option>
+            <option value="order-mat">Order Materials</option>
+            <option value="materials">Waiting on Materials</option>
+            <option value="wait-cust-ship">Waiting on Customer Shipment</option>
+            <option value="build">At the Bench</option>
+            <option value="kyle">At the Bench — Kyle</option>
+            <option value="stevie">At the Bench — Stevie</option>
+            <option value="vanessa">At the Bench — Vanessa</option>
+            <option value="etsy-bench">At the Bench — Etsy Order</option>
+            <option value="needs-invoice">Needs Invoicing</option>
+            <option value="invoice-sent">Invoice Sent</option>
+            <option value="contact-need">Need to Contact Customer</option>
+            <option value="contact-done">Contacted Customer</option>
+            <option value="ready-pick">Ready for Pickup</option>
+            <option value="ship-out">Ship Out</option>
+            <option value="complete">Completed</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Order Type</label>
+          <select id="f-order-type" onchange="onOrderTypeChange()">
             <option value="order">💍 Custom Order</option>
             <option value="repair">🔧 Repair</option>
             <option value="resize">💎 Resize</option>
             <option value="etsy-order">🛍 Etsy Order</option>
             <option value="website-order">🌐 Website Order</option>
           </select>
-          <div class="ot-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
         </div>
-        <div class="form-grid">
-          <div class="fg full" id="f-stage-row" style="display:none;">
-            <label>Stage</label>
-            <select id="f-stage">
-              <option value="intake-custom">Custom Intake</option>
-              <option value="intake-repair">Repair Intake</option>
-              <option value="needs-est">Estimate Intake</option>
-              <option value="intake-website">Website Order Intake</option>
-              <option value="sketch-needs">Needs Sketch</option>
-              <option value="sketch-wait">Waiting on Sketch Approval</option>
-              <option value="sketch">Sketch Approved</option>
-              <option value="quote">Estimate Sent</option>
-              <option value="est-wait-appr">Waiting on Approval</option>
-              <option value="est-appr">Estimate Approved</option>
-              <option value="deposit-wait">Waiting on Deposit</option>
-              <option value="deposit-paid">Deposit Paid</option>
-              <option value="order-mat">Order Materials</option>
-              <option value="materials">Waiting on Materials</option>
-              <option value="wait-cust-ship">Waiting on Customer Shipment</option>
-              <option value="build">At the Bench</option>
-              <option value="kyle">At the Bench — Kyle</option>
-              <option value="stevie">At the Bench — Stevie</option>
-              <option value="vanessa">At the Bench — Vanessa</option>
-              <option value="etsy-bench">At the Bench — Etsy Order</option>
-              <option value="needs-invoice">Needs Invoicing</option>
-              <option value="invoice-sent">Invoice Sent</option>
-              <option value="contact-need">Need to Contact Customer</option>
-              <option value="contact-done">Contacted Customer</option>
-              <option value="ready-pick">Ready for Pickup</option>
-              <option value="ship-out">Ship Out</option>
-              <option value="complete">Completed</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>First Name *</label>
-            <input type="text" id="f-firstname" placeholder="Sarah">
-          </div>
-          <div class="fg">
-            <label>Last Name</label>
-            <input type="text" id="f-lastname" placeholder="Johnson">
-          </div>
-          <div class="fg">
-            <label>Email</label>
-            <input type="email" id="f-email" placeholder="sarah@example.com">
-          </div>
-          <div class="fg">
-            <label>Phone</label>
-            <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
-          </div>
-          <div class="fg">
-            <label>Contacted Via</label>
-            <select id="f-source">
-              <option value="">— Select source —</option>
-              <option value="Email">Email</option>
-              <option value="Farmer's Market">Farmer's Market</option>
-              <option value="Shopify Email">Shopify Email</option>
-              <option value="Website Order">Website Order</option>
-              <option value="Etsy Message">Etsy Message</option>
-              <option value="Instagram Message">Instagram Message</option>
-              <option value="Text Message">Text Message</option>
-              <option value="Facebook Message">Facebook Message</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>Pickup Location</label>
-            <select id="f-pickup" onchange="toggleShippingAddress()">
-              <option value="">— Select location —</option>
-              <option value="Bell Market">Bell Market</option>
-              <option value="Mueller Market">Mueller Market</option>
-              <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
-              <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
-              <option value="Austin Flea">Austin Flea</option>
-              <option value="Studio">Studio</option>
-              <option value="To be Shipped">📦 To be Shipped</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>Assigned To</label>
-            <select id="f-assignee">
-              <option value="">— Unassigned —</option>
-              <option value="Kyle">Kyle</option>
-              <option value="Vanessa">Vanessa</option>
-              <option value="Stevie">Stevie</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label>Deadline</label>
-            <input type="date" id="f-deadline">
-          </div>
-          <div class="fg">
-            <label>Take In Date</label>
-            <input type="date" id="f-takein">
-          </div>
-          <div class="fg full" id="addr-street-fg">
-            <label>Street Address</label>
-            <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
-          </div>
-          <div class="fg full" id="addr-street2-fg">
-            <label>Address Line 2</label>
-            <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
-          </div>
-          <div class="fg" id="addr-city-fg">
-            <label>City</label>
-            <input type="text" id="f-addr-city" placeholder="Tampa">
-          </div>
-          <div class="fg" id="addr-state-fg">
-            <label>State</label>
-            <input type="text" id="f-addr-state" placeholder="FL">
-          </div>
-          <div class="fg" id="addr-zip-fg">
-            <label>Zip</label>
-            <input type="text" id="f-addr-zip" placeholder="33619">
-          </div>
-          <div class="fg" id="addr-country-fg">
-            <label>Country</label>
-            <input type="text" id="f-addr-country" placeholder="United States" value="United States">
-          </div>
-          <div class="fg" id="tracking-carrier-fg">
-            <label>Carrier</label>
-            <select id="f-tracking-carrier">
-              <option value="">— Select —</option>
-              <option value="USPS">USPS</option>
-              <option value="UPS">UPS</option>
-              <option value="FedEx">FedEx</option>
-              <option value="DHL">DHL</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="fg" id="tracking-number-fg">
-            <label>Tracking Number</label>
-            <div style="display:flex;gap:6px;">
-              <input type="text" id="f-tracking-number" placeholder="9400150106151262058002" style="flex:1;">
-              <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation"
-                      onclick="orderLookupTracking(this)">🔎</button>
-            </div>
-          </div>
-          <div class="fg legacy-hide" id="contact-method-fg">
-            <label>Preferred Contact</label>
-            <select id="f-contact-method">
-              <option value="">— Select —</option>
-              <option value="Email">Email</option>
-              <option value="Text">Text</option>
-              <option value="Phone">Phone</option>
-            </select>
-          </div>
-          <div class="fg full hw-toggle-row">
-            <button type="button" class="btn btn-outline btn-sm" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
-          </div>
-          <div class="fg full hw-collapsed" id="hw-fg">
-            <label>✍ Handwrite Customer Info <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ write on the lines, then convert to fill the fields</span></label>
-            <div class="sketch-toolbar">
-              <button type="button" class="sketch-btn" onclick="hwConvert(this)">✨ Convert to Type</button>
-              <button type="button" class="sketch-btn" onclick="hwClear()">🗑 Clear</button>
-              <span class="hw-status" id="hw-status"></span>
-            </div>
-            <canvas id="hw-canvas" width="1000" height="360"></canvas>
-          </div>
+        <div class="fg">
+          <label>First Name</label>
+          <input type="text" id="f-firstname" placeholder="Sarah">
         </div>
+        <div class="fg">
+          <label>Last Name</label>
+          <input type="text" id="f-lastname" placeholder="Johnson">
         </div>
-
-        <!-- ── Step 2 · Design ── -->
-        <div class="form-step" id="order-step-2">
-        <div class="form-grid">
-          <div class="fg">
-            <label>Piece Type</label>
-            <select id="f-piece-type">
-              <option value="">— Select —</option>
-              <option value="Ring">Ring</option>
-              <option value="Ear Cuff">Ear Cuff</option>
-              <option value="Necklace">Necklace</option>
-              <option value="Bracelet">Bracelet</option>
-              <option value="Earrings">Earrings</option>
-              <option value="Pendant">Pendant</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="fg" id="materials-fg">
-            <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
-          </div>
-          <div class="fg">
-            <label>Sizing / Dimensions</label>
-            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
-          </div>
-          <div class="fg">
-            <label>Texture / Finish</label>
-            <div class="finish-checks" id="f-finish">
-              <label><input type="checkbox" value="Polished"> Polished</label>
-              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
-              <label><input type="checkbox" value="Matte"> Matte</label>
-              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
-            </div>
-          </div>
-          <div class="fg">
-            <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
-          </div>
-          <div class="fg" id="jobdesc-fg">
-            <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
-            <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
-              <option value="custom">Custom Item</option>
-              <option value="square">Square Item</option>
-            </select>
-            <div id="jobdesc-custom-wrap">
-              <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
-            </div>
-            <div id="jobdesc-square-wrap" style="display:none;">
-              <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-              <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
-            </div>
-          </div>
-          <div class="fg full" id="orderdesc-fg">
-            <label>Order Description</label>
-            <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
-          </div>
-          <div class="fg full legacy-hide" id="sketch-fg">
-            <label>Sketch Notes</label>
-            <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
-          </div>
-          <div class="fg full" id="sketchpad-fg">
-            <label>Design Sketch <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ Apple&nbsp;Pencil only · saved on the order card + synced to Notion</span></label>
-            <div class="sketch-stage" id="sketch-stage">
-              <canvas id="sketch-canvas" width="1000" height="620"></canvas>
-
-              <!-- Floating, collapsible vertical dock of drawing tools -->
-              <div class="sketch-dock" id="sketch-dock">
-                <div class="dock-head">
-                  <span class="dock-title">Tools</span>
-                  <button type="button" class="dock-toggle" onclick="sketchDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
-                </div>
-                <div class="dock-row">
-                  <button type="button" class="dock-btn tool active" id="sk-pen"    onclick="sketchSetTool('pen',this)"    title="Pen">🖊</button>
-                  <button type="button" class="dock-btn tool"        id="sk-pencil" onclick="sketchSetTool('pencil',this)" title="Pencil">✏️</button>
-                  <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
-                </div>
-                <div class="dock-size">
-                  <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
-                  <div class="dock-slider-wrap">
-                    <input type="range" class="dock-slider" id="sk-size-slider" min="1" max="60" step="0.5" value="5"
-                           oninput="sketchSliderInput(this.value)" aria-label="Stroke size">
-                    <div class="dock-size-val" id="sk-size-val">5 px</div>
-                  </div>
-                </div>
-                <div class="dock-presets">
-                  <button type="button" class="dock-preset" onclick="sketchSetWidth('S',this)" title="Fine">S</button>
-                  <button type="button" class="dock-preset active" onclick="sketchSetWidth('M',this)" title="Medium">M</button>
-                  <button type="button" class="dock-preset" onclick="sketchSetWidth('L',this)" title="Thick">L</button>
-                </div>
-                <div class="dock-row">
-                  <button type="button" class="dock-btn" onclick="sketchUndo()"  title="Undo">↩</button>
-                  <button type="button" class="dock-btn" onclick="sketchRedo()"  title="Redo">↪</button>
-                  <button type="button" class="dock-btn" onclick="sketchClear()" title="Clear">🗑</button>
-                </div>
-                <div class="dock-hint">✎ Apple Pencil only</div>
-              </div>
-
-              <!-- Subtle trigger left behind when the dock is folded away -->
-              <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
-            </div>
-          </div>
+        <div class="fg">
+          <label>Email</label>
+          <input type="email" id="f-email" placeholder="sarah@example.com">
         </div>
+        <div class="fg">
+          <label>Phone</label>
+          <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
         </div>
-
-        <!-- ── Step 3 · Items & Price ── -->
-        <div class="form-step" id="order-step-3">
-        <div class="form-grid">
-          <div class="fg full" id="oi-section">
-            <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
-            <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-            <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="oiAddItem()">+ Add Item</button>
-          </div>
-          <div class="fg">
-            <label>Total ($) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sum of items</span></label>
-            <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
-          </div>
-          <div class="fg">
-            <label>Deposit ($)</label>
-            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="dpUpdatePaidByLabel()">
-          </div>
-          <div class="fg">
-            <label>Shipping ($)</label>
-            <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
-          </div>
-          <div class="fg">
-            <label>Balance Due ($)</label>
-            <input type="number" id="f-balance-due" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
-          </div>
-          <div class="fg full">
-            <label>Internal Notes</label>
-            <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:48px;"></textarea>
-          </div>
-          <div class="fg" id="f-paid-by-row" style="display:none;">
-            <label>Deposit Paid By</label>
-            <select id="f-paid-by">
-              <option value="">— Select —</option>
-              <option value="Credit Card">Credit Card</option>
-              <option value="Square Invoice">Square Invoice</option>
-              <option value="Cash">Cash</option>
-            </select>
-          </div>
-          <div class="fg" id="f-fully-paid-row" style="display:none;">
-            <label>Fully Paid</label>
-            <select id="f-fully-paid" onchange="eoUpdateBalanceDue()">
-              <option value="">— Select —</option>
-              <option value="Credit Card">Credit Card</option>
-              <option value="Square Invoice">Square Invoice</option>
-              <option value="Cash">Cash</option>
-            </select>
-          </div>
+        <div class="fg">
+          <label>Contacted Via</label>
+          <select id="f-source">
+            <option value="">— Select source —</option>
+            <option value="Email">Email</option>
+            <option value="Farmer's Market">Farmer's Market</option>
+            <option value="Shopify Email">Shopify Email</option>
+            <option value="Website Order">Website Order</option>
+            <option value="Etsy Message">Etsy Message</option>
+            <option value="Instagram Message">Instagram Message</option>
+            <option value="Text Message">Text Message</option>
+            <option value="Facebook Message">Facebook Message</option>
+          </select>
         </div>
+        <div class="fg">
+          <label>Pickup Location</label>
+          <select id="f-pickup" onchange="toggleShippingAddress()">
+            <option value="">— Select location —</option>
+            <option value="Bell Market">Bell Market</option>
+            <option value="Mueller Market">Mueller Market</option>
+            <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+            <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+            <option value="Austin Flea">Austin Flea</option>
+            <option value="Studio">Studio</option>
+            <option value="To be Shipped">📦 To be Shipped</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Assigned To</label>
+          <select id="f-assignee">
+            <option value="">— Unassigned —</option>
+            <option value="Kyle">Kyle</option>
+            <option value="Vanessa">Vanessa</option>
+            <option value="Stevie">Stevie</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Deadline</label>
+          <input type="date" id="f-deadline">
+        </div>
+        <div class="fg">
+          <label>Take In Date</label>
+          <input type="date" id="f-takein">
+        </div>
+        <div class="fg legacy-hide" id="contact-method-fg">
+          <label>Preferred Contact</label>
+          <select id="f-contact-method">
+            <option value="">— Select —</option>
+            <option value="Email">Email</option>
+            <option value="Text">Text</option>
+            <option value="Phone">Phone</option>
+          </select>
+        </div>
+        <div class="fg full" id="addr-street-fg">
+          <label>Street Address</label>
+          <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
+        </div>
+        <div class="fg full" id="addr-street2-fg">
+          <label>Address Line 2</label>
+          <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
+        </div>
+        <div class="fg" id="addr-city-fg">
+          <label>City</label>
+          <input type="text" id="f-addr-city" placeholder="Tampa">
+        </div>
+        <div class="fg" id="addr-state-fg">
+          <label>State</label>
+          <input type="text" id="f-addr-state" placeholder="FL">
+        </div>
+        <div class="fg" id="addr-zip-fg">
+          <label>Zip</label>
+          <input type="text" id="f-addr-zip" placeholder="33619">
+        </div>
+        <div class="fg" id="addr-country-fg">
+          <label>Country</label>
+          <input type="text" id="f-addr-country" placeholder="United States" value="United States">
+        </div>
+        <div class="fg" id="tracking-carrier-fg">
+          <label>Carrier</label>
+          <select id="f-tracking-carrier">
+            <option value="">— Select —</option>
+            <option value="USPS">USPS</option>
+            <option value="UPS">UPS</option>
+            <option value="FedEx">FedEx</option>
+            <option value="DHL">DHL</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="fg" id="tracking-number-fg">
+          <label>Tracking Number</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="f-tracking-number" placeholder="9400150106151262058002" style="flex:1;">
+            <button type="button" class="btn btn-outline btn-sm" title="Look up via ShipStation"
+                    onclick="orderLookupTracking(this)">🔎</button>
+          </div>
         </div>
       </div>
-      <div class="form-foot">
-        <button class="btn btn-gold" id="order-form-submit" onclick="submitOrder()">✓ Create Order</button>
-        <button class="btn btn-outline" id="order-form-gmail-btn" onclick="openGmailPanel()">✉ Pull from Gmail</button>
-        <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
-        <button class="btn btn-outline" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
-        <button class="btn btn-outline" onclick="sbNav('custom-orders','print-bag',null)">🖨 Print Bag</button>
-        <button class="btn btn-ghost" id="order-form-back-btn" style="display:none;" onclick="closeEditOrderModal()">← Back</button>
-        <span id="order-form-foot-note" style="margin-left:auto;font-size:11.5px;color:var(--text3);">Creates in Notion</span>
+
+      <div class="eo-sec-label">Design</div>
+      <div class="form-grid">
+        <div class="fg">
+          <label>Piece Type</label>
+          <select id="f-piece-type">
+            <option value="">— Select —</option>
+            <option value="Ring">Ring</option>
+            <option value="Ear Cuff">Ear Cuff</option>
+            <option value="Necklace">Necklace</option>
+            <option value="Bracelet">Bracelet</option>
+            <option value="Earrings">Earrings</option>
+            <option value="Pendant">Pendant</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="fg" id="materials-fg">
+          <label>Materials / Metal</label>
+          <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+        </div>
+        <div class="fg">
+          <label>Sizing / Dimensions</label>
+          <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
+        </div>
+        <div class="fg">
+          <label>Texture / Finish</label>
+          <div class="finish-checks" id="f-finish">
+            <label><input type="checkbox" value="Polished"> Polished</label>
+            <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
+            <label><input type="checkbox" value="Matte"> Matte</label>
+            <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+          </div>
+        </div>
+        <div class="fg">
+          <label>Gemstones / Components</label>
+          <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
+        </div>
+        <div class="fg" id="jobdesc-fg">
+          <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
+          <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
+            <option value="custom">Custom Item</option>
+            <option value="square">Square Item</option>
+          </select>
+          <div id="jobdesc-custom-wrap">
+            <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+          </div>
+          <div id="jobdesc-square-wrap" style="display:none;">
+            <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+            <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
+          </div>
+        </div>
+        <div class="fg full" id="orderdesc-fg">
+          <label>Order Description</label>
+          <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
+        </div>
+        <div class="fg full legacy-hide" id="sketch-fg">
+          <label>Sketch Notes</label>
+          <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
+        </div>
       </div>
-      <div id="order-edit-actions" style="display:none;flex-direction:row;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid rgba(0,0,0,.1);background:rgba(0,0,0,.04);">
-        <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
-        <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
-        <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
+
+      <div class="eo-sec-label">Design Sketch <span class="eo-sec-note">→ drawn in the Intake app on the iPad</span></div>
+      <div id="eo-sketch-view"><div class="eo-sketch-empty">No sketch on this order</div></div>
+
+      <div class="eo-sec-label">Items &amp; Price</div>
+      <div class="form-grid">
+        <div class="fg full" id="oi-section">
+          <label>Order Items <span style="font-size:11px;font-weight:400;color:var(--text3);">→ a manual ring size field appears for Square rings without a size variation</span></label>
+          <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+          <button type="button" class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="oiAddItem()">+ Add Item</button>
+        </div>
+        <div class="fg">
+          <label>Total ($) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sum of items</span></label>
+          <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
+        </div>
+        <div class="fg">
+          <label>Deposit ($)</label>
+          <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="dpUpdatePaidByLabel()">
+        </div>
+        <div class="fg">
+          <label>Shipping ($)</label>
+          <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+        </div>
+        <div class="fg">
+          <label>Balance Due ($)</label>
+          <input type="number" id="f-balance-due" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
+        </div>
+        <div class="fg" id="f-paid-by-row" style="display:none;">
+          <label>Deposit Paid By</label>
+          <select id="f-paid-by">
+            <option value="">— Select —</option>
+            <option value="Credit Card">Credit Card</option>
+            <option value="Square Invoice">Square Invoice</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </div>
+        <div class="fg" id="f-fully-paid-row">
+          <label>Fully Paid</label>
+          <select id="f-fully-paid" onchange="eoUpdateBalanceDue()">
+            <option value="">— Select —</option>
+            <option value="Credit Card">Credit Card</option>
+            <option value="Square Invoice">Square Invoice</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </div>
+        <div class="fg full">
+          <label>Internal Notes</label>
+          <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:48px;"></textarea>
+        </div>
       </div>
-      <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.05);"></div>
-    </div>
 
   <!-- Estimate Builder Card -->
   <div class="form-card" id="estimateBuilderCard" style="display:none;">
@@ -6104,8 +5761,23 @@
       <span id="est-save-status" style="margin-left:auto;font-size:11.5px;color:var(--accent);opacity:0;transition:opacity 0.4s;"></span>
     </div>
   </div>
-  </div><!-- /new-order-cols -->
-</div><!-- /tab-new-order -->
+
+    </div>
+
+    <div id="eo-invoice-compose" style="display:none;padding:14px 20px;border-top:1px solid rgba(0,0,0,.15);"></div>
+
+    <div class="eo-foot">
+      <button class="btn btn-gold btn-sm" onclick="saveOrderEdit()">✓ Save Changes</button>
+      <button class="btn btn-outline btn-sm" id="add-estimate-btn" onclick="toggleEstimateBuilder()">💰 Add Estimate</button>
+      <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
+      <button class="btn btn-outline btn-sm" onclick="printOrder(document.getElementById('f-editing-id').value)">🖨 Print</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
+      <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
+      <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════ CUSTOMERS ═══════════════════ -->
 <div id="tab-customers" class="tab-panel">
@@ -9653,10 +9325,11 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js?v=2"></script>
 <script src="js/notion.js?v=20260707a"></script>
-<script src="js/customers.js?v=20260707b"></script>
+<script src="js/customers.js?v=20260708a"></script>
 <script src="js/app.js"></script>
 <script src="js/sketchpad.js?v=3"></script>
-<script src="js/orders.js?v=20260708a"></script>
+<script src="js/order-widgets.js?v=1"></script>
+<script src="js/orders.js?v=20260708b"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>
@@ -9825,7 +9498,6 @@ function applyStatFilter(key) {
     'home':              'Dashboard',
     'dashboard':         'Custom Orders',
     'production':        'Ready to Ship',
-    'new-order':         'New Order',
     'customers':         'Customers',
     'print-bag':         'Print Order Bag',
     'inv-adjust':        'Adjust Inventory',

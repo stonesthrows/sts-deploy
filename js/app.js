@@ -144,7 +144,7 @@ const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs','bgab'])
 
 // Each parent group and the ordered sub-tabs it contains
 const NAV_GROUPS = {
-  'custom-orders': ['dashboard','production','new-order','customers','print-bag'],
+  'custom-orders': ['dashboard','production','customers','print-bag'],
   'inventory':     ['to-restock','inv-adjust','prod-report'],
   'supplies':      ['supplier','order-history'],
   'more':          ['sales','calendar','pj-calc','pj-ref'],
@@ -231,12 +231,6 @@ function _showPanel(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + id);
   if (panel) panel.classList.add('active');
-  // The order intake / edit flow runs as a full-screen "separate app": entering
-  // its panel promotes it to 100vw/100vh and hides the global chrome; leaving it
-  // (to any other tab) restores the standard layout. Single choke point so every
-  // entry/exit path — edit, new-order tab, close, submit — is handled here.
-  document.body.classList.toggle('oflow-fs', id === 'new-order');
-  if (id === 'new-order' && typeof orderFlowSyncSteps === 'function') orderFlowSyncSteps();
   runTabHook(id);
   _syncAria();
   _scrollActiveIntoView();
@@ -289,8 +283,11 @@ function _navRestore() {
 
   switchParent(parent, _navTabEl(parent), true, true); // skipSave, skipFirstSub
 
-  // Restore the active sub-tab (also accepts the legacy '<parent>-sub' key)
-  const sub = _navGet('sub-' + parent) || _navGet(parent + '-sub') || NAV_GROUPS[parent][0];
+  // Restore the active sub-tab (also accepts the legacy '<parent>-sub' key).
+  // Validate it still exists — a saved 'new-order' (tab removed, intake moved
+  // to intake.html) would otherwise restore to a blank panel.
+  let sub = _navGet('sub-' + parent) || _navGet(parent + '-sub') || NAV_GROUPS[parent][0];
+  if (!NAV_GROUPS[parent].includes(sub)) sub = NAV_GROUPS[parent][0];
   switchSubTab(sub, null, true);
 
   // Inventory keeps an internal category structure inside the Adjust panel

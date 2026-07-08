@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Intake app variant: slate background (matches the sketch dock) + pencil,
+       so the two home-screen icons are easy to tell apart -->
+  <rect width="512" height="512" rx="96" fill="#16202A"/>
+  <!-- Diamond gem shape -->
+  <polygon points="256,72 388,196 256,448 124,196" fill="none" stroke="#C9983A" stroke-width="10" stroke-linejoin="round"/>
+  <!-- Top facet (bright) -->
+  <polygon points="256,72 388,196 256,210 124,196" fill="#E8B840" opacity="0.95"/>
+  <!-- Bottom-left facet (mid) -->
+  <polygon points="124,196 256,210 256,448" fill="#A07020" opacity="0.95"/>
+  <!-- Bottom-right facet (light) -->
+  <polygon points="388,196 256,210 256,448" fill="#D4A030" opacity="0.95"/>
+  <!-- Inner lines -->
+  <line x1="256" y1="72" x2="190" y2="196" stroke="#F0CC70" stroke-width="5" opacity="0.6"/>
+  <line x1="256" y1="72" x2="322" y2="196" stroke="#F0CC70" stroke-width="5" opacity="0.6"/>
+  <line x1="124" y1="196" x2="388" y2="196" stroke="#F0CC70" stroke-width="5" opacity="0.5"/>
+  <!-- Pencil overlay, bottom-right -->
+  <g transform="rotate(45 392 392)">
+    <rect x="356" y="368" width="112" height="48" rx="8" fill="#E8EEF2" stroke="#16202A" stroke-width="8"/>
+    <polygon points="468,368 468,416 504,392" fill="#E8B840" stroke="#16202A" stroke-width="8" stroke-linejoin="round"/>
+  </g>
+</svg>

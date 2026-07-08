@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <title>STS Intake</title>
+  <!-- PWA — standalone iPad order-intake app -->
+  <link rel="manifest" href="manifest-intake.json">
+  <meta name="theme-color" content="#16202A">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="STS Intake">
+  <link rel="apple-touch-icon" href="intake-icon-180.png">
+  <!-- Tailwind (intake app ONLY — the main app stays vanilla CSS per CLAUDE.md).
+       Vendored @tailwindcss/browser v4.3.2 (the Play CDN runtime) served from our
+       own origin, so intake never depends on a third-party CDN at a market. -->
+  <script src="tailwind.js?v=4.3.2"></script>
+  <style>
+    /* ═══ Design tokens — copied from jewelry-workflow.html so the shared
+       order widgets (js/order-widgets.js) render identically here ═══ */
+    :root {
+      --accent: #C9983A; --accent-mid: #D4AA56; --accent-light: #E8C878;
+      --card-bg: #FFFFFF; --bdr: #B0CDE0; --bdr-light: #C8DFEE;
+      --text: #1A2E38; --text1: var(--text); --text2: #4A6878; --text3: #6A8898;
+      --hover: #EBF5FB; --card: var(--card-bg);
+      --rad-sm: 8px; --rad-md: 10px;
+      --shadow-sm: 0 1px 2px rgba(26,46,56,0.05), 0 1px 3px rgba(26,46,56,0.06);
+      --focus-ring: 0 0 0 3px rgba(201,152,58,0.18);
+      --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+      --dur-fast: 0.16s;
+    }
+
+    /* ═══ Gesture lockdown — no rubber-banding, no zoom, no back-swipe ═══ */
+    html, body {
+      position: fixed; inset: 0; width: 100vw; height: 100dvh;
+      margin: 0; overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: manipulation;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    input, textarea { -webkit-user-select: text; user-select: text; }
+    #sketch-canvas, #hw-canvas { touch-action: none; }
+    .step-scroll { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+    /* ═══ Form fields — 16px inputs so iOS never auto-zooms ═══ */
+    .form-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px;
+    }
+    @media (min-width: 800px) { .form-grid { grid-template-columns: repeat(3, 1fr); } }
+    .fg { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .fg.full { grid-column: 1 / -1; }
+    .fg label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text3);
+    }
+    .fg input, .fg select, .fg textarea {
+      border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      padding: 10px 12px; font-size: 16px; color: var(--text);
+      background: #FAFAF8; outline: none; font-family: inherit; width: 100%;
+      box-sizing: border-box; min-height: 44px;
+      transition: border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+    }
+    .fg select { -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236A8898'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+    .fg input:focus, .fg select:focus, .fg textarea:focus {
+      border-color: var(--accent); background: #fff; box-shadow: var(--focus-ring);
+    }
+    .fg input[readonly] { background: var(--hover); cursor: not-allowed; }
+    .fg textarea { resize: none; min-height: 60px; line-height: 1.5; }
+    .fg-hint { font-size: 12px; color: var(--text3); }
+    .finish-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 0; }
+    .finish-checks label {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 15px;
+      font-weight: 500; color: var(--text); cursor: pointer;
+    }
+    .finish-checks input[type="checkbox"] { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 0; accent-color: var(--accent); }
+    /* "Handwrite instead" replaces the typed customer fields while open */
+    .hw-collapsed { display: none; }
+    #step-1 .form-grid.hw-open > div:not(#hw-fg):not(.hw-toggle-row) { display: none; }
+    .hw-status { font-size: 13px; color: var(--text3); margin-left: auto; }
+    .sketch-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .sketch-btn {
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text);
+      border-radius: var(--rad-sm); padding: 10px 16px; min-height: 44px;
+      font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .sketch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    #hw-canvas {
+      width: 100%; height: auto; max-height: 46dvh; display: block;
+      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      touch-action: none; cursor: crosshair;
+    }
+
+    /* ═══ Design sketch stage + floating collapsible dock
+       (copied from jewelry-workflow.html so sketchpad.js hooks work) ═══ */
+    .sketch-stage {
+      position: relative; margin: 0 auto;
+      background: #fff; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      overflow: hidden;
+    }
+    .sketch-stage > #sketch-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none; border-radius: inherit; background: #fff;
+      touch-action: none; cursor: crosshair; display: block;
+    }
+    .sketch-dock {
+      position: absolute; top: 12px; right: 12px; z-index: 3;
+      display: flex; flex-direction: column; gap: 10px;
+      width: 168px; padding: 12px;
+      background: rgba(22,32,42,0.94);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.09); border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+      transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .22s;
+    }
+    .sketch-dock.collapsed { transform: translateX(calc(100% + 22px)); opacity: 0; pointer-events: none; }
+    .dock-head { display: flex; align-items: center; justify-content: space-between; }
+    .dock-title { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #7F97A8; }
+    .dock-toggle {
+      width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+      border: none; background: rgba(255,255,255,0.10); color: #DCE6EE;
+      font-size: 13px; cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dock-row { display: flex; gap: 6px; }
+    .dock-btn {
+      flex: 1; height: 42px; border-radius: 9px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
+      color: #E8EEF2; font-size: 17px; cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .14s;
+    }
+    .dock-btn:active { transform: scale(.94); }
+    .dock-btn.tool.active, .dock-btn.on {
+      background: var(--accent); color: #1A1A1A; border-color: var(--accent);
+      box-shadow: 0 2px 10px rgba(201,152,58,0.45);
+    }
+    .dock-size { display: flex; align-items: center; gap: 10px; }
+    .dock-size-preview {
+      width: 42px; height: 42px; border-radius: 9px; flex-shrink: 0;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    #sk-size-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: #E8EEF2; transition: width .1s, height .1s; }
+    .dock-slider-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .dock-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 6px; border-radius: 4px; margin: 0;
+      background: rgba(255,255,255,0.20); outline: none; cursor: pointer;
+    }
+    .dock-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .dock-size-val { font-size: 10.5px; font-weight: 700; color: #9FB4C4; text-align: right; }
+    .dock-presets { display: flex; gap: 6px; }
+    .dock-preset {
+      flex: 1; height: 30px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
+      color: #C7D4DE; font-size: 11.5px; font-weight: 700; cursor: pointer;
+      transition: all .14s;
+    }
+    .dock-preset.active { background: rgba(201,152,58,0.22); border-color: var(--accent); color: #F1DFB6; }
+    .dock-hint { font-size: 9.5px; color: #63788A; text-align: center; letter-spacing: .2px; }
+    .dock-reopen {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      width: 46px; height: 46px; border-radius: 13px;
+      border: 1px solid rgba(255,255,255,0.10); background: rgba(22,32,42,0.90);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      color: #E8EEF2; font-size: 21px; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+    }
+    .sketch-dock.collapsed ~ .dock-reopen { display: flex; }
+
+    /* ═══ Order-items repeater + Square search (markup from order-widgets.js) ═══ */
+    .rq-setup-search-wrap {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid var(--bdr); border-radius: 8px;
+      padding: 8px 10px; background: #fff; transition: border-color 0.2s;
+    }
+    .rq-setup-search-wrap:focus-within { border-color: var(--accent); }
+    .rq-setup-search-icon { font-size: 14px; color: var(--text3); flex-shrink: 0; }
+    .rq-setup-search-input {
+      flex: 1; border: none; outline: none; background: transparent;
+      font-size: 16px; color: var(--text); font-family: inherit; min-width: 0;
+    }
+    .rq-setup-spinner {
+      display: none; width: 12px; height: 12px; flex-shrink: 0;
+      border: 2px solid var(--bdr); border-top-color: var(--accent);
+      border-radius: 50%; animation: rq-spin 0.7s linear infinite;
+    }
+    @keyframes rq-spin { to { transform: rotate(360deg); } }
+    .rq-setup-results {
+      display: none; flex-direction: column; border: 1px solid var(--bdr);
+      border-radius: 8px; overflow: hidden; background: var(--card-bg);
+      max-height: 210px; overflow-y: auto;
+    }
+    .rq-result-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; cursor: pointer; transition: background 0.1s;
+      border-bottom: 1px solid var(--bdr-light); gap: 12px;
+    }
+    .rq-result-item:last-child { border-bottom: none; }
+    .rq-result-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .rq-result-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
+    .rq-result-price { font-size: 12px; color: var(--text2); flex-shrink: 0; }
+    .rq-result-none { padding: 8px 12px; font-size: 13px; color: var(--text3); }
+    .rq-selected-item {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--hover); border-radius: 7px; padding: 8px 10px;
+      border: 1px solid var(--bdr-light);
+    }
+    .rq-item-remove {
+      background: none; border: none; cursor: pointer; color: var(--text3);
+      font-size: 14px; padding: 6px; flex-shrink: 0; line-height: 1;
+    }
+
+    /* ═══ Estimate builder (markup from order-widgets.js) ═══ */
+    /* 3 visible columns — the Stuller search button is display:none here,
+       so its grid track is dropped (hidden elements create no grid items) */
+    .est-row {
+      display: grid; grid-template-columns: 1fr 130px 44px;
+      gap: 6px; align-items: center; margin-bottom: 7px;
+    }
+    .est-input {
+      border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      padding: 10px 12px; font-size: 16px; color: var(--text);
+      background: #FAFAF8; outline: none; font-family: inherit;
+      width: 100%; box-sizing: border-box;
+    }
+    .est-input:focus { border-color: var(--accent); background: #fff; box-shadow: var(--focus-ring); }
+    /* Stuller catalog search is a desktop feature — js/stuller.js isn't loaded here */
+    .est-stuller-btn { display: none; }
+    .est-remove-btn {
+      width: 28px; height: 40px; border: none; background: #FEF0EE; color: #C43030;
+      border-radius: var(--rad-sm); cursor: pointer; font-size: 17px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      font-family: inherit; padding: 0;
+    }
+    .est-col-labels { display: grid; grid-template-columns: 1fr 130px 44px; gap: 6px; margin-bottom: 6px; }
+    .est-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+    .mult-toggle {
+      display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      overflow: hidden; width: fit-content; box-shadow: var(--shadow-sm);
+    }
+    .mult-btn {
+      padding: 10px 32px; font-size: 15px; font-weight: 700; cursor: pointer;
+      user-select: none; color: #7A7268; background: #FAFAF8; border: none;
+      font-family: inherit; min-height: 44px;
+    }
+    .mult-btn:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .mult-btn.selected { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+    .est-total-box {
+      background: #F8F3EC; border: 1px solid #E4D8C4; border-radius: var(--rad-md);
+      padding: 16px 20px; box-shadow: var(--shadow-sm);
+    }
+    .est-total-row { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
+    .est-total-row span:first-child { color: #7A7268; }
+    .est-total-row span:last-child { color: var(--text); font-weight: 600; }
+    .est-total-divider { border: none; border-top: 1px solid #DDD5C8; margin: 8px 0; }
+    .est-total-final {
+      display: flex; justify-content: space-between; font-size: 20px; font-weight: 800;
+      color: var(--text); border-top: 2px solid var(--accent); margin-top: 10px; padding-top: 10px;
+    }
+    .est-total-final span:first-child { color: #6A5A3A; }
+
+    /* ═══ Small shared button styles used inside widget markup ═══ */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border-radius: var(--rad-sm); padding: 10px 16px; min-height: 44px;
+      font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .btn-outline { border-color: #D8D0C8; background: #FAFAF8; color: var(--text); }
+    .btn-ghost { background: transparent; color: var(--text3); }
+    .btn-gold { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+
+    /* ═══ Toast ═══ */
+    #toast-wrap {
+      position: fixed; bottom: calc(84px + env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%); z-index: 300;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      pointer-events: none; width: max-content; max-width: 92vw;
+    }
+    .toast {
+      background: rgba(15,23,32,0.95); color: #E8EEF2;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 12px 18px; font-size: 14px; font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      display: flex; align-items: center; gap: 8px;
+      animation: toastIn .25s ease;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="bg-[#16202A] text-slate-100">
+
+<div id="app" class="fixed inset-0 z-50 flex flex-col">
+
+  <!-- ═══ Top bar: Exit · step progress · sync status · Save & Close ═══ -->
+  <header class="flex items-center gap-3 px-4 shrink-0 bg-[#0F1720] border-b border-white/10"
+          style="padding-top:env(safe-area-inset-top);height:calc(58px + env(safe-area-inset-top));">
+    <button type="button" id="intake-exit-btn" onclick="intakeExit()"
+            class="flex items-center gap-2 rounded-lg border border-[#35576D] px-4 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">
+      ✕ Exit
+    </button>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-3" role="status" aria-live="polite">
+      <span id="intake-step-label" class="text-[12.5px] font-bold tracking-wide text-[#9FB4C4]">Step 1 of 3</span>
+      <div id="intake-dots" class="flex gap-2">
+        <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#C9983A] scale-125"></span>
+        <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#35576D]"></span>
+        <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#35576D]"></span>
+      </div>
+    </div>
+    <div class="flex-1"></div>
+    <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
+            class="rounded-lg px-2.5 py-2 text-base text-[#63788A]">⚙</button>
+    <span id="intake-unsynced" class="hidden rounded-full bg-amber-500/20 border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-300"></span>
+    <button type="button" id="intake-save-btn" onclick="intakeSubmit()"
+            class="rounded-lg bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-2.5 text-sm font-bold text-[#201A0A] shadow-lg shadow-amber-900/30 active:scale-95 disabled:opacity-50">
+      Save &amp; Close
+    </button>
+  </header>
+
+  <!-- ═══ Steps — each panel is absolutely positioned so the workspace never shifts ═══ -->
+  <main class="relative flex-1 min-h-0">
+
+    <!-- ── Step 1 · Customer ── -->
+    <section id="step-1" class="absolute inset-0 step-scroll px-3 py-4 md:px-6">
+      <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
+        <div class="form-grid">
+          <div class="fg full">
+            <label>Order Type</label>
+            <select id="f-order-type" onchange="onOrderTypeChange()">
+              <option value="order">💍 Custom Order</option>
+              <option value="repair">🔧 Repair</option>
+              <option value="resize">💎 Resize</option>
+              <option value="etsy-order">🛍 Etsy Order</option>
+              <option value="website-order">🌐 Website Order</option>
+            </select>
+            <div class="fg-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
+          </div>
+          <div class="fg">
+            <label>First Name *</label>
+            <input type="text" id="f-firstname" placeholder="Sarah" autocomplete="off">
+          </div>
+          <div class="fg">
+            <label>Last Name</label>
+            <input type="text" id="f-lastname" placeholder="Johnson" autocomplete="off">
+          </div>
+          <div class="fg">
+            <label>Email</label>
+            <input type="email" id="f-email" placeholder="sarah@example.com" autocomplete="off">
+          </div>
+          <div class="fg">
+            <label>Phone</label>
+            <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
+          </div>
+          <div class="fg">
+            <label>Contacted Via</label>
+            <select id="f-source">
+              <option value="">— Select source —</option>
+              <option value="Email">Email</option>
+              <option value="Farmer's Market">Farmer's Market</option>
+              <option value="Shopify Email">Shopify Email</option>
+              <option value="Website Order">Website Order</option>
+              <option value="Etsy Message">Etsy Message</option>
+              <option value="Instagram Message">Instagram Message</option>
+              <option value="Text Message">Text Message</option>
+              <option value="Facebook Message">Facebook Message</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Pickup Location</label>
+            <select id="f-pickup" onchange="toggleShippingAddress()">
+              <option value="">— Select location —</option>
+              <option value="Bell Market">Bell Market</option>
+              <option value="Mueller Market">Mueller Market</option>
+              <option value="Chaparral Crossing Market">Chaparral Crossing Market</option>
+              <option value="Sunset Valley Farmer's Market">Sunset Valley Farmer's Market</option>
+              <option value="Austin Flea">Austin Flea</option>
+              <option value="Studio">Studio</option>
+              <option value="To be Shipped">📦 To be Shipped</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Assigned To</label>
+            <select id="f-assignee">
+              <option value="">— Unassigned —</option>
+              <option value="Kyle">Kyle</option>
+              <option value="Vanessa">Vanessa</option>
+              <option value="Stevie">Stevie</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Deadline</label>
+            <input type="date" id="f-deadline">
+          </div>
+          <div class="fg">
+            <label>Take In Date</label>
+            <input type="date" id="f-takein">
+          </div>
+          <div class="fg full" id="addr-street-fg">
+            <label>Street Address</label>
+            <input type="text" id="f-addr-street" placeholder="142 Palm Avenue">
+          </div>
+          <div class="fg full" id="addr-street2-fg">
+            <label>Address Line 2</label>
+            <input type="text" id="f-addr-street2" placeholder="Apt, Suite, Unit (optional)">
+          </div>
+          <div class="fg" id="addr-city-fg">
+            <label>City</label>
+            <input type="text" id="f-addr-city" placeholder="Tampa">
+          </div>
+          <div class="fg" id="addr-state-fg">
+            <label>State</label>
+            <input type="text" id="f-addr-state" placeholder="FL">
+          </div>
+          <div class="fg" id="addr-zip-fg">
+            <label>Zip</label>
+            <input type="text" id="f-addr-zip" placeholder="33619">
+          </div>
+          <div class="fg" id="addr-country-fg">
+            <label>Country</label>
+            <input type="text" id="f-addr-country" placeholder="United States" value="United States">
+          </div>
+          <div class="fg full hw-toggle-row">
+            <button type="button" class="sketch-btn" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
+          </div>
+          <div class="fg full hw-collapsed" id="hw-fg">
+            <label>✍ Handwrite Customer Info <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ write on the lines, then convert to fill the fields</span></label>
+            <div class="sketch-toolbar">
+              <button type="button" class="sketch-btn" onclick="hwConvert(this)">✨ Convert to Type</button>
+              <button type="button" class="sketch-btn" onclick="hwClear()">🗑 Clear</button>
+              <span class="hw-status" id="hw-status"></span>
+            </div>
+            <canvas id="hw-canvas" width="1000" height="360"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Step 2 · Design + sketch pad ── -->
+    <section id="step-2" class="absolute inset-0 hidden flex-col px-3 py-3 md:px-6">
+      <!-- Collapsible design-spec drawer above the canvas -->
+      <div class="mx-auto w-full max-w-5xl shrink-0 rounded-2xl bg-white text-slate-900 shadow-xl">
+        <button type="button" id="design-drawer-btn" onclick="intakeToggleDrawer()"
+                class="flex w-full items-center justify-between px-5 py-3 text-left">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">Design Details</span>
+          <span id="design-drawer-chev" class="text-[#6A8898] transition-transform">▾</span>
+        </button>
+        <div id="design-drawer" class="px-5 pb-4">
+          <div class="form-grid">
+            <div class="fg">
+              <label>Piece Type</label>
+              <select id="f-piece-type">
+                <option value="">— Select —</option>
+                <option value="Ring">Ring</option>
+                <option value="Ear Cuff">Ear Cuff</option>
+                <option value="Necklace">Necklace</option>
+                <option value="Bracelet">Bracelet</option>
+                <option value="Earrings">Earrings</option>
+                <option value="Pendant">Pendant</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="fg" id="materials-fg">
+              <label>Materials / Metal</label>
+              <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+            </div>
+            <div class="fg">
+              <label>Sizing / Dimensions</label>
+              <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
+            </div>
+            <div class="fg">
+              <label>Texture / Finish</label>
+              <div class="finish-checks" id="f-finish">
+                <label><input type="checkbox" value="Polished"> Polished</label>
+                <label><input type="checkbox" value="Hammered/Textured"> Hammered</label>
+                <label><input type="checkbox" value="Matte"> Matte</label>
+                <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+              </div>
+            </div>
+            <div class="fg">
+              <label>Gemstones / Components</label>
+              <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;"></textarea>
+            </div>
+            <div class="fg" id="jobdesc-fg">
+              <label>Job Description <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ estimate title</span></label>
+              <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
+                <option value="custom">Custom Item</option>
+                <option value="square">Square Item</option>
+              </select>
+              <div id="jobdesc-custom-wrap">
+                <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold">
+              </div>
+              <div id="jobdesc-square-wrap" style="display:none;">
+                <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+                <button type="button" class="btn btn-outline" onclick="jdAddSquareItem()">+ Add Item</button>
+              </div>
+            </div>
+            <div class="fg full" id="orderdesc-fg">
+              <label>Order Description *</label>
+              <textarea id="f-description" rows="2" style="min-height:48px;" placeholder="Brief description of the piece…"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Sketch canvas fills the remaining height, aspect kept by intake.js.
+           id must stay "sketchpad-fg" — sketchpad.js scopes its preset-highlight sync to it. -->
+      <div id="sketchpad-fg" class="mt-3 flex flex-1 min-h-0 items-center justify-center">
+        <div class="sketch-stage" id="sketch-stage">
+          <canvas id="sketch-canvas" width="1000" height="620"></canvas>
+
+          <!-- Floating, collapsible vertical dock of drawing tools -->
+          <div class="sketch-dock" id="sketch-dock">
+            <div class="dock-head">
+              <span class="dock-title">Tools</span>
+              <button type="button" class="dock-toggle" onclick="sketchDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
+            </div>
+            <div class="dock-row">
+              <button type="button" class="dock-btn tool active" id="sk-pen"    onclick="sketchSetTool('pen',this)"    title="Pen">🖊</button>
+              <button type="button" class="dock-btn tool"        id="sk-pencil" onclick="sketchSetTool('pencil',this)" title="Pencil">✏️</button>
+              <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
+            </div>
+            <div class="dock-size">
+              <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
+              <div class="dock-slider-wrap">
+                <input type="range" class="dock-slider" id="sk-size-slider" min="1" max="60" step="0.5" value="5"
+                       oninput="sketchSliderInput(this.value)" aria-label="Stroke size">
+                <div class="dock-size-val" id="sk-size-val">5 px</div>
+              </div>
+            </div>
+            <div class="dock-presets">
+              <button type="button" class="dock-preset" onclick="sketchSetWidth('S',this)" title="Fine">S</button>
+              <button type="button" class="dock-preset active" onclick="sketchSetWidth('M',this)" title="Medium">M</button>
+              <button type="button" class="dock-preset" onclick="sketchSetWidth('L',this)" title="Thick">L</button>
+            </div>
+            <div class="dock-row">
+              <button type="button" class="dock-btn" onclick="sketchUndo()"  title="Undo">↩</button>
+              <button type="button" class="dock-btn" onclick="sketchRedo()"  title="Redo">↪</button>
+              <button type="button" class="dock-btn" onclick="sketchClear()" title="Clear">🗑</button>
+            </div>
+            <div class="dock-row">
+              <button type="button" class="dock-btn" id="sk-finger" onclick="intakeToggleFingerDraw()" title="Allow finger drawing">☝</button>
+            </div>
+            <div class="dock-hint" id="dock-hint">✎ Apple Pencil only</div>
+          </div>
+
+          <!-- Subtle trigger left behind when the dock is folded away -->
+          <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Step 3 · Items & Price + inline estimate builder ── -->
+    <section id="step-3" class="absolute inset-0 hidden step-scroll px-3 py-4 md:px-6">
+      <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
+        <div class="form-grid">
+          <div class="fg full" id="oi-section">
+            <label>Order Items</label>
+            <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+            <button type="button" class="btn btn-outline" style="width:fit-content;" onclick="oiAddItem()">+ Add Item</button>
+          </div>
+          <div class="fg">
+            <label>Total ($) <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sum of items</span></label>
+            <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly>
+          </div>
+          <div class="fg">
+            <label>Deposit ($)</label>
+            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+          </div>
+          <div class="fg">
+            <label>Shipping ($)</label>
+            <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+          </div>
+          <div class="fg">
+            <label>Balance Due ($)</label>
+            <input type="number" id="f-balance-due" placeholder="0.00" readonly>
+          </div>
+          <div class="fg full">
+            <label>Internal Notes</label>
+            <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source…"></textarea>
+          </div>
+        </div>
+
+        <!-- ── Inline Estimate Builder ── -->
+        <div class="mt-6 rounded-xl border border-[#E4D8C4] bg-[#FDFAF4] p-4" id="intake-estimate">
+          <div class="mb-3 flex items-center justify-between">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A]">💰 Estimate Builder</div>
+            <button type="button" class="btn btn-ghost" onclick="addMaterialRow()">＋ Add Line</button>
+          </div>
+          <div class="est-col-labels">
+            <div class="est-col-label">Description</div>
+            <div class="est-col-label">Cost ($)</div>
+            <div class="est-col-label"></div>
+          </div>
+          <div id="est-materials"></div>
+          <div class="mt-3 grid grid-cols-2 gap-4">
+            <div class="fg">
+              <label>Labor ($)</label>
+              <input type="number" id="est-labor" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()" class="est-input">
+            </div>
+            <div class="fg">
+              <label>Est. Shipping ($)</label>
+              <input type="number" id="est-shipping" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()" class="est-input">
+            </div>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-4">
+            <div class="fg">
+              <label>Markup Multiplier</label>
+              <div class="mult-toggle">
+                <button type="button" class="mult-btn"          id="mult-1"   onclick="setMultiplier(1)">None</button>
+                <button type="button" class="mult-btn selected" id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
+                <button type="button" class="mult-btn"          id="mult-3"   onclick="setMultiplier(3)">3×</button>
+              </div>
+              <div class="fg-hint" id="est-formula-hint">(Materials + Labor) × 2.5</div>
+            </div>
+            <label class="flex items-center gap-2 text-[15px] font-medium text-slate-800">
+              <input type="checkbox" id="est-tax-toggle" onchange="calcEstimate()" class="h-5 w-5 accent-[#C9983A]">
+              Apply 8.25% sales tax
+            </label>
+          </div>
+          <div class="fg mt-3">
+            <label>Notes for Customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sent with estimate</span></label>
+            <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…"></textarea>
+          </div>
+          <div class="est-total-box mt-4">
+            <div class="est-total-row"><span>Materials Total</span><span id="est-mat-total">$0.00</span></div>
+            <div class="est-total-row"><span>Labor</span><span id="est-labor-display">$0.00</span></div>
+            <hr class="est-total-divider">
+            <div class="est-total-row"><span>Subtotal</span><span id="est-subtotal">$0.00</span></div>
+            <div class="est-total-row" id="est-shipping-row" style="display:none;"><span>Shipping</span><span id="est-shipping-display">$0.00</span></div>
+            <div class="est-total-row" id="est-tax-row" style="display:none;"><span>Sales Tax (8.25%)</span><span id="est-tax-display">$0.00</span></div>
+            <div class="est-total-final"><span>Final Estimate</span><span id="est-final">$0.00</span></div>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" class="btn btn-gold" onclick="intakeUseEstimate()">⬇ Use estimate as order total</button>
+            <button type="button" class="btn btn-ghost" onclick="clearEstimate()">Clear Estimate</button>
+            <span id="est-save-status" style="margin-left:auto;font-size:12px;color:var(--accent);opacity:0;"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ Bottom bar: Back · step tabs · Next ═══ -->
+  <footer class="flex items-center gap-3 px-4 shrink-0 bg-[#0F1720] border-t border-white/10"
+          style="padding-bottom:env(safe-area-inset-bottom);height:calc(68px + env(safe-area-inset-bottom));">
+    <button type="button" id="intake-back-btn" onclick="intakeStep(_intakeStep - 1)"
+            class="invisible rounded-lg border border-[#35576D] px-5 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">‹ Back</button>
+    <div class="flex flex-1 items-center justify-center gap-2">
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)">1 · Customer</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)">2 · Design</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)">3 · Items &amp; Price</button>
+    </div>
+    <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
+            class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
+  </footer>
+</div>
+
+<!-- ═══ Saved overlay — shown after Save & Close ═══ -->
+<div id="intake-done" class="fixed inset-0 z-[200] hidden items-center justify-center bg-[#16202A]/95 backdrop-blur-sm">
+  <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-8 text-center text-slate-900 shadow-2xl">
+    <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
+    <div id="intake-done-title" class="text-lg font-bold">Order saved</div>
+    <div id="intake-done-sub" class="mt-1 text-sm text-slate-500"></div>
+    <div class="mt-6 flex flex-col gap-2">
+      <button type="button" onclick="intakeNew()" class="rounded-xl bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-3.5 text-[15px] font-bold text-white active:scale-95">＋ New Intake</button>
+      <button type="button" onclick="location.href='jewelry-workflow.html'" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">↩ Return to App</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script src="js/sketchpad.js?v=3"></script>
+<script src="js/notion.js?v=20260707a"></script>
+<script src="js/order-widgets.js?v=1"></script>
+<script src="js/intake.js?v=1"></script>
+</body>
+</html>

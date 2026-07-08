@@ -1,28 +1,28 @@
 {
-  "name": "Stones Throw Studio — Orders",
-  "short_name": "STS Orders",
-  "description": "Custom order workflow for Stones Throw Studio jewelry",
-  "start_url": "./jewelry-workflow.html",
+  "name": "STS Intake",
+  "short_name": "Intake",
+  "description": "Standalone iPad order-intake app for Stones Throw Studio",
+  "start_url": "./intake.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#F5F0E8",
-  "theme_color": "#1E1C19",
+  "orientation": "landscape",
+  "background_color": "#16202A",
+  "theme_color": "#16202A",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "intake-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-512.png",
+      "src": "intake-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon.svg",
+      "src": "intake-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
