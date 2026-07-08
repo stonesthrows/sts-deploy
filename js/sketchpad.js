@@ -15,15 +15,24 @@ let HW = null;   // handwriting strip pad
 
 // ── Shared pad plumbing ───────────────────────────────────────
 
+// Per-tool stroke presets (S / M / L). Each tool keeps its own weight so
+// switching Pen ⇄ Pencil ⇄ Eraser never disturbs the others' sizes.
+const SK_PRESETS = {
+  pen:    { S: 2.5, M: 5,   L: 12 },
+  pencil: { S: 1.5, M: 2.5, L: 5  },
+  eraser: { S: 16,  M: 28,  L: 48 },
+};
+
 function _padCreate(canvasId, opts) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return null;
   const pad = {
     canvas,
     ctx: canvas.getContext('2d'),
-    tool: 'pen',            // 'pen' | 'eraser'
-    width: 5,               // stroke width in canvas units
-    eraserWidth: 28,
+    tool: 'pen',            // 'pen' | 'pencil' | 'eraser'
+    // Independent stroke weight per tool (canvas units)
+    widths: { pen: 5, pencil: 2.5, eraser: 28 },
+    penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
     dirty: false,           // changed since load/reset — drives re-export on edit-save
@@ -36,6 +45,22 @@ function _padCreate(canvasId, opts) {
   canvas.addEventListener('pointerup',     e => _padUp(pad, e));
   canvas.addEventListener('pointercancel', e => _padUp(pad, e));
   return pad;
+}
+
+// Coarse pointer ⇒ a touchscreen is present (iPad, phone). Used so pen-only
+// pads reject finger input on tablets while a desktop mouse still works.
+function _hasCoarsePointer() {
+  return !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+}
+
+// Apple Pencil isolation: on a pen-only pad only pointerType==='pen' draws.
+// A desktop mouse is allowed as a fallback ONLY when no touchscreen exists, so
+// a finger/palm on an iPad is ignored entirely.
+function _padAccepts(pad, e) {
+  if (!pad.penOnly) return true;
+  if (e.pointerType === 'pen') return true;
+  if (e.pointerType === 'mouse' && !_hasCoarsePointer()) return true;
+  return false;
 }
 
 function _padBlank(pad) {
@@ -68,6 +93,7 @@ function _padRestore(pad, snap) {
 
 function _padDown(pad, e) {
   if (!e.isPrimary) return;
+  if (!_padAccepts(pad, e)) return; // finger/touch ignored on pen-only pads
   e.preventDefault();
   pad.canvas.setPointerCapture(e.pointerId);
   pad.undo.push(_padSnapshot(pad));
@@ -77,9 +103,13 @@ function _padDown(pad, e) {
   const ctx = pad.ctx;
   ctx.lineCap = ctx.lineJoin = 'round';
   // Eraser paints white — the canvas is white-filled, so exports stay
-  // white-backed with no transparency to composite.
-  ctx.strokeStyle = pad.tool === 'eraser' ? '#fff' : '#1A1A1A';
-  ctx.lineWidth   = pad.tool === 'eraser' ? pad.eraserWidth : pad.width;
+  // white-backed with no transparency to composite. Pencil is a lighter,
+  // semi-transparent grey for a softer graphite line; Pen is solid ink.
+  ctx.globalAlpha = pad.tool === 'pencil' ? 0.55 : 1;
+  ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
+                  : pad.tool === 'pencil' ? '#4A4A4A'
+                  : '#1A1A1A';
+  ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
@@ -100,6 +130,7 @@ function _padMove(pad, e) {
 function _padUp(pad, e) {
   if (!pad.drawing) return;
   pad.drawing = false;
+  pad.ctx.globalAlpha = 1; // reset so snapshots/other paints stay opaque
   pad.hasInk = true;
   pad.dirty = true;
 }
@@ -109,16 +140,60 @@ function _padUp(pad, e) {
 function sketchSetTool(tool, btn) {
   if (!SK) return;
   SK.tool = tool;
-  document.getElementById('sk-pen').classList.toggle('active', tool === 'pen');
-  document.getElementById('sk-eraser').classList.toggle('active', tool === 'eraser');
+  ['pen', 'pencil', 'eraser'].forEach(t => {
+    const b = document.getElementById('sk-' + t);
+    if (b) b.classList.toggle('active', t === tool);
+  });
+  sketchSyncSizeUI(); // reflect this tool's own stored weight
 }
 
+// Accepts a numeric weight OR a preset label ('S'|'M'|'L'), resolved against
+// the CURRENT tool's preset table. Only the active tool's width changes.
 function sketchSetWidth(w, btn) {
   if (!SK) return;
-  SK.width = w;
-  sketchSetTool('pen');
-  document.querySelectorAll('#sketchpad-fg .sk-w').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+  if (typeof w === 'string') {
+    const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
+    w = table[w] != null ? table[w] : parseFloat(w) || 5;
+  }
+  SK.widths[SK.tool] = w;
+  sketchSyncSizeUI();
+}
+
+// Live drag of the dock slider — sets the active tool's weight.
+function sketchSliderInput(v) {
+  if (!SK) return;
+  SK.widths[SK.tool] = parseFloat(v) || 1;
+  sketchSyncSizeUI();
+}
+
+// Push SK's current tool weight into the slider, numeric readout, size-preview
+// dot, and preset highlight. Central so every entry point stays consistent.
+function sketchSyncSizeUI() {
+  if (!SK) return;
+  const w = SK.widths[SK.tool] || 5;
+  const slider = document.getElementById('sk-size-slider');
+  if (slider) slider.value = w;
+  const val = document.getElementById('sk-size-val');
+  if (val) val.textContent = (Math.round(w * 10) / 10) + ' px';
+  const dot = document.getElementById('sk-size-dot');
+  if (dot) {
+    const d = Math.max(4, Math.min(34, w));
+    dot.style.width = d + 'px';
+    dot.style.height = d + 'px';
+    dot.style.background = SK.tool === 'eraser' ? '#C7D4DE'
+                         : SK.tool === 'pencil' ? '#9AA6B0' : '#E8EEF2';
+  }
+  const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
+  document.querySelectorAll('#sketchpad-fg .dock-preset').forEach(b => {
+    const label = (b.textContent || '').trim();
+    b.classList.toggle('active', table[label] === w);
+  });
+}
+
+// Fold the dock away to the edge (leaving the subtle reopen trigger) / restore.
+function sketchDockToggle() {
+  const dock = document.getElementById('sketch-dock');
+  if (dock) dock.classList.toggle('collapsed');
 }
 
 function sketchUndo() {
@@ -307,8 +382,9 @@ async function hwConvert(btn) {
 
 // ── Init (scripts load at end of body — canvases already exist) ──
 function sketchInit() {
-  SK = _padCreate('sketch-canvas');
+  SK = _padCreate('sketch-canvas', { penOnly: true }); // Apple Pencil only
   HW = _padCreate('hw-canvas', { background: _hwBackground });
-  if (HW) HW.width = 6; // handwriting pen is fixed medium
+  if (HW) HW.widths.pen = 6; // handwriting pen is fixed medium
+  sketchSyncSizeUI();         // prime the dock controls to the default weight
 }
 sketchInit();

@@ -231,6 +231,12 @@ function _showPanel(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab-' + id);
   if (panel) panel.classList.add('active');
+  // The order intake / edit flow runs as a full-screen "separate app": entering
+  // its panel promotes it to 100vw/100vh and hides the global chrome; leaving it
+  // (to any other tab) restores the standard layout. Single choke point so every
+  // entry/exit path — edit, new-order tab, close, submit — is handled here.
+  document.body.classList.toggle('oflow-fs', id === 'new-order');
+  if (id === 'new-order' && typeof orderFlowSyncSteps === 'function') orderFlowSyncSteps();
   runTabHook(id);
   _syncAria();
   _scrollActiveIntoView();
