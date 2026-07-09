@@ -990,6 +990,107 @@
     .eo-modal.eo-view-mode #eo-sketch-view { padding: 6px; }
     .eo-modal.eo-view-mode #eo-sketch-view img { max-height: 140px; }
 
+    /* ── View mode "document" redesign ──────────────────────────
+       View mode is a read-only summary, so it drops the boxed-form look
+       for a cleaner, invoice-style document: quiet small-caps labels,
+       generous whitespace, hairline dividers, and a right-aligned totals
+       summary. Edit mode is untouched — it still needs to look editable. */
+    .eo-modal.eo-view-mode .eo-body { padding: 24px 28px 20px; }
+    .eo-modal.eo-view-mode .form-grid { grid-template-columns: repeat(2, 1fr); gap: 20px 32px; }
+    .eo-modal.eo-view-mode .fg { gap: 3px; }
+    .eo-modal.eo-view-mode .fg label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.7px; color: #A79E8F;
+    }
+    .eo-modal.eo-view-mode .fg input,
+    .eo-modal.eo-view-mode .fg select,
+    .eo-modal.eo-view-mode .fg textarea {
+      font-size: 14.5px; font-weight: 500; padding-top: 1px;
+    }
+    .eo-modal.eo-view-mode .fg input[readonly] { background: transparent !important; cursor: default !important; }
+    /* Fields with no data are hidden entirely (eo-empty set by eoUpdateEmptyFields) */
+    .eo-modal.eo-view-mode .fg.eo-empty { display: none; }
+
+    /* Section headings read as quiet document dividers, not form-card bars */
+    .eo-modal.eo-view-mode .eo-sec-label {
+      display: flex; align-items: center; gap: 12px;
+      margin: 28px 0 14px; padding-top: 0; border-top: none;
+      font-size: 10.5px; letter-spacing: 1.1px; color: #A79E8F;
+    }
+    .eo-modal.eo-view-mode .eo-sec-label::after { content: ''; flex: 1; height: 1px; background: #EDE6DA; }
+    .eo-modal.eo-view-mode .eo-sec-label:first-of-type { margin-top: 2px; }
+
+    /* Order/Square items read as invoice line rows instead of picker chips */
+    .eo-modal.eo-view-mode #oi-items-container .rq-selected-item,
+    .eo-modal.eo-view-mode #square-module-picker .rq-selected-item,
+    .eo-modal.eo-view-mode #jobdesc-square-picker .rq-selected-item {
+      background: none; border: none; border-radius: 0;
+      border-bottom: 1px solid #EDE6DA; padding: 10px 0;
+    }
+    .eo-modal.eo-view-mode #oi-items-container .rq-selected-item:last-child,
+    .eo-modal.eo-view-mode #square-module-picker .rq-selected-item:last-child,
+    .eo-modal.eo-view-mode #jobdesc-square-picker .rq-selected-item:last-child { border-bottom: none; }
+    .eo-modal.eo-view-mode .rq-result-name { font-size: 14px; }
+    .eo-modal.eo-view-mode .rq-result-meta { font-size: 10.5px; letter-spacing: 0.4px; text-transform: uppercase; color: #A79E8F; }
+    .eo-modal.eo-view-mode .rq-result-price { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    /* Total/Deposit/Shipping/Balance become a right-aligned invoice summary */
+    .eo-modal.eo-view-mode .eo-price-grid {
+      display: flex; flex-direction: column; gap: 0;
+      max-width: 300px; margin-left: auto;
+    }
+    .eo-modal.eo-view-mode .eo-price-grid .fg {
+      flex-direction: row; justify-content: space-between; align-items: baseline;
+      gap: 16px; padding: 7px 0; border-bottom: 1px solid #F1EBE0;
+    }
+    .eo-modal.eo-view-mode .eo-price-grid .fg label { white-space: nowrap; }
+    .eo-modal.eo-view-mode .eo-price-grid .fg input,
+    .eo-modal.eo-view-mode .eo-price-grid .fg select { text-align: right; }
+    .eo-modal.eo-view-mode .eo-price-grid .fg.full {
+      flex-direction: column; align-items: stretch; border-bottom: none;
+      padding-top: 14px; margin-top: 6px;
+    }
+    .eo-modal.eo-view-mode .eo-price-grid .eo-total-highlight {
+      background: #F8F3EC; border-radius: var(--rad-sm); border-bottom: none;
+      padding: 10px 14px; margin-top: 4px;
+    }
+    .eo-modal.eo-view-mode .eo-price-grid .eo-total-highlight label {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #8A7A54;
+    }
+    .eo-modal.eo-view-mode .eo-price-grid .eo-total-highlight input {
+      font-size: 18px; font-weight: 800; color: var(--text);
+    }
+
+    /* Estimate total box reads as the invoice's Subtotal/Tax/Total block */
+    .eo-modal.eo-view-mode .est-total-box {
+      background: none; border: none; box-shadow: none; padding: 4px 0 0;
+      max-width: 320px; margin-left: auto;
+    }
+    .eo-modal.eo-view-mode .est-total-row { font-size: 12.5px; padding: 5px 0; }
+    .eo-modal.eo-view-mode .est-total-row span:first-child {
+      text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.6px; color: #A79E8F;
+    }
+    .eo-modal.eo-view-mode .est-total-final {
+      background: #F8F3EC; border-radius: var(--rad-sm); border-top: none;
+      padding: 12px 14px; margin-top: 10px;
+    }
+
+    /* Estimate materials list — same invoice-row treatment, minus the
+       Stuller-search/remove columns which eo-edit-only already hides */
+    .eo-modal.eo-view-mode .est-row {
+      grid-template-columns: 1fr 110px; border-bottom: 1px solid #F1EBE0; padding-bottom: 8px;
+    }
+    .eo-modal.eo-view-mode .est-col-labels { grid-template-columns: 1fr 110px; }
+
+    /* Estimate Builder's own sub-headings (Materials/Labor/Shipping/…) match
+       the quiet document style instead of their bold gold-bar chip look,
+       and a sub-section that's just one empty field (Labor, Shipping,
+       Notes for Customer with nothing entered) disappears entirely. */
+    .eo-modal.eo-view-mode .form-sec-label {
+      font-size: 10.5px; letter-spacing: 1px; color: #A79E8F; padding-left: 0;
+    }
+    .eo-modal.eo-view-mode .form-sec-label::before { display: none; }
+    .eo-modal.eo-view-mode .form-sec:has(.fg.eo-empty) { display: none; }
+
     /* Square search results overlay — scoped to this modal only. Restock
        Queue's own .rq-setup-results instances (rendered outside
        #editOrderModalBg) are completely untouched by this rule. Fixes
@@ -5936,7 +6037,7 @@
         </div>
       </div>
 
-      <div class="form-grid">
+      <div class="form-grid eo-price-grid">
         <div class="fg">
           <label>Total ($) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sum of items, or the Estimate's Final total</span></label>
           <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
@@ -5949,7 +6050,7 @@
           <label>Shipping ($)</label>
           <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
         </div>
-        <div class="fg">
+        <div class="fg eo-total-highlight">
           <label>Balance Due ($)</label>
           <input type="number" id="f-balance-due" placeholder="0.00" step="0.01" min="0" readonly style="background:var(--hover);cursor:not-allowed;">
         </div>

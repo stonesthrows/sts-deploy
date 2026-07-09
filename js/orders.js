@@ -282,6 +282,24 @@ function eoApplyOrderTypeModule(type) {
   if (typeof calcEstimate === 'function') calcEstimate();
 }
 
+// View mode hides fields with no data for a cleaner, invoice-like read.
+// Only touches simple single-input .fg's (matched by direct field count) —
+// composite widgets (Job Description, Order Items, Square pickers) have
+// more than one input/select inside and are left to manage their own
+// empty state (e.g. oiRender's "No items yet" message).
+function eoUpdateEmptyFields() {
+  document.querySelectorAll('#editOrderModalBg .eo-body .fg').forEach(fg => {
+    const finish = fg.querySelector('.finish-checks');
+    if (finish) {
+      fg.classList.toggle('eo-empty', !finish.querySelector('input:checked'));
+      return;
+    }
+    const fields = fg.querySelectorAll('input, select, textarea');
+    if (fields.length !== 1) return;
+    fg.classList.toggle('eo-empty', !(fields[0].value || '').trim());
+  });
+}
+
 // Populates every modal field from an order object — used both when the
 // modal is first opened and to silently discard unsaved edits when leaving
 // Edit mode without saving (see eoSetMode below).
@@ -364,6 +382,7 @@ function eoPopulateFields(o) {
   eoApplyOrderTypeModule(resolvedType);
 
   populateEstimateFromOrder(o);
+  eoUpdateEmptyFields();
 }
 
 // View/Edit mode — the modal opens read-only by default; every field
