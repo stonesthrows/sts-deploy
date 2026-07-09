@@ -124,13 +124,22 @@ export async function onRequestGet(context) {
       r.message_from_buyer ? `Buyer note: ${r.message_from_buyer}` : '',
     ].filter(Boolean).join('\n');
 
+    const lineItems = (r.transactions || []).map(t => ({
+      title:    t.title || '',
+      quantity: t.quantity || 1,
+      price:    t.price ? t.price.amount / t.price.divisor : 0,
+      variant:  (t.variations || []).map(v => v.formatted_value).filter(Boolean).join(', '),
+    }));
+
     return {
       etsyReceiptId: r.receipt_id,
       name:          r.name || r.buyer_email || 'Etsy Buyer',
       email:         r.buyer_email || '',
       price,
       desc:          linesSummary,
+      lineItems,
       notes,
+      buyerNote:     r.message_from_buyer || '',
       createdAt:     new Date((r.created_timestamp || r.create_timestamp) * 1000).toISOString(),
       addrStreet:    r.first_line   || '',
       addrStreet2:   r.second_line  || '',

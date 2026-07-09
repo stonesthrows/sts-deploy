@@ -1065,18 +1065,19 @@ async function retrySyncOrder(id) {
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
-  const sa = o.shippingAddress;
-  const addrLine = sa
-    ? [sa.street, sa.street2].filter(Boolean).join('\n')
-    : (o.address || '');
+  // Flat addr* fields are the address of record; shippingAddress{} is the
+  // mirror kept for older orders (see order-normalize.js).
+  const sa = o.shippingAddress || {};
+  const addrLine = [o.addrStreet || sa.street || o.address || '',
+                    o.addrStreet2 || sa.street2 || ''].filter(Boolean).join('\n');
   const p = new URLSearchParams({
     name:      o.name        || '',
     email:     o.email       || '',
     phone:     o.phone       || '',
     address:   addrLine,
-    city:      sa ? (sa.city    || '') : '',
-    state:     sa ? (sa.state   || '') : '',
-    zip:       sa ? (sa.zip     || '') : '',
+    city:      o.addrCity  || sa.city  || '',
+    state:     o.addrState || sa.state || '',
+    zip:       o.addrZip   || sa.zip   || '',
     desc:      oiPrintJobDescShort(o),
     // Repair instructions live in o.repairNotes now (not folded into
     // o.notes) — prepend them so the printed bag still shows them.
@@ -1092,9 +1093,19 @@ function printOrder(id) {
     source:    o.contactSource || '',
     stage:     o.stage       || '',
     fullyPaid: o.fullyPaid   || '',
-    workedBy:  ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' })[o.stage] || '',
+    workedBy:  o.assignee || ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' })[o.stage] || '',
     items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
   });
+  // Per-kind layout params (order-normalize.js): drive which print variant
+  // the template renders — ecom orders get Source row + Ship To block.
+  if (typeof printParamsFor === 'function') {
+    const pp = printParamsFor(o);
+    p.set('kind',    pp.kind);
+    p.set('layout',  pp.layout);
+    p.set('orderNo', pp.orderNo);
+    p.set('country', pp.country);
+    if (pp.source) p.set('srcName', pp.source);
+  }
   // Append print layout settings from localStorage
   try {
     const ps = Object.assign(

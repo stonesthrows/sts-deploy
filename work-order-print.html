@@ -276,6 +276,43 @@
 
     /* Size panel visibility */
     .form-content[data-sizerow="0"] .size-panel { display: none; }
+
+    /* ── Per-order-type layout variants (data-layout on .form-content) ──
+       custom (default) · estimate · repair · resize · ecom (Shopify/Etsy).
+       These come after the setting variants above so they win ties. */
+
+    .src-row, .ship-block { display: none; }
+
+    /* Repair & Resize: taller job panel (item taken in), bigger notes area */
+    .form-content[data-layout="repair"] .jd-size-row,
+    .form-content[data-layout="resize"] .jd-size-row { height: 110px; }
+    .form-content[data-layout="repair"] .sec-block.grow,
+    .form-content[data-layout="resize"] .sec-block.grow { flex: 1.2; }
+    .form-content[data-layout="repair"] .li-row:not(.tot),
+    .form-content[data-layout="resize"] .li-row:not(.tot) { min-height: 10px; }
+    /* Reclaim the taller job panel's height from the totals rows so the
+       line-item block never spills over the Paid By row */
+    .form-content[data-layout="repair"] .li-row.tot,
+    .form-content[data-layout="resize"] .li-row.tot { min-height: 20px; }
+    .form-content[data-layout="repair"] .li-row.tot.strong,
+    .form-content[data-layout="resize"] .li-row.tot.strong { min-height: 22px; }
+
+    /* Resize: wider size panel split into From / To */
+    .form-content[data-layout="resize"] .size-panel { width: 1.1in; }
+    .form-content[data-layout="resize"] #j-size::before  { content: 'From '; font-size: 8px; font-weight: bold; color: #555; }
+    .form-content[data-layout="resize"] #j-size2::before { content: 'To ';   font-size: 8px; font-weight: bold; color: #555; }
+
+    /* E-commerce (Shopify/Etsy): paid online — drop order-type / totals /
+       payment chrome; show the order source and a large Ship To block. */
+    .form-content[data-layout="ecom"] .chk-row  { display: none; }
+    .form-content[data-layout="ecom"] .src-row  { display: flex; border-top: 1px solid #000; }
+    .form-content[data-layout="ecom"] .li-row.tot,
+    .form-content[data-layout="ecom"] .li-row.tot-sep { display: none; }
+    .form-content[data-layout="ecom"] .paid-row { display: none; }
+    .form-content[data-layout="ecom"] .ship-block {
+      display: flex; flex-direction: column; flex: 1.2; min-height: 0;
+    }
+    .form-content[data-layout="ecom"] .ship-block .sec-body { flex: 1; min-height: 0; }
   </style>
 </head>
 <body>
@@ -301,6 +338,16 @@
       <span class="chk-item"><span class="chk-box" id="ot-custom"></span> Custom Order</span>
       <span class="chk-item"><span class="chk-box" id="ot-estimate"></span> Estimate</span>
       <span class="chk-item"><span class="chk-box" id="ot-repair"></span> Repair</span>
+      <span class="chk-item"><span class="chk-box" id="ot-resize"></span> Resize</span>
+    </div>
+  </div>
+
+  <div class="date-row src-row" id="src-row">
+    <div class="date-row-label">Source</div>
+    <div class="date-val-wrap"><span class="date-val" id="src-name"></span></div>
+    <div style="border-left: 1px solid #000; display:flex; align-items:center; gap:6px; padding:2px 6px; font-size:8px; font-weight:bold; flex:1;">
+      Order #
+      <span class="date-val" id="src-orderno" contenteditable="true" style="font-weight:normal; flex:1;"></span>
     </div>
   </div>
 
@@ -338,9 +385,9 @@
     <div class="cg-val" id="c-address" contenteditable="true"></div>
     <div class="cg-lbl">City/St/Zip</div>
     <div class="cg-val" style="display:flex; gap:4px; align-items:center; padding: 3px;">
-      <span id="c-city"  contenteditable="true" style="flex:2; border:1px solid #aaa; padding:1px 4px; font-size:inherit;"></span>
-      <span id="c-state" contenteditable="true" style="width:32px; border:1px solid #aaa; padding:1px 4px; text-align:center; font-size:inherit;"></span>
-      <span id="c-zip"   contenteditable="true" style="width:66px; border:1px solid #aaa; padding:1px 4px; font-size:inherit;"></span>
+      <span id="c-city"  contenteditable="true" style="flex:2; border:1px solid #aaa; padding:1px 4px; font-size:14px; white-space:nowrap; overflow:hidden;"></span>
+      <span id="c-state" contenteditable="true" style="width:44px; border:1px solid #aaa; padding:1px 4px; text-align:center; font-size:14px; white-space:nowrap;"></span>
+      <span id="c-zip"   contenteditable="true" style="flex:1; min-width:66px; border:1px solid #aaa; padding:1px 4px; font-size:14px; white-space:nowrap; overflow:hidden;"></span>
     </div>
   </div>
 
@@ -372,6 +419,11 @@
     <div class="li-row"><span class="li-d" contenteditable="true"></span><span class="li-a" contenteditable="true" oninput="recalc()"></span></div>
   </div>
 
+
+  <div class="sec-block ship-block" id="ship-block">
+    <div class="sec-head">📦 SHIP TO</div>
+    <div class="sec-body" id="ship-to" contenteditable="true" style="font-size:15px; line-height:1.4;"></div>
+  </div>
 
   <div class="paid-row">
     <span class="paid-lbl">Paid By</span>
@@ -419,6 +471,11 @@
   const city      = p.get('city')      || '';
   const pickup    = p.get('pickup')    || '';
   const stage     = p.get('stage')     || '';
+  const kind      = p.get('kind')      || '';
+  const layout    = p.get('layout')    || '';
+  const srcName   = p.get('srcName')   || '';
+  const orderNo   = p.get('orderNo')   || '';
+  const country   = p.get('country')   || '';
 
   // ── Apply layout settings ──
   const fc = document.querySelector('.form-content');
@@ -431,6 +488,13 @@
   fc.dataset.ns      = ns;
   fc.dataset.font    = font;
   fc.dataset.sizerow = sizeRow;
+  // Per-order-type layout. No layout param (pre-layout URLs) falls back to
+  // the old stage-based behavior — never to ecom, since old URLs don't
+  // carry the ship-to/source params that layout needs.
+  fc.dataset.layout = layout || (
+    stage === 'intake-repair' ? 'repair' :
+    (stage === 'needs-est' || stage === 'est-sent') ? 'estimate' :
+    'custom');
 
   // Build line item rows dynamically — pre-fill from the order's Square/manual items,
   // then pad with blank rows (for materials/labor add-ons) up to the configured liRows.
@@ -494,6 +558,22 @@
   document.getElementById('j-size').textContent = ringSize;
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
+
+  // Per-layout content: Source row + Ship To block (ecom), relabels (repair/resize)
+  if (fc.dataset.layout === 'ecom') {
+    document.getElementById('src-name').textContent =
+      srcName || (stage === 'etsy-bench' ? 'Etsy' : stage === 'intake-website' ? 'Shopify' : '');
+    document.getElementById('src-orderno').textContent = orderNo;
+    const cityLine = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
+    document.getElementById('ship-to').textContent =
+      [name, address, cityLine, country].filter(Boolean).join('\n');
+  }
+  if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
+    document.querySelector('.jd-panel .sec-head').textContent = 'Item Taken In / Job';
+  }
+  if (fc.dataset.layout === 'resize') {
+    document.querySelector('.size-panel .sec-head').textContent = 'Resize';
+  }
   const dep0 = parseFloat(deposit) || 0;
   if (dep0) document.getElementById('t-deposit').textContent = fmtMoney(dep0);
   const ship0 = parseFloat(shipping) || 0;
@@ -511,7 +591,8 @@
     document.getElementById('t-total').textContent    = tot ? fmtMoney(tot) : '';
     document.getElementById('t-newtotal').textContent = fullyPaid ? fmtMoney(0) : fmtMoney(tot - dep);
   }
-  recalc();
+  // Totals rows are hidden on the ecom layout — skip the initial population
+  if (fc.dataset.layout !== 'ecom') recalc();
 
   // Phone auto-format
   document.getElementById('c-phone').addEventListener('input', function() {
@@ -531,7 +612,7 @@
 
   // Radio groups — only one selectable at a time
   const radioGroups = [
-    ['ot-custom', 'ot-estimate', 'ot-repair'],
+    ['ot-custom', 'ot-estimate', 'ot-repair', 'ot-resize'],
     ['pb-cash', 'pb-credit', 'pb-check'],
     ['pk-bell', 'pk-mueller', 'pk-chaparral', 'pk-sunset', 'pk-studio', 'pk-ship'],
   ];
@@ -548,7 +629,9 @@
   });
   function check(id) { const el = document.getElementById(id); if (el) el.classList.add('checked'); }
 
-  if      (stage === 'intake-repair')                     check('ot-repair');
+  const kindBox = { custom: 'ot-custom', estimate: 'ot-estimate', repair: 'ot-repair', resize: 'ot-resize' }[kind];
+  if      (kindBox)                                       check(kindBox);
+  else if (stage === 'intake-repair')                     check('ot-repair');
   else if (stage === 'needs-est' || stage === 'est-sent') check('ot-estimate');
   else if (stage)                                         check('ot-custom');
 

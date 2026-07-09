@@ -408,6 +408,10 @@ function loadFromStorage() {
     if (o.stage === 'repair')    { o.stage = 'intake-repair'; migrated = true; }
   });
   if (migrated) saveToStorage();
+  // Normalize every order to the unified schema (order-normalize.js):
+  // adds orderKind/orderSource/sourceOrderNumber, fixes takeInDate,
+  // lifts legacy "Ship to:" notes into the structured address.
+  if (typeof migrateLegacyOrders === 'function') migrateLegacyOrders();
   if (typeof updateCompletedToggle === 'function') updateCompletedToggle();
 }
 

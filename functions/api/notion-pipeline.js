@@ -52,17 +52,38 @@ Object.entries(STAGE_TO_NOTION).forEach(([k, v]) => {
   NOTION_TO_STAGE[v.toLowerCase()] = k;
 });
 
+// Accepts both the legacy orderType values (order/estimate/repair/resize)
+// and the newer orderKind values (custom/shopify/etsy) as keys.
 const ORDER_TYPE_TO_NOTION = {
   'order':       'Custom Order',
+  'custom':      'Custom Order',
   'estimate':    'Estimate Request',
   'repair':      'Repair',
   'resize':      'Resize',
   'square-item': 'Square Item',
+  'shopify':     'Website Order',
+  'etsy':        'Etsy Order',
 };
-const NOTION_TO_ORDER_TYPE = {};
-Object.entries(ORDER_TYPE_TO_NOTION).forEach(([k, v]) => {
-  NOTION_TO_ORDER_TYPE[v.toLowerCase()] = k;
-});
+const NOTION_TO_ORDER_KIND = {
+  'custom order':     'custom',
+  'estimate request': 'estimate',
+  'repair':           'repair',
+  'resize':           'resize',
+  'square item':      'square-item',
+  'website order':    'shopify',
+  'etsy order':       'etsy',
+};
+// Legacy orderType the client form still uses ('resize' is a form option;
+// imported orders always carried 'order').
+const KIND_TO_LEGACY_TYPE = {
+  custom:      'order',
+  estimate:    'estimate',
+  repair:      'repair',
+  resize:      'resize',
+  'square-item': 'square-item',
+  shopify:     'order',
+  etsy:        'order',
+};
 
 // ── Helpers ───────────────────────────────────────────────────
 function json(data, status = 200) {
@@ -103,7 +124,8 @@ function orderToProps(o) {
   if (o.desc   != null) props['Order Description'] = { rich_text: [{ text: { content: (o.desc || '').slice(0, 2000) } }] };
   if (o.materials != null) props['Materials'] = { rich_text: [{ text: { content: (o.materials || '').slice(0, 2000) } }] };
   if (o.notes  != null) props['Notes']        = { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] };
-  if (o.orderType)    props['Order Type']     = { select: { name: ORDER_TYPE_TO_NOTION[o.orderType] || 'Custom Order' } };
+  if (o.orderKind || o.orderType) props['Order Type'] = { select: { name: ORDER_TYPE_TO_NOTION[o.orderKind || o.orderType] || 'Custom Order' } };
+  if (o.sourceOrderNumber != null) props['Source Order #'] = { rich_text: [{ text: { content: String(o.sourceOrderNumber || '').slice(0, 2000) } }] };
   if (o.contactSource) props['Contact Source'] = { select: { name: o.contactSource } };
   if (o.pickup)       props['Pickup Location'] = { select: { name: o.pickup } };
   if (o.trackingNumber != null) props['Tracking Number'] = { rich_text: [{ text: { content: (o.trackingNumber || '').slice(0, 2000) } }] };
@@ -197,7 +219,11 @@ function pageToOrder(page) {
     desc:          txt(p['Order Description']),
     materials:     txt(p['Materials']),
     notes:         txt(p['Notes']),
-    orderType:     NOTION_TO_ORDER_TYPE[orderTypeRaw] || 'order',
+    orderType:     KIND_TO_LEGACY_TYPE[NOTION_TO_ORDER_KIND[orderTypeRaw]] || 'order',
+    // Empty when the page predates the kind-aware Order Type options —
+    // the client's normalizeOrder() infers it from id/stage/contactSource.
+    orderKind:     NOTION_TO_ORDER_KIND[orderTypeRaw] || '',
+    sourceOrderNumber: txt(p['Source Order #']),
     contactSource: sel(p['Contact Source']) || '',
     pickup:        sel(p['Pickup Location']) || null,
     assignee:      sel(p['Assignee']) || null,
@@ -245,6 +271,7 @@ function pageToOrder(page) {
 // write naming an unknown property 400s. ensureSchema() adds any missing
 // ones so no manual Notion setup is needed.
 const NEW_SCHEMA_PROPS = {
+  'Source Order #':         { rich_text: {} },
   'Preferred Contact':      { select: {} },
   'Piece Type':             { select: {} },
   'Sizing / Dimensions':    { rich_text: {} },

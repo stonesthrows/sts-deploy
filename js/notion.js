@@ -205,8 +205,12 @@ async function notionSyncFromNotion() {
 
     let added = 0, updated = 0;
 
-    // Fields that are local-only or should never be overwritten with empty Notion values
-    const preserveIfEmpty = ['photo', 'sketchImg', 'sketchSyncedHash', 'contactedAt', 'deliveredAt'];
+    // Fields that are local-only or should never be overwritten with empty Notion
+    // values. items/jobDescMode/shippingAddress/fullyPaid/shipping don't
+    // round-trip through Notion at all, so the local copy is the only copy.
+    const preserveIfEmpty = ['photo', 'sketchImg', 'sketchSyncedHash', 'contactedAt', 'deliveredAt',
+      'items', 'jobDescMode', 'shippingAddress', 'fullyPaid', 'shipping', 'takeIn',
+      'orderKind', 'orderSource', 'sourceOrderNumber'];
 
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
@@ -217,16 +221,19 @@ async function notionSyncFromNotion() {
         // Match by App ID — update in place, preserving local-only fields
         const existing = byAppId[no.id];
         preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
+        if (typeof normalizeOrder === 'function') normalizeOrder(no);
         Object.assign(existing, no);
         updated++;
       } else if (no.notionId && byNotionId[no.notionId]) {
         // Match by Notion page ID — update in place
         const existing = byNotionId[no.notionId];
         preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
+        if (typeof normalizeOrder === 'function') normalizeOrder(no);
         Object.assign(existing, no);
         updated++;
       } else {
         // New order from Notion — add to local array
+        if (typeof normalizeOrder === 'function') normalizeOrder(no);
         ORDERS.push(no);
         if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
         added++;
@@ -330,6 +337,17 @@ async function notionStartupSync() {
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
       if (o.cancelledAt) localFields[o.id].cancelledAt = o.cancelledAt;
       if (o.pdfUrl)      localFields[o.id].pdfUrl      = o.pdfUrl;
+      // Fields Notion doesn't round-trip — without these, imported line
+      // items, addresses, and order-kind identity vanish on every startup.
+      if (o.items && o.items.length) localFields[o.id].items = o.items;
+      if (o.jobDescMode)     localFields[o.id].jobDescMode     = o.jobDescMode;
+      if (o.shippingAddress) localFields[o.id].shippingAddress = o.shippingAddress;
+      if (o.fullyPaid != null) localFields[o.id].fullyPaid     = o.fullyPaid;
+      if (o.shipping  != null) localFields[o.id].shipping      = o.shipping;
+      if (o.takeIn)          localFields[o.id].takeIn          = o.takeIn;
+      if (o.orderKind)       localFields[o.id].orderKind       = o.orderKind;
+      if (o.orderSource)     localFields[o.id].orderSource     = o.orderSource;
+      if (o.sourceOrderNumber) localFields[o.id].sourceOrderNumber = o.sourceOrderNumber;
     });
 
     // Keep any locally-created orders (id starts with 'u') not yet in Notion
@@ -356,6 +374,16 @@ async function notionStartupSync() {
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;
       if (!no.cancelledAt && lf.cancelledAt) no.cancelledAt = lf.cancelledAt;
       if (!no.pdfUrl      && lf.pdfUrl)      no.pdfUrl      = lf.pdfUrl;
+      if ((!no.items || !no.items.length) && lf.items) no.items = lf.items;
+      if (!no.jobDescMode     && lf.jobDescMode)     no.jobDescMode     = lf.jobDescMode;
+      if (!no.shippingAddress && lf.shippingAddress) no.shippingAddress = lf.shippingAddress;
+      if (no.fullyPaid == null && lf.fullyPaid != null) no.fullyPaid    = lf.fullyPaid;
+      if (no.shipping  == null && lf.shipping  != null) no.shipping     = lf.shipping;
+      if (!no.takeIn          && lf.takeIn)          no.takeIn          = lf.takeIn;
+      if (!no.orderKind       && lf.orderKind)       no.orderKind       = lf.orderKind;
+      if (!no.orderSource     && lf.orderSource)     no.orderSource     = lf.orderSource;
+      if (!no.sourceOrderNumber && lf.sourceOrderNumber) no.sourceOrderNumber = lf.sourceOrderNumber;
+      if (typeof normalizeOrder === 'function') normalizeOrder(no);
       if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
       ORDERS.push(no);
     }

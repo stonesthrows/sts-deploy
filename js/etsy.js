@@ -46,18 +46,7 @@ async function etsySync() {
 
     let imported = 0;
     for (const eo of toImport) {
-      const order = {
-        id:            etsyAppId(eo.etsyReceiptId),
-        name:          eo.name,
-        email:         eo.email,
-        price:         eo.price,
-        desc:          eo.desc,
-        notes:         eo.notes,
-        stage:         'etsy-bench',
-        orderType:     'order',
-        contactSource: 'Etsy Message',
-        takeInDate:    eo.createdAt ? eo.createdAt.slice(0, 10) : '',
-      };
+      const order = etsyToOrder(eo);
       ORDERS.push(order);
       const notionId = await notionCreateOrder(order);
       if (notionId) order.notionId = notionId;

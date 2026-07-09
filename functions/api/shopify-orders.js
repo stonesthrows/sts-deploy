@@ -119,6 +119,13 @@ export async function onRequestGet(context) {
       desc:   linesSummary,
       lineItems,
       notes,
+      buyerNote:   o.note || '',
+      addrStreet:  addr?.address1 || '',
+      addrStreet2: addr?.address2 || '',
+      addrCity:    addr?.city     || '',
+      addrState:   addr?.province || '',
+      addrZip:     addr?.zip      || '',
+      addrCountry: addr?.country  || '',
       createdAt:         o.createdAt,
       fulfillmentStatus: o.displayFulfillmentStatus,
     };
