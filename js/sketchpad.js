@@ -33,6 +33,8 @@ function _padCreate(canvasId, opts) {
     tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'eraser'
     // Independent stroke weight per tool (canvas units)
     widths: { pen: 5, pencil: 2.5, marker: 14, eraser: 28 },
+    // Independent stroke opacity per tool (0–1), user-adjustable via the dock slider
+    opacities: { pen: 1, pencil: 0.55, marker: 0.35, eraser: 1 },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
@@ -108,7 +110,8 @@ function _padDown(pad, e) {
   // semi-transparent grey for a softer graphite line; Pen is solid ink.
   // Marker is a translucent highlighter color composited with 'multiply' so
   // overlapping strokes deepen like real ink instead of just re-flattening.
-  ctx.globalAlpha = pad.tool === 'pencil' ? 0.55 : pad.tool === 'marker' ? 0.35 : 1;
+  // Opacity is user-adjustable per tool via the dock slider (pad.opacities).
+  ctx.globalAlpha = pad.opacities[pad.tool] != null ? pad.opacities[pad.tool] : 1;
   ctx.globalCompositeOperation = pad.tool === 'marker' ? 'multiply' : 'source-over';
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
@@ -156,7 +159,8 @@ function sketchSetTool(tool, btn) {
     const b = document.getElementById('sk-' + t);
     if (b) b.classList.toggle('active', t === tool);
   });
-  sketchSyncSizeUI(); // reflect this tool's own stored weight
+  sketchSyncSizeUI();    // reflect this tool's own stored weight
+  sketchSyncOpacityUI(); // reflect this tool's own stored opacity
 }
 
 // Accepts a numeric weight OR a preset label ('S'|'M'|'L'), resolved against
@@ -176,6 +180,26 @@ function sketchSliderInput(v) {
   if (!SK) return;
   SK.widths[SK.tool] = parseFloat(v) || 1;
   sketchSyncSizeUI();
+}
+
+// Live drag of the opacity slider (0–100 in the UI) — sets the active tool's alpha (0–1).
+function sketchOpacitySliderInput(v) {
+  if (!SK) return;
+  SK.opacities[SK.tool] = Math.max(0.05, (parseFloat(v) || 100) / 100);
+  sketchSyncOpacityUI();
+}
+
+// Push SK's current tool opacity into the slider, percent readout, and preview dot.
+function sketchSyncOpacityUI() {
+  if (!SK) return;
+  const o = SK.opacities[SK.tool] != null ? SK.opacities[SK.tool] : 1;
+  const pct = Math.round(o * 100);
+  const slider = document.getElementById('sk-opacity-slider');
+  if (slider) slider.value = pct;
+  const val = document.getElementById('sk-opacity-val');
+  if (val) val.textContent = pct + '%';
+  const dot = document.getElementById('sk-opacity-dot');
+  if (dot) dot.style.opacity = o;
 }
 
 // Push SK's current tool weight into the slider, numeric readout, size-preview
@@ -399,5 +423,6 @@ function sketchInit() {
   HW = _padCreate('hw-canvas', { background: _hwBackground });
   if (HW) HW.widths.pen = 6; // handwriting pen is fixed medium
   sketchSyncSizeUI();         // prime the dock controls to the default weight
+  sketchSyncOpacityUI();      // prime the dock controls to the default opacity
 }
 sketchInit();
