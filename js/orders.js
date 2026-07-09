@@ -465,6 +465,16 @@ function eoRenderViewIdentity(o) {
   const deadlineEl   = document.getElementById('eo-view-deadline');
   if (deadlineEl) deadlineEl.textContent = fmtDate(o.deadline);
   if (deadlineItem) deadlineItem.style.display = o.deadline ? '' : 'none';
+
+  const sourceItem = document.getElementById('eo-view-source-item');
+  const sourceEl   = document.getElementById('eo-view-source');
+  if (sourceEl) sourceEl.textContent = o.contactSource || '';
+  if (sourceItem) sourceItem.style.display = (o.contactSource || '').trim() ? '' : 'none';
+
+  const pickupItem = document.getElementById('eo-view-pickup-item');
+  const pickupEl   = document.getElementById('eo-view-pickup');
+  if (pickupEl) pickupEl.textContent = o.pickup || '';
+  if (pickupItem) pickupItem.style.display = (o.pickup || '').trim() ? '' : 'none';
 }
 
 // Sketch viewer for the modal. Sketches are drawn in the intake app
