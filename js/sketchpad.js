@@ -121,7 +121,8 @@ function _padDown(pad, e) {
                   : '#1A1A1A';
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
-  pad._last = p; // anchor for the quadratic-through-midpoints smoothing in _padMove
+  pad._last = p;    // anchor for the quadratic-through-midpoints smoothing in _padMove
+  pad._pathPos = p; // actual path endpoint so far — lets _padMove stroke only new segments
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
   ctx.lineTo(p.x + 0.01, p.y + 0.01); // a tap leaves a dot
@@ -135,19 +136,34 @@ function _padDown(pad, e) {
 // (flow 0 — control point coincides with the path's current point, which
 // degenerates the quadratic into a plain straight segment) and the fully
 // smoothed midpoint (flow 1).
+//
+// Each iteration starts a FRESH path from pad._pathPos and strokes only that
+// one new segment, rather than replaying the whole stroke-so-far. Replaying
+// is harmless for opaque source-over tools (repainting solid pixels is
+// idempotent) but breaks non-idempotent blends like the marker's 'multiply'
+// — already-drawn segments would get re-composited on every move, darkening
+// the start of a stroke far more than its end.
 function _padMove(pad, e) {
   if (!pad.drawing) return;
   const flow = pad.flows[pad.tool] != null ? pad.flows[pad.tool] : 1;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
+  const ctx = pad.ctx;
+  // One path per handler call (chaining every coalesced point into it) rather
+  // than one path per point — chained curves join seamlessly via lineJoin,
+  // while separate per-point paths would each get their own round end-caps,
+  // showing as visible beading/scalloping along the stroke.
+  ctx.beginPath();
+  ctx.moveTo(pad._pathPos.x, pad._pathPos.y);
   for (const ev of (events.length ? events : [e])) {
     const p = _padPoint(pad, ev);
     const mid = { x: (pad._last.x + p.x) / 2, y: (pad._last.y + p.y) / 2 };
     const endX = p.x + (mid.x - p.x) * flow;
     const endY = p.y + (mid.y - p.y) * flow;
-    pad.ctx.quadraticCurveTo(pad._last.x, pad._last.y, endX, endY);
+    ctx.quadraticCurveTo(pad._last.x, pad._last.y, endX, endY);
+    pad._pathPos = { x: endX, y: endY };
     pad._last = p;
   }
-  pad.ctx.stroke();
+  ctx.stroke();
 }
 
 function _padUp(pad, e) {
