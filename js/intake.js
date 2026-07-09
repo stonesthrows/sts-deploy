@@ -316,6 +316,7 @@ function _intakeDirty() {
   });
   return fields
     || (typeof _oiItems !== 'undefined' && _oiItems.some(it => it.name || it.price))
+    || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
     || (typeof SK !== 'undefined' && SK && SK.hasInk)
     || (typeof HW !== 'undefined' && HW && HW.hasInk);
 }
@@ -404,6 +405,10 @@ async function intakeSubmit() {
   // Sensitivities: structured on the order AND joined into notes so Notion +
   // the printed bag see plain text with no pipeline changes (brief 1.3).
   const sens        = intakeSensList();
+  // Ring registry / occasion / style (brief 1.2, 1.4, 1.5) — same pattern:
+  // structured keys + a readable gift line for notes.
+  const s1          = (typeof intakeSection1Collect === 'function') ? intakeSection1Collect() : null;
+  const giftLine    = (typeof intakeSection1NotesLine === 'function') ? intakeSection1NotesLine(s1) : '';
 
   const order = {
     id:        'u' + Date.now(),
@@ -437,8 +442,15 @@ async function intakeSubmit() {
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
-    notes:         notes + (sens.length ? (notes ? '\n' : '') + '⚠ Sensitivities: ' + sens.join(', ') : ''),
+    notes:         [notes,
+                    sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
+                    giftLine].filter(Boolean).join('\n'),
     sensitivities: sens,
+    ringSizes:     s1 ? s1.ringSizes : [],
+    wrist:         s1 ? s1.wrist : '',
+    neck:          s1 ? s1.neck : '',
+    styleProfile:  s1 ? s1.styleProfile : null,
+    gift:          s1 ? s1.gift : null,
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
@@ -485,6 +497,7 @@ function intakeReset() {
   _depMode = null;
   document.getElementById('est-preset-strip')?.classList.remove('open');
   if (typeof intakeProfileReset === 'function') intakeProfileReset();
+  if (typeof intakeSection1Reset === 'function') intakeSection1Reset();
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';

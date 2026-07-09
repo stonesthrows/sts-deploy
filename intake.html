@@ -403,6 +403,76 @@
       border: none; background: none; color: var(--text3); font-size: 13px;
       cursor: pointer; line-height: 1;
     }
+
+    /* ═══ Section-1 accordions — ring registry / occasion / style profile ═══ */
+    .acc-row { border: 1px solid var(--bdr-light); border-radius: 10px; overflow: hidden; background: #FBFDFE; }
+    .acc-head {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      border: none; background: none; padding: 11px 12px; min-height: 44px;
+      font-family: inherit; font-size: 14px; cursor: pointer; text-align: left;
+    }
+    .acc-title { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .acc-summary {
+      flex: 1; text-align: right; font-size: 12.5px; color: var(--text3);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .acc-summary.filled { color: #8A6A20; font-weight: 600; }
+    .acc-chev { color: var(--text3); font-size: 15px; transition: transform .18s var(--ease-smooth); }
+    .acc-row.open .acc-chev { transform: rotate(90deg); }
+    .acc-body { padding: 6px 12px 12px; border-top: 1px dashed var(--bdr-light); }
+
+    /* Selectable chips (occasion + style groups) */
+    .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 10px; }
+    .sel-chip {
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .sel-chip.on { background: linear-gradient(135deg, #C9983A, #A07428); border-color: #A07428; color: #fff; }
+    .occ-mini-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+    .occ-date-row { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 4px 0; }
+    .occ-surprise {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px;
+      font-weight: 500; color: var(--text); cursor: pointer; min-height: 44px;
+    }
+    .occ-surprise input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
+
+    /* Ring registry — two-hand diagram + size dial */
+    .reg-tabs { display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm); overflow: hidden; width: fit-content; margin: 6px 0 2px; }
+    .reg-tab {
+      border: none; background: #FAFAF8; color: #7A7268; font-family: inherit;
+      font-size: 13px; font-weight: 700; padding: 9px 20px; min-height: 40px; cursor: pointer;
+    }
+    .reg-tab:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .reg-tab.on { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+    .reg-hands { display: flex; gap: 22px; justify-content: center; padding: 8px 0 2px; }
+    .reg-hand-wrap { text-align: center; }
+    .reg-hand-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-top: 2px; }
+    .rf-finger { cursor: pointer; }
+    .reg-hint { text-align: center; font-size: 12px; color: var(--text3); padding-bottom: 6px; }
+    .reg-dial { border: 1px solid var(--bdr); border-radius: 10px; background: #fff; padding: 12px; margin: 8px 0; }
+    .reg-dial-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .reg-wheel {
+      display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px;
+      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+    }
+    .reg-size {
+      flex-shrink: 0; min-width: 58px; min-height: 44px; scroll-snap-align: center;
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .reg-size.on { background: linear-gradient(135deg, #C9983A, #A07428); border-color: #A07428; color: #fff; }
+    .reg-conf { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
+    .reg-conf-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .reg-conf-btn.on { border-color: var(--accent); background: #FBF3E2; color: var(--text); }
+    .reg-conf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .reg-dial-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .reg-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -548,6 +618,113 @@
             </div>
             <input type="text" id="f-sensitivity-note" placeholder="Other / context — e.g. reacts to cheap earring posts" oninput="intakeSensChanged()">
           </div>
+
+          <!-- ── Client profile accordions: ring registry (1.2) · occasion (1.4) · style (1.5) ── -->
+          <div class="fg full" style="gap:8px;">
+            <div class="acc-row" id="acc-sizes">
+              <button type="button" class="acc-head" onclick="accToggle('sizes')">
+                <span>💍</span><span class="acc-title">Ring Sizes</span>
+                <span class="acc-summary" id="reg-summary">none on file</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-sizes-body" style="display:none;">
+                <div class="reg-tabs" id="reg-tabs" style="display:none;">
+                  <button type="button" class="reg-tab on" id="reg-tab-client" onclick="regSetPerson('client')">Client</button>
+                  <button type="button" class="reg-tab" id="reg-tab-recipient" onclick="regSetPerson('recipient')">Recipient</button>
+                </div>
+                <div class="reg-hands" id="reg-hands"></div>
+                <div class="reg-hint">Tap a finger to dial in its size</div>
+                <div class="reg-dial" id="reg-dial" style="display:none;"></div>
+                <div class="reg-extras">
+                  <div class="fg"><label>Wrist (in)</label><input type="text" id="f-wrist" placeholder="6.5" inputmode="decimal"></div>
+                  <div class="fg"><label>Neck (in)</label><input type="text" id="f-neck" placeholder="16" inputmode="decimal"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="acc-row" id="acc-occasion">
+              <button type="button" class="acc-head" onclick="accToggle('occasion')">
+                <span>🎁</span><span class="acc-title">Occasion</span>
+                <span class="acc-summary" id="occ-summary">for self</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-occasion-body" style="display:none;">
+                <div class="mult-toggle" style="margin:6px 0 10px;">
+                  <button type="button" class="mult-btn selected" id="occ-self-btn" onclick="occSetGift(false)">For Self</button>
+                  <button type="button" class="mult-btn" id="occ-gift-btn" onclick="occSetGift(true)">Gift</button>
+                </div>
+                <div id="occ-gift-block" style="display:none;">
+                  <div class="fg" style="margin-bottom:8px;">
+                    <label>Recipient Name</label>
+                    <input type="text" id="f-gift-recipient" placeholder="Emma" oninput="occChanged()">
+                  </div>
+                  <div class="occ-mini-label">Relationship</div>
+                  <div class="sel-chips" id="occ-relationship">
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Partner</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Parent</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Child</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Friend</button>
+                  </div>
+                  <div class="occ-mini-label">Occasion</div>
+                  <div class="sel-chips" id="occ-occasion">
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Anniversary</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Engagement</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birthday</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birth</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Memorial</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Just Because</button>
+                  </div>
+                  <div class="occ-date-row">
+                    <div class="fg">
+                      <label>Occasion Date</label>
+                      <input type="date" id="f-gift-date" onchange="occChanged()">
+                    </div>
+                    <label class="occ-surprise"><input type="checkbox" id="f-gift-surprise" onchange="occChanged()"> 🤫 Surprise — discretion at pickup</label>
+                  </div>
+                  <div class="sens-warn" id="occ-date-warn"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="acc-row" id="acc-style">
+              <button type="button" class="acc-head" onclick="accToggle('style')">
+                <span>✨</span><span class="acc-title">Style Profile</span>
+                <span class="acc-summary" id="style-summary">not set</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-style-body" style="display:none;">
+                <div class="occ-mini-label">Aesthetic <span style="font-weight:400;text-transform:none;letter-spacing:0;">— pick any</span></div>
+                <div class="sel-chips" id="style-aesthetic" data-multi="1">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Minimal</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Vintage</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Organic</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Geometric</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Statement</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Delicate</button>
+                </div>
+                <div class="occ-mini-label">Metal Tone</div>
+                <div class="sel-chips" id="style-tone">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Yellow</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">White</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Rose</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Mixed</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Silver-only</button>
+                </div>
+                <div class="occ-mini-label">Wear Pattern <span style="font-weight:400;text-transform:none;letter-spacing:0;">— drives durability recs</span></div>
+                <div class="sel-chips" id="style-wear">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Everyday</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Occasion</button>
+                </div>
+                <div class="occ-mini-label">Budget Comfort <span style="font-weight:400;text-transform:none;letter-spacing:0;">— studio-only, never client-facing</span></div>
+                <div class="sel-chips" id="style-budget">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">&lt;$250</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$250–750</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$750–1.5k</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$1.5k+</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="fg full hw-toggle-row">
             <button type="button" class="sketch-btn" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
           </div>
@@ -610,6 +787,7 @@
           <div class="fg">
             <label>Sizing / Dimensions</label>
             <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
+            <div class="sens-warn" id="sizing-verify-hint"></div>
           </div>
           <div class="fg">
             <label>Texture / Finish</label>
@@ -859,7 +1037,7 @@
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
-<script src="js/intake-profiles.js?v=1"></script>
-<script src="js/intake.js?v=5"></script>
+<script src="js/intake-profiles.js?v=2"></script>
+<script src="js/intake.js?v=6"></script>
 </body>
 </html>
