@@ -125,7 +125,6 @@ function _rqRefreshAddPanel() {
   if (!sizesBox || sizesBox.style.display === 'none') return;
   var styleFilter = _rqApplyStyleFilter('add', item.variants);
   var filteredVariants = styleFilter.variants;
-  var table = _rqBuildVariantTable(filteredVariants);
   var qtyByVariantId = {};
   var stoneByVariantId = {};
   (item.selectedVariants || []).forEach(function(v) {
@@ -133,9 +132,7 @@ function _rqRefreshAddPanel() {
     if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
   });
   var stoneList = _rqStoneOptionsFor(item);
-  sizesBox.innerHTML = styleFilter.filterTabsHtml + (table
-    ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
-    : _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone'));
+  sizesBox.innerHTML = styleFilter.filterTabsHtml + _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
 }
 
 // Renders a small count badge for one variant id, reusing the Inventory
@@ -204,16 +201,12 @@ function _rqMatchSizesToVariants(variants, rawText) {
   return out;
 }
 
-// ── Variant attribute table (e.g. Metal x Size x Gauge) ──────────────────────
-// Square variation names like "Silver - Sm - 20g" get parsed into a grouped
-// table (metal columns grouped, size sub-grouped, gauge as leaf columns) with
-// one quantity input per leaf, instead of a flat wall of chips that gets
-// unreadable once an item has 6-8+ variations (e.g. Double Hoop Faux Nose Ring).
+// ── Variant token classification (metal / size / other) ──────────────────────
+// Used to build style-filter tabs and to spot combined-metal options below.
 function _rqClassifyToken(tok) {
   var t = (tok || '').trim();
   // "Silver & Gold Fill" (a combined-metal option, e.g. on Chevron Stacker's
-  // Double style) needs to match too — otherwise one unparseable row forces
-  // the whole item into the flat chip fallback (see _rqBuildVariantTable).
+  // Double style) needs to match too.
   if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)(\s*&\s*(silver|gold[\s-]?fill|gold|rose[\s-]?gold))?$/i.test(t)) return 'metal';
   if (/^(xs|sm|small|med|medium|lg|large|xl|xxl)$/i.test(t)) return 'size';
   // Ring sizes — plain numbers (incl. half sizes) or "Size 7" / "Sz 7.5".
@@ -285,124 +278,10 @@ function _rqApplyStyleFilter(pid, variants) {
   return { variants: filtered, filterTabsHtml: _rqStyleFilterTabsHtml(pid, styles, current) };
 }
 
-function _rqBuildVariantTable(variants) {
-  if (!variants || variants.length < 3) return null; // not worth a table for 1-2 sizes
-  var rows = variants.map(function(v) {
-    var tokens = (v.name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
-    if (tokens.length < 2) return null;
-    var metal = null, size = null, rest = [];
-    tokens.forEach(function(tok) {
-      var cls = _rqClassifyToken(tok);
-      if (cls === 'metal' && !metal) metal = tok;
-      else if (cls === 'size' && !size) size = tok;
-      else rest.push(tok);
-    });
-    if (!metal) return null;
-    return { variant: v, metal: metal, size: size || '', leaf: rest.join(' ') };
-  });
-  if (rows.some(function(r) { return !r; })) return null; // any unparseable row -> fall back to flat chips
-
-  var metals = [];
-  rows.forEach(function(r) { if (metals.indexOf(r.metal) === -1) metals.push(r.metal); });
-  if (metals.length < 2) return null; // single metal -> flat chips is fine
-
-  rows.sort(function(a, b) {
-    var ma = metals.indexOf(a.metal), mb = metals.indexOf(b.metal);
-    if (ma !== mb) return ma - mb;
-    return _rqSizeCompare(a.size, b.size);
-  });
-
-  return { rows: rows, metals: metals, hasSizes: rows.some(function(r) { return r.size; }) };
-}
-
-// Numeric compare for size tokens ("Size 10" vs "Size 2") — plain string
-// sort put "10", "10.5", "11"... before "2" since "1" < "2" as characters.
-// Falls back to a string compare when either side has no digits (e.g. "Sm"/"Lg").
-function _rqSizeCompare(a, b) {
-  var na = parseFloat((a || '').replace(/[^\d.]/g, ''));
-  var nb = parseFloat((b || '').replace(/[^\d.]/g, ''));
-  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
-  return (a || '').localeCompare(b || '');
-}
-
-// Strips a leading "Size"/"Sz" label down to just the number ("Size 6.5" ->
-// "6.5") so grouped-table column headers stay narrow enough to fit several
-// metal x size tables on screen without horizontal scrolling.
-function _rqShortSizeLabel(size) {
-  return (size || '').replace(/^(size|sz)\s*/i, '');
-}
-
 function _rqEsc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// One small table per metal, stacked vertically (rather than one wide table
-// with metals side by side) — a metal group with 15-20 sizes no longer
-// forces the others off-screen into horizontal scroll.
-function _rqVariantTableHtml(pid, table, qtyByVariantId, onchangeFn) {
-  onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
-  return '<div class="rq-variant-table-stack">'
-    + table.metals.map(function(metal) {
-        var cols = table.rows.filter(function(r) { return r.metal === metal; });
-        // Split a long size run into two rows (e.g. 2-6, then 6.5-12)
-        // instead of one row of 15-20+ narrow columns — otherwise the qty
-        // input has to shrink so far that a "0" starts rendering clipped,
-        // looking like a stray "(". Splitting halves the column count per
-        // row, so each input gets roughly double the width back.
-        var chunks = (table.hasSizes && cols.length > 8)
-          ? [cols.slice(0, Math.ceil(cols.length / 2)), cols.slice(Math.ceil(cols.length / 2))]
-          : [cols];
-        return '<div class="rq-variant-table-group">'
-          + '<div class="rq-variant-table-metal">' + _rqEsc(metal) + '</div>'
-          + chunks.map(function(chunkCols) {
-              return _rqVariantSubTableHtml(pid, chunkCols, table.hasSizes, qtyByVariantId, onchangeFn);
-            }).join('')
-          + '</div>';
-      }).join('')
-    + '</div>';
-}
-
-// Renders one metal's size row (or one half of it, when split into two —
-// see _rqVariantTableHtml above) as its own small table.
-function _rqVariantSubTableHtml(pid, cols, hasSizes, qtyByVariantId, onchangeFn) {
-  var html = '<table class="rq-variant-table"><thead>';
-  if (hasSizes) {
-    html += '<tr><th class="rq-variant-row-label">Size</th>';
-    var i = 0;
-    while (i < cols.length) {
-      var size = cols[i].size;
-      var span = 1;
-      while (i + span < cols.length && cols[i + span].size === size) span++;
-      html += '<th colspan="' + span + '">' + (_rqEsc(_rqShortSizeLabel(size)) || '—') + '</th>';
-      i += span;
-    }
-    html += '</tr>';
-  }
-  // The leaf is whatever is left of the variant name after metal and size
-  // (stone, style, gauge…) — without this row, variants that differ only by
-  // leaf render as anonymous qty columns with no way to tell them apart.
-  var hasLeaf = cols.some(function(r) { return r.leaf; });
-  if (hasLeaf) {
-    html += '<tr><th class="rq-variant-row-label">' + (hasSizes ? 'Style' : 'Item') + '</th>';
-    cols.forEach(function(r) {
-      html += '<th class="rq-variant-leaf">' + (_rqEsc(r.leaf) || '—') + '</th>';
-    });
-    html += '</tr>';
-  }
-  html += '</thead><tbody><tr><th class="rq-variant-row-label">To Make</th>';
-  cols.forEach(function(r) {
-    var qty = qtyByVariantId[r.variant.id] || '';
-    var safeVId = (r.variant.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
-    html += '<td><input type="number" class="rq-variant-qty" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-      + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)"></td>';
-  });
-  html += '</tr><tr class="rq-variant-inv-row"><th class="rq-variant-row-label">Stock</th>';
-  cols.forEach(function(r) {
-    html += '<td>' + _rqInvBadgeCompactHtml(r.variant.id) + '</td>';
-  });
-  html += '</tr></tbody></table>';
-  return html;
-}
 
 function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
@@ -842,10 +721,7 @@ function _rqMatchRowInner(pid) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
     });
     var stoneList = _rqStoneOptionsFor(match);
-    var table = _rqBuildVariantTable(filteredVariants);
-    var body = table
-      ? _rqVariantTableHtml(safePid, table, qtyByVariantId, 'rqSetInlineVariantQty')
-      : _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
+    var body = _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
@@ -2394,7 +2270,6 @@ function _rqAddShowChip(item) {
   if (item.isParent) {
     var styleFilter = _rqApplyStyleFilter('add', item.variants);
     var filteredVariants = styleFilter.variants;
-    var table = _rqBuildVariantTable(filteredVariants);
     var qtyByVariantId = {};
     var stoneByVariantId = {};
     (item.selectedVariants || []).forEach(function(v) {
@@ -2402,9 +2277,7 @@ function _rqAddShowChip(item) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
     });
     var stoneList = _rqStoneOptionsFor(item);
-    sizesBox.innerHTML = styleFilter.filterTabsHtml + (table
-      ? _rqVariantTableHtml('add', table, qtyByVariantId, 'rqAddSetVariantQty')
-      : _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone'));
+    sizesBox.innerHTML = styleFilter.filterTabsHtml + _rqVariantFlatHtml('add', filteredVariants, qtyByVariantId, 'rqAddSetVariantQty', stoneList, stoneByVariantId, 'rqAddSetVariantStone');
     sizesBox.style.display = 'block';
     _rqFetchInvCounts(); // fetch stock counts for this item's variants so the "Current Stock" row populates
   } else {
