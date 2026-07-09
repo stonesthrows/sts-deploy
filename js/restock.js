@@ -330,13 +330,14 @@ function _rqVariantChipHtml(pid, v, label, qty, onchangeFn, stoneList, stoneByVa
     + '</div>';
 }
 
-function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
+function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn, listLayout) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
   stoneOnchangeFn = stoneOnchangeFn || 'rqSetVariantStone';
   stoneByVariantId = stoneByVariantId || {};
-  var grouped = _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
+  var wrapCls = listLayout ? 'rq-variant-list' : 'rq-variant-grid';
+  var grouped = _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn, wrapCls);
   if (grouped) return grouped;
-  return '<div class="rq-variant-grid">'
+  return '<div class="' + wrapCls + '">'
     + variants.map(function(v) {
         var qty = qtyByVariantId[v.id] || '';
         return _rqVariantChipHtml(pid, v, v.name, qty, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
@@ -344,7 +345,7 @@ function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList
     + '</div>';
 }
 
-function _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
+function _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn, wrapCls) {
   var grouping = _rqGroupVariantsByMetal(variants);
   if (!grouping) return null;
   return '<div class="rq-variant-group-stack">'
@@ -352,7 +353,7 @@ function _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneLis
         var rows = grouping.rows.filter(function(r) { return r.metal === metal; });
         return '<div class="rq-variant-group">'
           + '<div class="rq-variant-group-label">' + _rqEsc(metal) + '</div>'
-          + '<div class="rq-variant-grid">'
+          + '<div class="' + wrapCls + '">'
           + rows.map(function(r) {
               var qty = qtyByVariantId[r.variant.id] || '';
               return _rqVariantChipHtml(pid, r.variant, r.label, qty, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
@@ -361,6 +362,7 @@ function _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneLis
       }).join('')
     + '</div>';
 }
+
 
 // Persists a quantity directly into the saved match (no transient picker
 // state) — used by the flat chip grid (grouped by metal or not), wherever
@@ -754,11 +756,20 @@ function _rqMatchRowInner(pid) {
 
   var safeName = _rqEsc(match.name);
 
-  // ── Parent item: sizes/variations are always editable directly here —
-  // no extra "Pick sizes" click needed once you're already in edit mode ──
+
+  // -- Parent item: sizes/variations are always editable directly here --
+  // no extra "Pick sizes" click needed once you're already in edit mode --
   if (match.isParent) {
-    var variants = match.variants || [];
-    var styleFilter = _rqApplyStyleFilter(pid, variants);
+    // While a timer is running, only show sizes that already have a qty
+    // (match.selectedVariants) as a single column, instead of every size
+    // in the catalog as a mostly-empty grid -- the running-timer edit
+    // panel is for adjusting counts already committed to, not picking
+    // new ones (that happens before the timer starts).
+    var timerActive = !!timer;
+    var sourceVariants = (timerActive && match.selectedVariants && match.selectedVariants.length)
+      ? match.selectedVariants
+      : (match.variants || []);
+    var styleFilter = timerActive ? { variants: sourceVariants, filterTabsHtml: '' } : _rqApplyStyleFilter(pid, sourceVariants);
     var filteredVariants = styleFilter.variants;
     var qtyByVariantId = {};
     var stoneByVariantId = {};
@@ -767,7 +778,7 @@ function _rqMatchRowInner(pid) {
       if (v.stoneIdx !== undefined && v.stoneIdx !== null) stoneByVariantId[v.id] = v.stoneIdx;
     });
     var stoneList = _rqStoneOptionsFor(match);
-    var body = _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId);
+    var body = _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId, undefined, timerActive);
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
       + '<span class="rq-match-name">' + safeName + '</span>'
@@ -776,6 +787,7 @@ function _rqMatchRowInner(pid) {
       + styleFilter.filterTabsHtml
       + body;
   }
+
 
   // ── Single-variation item ──
   return '<div class="rq-match-found">'
