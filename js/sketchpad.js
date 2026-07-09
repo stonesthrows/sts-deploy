@@ -35,6 +35,8 @@ function _padCreate(canvasId, opts) {
     widths: { pen: 5, pencil: 2.5, marker: 14, eraser: 28 },
     // Independent stroke opacity per tool (0–1), user-adjustable via the dock slider
     opacities: { pen: 1, pencil: 0.55, marker: 0.35, eraser: 1 },
+    // Independent line-smoothing strength per tool (0–1, 1 = fully smoothed)
+    flows: { pen: 1, pencil: 1, marker: 1, eraser: 1 },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
@@ -129,13 +131,20 @@ function _padDown(pad, e) {
 // Smooths the raw point stream by curving through the midpoint of each
 // consecutive pair, using the raw point as the quadratic control — the
 // standard fix for jagged/stepped freehand canvas lines during fast tracking.
+// "Flow" (pad.flows, 0–1) blends the curve endpoint between the raw point
+// (flow 0 — control point coincides with the path's current point, which
+// degenerates the quadratic into a plain straight segment) and the fully
+// smoothed midpoint (flow 1).
 function _padMove(pad, e) {
   if (!pad.drawing) return;
+  const flow = pad.flows[pad.tool] != null ? pad.flows[pad.tool] : 1;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
   for (const ev of (events.length ? events : [e])) {
     const p = _padPoint(pad, ev);
     const mid = { x: (pad._last.x + p.x) / 2, y: (pad._last.y + p.y) / 2 };
-    pad.ctx.quadraticCurveTo(pad._last.x, pad._last.y, mid.x, mid.y);
+    const endX = p.x + (mid.x - p.x) * flow;
+    const endY = p.y + (mid.y - p.y) * flow;
+    pad.ctx.quadraticCurveTo(pad._last.x, pad._last.y, endX, endY);
     pad._last = p;
   }
   pad.ctx.stroke();
@@ -161,6 +170,7 @@ function sketchSetTool(tool, btn) {
   });
   sketchSyncSizeUI();    // reflect this tool's own stored weight
   sketchSyncOpacityUI(); // reflect this tool's own stored opacity
+  sketchSyncFlowUI();    // reflect this tool's own stored smoothing
 }
 
 // Accepts a numeric weight OR a preset label ('S'|'M'|'L'), resolved against
@@ -200,6 +210,27 @@ function sketchSyncOpacityUI() {
   if (val) val.textContent = pct + '%';
   const dot = document.getElementById('sk-opacity-dot');
   if (dot) dot.style.opacity = o;
+}
+
+// Live drag of the flow/smoothing slider (0–100 in the UI) — sets the active tool's flow (0–1).
+function sketchFlowSliderInput(v) {
+  if (!SK) return;
+  SK.flows[SK.tool] = Math.max(0, Math.min(1, (parseFloat(v) || 0) / 100));
+  sketchSyncFlowUI();
+}
+
+// Push SK's current tool flow into the slider, percent readout, and preview dot
+// (dot corners round off from square → circle as smoothing increases).
+function sketchSyncFlowUI() {
+  if (!SK) return;
+  const f = SK.flows[SK.tool] != null ? SK.flows[SK.tool] : 1;
+  const pct = Math.round(f * 100);
+  const slider = document.getElementById('sk-flow-slider');
+  if (slider) slider.value = pct;
+  const val = document.getElementById('sk-flow-val');
+  if (val) val.textContent = pct + '%';
+  const dot = document.getElementById('sk-flow-dot');
+  if (dot) dot.style.borderRadius = (f * 50) + '%';
 }
 
 // Push SK's current tool weight into the slider, numeric readout, size-preview
@@ -424,5 +455,6 @@ function sketchInit() {
   if (HW) HW.widths.pen = 6; // handwriting pen is fixed medium
   sketchSyncSizeUI();         // prime the dock controls to the default weight
   sketchSyncOpacityUI();      // prime the dock controls to the default opacity
+  sketchSyncFlowUI();         // prime the dock controls to the default smoothing
 }
 sketchInit();

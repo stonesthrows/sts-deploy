@@ -153,6 +153,7 @@
     }
     #sk-size-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: #E8EEF2; transition: width .1s, height .1s; }
     #sk-opacity-dot { display: block; width: 16px; height: 16px; border-radius: 4px; background: #1A1A1A; transition: opacity .1s; }
+    #sk-flow-dot { display: block; width: 16px; height: 16px; background: #1A1A1A; transition: border-radius .1s; }
     .dock-slider-wrap { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .dock-slider {
       -webkit-appearance: none; appearance: none;
@@ -584,6 +585,14 @@
                 <input type="range" class="dock-slider" id="sk-opacity-slider" min="5" max="100" step="1" value="100"
                        oninput="sketchOpacitySliderInput(this.value)" aria-label="Stroke opacity">
                 <div class="dock-size-val" id="sk-opacity-val">100%</div>
+              </div>
+            </div>
+            <div class="dock-size">
+              <div class="dock-size-preview"><span id="sk-flow-dot"></span></div>
+              <div class="dock-slider-wrap">
+                <input type="range" class="dock-slider" id="sk-flow-slider" min="0" max="100" step="1" value="100"
+                       oninput="sketchFlowSliderInput(this.value)" aria-label="Line smoothing">
+                <div class="dock-size-val" id="sk-flow-val">100%</div>
               </div>
             </div>
             <div class="dock-row">
