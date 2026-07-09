@@ -110,6 +110,8 @@ function toggleShippingAddress() {
     const el = document.getElementById(id);
     if (el) el.style.display = (isShipped && editing) ? '' : 'none';
   });
+  // intake.html's Items & Price Shipping ($) field is tied to this same toggle.
+  if (typeof intakeUpdateShippingField === 'function') intakeUpdateShippingField();
 }
 
 // ════════════════════════════════════════════

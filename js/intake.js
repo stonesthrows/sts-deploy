@@ -84,10 +84,22 @@ function intakeStep(n) {
 // other type is plain-text custom mode.
 const _TYPE_BLOCKS = { order: 'type-custom', repair: 'type-repair', resize: 'type-resize', 'square-item': 'type-square' };
 
+// Tracks the previously-active order type so a genuine change (not a
+// re-application of the same type on init/reset) can reset Items & Price.
+let _intakeCurrentOrderType = 'order';
+
 function intakeApplyTypeLayout(type) {
   type = _TYPE_BLOCKS[type] ? type : 'order';
   const sel = document.getElementById('f-order-type');
   if (sel && sel.value !== type) sel.value = type;
+
+  // Items & Price is tied to whichever order type is active — switching
+  // types starts it fresh rather than carrying over stale items/total from
+  // whatever was previously selected (e.g. a Custom Design Estimate Total
+  // bleeding into a freshly-picked Square Item's Total).
+  if (_intakeCurrentOrderType !== type) _oiItems = [];
+  _intakeCurrentOrderType = type;
+
   _jdMode = (type === 'square-item') ? 'square' : 'custom';
   Object.entries(_TYPE_BLOCKS).forEach(([t, id]) => {
     const el = document.getElementById(id);
@@ -122,13 +134,14 @@ function intakeApplyTypeLayout(type) {
   const oiSection = document.getElementById('oi-section');
   if (oiSection) oiSection.style.display = (isSingle && type !== 'square-item') ? '' : 'none';
 
-  // Total/Deposit/Shipping/Balance Due travel with the relocated block for
-  // the 3 single-page types; hidden on Custom Design's Items & Price page
+  // Total/Deposit/Balance Due travel with the relocated block for the 3
+  // single-page types; hidden on Custom Design's Items & Price page
   // (Internal Notes stays visible either way — it's outside this toggle).
-  ['price-fg', 'deposit-fg', 'shipping-fg', 'balance-fg'].forEach(id => {
+  ['price-fg', 'deposit-fg', 'balance-fg'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isSingle ? '' : 'none';
   });
+  intakeUpdateShippingField();
 
   // Estimate Builder is Custom-Design-only.
   if (estimateCard) estimateCard.style.display = isSingle ? 'none' : '';
@@ -145,6 +158,18 @@ function intakeApplyTypeLayout(type) {
 
   if (typeof onOrderTypeChange === 'function') onOrderTypeChange(); // #ot-hint stage label
   if (typeof oiRender === 'function') oiRender(); // route items into the now-active container
+}
+
+// Shipping ($) only makes sense once Customer Info says the order is
+// actually being shipped (Pickup Location → "To be Shipped"), and only on
+// the 3 single-page types that carry the whole Items & Price block —
+// Custom Design hides that whole block regardless (see intakeApplyTypeLayout).
+function intakeUpdateShippingField() {
+  const el = document.getElementById('shipping-fg');
+  if (!el) return;
+  const type = document.getElementById('f-order-type')?.value || 'order';
+  const isShipped = document.getElementById('f-pickup')?.value === 'To be Shipped';
+  el.style.display = (type !== 'order' && isShipped) ? '' : 'none';
 }
 
 // Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
