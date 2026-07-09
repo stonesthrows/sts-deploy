@@ -111,18 +111,24 @@ function _padDown(pad, e) {
                   : '#1A1A1A';
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
+  pad._last = p; // anchor for the quadratic-through-midpoints smoothing in _padMove
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
   ctx.lineTo(p.x + 0.01, p.y + 0.01); // a tap leaves a dot
   ctx.stroke();
 }
 
+// Smooths the raw point stream by curving through the midpoint of each
+// consecutive pair, using the raw point as the quadratic control — the
+// standard fix for jagged/stepped freehand canvas lines during fast tracking.
 function _padMove(pad, e) {
   if (!pad.drawing) return;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
   for (const ev of (events.length ? events : [e])) {
     const p = _padPoint(pad, ev);
-    pad.ctx.lineTo(p.x, p.y);
+    const mid = { x: (pad._last.x + p.x) / 2, y: (pad._last.y + p.y) / 2 };
+    pad.ctx.quadraticCurveTo(pad._last.x, pad._last.y, mid.x, mid.y);
+    pad._last = p;
   }
   pad.ctx.stroke();
 }
