@@ -318,7 +318,7 @@
       ✕ Exit
     </button>
     <div class="flex-1"></div>
-    <div class="flex items-center gap-3" role="status" aria-live="polite">
+    <div class="flex items-center gap-3" role="status" aria-live="polite" id="intake-step-progress">
       <span id="intake-step-label" class="text-[12.5px] font-bold tracking-wide text-[#9FB4C4]">Step 1 of 3</span>
       <div id="intake-dots" class="flex gap-2">
         <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#C9983A] scale-125"></span>
@@ -532,6 +532,13 @@
           <button type="button" class="btn btn-outline" onclick="jdAddSquareItem()">+ Add Item</button>
         </div>
       </div>
+
+      <!-- Items & Price — lives here (below Design Details) for Repair/Resize/Square Item.
+           #items-price-grid is moved in here by intakeApplyTypeLayout(); for Custom Design
+           it moves back to #step3-card instead. Hidden until relocated. -->
+      <div id="step1-items-price-card" class="mx-auto mt-4 max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl" style="display:none;">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-3">Items &amp; Price</div>
+      </div>
     </section>
 
     <!-- ── Step 2 · Full-screen drawing pad ── -->
@@ -588,26 +595,29 @@
 
     <!-- ── Step 3 · Items & Price + inline estimate builder ── -->
     <section id="step-3" class="absolute inset-0 hidden step-scroll px-3 py-4 md:px-6">
-      <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
-        <div class="form-grid">
+      <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl" id="step3-card">
+        <!-- id="items-price-grid" — relocated between here and #step1-items-price-card
+             (see intakeApplyTypeLayout in js/intake.js) depending on order type, so keep
+             every id inside unique / don't duplicate this block elsewhere. -->
+        <div class="form-grid" id="items-price-grid">
           <div class="fg full" id="oi-section">
             <label>Order Items</label>
             <div id="oi-items-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
             <button type="button" class="btn btn-outline" style="width:fit-content;" onclick="oiAddItem()">+ Add Item</button>
           </div>
-          <div class="fg">
+          <div class="fg" id="price-fg">
             <label>Total ($) <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sum of items</span></label>
             <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0" readonly>
           </div>
-          <div class="fg">
+          <div class="fg" id="deposit-fg">
             <label>Deposit ($)</label>
             <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
           </div>
-          <div class="fg">
+          <div class="fg" id="shipping-fg">
             <label>Shipping ($)</label>
             <input type="number" id="f-shipping" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
           </div>
-          <div class="fg">
+          <div class="fg" id="balance-fg">
             <label>Balance Due ($)</label>
             <input type="number" id="f-balance-due" placeholder="0.00" readonly>
           </div>
@@ -678,7 +688,7 @@
   </main>
 
   <!-- ═══ Bottom bar: Back · step tabs · Next ═══ -->
-  <footer class="flex items-center gap-3 px-4 shrink-0 bg-[#0F1720] border-t border-white/10"
+  <footer id="intake-footer" class="flex items-center gap-3 px-4 shrink-0 bg-[#0F1720] border-t border-white/10"
           style="padding-bottom:env(safe-area-inset-bottom);height:calc(68px + env(safe-area-inset-bottom));">
     <button type="button" id="intake-back-btn" onclick="intakeStep(_intakeStep - 1)"
             class="invisible rounded-lg border border-[#35576D] px-5 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">‹ Back</button>

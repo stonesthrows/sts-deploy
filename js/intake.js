@@ -39,11 +39,18 @@ function intakeUpdateUnsynced() {
   badge.classList.toggle('hidden', n === 0);
 }
 
-// ── 3-step wizard ─────────────────────────────────────────────
+// ── Wizard: 3 steps for Custom Design, 1 (Items & Price folded onto page 1,
+//    no sketch page) for Repair/Resize/Square Item ────────────────────────
 let _intakeStep = 1;
 
+function _intakeMaxStep() {
+  const type = document.getElementById('f-order-type')?.value || 'order';
+  return type === 'order' ? 3 : 1;
+}
+
 function intakeStep(n) {
-  _intakeStep = Math.min(3, Math.max(1, n));
+  const maxStep = _intakeMaxStep();
+  _intakeStep = Math.min(maxStep, Math.max(1, n));
   for (let i = 1; i <= 3; i++) {
     const panel = document.getElementById('step-' + i);
     // Step 2 is a flex column (drawer + canvas); 1 and 3 are scroll panels
@@ -56,7 +63,7 @@ function intakeStep(n) {
     b.classList.toggle('text-[#9FB4C4]', !active);
   });
   const label = document.getElementById('intake-step-label');
-  if (label) label.textContent = 'Step ' + _intakeStep + ' of 3';
+  if (label) label.textContent = 'Step ' + _intakeStep + ' of ' + maxStep;
   document.querySelectorAll('#intake-dots .intake-dot').forEach((d, i) => {
     const active = (i + 1) === _intakeStep;
     d.classList.toggle('bg-[#C9983A]', active || (i + 1) < _intakeStep);
@@ -66,7 +73,7 @@ function intakeStep(n) {
   const back = document.getElementById('intake-back-btn');
   if (back) back.classList.toggle('invisible', _intakeStep === 1);
   const next = document.getElementById('intake-next-btn');
-  if (next) next.classList.toggle('invisible', _intakeStep === 3);
+  if (next) next.classList.toggle('invisible', _intakeStep === maxStep);
   document.querySelectorAll('.step-scroll').forEach(p => { p.scrollTop = 0; });
   if (_intakeStep === 2) intakeSizeSketchStage();
 }
@@ -86,10 +93,56 @@ function intakeApplyTypeLayout(type) {
     const el = document.getElementById(id);
     if (el) el.style.display = (t === type) ? '' : 'none';
   });
-  // The step-3 manual item repeater is redundant for Square Item — items are
-  // chosen in the step-1 picker; the Total still computes from _oiItems.
+
+  // Repair / Resize / Square Item collapse to a single page: Items & Price
+  // moves up under Design Details and the sketch page + Estimate Builder
+  // aren't part of their flow. Custom Design keeps the original 3-step
+  // wizard with Items & Price (Estimate Builder only) on step 3.
+  const isSingle = type !== 'order';
+
+  // Relocate the Items & Price block itself (only one instance of these
+  // ids exists — reparenting it is what makes this "the same page 1").
+  const grid        = document.getElementById('items-price-grid');
+  const step1Card    = document.getElementById('step1-items-price-card');
+  const step3Card    = document.getElementById('step3-card');
+  const estimateCard = document.getElementById('intake-estimate');
+  if (grid && step1Card && step3Card) {
+    if (isSingle) {
+      step1Card.style.display = '';
+      step1Card.appendChild(grid);
+    } else {
+      step1Card.style.display = 'none';
+      step3Card.insertBefore(grid, estimateCard || null);
+    }
+  }
+
+  // Order Items sub-section: manual entry for Repair/Resize; Square Item
+  // picks items via the step-1 catalog picker instead; Custom Design shows
+  // only the Estimate Builder (no manual Order Items at all).
   const oiSection = document.getElementById('oi-section');
-  if (oiSection) oiSection.style.display = (type === 'square-item') ? 'none' : '';
+  if (oiSection) oiSection.style.display = (isSingle && type !== 'square-item') ? '' : 'none';
+
+  // Total/Deposit/Shipping/Balance Due travel with the relocated block for
+  // the 3 single-page types; hidden on Custom Design's Items & Price page
+  // (Internal Notes stays visible either way — it's outside this toggle).
+  ['price-fg', 'deposit-fg', 'shipping-fg', 'balance-fg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isSingle ? '' : 'none';
+  });
+
+  // Estimate Builder is Custom-Design-only.
+  if (estimateCard) estimateCard.style.display = isSingle ? 'none' : '';
+
+  // Single-page types have no step nav at all.
+  const footer = document.getElementById('intake-footer');
+  const stepProgress = document.getElementById('intake-step-progress');
+  if (footer) footer.style.display = isSingle ? 'none' : '';
+  if (stepProgress) stepProgress.style.display = isSingle ? 'none' : '';
+  // Refresh nav state either way — switching back to Custom Design needs the
+  // Back/Next/tabs recomputed against the now-3-step max just as much as
+  // switching to a single-page type needs to snap back to page 1.
+  intakeStep(isSingle ? 1 : _intakeStep);
+
   if (typeof onOrderTypeChange === 'function') onOrderTypeChange(); // #ot-hint stage label
   if (typeof oiRender === 'function') oiRender(); // route items into the now-active container
 }
