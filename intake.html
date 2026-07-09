@@ -304,6 +304,83 @@
       animation: toastIn .25s ease;
     }
     @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* ═══ Sticky mini estimate total — pinned to the top of Step 3, fades
+       away once the real .est-total-box scrolls into view ═══ */
+    #est-mini-bar {
+      position: sticky; top: 0; z-index: 20;
+      max-width: 56rem; margin: 0 auto 12px;
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      background: linear-gradient(135deg, #F8F0E0, #F3E6CC);
+      border: 1px solid #E0CDA4; border-radius: 12px; padding: 10px 16px;
+      box-shadow: 0 4px 14px rgba(120,90,30,0.16);
+      transition: opacity .25s var(--ease-smooth), transform .25s var(--ease-smooth);
+    }
+    #est-mini-bar.est-mini-hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+    #est-mini-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #6A5A3A; }
+    #est-mini-total { font-size: 20px; font-weight: 800; color: #3A2E14; }
+    #est-mini-crumb { font-size: 12.5px; color: #8A7448; font-weight: 600; }
+
+    /* ═══ Material preset chips — opened by ＋ Add Line in the Estimate Builder ═══ */
+    .est-preset-strip { display: none; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    .est-preset-strip.open { display: flex; }
+    .est-preset-chip {
+      border: 1px solid #E0CDA4; background: #fff; color: #5A4A28;
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 6px;
+      -webkit-touch-callout: none;
+    }
+    .est-preset-chip:active { background: #FBF3E2; }
+    .est-preset-chip .chip-cost { color: #A08850; font-weight: 700; font-size: 12px; }
+    .est-preset-chip.pinned::before { content: '★'; color: var(--accent); font-size: 12px; }
+    .est-preset-chip.blank { border-style: dashed; color: #8A7448; background: transparent; }
+
+    /* ═══ Deposit presets + due-today/balance split bar ═══ */
+    .dep-presets { display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm); overflow: hidden; margin-top: 6px; }
+    .dep-preset-btn {
+      flex: 1; border: none; background: #FAFAF8; color: #7A7268; font-family: inherit;
+      font-size: 12.5px; font-weight: 700; padding: 9px 2px; min-height: 40px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .dep-preset-btn:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .dep-preset-btn.selected { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+    .dep-split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid #E4D8C4; background: #EDE6DA; }
+    .dep-split-today { background: linear-gradient(135deg, #C9983A, #B08432); transition: width .25s var(--ease-smooth); }
+    .dep-split-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); font-weight: 600; margin-top: 4px; }
+    @keyframes depFlash { 0% { box-shadow: 0 0 0 3px rgba(201,152,58,0.55); } 100% { box-shadow: none; } }
+    .dep-flash { animation: depFlash .8s ease; }
+
+    /* ═══ Metal / skin sensitivities — badge by the client name + inline conflict warning ═══ */
+    .sens-badge {
+      display: none; margin-left: 8px; background: #FDECEC; color: #B03030;
+      border: 1px solid #ECC5C5; border-radius: 999px; font-size: 11px; font-weight: 700;
+      padding: 3px 10px; vertical-align: middle; letter-spacing: .3px; text-transform: none;
+    }
+    .sens-warn {
+      display: none; font-size: 12.5px; color: #B03030; background: #FDF1F0;
+      border: 1px solid #F0D5D2; border-radius: 8px; padding: 8px 10px; margin-top: 4px;
+    }
+
+    /* ═══ Sync status chip (header) — offline queue vs. failing-while-online ═══ */
+    .sync-chip {
+      display: none; align-items: center; gap: 6px; border-radius: 999px;
+      padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+      border: 1px solid transparent; font-family: inherit; white-space: nowrap;
+    }
+    .sync-chip.state-offline { display: inline-flex; background: rgba(100,116,139,0.20); border-color: rgba(148,163,184,0.40); color: #B8C6D4; }
+    .sync-chip.state-error   { display: inline-flex; background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.45); color: #FBBF77; }
+    #sync-pop {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 400; width: 300px;
+      background: #fff; color: var(--text); border: 1px solid var(--bdr); border-radius: 12px;
+      box-shadow: 0 12px 34px rgba(0,0,0,0.35); padding: 14px; display: none; text-align: left;
+    }
+    #sync-pop.open { display: block; }
+    .sync-pop-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 6px; }
+    .sync-pop-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--bdr-light); }
+    .sync-pop-row:last-of-type { border-bottom: none; }
+    .sync-pop-row .sp-name { font-weight: 600; }
+    .sync-pop-row .sp-meta { color: var(--text3); flex-shrink: 0; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -329,7 +406,14 @@
     <div class="flex-1"></div>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
             class="rounded-lg px-2.5 py-2 text-base text-[#63788A]">⚙</button>
-    <span id="intake-unsynced" class="hidden rounded-full bg-amber-500/20 border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-300"></span>
+    <div class="relative">
+      <button type="button" id="intake-unsynced" class="sync-chip" onclick="intakeSyncPopToggle()"></button>
+      <div id="sync-pop">
+        <div class="sync-pop-title">Waiting to sync</div>
+        <div id="sync-pop-list"></div>
+        <button type="button" class="btn btn-gold" id="sync-retry-btn" style="width:100%;margin-top:10px;" onclick="intakeSyncRetry()">↻ Retry now</button>
+      </div>
+    </div>
     <button type="button" id="intake-save-btn" onclick="intakeSubmit()"
             class="rounded-lg bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-2.5 text-sm font-bold text-[#201A0A] shadow-lg shadow-amber-900/30 active:scale-95 disabled:opacity-50">
       Save &amp; Close
@@ -342,7 +426,7 @@
     <!-- ── Step 1 · Customer ── -->
     <section id="step-1" class="absolute inset-0 step-scroll px-3 py-4 md:px-6">
       <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
-        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-3">Customer Info</div>
+        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-3">Customer Info<span class="sens-badge" id="sens-badge"></span></div>
         <div class="form-grid">
           <div class="fg">
             <label>First Name *</label>
@@ -428,6 +512,17 @@
             <label>Country</label>
             <input type="text" id="f-addr-country" placeholder="United States" value="United States">
           </div>
+          <div class="fg full">
+            <label>Metal / Skin Sensitivities <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ optional, flags risky alloys</span></label>
+            <div class="finish-checks" id="f-sensitivities">
+              <label><input type="checkbox" value="Nickel" onchange="intakeSensChanged()"> Nickel</label>
+              <label><input type="checkbox" value="Sterling/copper alloys" onchange="intakeSensChanged()"> Sterling / copper</label>
+              <label><input type="checkbox" value="Gold-fill" onchange="intakeSensChanged()"> Gold-fill</label>
+              <label><input type="checkbox" value="Brass/bronze" onchange="intakeSensChanged()"> Brass / bronze</label>
+              <label><input type="checkbox" value="Plated finishes" onchange="intakeSensChanged()"> Plated finishes</label>
+            </div>
+            <input type="text" id="f-sensitivity-note" placeholder="Other / context — e.g. reacts to cheap earring posts" oninput="intakeSensChanged()">
+          </div>
           <div class="fg full hw-toggle-row">
             <button type="button" class="sketch-btn" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
           </div>
@@ -484,7 +579,8 @@
           </div>
           <div class="fg" id="materials-fg">
             <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
+            <div class="sens-warn" id="sens-warn"></div>
           </div>
           <div class="fg">
             <label>Sizing / Dimensions</label>
@@ -501,7 +597,7 @@
           </div>
           <div class="fg full">
             <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;"></textarea>
+            <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;" oninput="intakeSensChanged()"></textarea>
           </div>
         </div>
 
@@ -595,6 +691,14 @@
 
     <!-- ── Step 3 · Items & Price + inline estimate builder ── -->
     <section id="step-3" class="absolute inset-0 hidden step-scroll px-3 py-4 md:px-6">
+      <!-- Sticky running total — mirrors the Estimate Builder's Final Estimate
+           so the number stays visible while scrolling; fades once the real
+           .est-total-box is on screen (IntersectionObserver in intake.js) -->
+      <div id="est-mini-bar" class="est-mini-hidden">
+        <span id="est-mini-label">Final Estimate</span>
+        <span id="est-mini-total">$0.00</span>
+        <span id="est-mini-crumb"></span>
+      </div>
       <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl" id="step3-card">
         <!-- id="items-price-grid" — relocated between here and #step1-items-price-card
              (see intakeApplyTypeLayout in js/intake.js) depending on order type, so keep
@@ -611,7 +715,12 @@
           </div>
           <div class="fg" id="deposit-fg">
             <label>Deposit ($)</label>
-            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="intakeDepositManual();eoUpdateBalanceDue()">
+            <div class="dep-presets" id="dep-presets">
+              <button type="button" class="dep-preset-btn" id="dep-50" onclick="intakeDepositPreset(0.5)">50%</button>
+              <button type="button" class="dep-preset-btn" id="dep-100" onclick="intakeDepositPreset(1)">100%</button>
+              <button type="button" class="dep-preset-btn" id="dep-custom" onclick="intakeDepositPreset('custom')">Custom</button>
+            </div>
           </div>
           <div class="fg" id="shipping-fg">
             <label>Shipping ($)</label>
@@ -620,6 +729,10 @@
           <div class="fg" id="balance-fg">
             <label>Balance Due ($)</label>
             <input type="number" id="f-balance-due" placeholder="0.00" readonly>
+          </div>
+          <div class="fg full" id="deposit-split-fg" style="display:none;">
+            <div class="dep-split-bar"><div class="dep-split-today" id="dep-split-today" style="width:0%;"></div></div>
+            <div class="dep-split-labels"><span id="dep-split-label-today">Due today $0</span><span id="dep-split-label-balance">Balance at pickup $0</span></div>
           </div>
           <div class="fg full">
             <label>Internal Notes</label>
@@ -631,8 +744,9 @@
         <div class="mt-6 rounded-xl border border-[#E4D8C4] bg-[#FDFAF4] p-4" id="intake-estimate">
           <div class="mb-3 flex items-center justify-between">
             <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A]">💰 Estimate Builder</div>
-            <button type="button" class="btn btn-ghost" onclick="addMaterialRow()">＋ Add Line</button>
+            <button type="button" class="btn btn-ghost" onclick="intakeEstAddLine()">＋ Add Line</button>
           </div>
+          <div class="est-preset-strip" id="est-preset-strip"></div>
           <div class="est-col-labels">
             <div class="est-col-label">Description</div>
             <div class="est-col-label">Cost ($)</div>
@@ -720,6 +834,6 @@
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
-<script src="js/intake.js?v=4"></script>
+<script src="js/intake.js?v=5"></script>
 </body>
 </html>

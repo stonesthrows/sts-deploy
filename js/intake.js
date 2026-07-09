@@ -30,13 +30,23 @@ function toast(msg, icon = '', dur = 3000) {
 
 function setConnStatus() { /* no connection dot on this page — badge covers it */ }
 
-// ── Unsynced badge ────────────────────────────────────────────
+// ── Sync status chip — three states (brief 4.5):
+//    synced → hidden · offline queue → quiet slate · failing while
+//    ONLINE → amber (the only state that means something is wrong) ──
 function intakeUpdateUnsynced() {
   const badge = document.getElementById('intake-unsynced');
   if (!badge) return;
-  const n = ORDERS.filter(o => !o.notionId && String(o.id).startsWith('u')).length;
-  badge.textContent = n + ' unsynced';
-  badge.classList.toggle('hidden', n === 0);
+  const n = _intakeQueued().length;
+  badge.classList.remove('state-offline', 'state-error');
+  if (!n) { badge.textContent = ''; intakeSyncPopClose(); return; }
+  if (navigator.onLine) {
+    badge.classList.add('state-error');
+    badge.textContent = '⚠ ' + n + ' not syncing';
+  } else {
+    badge.classList.add('state-offline');
+    badge.textContent = '💾 Saved on iPad · ' + n + ' queued';
+  }
+  if (document.getElementById('sync-pop')?.classList.contains('open')) intakeSyncPopRender();
 }
 
 // ── Wizard: 3 steps for Custom Design, 1 (Items & Price folded onto page 1,
@@ -158,6 +168,10 @@ function intakeApplyTypeLayout(type) {
 
   if (typeof onOrderTypeChange === 'function') onOrderTypeChange(); // #ot-hint stage label
   if (typeof oiRender === 'function') oiRender(); // route items into the now-active container
+
+  // Phase-1 UI that keys off the order type (both hoisted from below)
+  intakeDepositRefresh();   // split bar only exists on single-page types
+  intakeMiniTotalUpdate();  // sticky total only exists for Custom Design
 }
 
 // Shipping ($) only makes sense once Customer Info says the order is
@@ -331,9 +345,10 @@ function intakeUseEstimate() {
     const desc = inputs[0]?.value.trim();
     const cost = parseFloat(inputs[1]?.value) || 0;
     if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
+    if (desc) intakePresetHarvest(desc, cost ? String(cost) : ''); // feed the preset chips (3.3)
   });
   const mat = document.getElementById('f-materials');
-  if (mat && lines.length) mat.value = lines.join('\n');
+  if (mat && lines.length) { mat.value = lines.join('\n'); intakeSensChanged(); }
   const idx = _oiItems.findIndex(it => it.type === 'manual' && it.name === 'Estimate Total');
   if (idx >= 0) _oiItems[idx].price = final;
   else _oiItems.push({ type: 'manual', name: 'Estimate Total', price: final, quantity: 1 });
@@ -386,6 +401,9 @@ async function intakeSubmit() {
   const resizeTo    = isResize ? g('f-resize-to').value.trim()   : '';
   const notes       = g('f-notes').value.trim();
   const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
+  // Sensitivities: structured on the order AND joined into notes so Notion +
+  // the printed bag see plain text with no pipeline changes (brief 1.3).
+  const sens        = intakeSensList();
 
   const order = {
     id:        'u' + Date.now(),
@@ -419,7 +437,8 @@ async function intakeSubmit() {
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
-    notes:         notes,
+    notes:         notes + (sens.length ? (notes ? '\n' : '') + '⚠ Sensitivities: ' + sens.join(', ') : ''),
+    sensitivities: sens,
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
@@ -452,12 +471,17 @@ function intakeReset() {
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
    'f-piece-type', 'f-sizing', 'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
+   'f-sensitivity-note',
    'f-addr-street', 'f-addr-street2', 'f-addr-city', 'f-addr-state', 'f-addr-zip']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.value = ''; el.style.borderColor = ''; }
     });
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = false);
+  document.querySelectorAll('#f-sensitivities input').forEach(c => c.checked = false);
+  intakeSensChanged();
+  _depMode = null;
+  document.getElementById('est-preset-strip')?.classList.remove('open');
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
@@ -492,6 +516,354 @@ function intakeSetKey() {
   if (key.trim()) { localStorage.setItem('sts-anthropic-key', key.trim()); toast('API key saved ✓', '✓'); }
   else { localStorage.removeItem('sts-anthropic-key'); toast('API key cleared', '✓'); }
 }
+
+// ════════════════════════════════════════════
+//  PHASE 1 UX — sticky total, material presets, deposit presets,
+//  sensitivities, 3-state sync chip. All intake-only: shared
+//  order-widgets.js functions are WRAPPED here, never edited.
+// ════════════════════════════════════════════
+
+// ── Long-press helper (pin presets) — cancels on >8px drift ──
+function _intakeLongPress(container, resolve) {
+  if (!container) return;
+  let timer = null, x0 = 0, y0 = 0;
+  container.addEventListener('pointerdown', e => {
+    x0 = e.clientX; y0 = e.clientY;
+    const t = e.target;
+    clearTimeout(timer);
+    timer = setTimeout(() => { container._lpFired = true; resolve(t); }, 600);
+  });
+  container.addEventListener('pointermove', e => {
+    if (Math.hypot(e.clientX - x0, e.clientY - y0) > 8) clearTimeout(timer);
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => container.addEventListener(ev, () => clearTimeout(timer)));
+}
+
+// ── 3.1 Sticky running total (step 3) ─────────────────────────
+let _estTotalBoxVisible = false;
+let _miniAnimId = null, _miniShownVal = 0;
+
+function _miniFmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function intakeMiniTotalUpdate() {
+  const bar = document.getElementById('est-mini-bar');
+  if (!bar) return;
+  const num = id => parseFloat((document.getElementById(id)?.textContent || '').replace(/[$,]/g, '')) || 0;
+  const final = num('est-final');
+  const estimateCard = document.getElementById('intake-estimate');
+  const estHidden = !estimateCard || estimateCard.style.display === 'none';
+  bar.classList.toggle('est-mini-hidden', estHidden || final <= 0 || _estTotalBoxVisible);
+  const crumb = document.getElementById('est-mini-crumb');
+  if (crumb) {
+    const money = n => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
+    const taxOn = document.getElementById('est-tax-toggle')?.checked || false;
+    crumb.textContent = '= (materials ' + money(num('est-mat-total')) + ' + labor ' + money(num('est-labor-display'))
+      + ') × ' + estMultiplier + (shipping > 0 ? ' + shipping' : '') + (taxOn ? ' + tax' : '');
+  }
+  // ~200ms count animation toward the new total
+  const totalEl = document.getElementById('est-mini-total');
+  if (!totalEl) return;
+  cancelAnimationFrame(_miniAnimId);
+  const from = _miniShownVal, t0 = performance.now(), dur = 200;
+  // Hidden page = no rAF ticks — set the value directly so it can't go stale
+  if (document.hidden || Math.abs(final - from) < 0.005) { totalEl.textContent = _miniFmt(final); _miniShownVal = final; return; }
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    _miniShownVal = from + (final - from) * p;
+    totalEl.textContent = _miniFmt(_miniShownVal);
+    if (p < 1) _miniAnimId = requestAnimationFrame(step);
+  };
+  _miniAnimId = requestAnimationFrame(step);
+}
+
+// Fade the bar out whenever the real total box is on screen
+(function () {
+  const box = document.querySelector('#intake-estimate .est-total-box');
+  const root = document.getElementById('step-3');
+  if (!box || !root || typeof IntersectionObserver === 'undefined') return;
+  new IntersectionObserver(entries => {
+    _estTotalBoxVisible = entries[0].isIntersecting;
+    intakeMiniTotalUpdate();
+  }, { root, threshold: 0.15 }).observe(box);
+})();
+
+// ── 3.3 Material preset chips ─────────────────────────────────
+const _EST_PRESET_SEED = [
+  'Sterling Silver Sheet', 'Sterling Silver Wire', '14k Yellow Gold',
+  '14k Gold-Fill Wire', 'Casting Grain — Sterling', 'Solder & Consumables',
+  'Chain', 'Clasp',
+];
+
+function _presetLoad() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sts-material-presets') || 'null');
+    if (s && Array.isArray(s.items)) return s;
+  } catch (e) {}
+  return { v: 1, items: _EST_PRESET_SEED.map(d => ({ desc: d, cost: '', count: 0, last: 0, pinned: false })) };
+}
+
+function _presetSave(s) {
+  try { localStorage.setItem('sts-material-presets', JSON.stringify(s)); } catch (e) {}
+}
+
+function intakePresetHarvest(desc, cost) {
+  desc = (desc || '').trim();
+  if (!desc) return;
+  const s = _presetLoad();
+  const key = desc.toLowerCase();
+  let it = s.items.find(i => i.desc.trim().toLowerCase() === key);
+  if (!it) { it = { desc, cost: '', count: 0, last: 0, pinned: false }; s.items.push(it); }
+  it.count++;
+  it.last = Date.now();
+  if (cost) it.cost = cost;
+  if (s.items.length > 60) {
+    s.items.sort((a, b) => (b.pinned - a.pinned) || (b.last - a.last));
+    s.items.length = 60;
+  }
+  _presetSave(s);
+}
+
+function intakePresetTogglePin(desc, cost) {
+  desc = (desc || '').trim();
+  if (!desc) return;
+  const s = _presetLoad();
+  const key = desc.toLowerCase();
+  let it = s.items.find(i => i.desc.trim().toLowerCase() === key);
+  if (!it) { it = { desc, cost: cost || '', count: 0, last: 0, pinned: false }; s.items.push(it); }
+  it.pinned = !it.pinned;
+  if (cost) it.cost = cost;
+  _presetSave(s);
+  toast(it.pinned ? '★ Pinned "' + it.desc + '"' : 'Unpinned "' + it.desc + '"');
+  intakePresetRenderStrip();
+}
+
+function intakeEstAddLine() {
+  const strip = document.getElementById('est-preset-strip');
+  if (!strip) { addMaterialRow(); return; }
+  if (strip.classList.toggle('open')) intakePresetRenderStrip();
+}
+
+function intakePresetRenderStrip() {
+  const strip = document.getElementById('est-preset-strip');
+  if (!strip) return;
+  const s = _presetLoad();
+  const recents = s.items.filter(i => i.count > 0).sort((a, b) => b.last - a.last).slice(0, 6);
+  const pinned  = s.items.filter(i => i.pinned && !recents.includes(i));
+  const fresh   = s.items.filter(i => !i.pinned && !i.count && !recents.includes(i));
+  const chips   = recents.concat(pinned, fresh).slice(0, 12);
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  strip.innerHTML =
+    '<button type="button" class="est-preset-chip blank" data-blank="1">＋ Blank line</button>' +
+    chips.map(i =>
+      '<button type="button" class="est-preset-chip' + (i.pinned ? ' pinned' : '') + '" data-desc="' + esc(i.desc) + '" data-cost="' + esc(i.cost || '') + '">'
+      + esc(i.desc) + (i.cost ? ' <span class="chip-cost">$' + esc(i.cost) + '</span>' : '')
+      + '</button>'
+    ).join('');
+}
+
+// Chip tap → add row; long-press chip or a filled estimate row → pin
+(function () {
+  const strip = document.getElementById('est-preset-strip');
+  if (strip) {
+    strip.addEventListener('click', e => {
+      if (strip._lpFired) { strip._lpFired = false; return; } // long-press already handled
+      const chip = e.target.closest('.est-preset-chip');
+      if (!chip) return;
+      if (chip.dataset.blank) { addMaterialRow(); return; }
+      addMaterialRow(chip.dataset.desc, chip.dataset.cost || '');
+      toast('Added ' + chip.dataset.desc, '✓', 1600);
+    });
+    _intakeLongPress(strip, t => {
+      const chip = t.closest && t.closest('.est-preset-chip');
+      if (chip && !chip.dataset.blank) intakePresetTogglePin(chip.dataset.desc, chip.dataset.cost);
+    });
+  }
+  _intakeLongPress(document.getElementById('est-materials'), t => {
+    const row = t.closest && t.closest('.est-row');
+    if (!row) return;
+    const inputs = row.querySelectorAll('input');
+    const desc = (inputs[0] ? inputs[0].value : '').trim();
+    if (desc) intakePresetTogglePin(desc, inputs[1] ? inputs[1].value : '');
+  });
+})();
+
+// ── 3.5 Deposit presets + due-today/balance split bar ─────────
+let _depMode = null;       // 0.5 | 1 | 'custom' | null
+let _depApplying = false;  // true while a preset writes f-deposit
+
+function _depBase() {
+  const price    = parseFloat(document.getElementById('f-price')?.value) || 0;
+  const shipping = parseFloat(document.getElementById('f-shipping')?.value) || 0;
+  return price + shipping;
+}
+
+function intakeDepositManual() { if (!_depApplying) _depMode = 'custom'; }
+
+function intakeDepositPreset(mode) {
+  _depMode = mode;
+  if (mode === 'custom') {
+    document.getElementById('f-deposit')?.focus();
+    intakeDepositRefresh();
+    return;
+  }
+  _depApply(false);
+}
+
+function _depApply(flash) {
+  const f = document.getElementById('f-deposit');
+  if (!f || typeof _depMode !== 'number') return;
+  const val = Math.round(_depBase() * _depMode * 100) / 100;
+  _depApplying = true;
+  f.value = val ? val.toFixed(2) : '';
+  _depApplying = false;
+  eoUpdateBalanceDue();
+  if (flash) {
+    [f, document.querySelector('.dep-split-bar')].forEach(el => {
+      if (!el) return;
+      el.classList.remove('dep-flash'); void el.offsetWidth; el.classList.add('dep-flash');
+    });
+  }
+}
+
+function intakeDepositRefresh() {
+  const base = _depBase();
+  const deposit = parseFloat(document.getElementById('f-deposit')?.value) || 0;
+  const fmt = n => '$' + (Math.round(n) === n ? n.toFixed(0) : n.toFixed(2));
+  const b50 = document.getElementById('dep-50'), b100 = document.getElementById('dep-100'), bc = document.getElementById('dep-custom');
+  if (b50)  { b50.textContent  = base > 0 ? '50% · ' + fmt(base * 0.5) : '50%'; b50.classList.toggle('selected', _depMode === 0.5); }
+  if (b100) { b100.textContent = base > 0 ? '100% · ' + fmt(base) : '100%';     b100.classList.toggle('selected', _depMode === 1); }
+  if (bc)   bc.classList.toggle('selected', _depMode === 'custom');
+  // A stale 50% silently becoming 43% erodes trust — if the total moved
+  // after a percent preset was chosen, recompute and flash once.
+  if (typeof _depMode === 'number' && Math.abs(deposit - Math.round(base * _depMode * 100) / 100) > 0.005) {
+    _depApply(true); // re-enters this function via eoUpdateBalanceDue with matching values
+    return;
+  }
+  const wrap = document.getElementById('deposit-split-fg');
+  if (!wrap) return;
+  const type = document.getElementById('f-order-type')?.value || 'order';
+  const show = type !== 'order' && base > 0;
+  wrap.style.display = show ? '' : 'none';
+  if (!show) return;
+  const seg = document.getElementById('dep-split-today');
+  if (seg) seg.style.width = Math.max(0, Math.min(100, (deposit / base) * 100)) + '%';
+  const lt = document.getElementById('dep-split-label-today');
+  const lb = document.getElementById('dep-split-label-balance');
+  if (lt) lt.textContent = 'Due today ' + fmt(deposit);
+  if (lb) lb.textContent = 'Balance at pickup ' + fmt(Math.max(base - deposit, 0));
+}
+
+// ── 1.3 Metal & skin sensitivities (order-level) ──────────────
+const _SENS_SHORT = {
+  'Nickel': 'Ni', 'Sterling/copper alloys': 'Cu', 'Gold-fill': 'GF',
+  'Brass/bronze': 'Brass', 'Plated finishes': 'Plated',
+};
+const _SENS_CONFLICTS = {
+  'Nickel': /nickel|white gold|stainless/i,
+  'Sterling/copper alloys': /sterling|\b925\b|copper/i,
+  'Gold-fill': /gold[\s-]?fill/i,
+  'Brass/bronze': /brass|bronze/i,
+  'Plated finishes': /plated|plating|vermeil/i,
+};
+
+function intakeSensList() {
+  const checks = [...document.querySelectorAll('#f-sensitivities input:checked')].map(c => c.value);
+  const note = (document.getElementById('f-sensitivity-note')?.value || '').trim();
+  return note ? checks.concat([note]) : checks;
+}
+
+function intakeSensChanged() {
+  const checks = [...document.querySelectorAll('#f-sensitivities input:checked')].map(c => c.value);
+  const badge = document.getElementById('sens-badge');
+  if (badge) {
+    badge.textContent = checks.length ? '⚠ ' + checks.map(c => _SENS_SHORT[c] || c).join(' · ') : '';
+    badge.style.display = checks.length ? 'inline-block' : 'none';
+  }
+  // Non-blocking inline warning when the materials text names a risky alloy
+  const matText = (document.getElementById('f-materials')?.value || '') + ' '
+                + (document.getElementById('f-gemstones')?.value || '');
+  const hits = checks.filter(c => _SENS_CONFLICTS[c] && _SENS_CONFLICTS[c].test(matText));
+  const warn = document.getElementById('sens-warn');
+  if (warn) {
+    if (hits.length) {
+      warn.textContent = '⚠ Client sensitivity: ' + hits.join(', ') + ' — double-check this alloy before committing.';
+      warn.style.display = 'block';
+    } else warn.style.display = 'none';
+  }
+}
+
+// ── 4.5 Sync chip popover + manual retry ──────────────────────
+function _intakeQueued() {
+  return ORDERS.filter(o => !o.notionId && String(o.id).startsWith('u'));
+}
+
+function intakeSyncPopToggle() {
+  const pop = document.getElementById('sync-pop');
+  if (pop && pop.classList.toggle('open')) intakeSyncPopRender();
+}
+
+function intakeSyncPopClose() {
+  document.getElementById('sync-pop')?.classList.remove('open');
+}
+
+function intakeSyncPopRender() {
+  const list = document.getElementById('sync-pop-list');
+  if (!list) return;
+  const q = _intakeQueued();
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  list.innerHTML = q.length
+    ? q.map(o => {
+        const label = (ORDER_TYPE_STAGES[o.orderType] || ORDER_TYPE_STAGES.order).label;
+        const ts = parseInt(String(o.id).slice(1), 10);
+        const when = ts ? new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+        return '<div class="sync-pop-row"><span class="sp-name">' + esc(o.name || '(no name)') + '</span>'
+             + '<span class="sp-meta">' + esc(label) + (when ? ' · ' + when : '') + '</span></div>';
+      }).join('')
+    : '<div class="sync-pop-row"><span class="sp-name">All synced ✓</span></div>';
+  const retry = document.getElementById('sync-retry-btn');
+  if (retry) retry.style.display = q.length ? '' : 'none';
+}
+
+async function intakeSyncRetry() {
+  const btn = document.getElementById('sync-retry-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try { await notionPushUnsynced(); }
+  finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Retry now'; }
+    intakeUpdateUnsynced();
+    if (_intakeQueued().length && navigator.onLine) {
+      toast('Still not syncing — check connection or the pipeline token', '⚠', 4500);
+    }
+  }
+}
+
+// Close the popover on any outside tap; re-evaluate chip state on
+// connectivity changes (the push itself is handled by the existing listeners)
+document.addEventListener('pointerdown', e => {
+  const pop = document.getElementById('sync-pop');
+  if (pop && pop.classList.contains('open')
+      && !e.target.closest('#sync-pop') && !e.target.closest('#intake-unsynced')) {
+    intakeSyncPopClose();
+  }
+});
+window.addEventListener('offline', () => intakeUpdateUnsynced());
+window.addEventListener('online',  () => intakeUpdateUnsynced());
+
+// ── Wrap the shared order-widgets.js entry points (loaded before this
+//    file) so every recalc also refreshes the intake-only UI. The desktop
+//    Edit Order modal never loads intake.js, so it is untouched. ──
+const _owCalcEstimate = calcEstimate;
+calcEstimate = function () {
+  _owCalcEstimate();
+  intakeMiniTotalUpdate();
+};
+
+const _owUpdateBalanceDue = eoUpdateBalanceDue;
+eoUpdateBalanceDue = function () {
+  _owUpdateBalanceDue();
+  intakeDepositRefresh();
+};
 
 // ── Init ──────────────────────────────────────────────────────
 (function intakeInit() {
