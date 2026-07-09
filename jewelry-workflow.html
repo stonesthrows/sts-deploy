@@ -1089,6 +1089,10 @@
     /* The "→ sum of items…" helper text is edit-mode guidance — drop it
        here so the long label doesn't crowd the value off the row. */
     .eo-modal.eo-view-mode .eo-price-grid .fg label span { display: none; }
+    /* Same for Job Title's "→ sent as estimate title" hint, and the
+       Custom/Square Item mode selector — both are edit-mode-only guidance. */
+    .eo-modal.eo-view-mode #jobdesc-fg label span { display: none; }
+    .eo-modal.eo-view-mode #f-jobdesc-type { display: none; }
     .eo-modal.eo-view-mode .eo-price-grid .fg input,
     .eo-modal.eo-view-mode .eo-price-grid .fg select { text-align: right; }
     .eo-modal.eo-view-mode .eo-price-grid .fg.full {
