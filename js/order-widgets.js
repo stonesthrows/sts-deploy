@@ -343,14 +343,23 @@ function _oiActiveContainerId() {
   return 'oi-items-container';
 }
 
+// Repair/Resize orders are manual-item-only — no per-row Square/Manual
+// choice. Checks the Edit Order modal's module flag first, then falls back
+// to intake.html's Order Type dropdown.
+function _oiManualOnlyType() {
+  if (typeof _eoOrderTypeModule !== 'undefined') return _eoOrderTypeModule === 'repair' || _eoOrderTypeModule === 'resize';
+  const type = document.getElementById('f-order-type')?.value;
+  return type === 'repair' || type === 'resize';
+}
+
 function oiRender() {
   const containerId    = _oiActiveContainerId();
-  const hideTypeSelect = containerId !== 'oi-items-container';
+  const hideTypeSelect = containerId !== 'oi-items-container' || _oiManualOnlyType();
   const readOnly       = typeof _eoMode !== 'undefined' && _eoMode === 'view';
   const box = document.getElementById(containerId);
   if (box) {
     const emptyMsg = containerId === 'oi-items-container'
-      ? 'No items yet — add a manual item or a Square item.'
+      ? (hideTypeSelect ? 'No items yet — add an item.' : 'No items yet — add a manual item or a Square item.')
       : 'No items yet — search and select a Square item.';
     box.innerHTML = !_oiItems.length
       ? `<div style="font-size:12px;color:var(--text3);padding:4px 0;">${emptyMsg}</div>`
@@ -435,11 +444,11 @@ function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
     }
   } else {
     const needsRingSize = it.isRing && it.noSquareSize;
-    body = `<div style="flex:1;display:flex;flex-direction:column;gap:6px;">
-      <div style="display:flex;gap:8px;">
-        <input type="text" placeholder="Item name" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'name',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
-        <input type="number" step="1" min="1" placeholder="Qty" value="${it.quantity || 1}" oninput="oiUpdateField(${idx},'quantity',parseInt(this.value,10)||1)" style="width:60px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
-        <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;">
+    body = `<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="text" placeholder="Item name" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'name',this.value)" style="flex:1 1 120px;min-width:0;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;box-sizing:border-box;">
+        <input type="number" step="1" min="1" placeholder="Qty" value="${it.quantity || 1}" oninput="oiUpdateField(${idx},'quantity',parseInt(this.value,10)||1)" style="width:60px;flex:0 0 60px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;box-sizing:border-box;">
+        <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;flex:0 0 100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;box-sizing:border-box;">
       </div>
       ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
@@ -448,10 +457,10 @@ function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
     </div>`;
   }
 
-  return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);">
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--bdr-light);border-radius:8px;padding:8px;background:var(--card-bg);box-sizing:border-box;">
     ${typeSel}
     ${body}
-    <button type="button" class="rq-item-remove eo-edit-only" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;">✕</button>
+    <button type="button" class="rq-item-remove eo-edit-only" title="Remove item" onclick="oiRemoveItem(${idx})" style="font-size:16px;flex-shrink:0;">✕</button>
   </div>`;
 }
 
