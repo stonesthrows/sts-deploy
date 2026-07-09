@@ -1022,7 +1022,16 @@
     .eo-modal.eo-view-mode #email-fg,
     .eo-modal.eo-view-mode #phone-fg,
     .eo-modal.eo-view-mode #deadline-fg,
-    .eo-modal.eo-view-mode #takein-fg { display: none; }
+    .eo-modal.eo-view-mode #takein-fg,
+    .eo-modal.eo-view-mode #source-fg,
+    .eo-modal.eo-view-mode #pickup-fg { display: none; }
+
+    /* Native <select> arrows are browser chrome, not styleable via the
+       existing border/background flattening — drop them explicitly so a
+       view-mode select reads as plain text, matching inputs/textareas. */
+    .eo-modal.eo-view-mode .fg select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    }
 
     /* ── View mode "document" redesign ──────────────────────────
        View mode is a read-only summary, so it drops the boxed-form look
@@ -5693,6 +5702,16 @@
             <span id="eo-view-deadline"></span>
           </div>
         </div>
+        <div class="eo-view-dates">
+          <div class="eo-view-date-item" id="eo-view-source-item">
+            <label>Contacted Via</label>
+            <span id="eo-view-source"></span>
+          </div>
+          <div class="eo-view-date-item" id="eo-view-pickup-item">
+            <label>Pickup Location</label>
+            <span id="eo-view-pickup"></span>
+          </div>
+        </div>
       </div>
 
       <div class="eo-sec-label" id="eo-sec-customer">Customer &amp; Logistics</div>
@@ -5758,7 +5777,7 @@
           <label>Phone</label>
           <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
         </div>
-        <div class="fg">
+        <div class="fg" id="source-fg">
           <label>Contacted Via</label>
           <select id="f-source">
             <option value="">— Select source —</option>
@@ -5772,7 +5791,7 @@
             <option value="Facebook Message">Facebook Message</option>
           </select>
         </div>
-        <div class="fg">
+        <div class="fg" id="pickup-fg">
           <label>Pickup Location</label>
           <select id="f-pickup" onchange="toggleShippingAddress()">
             <option value="">— Select location —</option>
@@ -9760,7 +9779,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/app.js"></script>
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/order-widgets.js?v=3"></script>
-<script src="js/orders.js?v=20260709a"></script>
+<script src="js/orders.js?v=20260709b"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>
