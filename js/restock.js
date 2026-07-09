@@ -283,41 +283,87 @@ function _rqEsc(s) {
 }
 
 
+// Groups variants by metal (parsed the same way as style tokens) so items
+// with 2+ metals (e.g. Stacker: Silver + Gold Fill) render as a labeled
+// section per metal instead of one flat wall of "Size N, Metal" chips.
+// Returns null when no variant has a recognizable metal token, so the
+// caller falls back to a single ungrouped list.
+function _rqGroupVariantsByMetal(variants) {
+  var rows = variants.map(function(v) {
+    var tokens = (v.name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+    var metal = null, rest = [];
+    tokens.forEach(function(tok) {
+      var cls = _rqClassifyToken(tok);
+      if (cls === 'metal' && !metal) metal = tok;
+      else rest.push(tok);
+    });
+    return { variant: v, metal: metal, label: rest.join(' ') || (v.name || '') };
+  });
+  var metals = [];
+  rows.forEach(function(r) { if (r.metal && metals.indexOf(r.metal) === -1) metals.push(r.metal); });
+  if (!metals.length) return null;
+  return { rows: rows, metals: metals };
+}
+
+function _rqVariantChipHtml(pid, v, label, qty, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
+  var safeVId = (v.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
+  // Stone choice only makes sense once a size has been given a
+  // quantity — otherwise there's nothing for the stone to attach to,
+  // and the selection would just get dropped on the next render.
+  var stoneHtml = '';
+  if (stoneList && stoneList.length && qty) {
+    var curIdx = stoneByVariantId[v.id];
+    var opts = '<option value="">Stone…</option>' + stoneList.map(function(s) {
+      var sel = (curIdx === s.idx) ? ' selected' : '';
+      return '<option value="' + s.idx + '"' + sel + '>' + (s.name || '').replace(/</g, '&lt;') + '</option>';
+    }).join('');
+    stoneHtml = '<select class="rq-variant-stone-select" onchange="' + stoneOnchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">' + opts + '</select>';
+  }
+  return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
+    + '<div class="rq-variant-chip-row">'
+    + '<span>' + (label || '').replace(/</g, '&lt;') + '</span>'
+    + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
+    + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
+    + '</div>'
+    + stoneHtml
+    + _rqInvBadgeHtml(v.id)
+    + '</div>';
+}
+
 function _rqVariantFlatHtml(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
   onchangeFn = onchangeFn || 'rqSetInlineVariantQty';
   stoneOnchangeFn = stoneOnchangeFn || 'rqSetVariantStone';
   stoneByVariantId = stoneByVariantId || {};
+  var grouped = _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
+  if (grouped) return grouped;
   return '<div class="rq-variant-grid">'
     + variants.map(function(v) {
         var qty = qtyByVariantId[v.id] || '';
-        var safeVId = (v.id || '').replace(/'/g, '').replace(/\\/g, '\\\\');
-        // Stone choice only makes sense once a size has been given a
-        // quantity — otherwise there's nothing for the stone to attach to,
-        // and the selection would just get dropped on the next render.
-        var stoneHtml = '';
-        if (stoneList && stoneList.length && qty) {
-          var curIdx = stoneByVariantId[v.id];
-          var opts = '<option value="">Stone…</option>' + stoneList.map(function(s) {
-            var sel = (curIdx === s.idx) ? ' selected' : '';
-            return '<option value="' + s.idx + '"' + sel + '>' + (s.name || '').replace(/</g, '&lt;') + '</option>';
-          }).join('');
-          stoneHtml = '<select class="rq-variant-stone-select" onchange="' + stoneOnchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">' + opts + '</select>';
-        }
-        return '<div class="rq-variant-chip' + (qty ? ' rq-variant-chip-on' : '') + '">'
-          + '<div class="rq-variant-chip-row">'
-          + '<span>' + (v.name || '').replace(/</g, '&lt;') + '</span>'
-          + '<input type="number" class="rq-variant-qty-inline" min="0" max="99" placeholder="0" value="' + (qty || '') + '"'
-          + ' onchange="' + onchangeFn + '(\'' + pid + '\',\'' + safeVId + '\',this.value)">'
-          + '</div>'
-          + stoneHtml
-          + _rqInvBadgeHtml(v.id)
-          + '</div>';
+        return _rqVariantChipHtml(pid, v, v.name, qty, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
+      }).join('')
+    + '</div>';
+}
+
+function _rqBuildMetalGroups(pid, variants, qtyByVariantId, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn) {
+  var grouping = _rqGroupVariantsByMetal(variants);
+  if (!grouping) return null;
+  return '<div class="rq-variant-group-stack">'
+    + grouping.metals.map(function(metal) {
+        var rows = grouping.rows.filter(function(r) { return r.metal === metal; });
+        return '<div class="rq-variant-group">'
+          + '<div class="rq-variant-group-label">' + _rqEsc(metal) + '</div>'
+          + '<div class="rq-variant-grid">'
+          + rows.map(function(r) {
+              var qty = qtyByVariantId[r.variant.id] || '';
+              return _rqVariantChipHtml(pid, r.variant, r.label, qty, onchangeFn, stoneList, stoneByVariantId, stoneOnchangeFn);
+            }).join('')
+          + '</div></div>';
       }).join('')
     + '</div>';
 }
 
 // Persists a quantity directly into the saved match (no transient picker
-// state) — used by both the grouped table and the flat chip grid, wherever
+// state) — used by the flat chip grid (grouped by metal or not), wherever
 // _rqMatchRowInner renders them inside the bar's expanded edit panel.
 function rqSetInlineVariantQty(pid, variantId, value) {
   // While a timer is running, the bar's _rqAutoMatches entry has been
