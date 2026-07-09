@@ -381,6 +381,28 @@
     .sync-pop-row:last-of-type { border-bottom: none; }
     .sync-pop-row .sp-name { font-weight: 600; }
     .sync-pop-row .sp-meta { color: var(--text3); flex-shrink: 0; }
+
+    /* ═══ Returning-client banner (brief 1.6) ═══ */
+    .client-banner {
+      position: relative; display: flex; flex-direction: column; gap: 2px;
+      background: #EFF6FC; border: 1px solid #C8DFEE; border-radius: 10px;
+      padding: 8px 40px 8px 12px;
+    }
+    .client-banner.loaded { background: #F0F9F1; border-color: #CBE5CE; }
+    .client-banner-row, .client-banner.loaded { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+    .client-banner-row { padding: 3px 0; }
+    .cb-text { flex: 1; font-size: 13.5px; color: var(--text2); min-width: 0; }
+    .cb-text strong { color: var(--text); }
+    .cb-load {
+      flex-shrink: 0; border: 1px solid var(--accent); background: #fff; color: #8A6A20;
+      border-radius: 8px; padding: 8px 14px; min-height: 40px; font-size: 13px;
+      font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .cb-dismiss {
+      position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+      border: none; background: none; color: var(--text3); font-size: 13px;
+      cursor: pointer; line-height: 1;
+    }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -436,6 +458,9 @@
             <label>Last Name</label>
             <input type="text" id="f-lastname" placeholder="Johnson" autocomplete="off">
           </div>
+          <!-- Returning-client banner (js/intake-profiles.js) — only ever
+               fills the form on an explicit "Load profile" tap -->
+          <div class="fg full" id="client-match-fg" style="display:none;"></div>
           <div class="fg">
             <label>Email</label>
             <input type="email" id="f-email" placeholder="sarah@example.com" autocomplete="off">
@@ -834,6 +859,7 @@
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
+<script src="js/intake-profiles.js?v=1"></script>
 <script src="js/intake.js?v=5"></script>
 </body>
 </html>
