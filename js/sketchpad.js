@@ -20,6 +20,7 @@ let HW = null;   // handwriting strip pad
 const SK_PRESETS = {
   pen:    { S: 2.5, M: 5,   L: 12 },
   pencil: { S: 1.5, M: 2.5, L: 5  },
+  marker: { S: 8,   M: 14,  L: 22 },
   eraser: { S: 16,  M: 28,  L: 48 },
 };
 
@@ -29,9 +30,9 @@ function _padCreate(canvasId, opts) {
   const pad = {
     canvas,
     ctx: canvas.getContext('2d'),
-    tool: 'pen',            // 'pen' | 'pencil' | 'eraser'
+    tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'eraser'
     // Independent stroke weight per tool (canvas units)
-    widths: { pen: 5, pencil: 2.5, eraser: 28 },
+    widths: { pen: 5, pencil: 2.5, marker: 14, eraser: 28 },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
@@ -105,9 +106,13 @@ function _padDown(pad, e) {
   // Eraser paints white — the canvas is white-filled, so exports stay
   // white-backed with no transparency to composite. Pencil is a lighter,
   // semi-transparent grey for a softer graphite line; Pen is solid ink.
-  ctx.globalAlpha = pad.tool === 'pencil' ? 0.55 : 1;
+  // Marker is a translucent highlighter color composited with 'multiply' so
+  // overlapping strokes deepen like real ink instead of just re-flattening.
+  ctx.globalAlpha = pad.tool === 'pencil' ? 0.55 : pad.tool === 'marker' ? 0.35 : 1;
+  ctx.globalCompositeOperation = pad.tool === 'marker' ? 'multiply' : 'source-over';
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
+                  : pad.tool === 'marker' ? '#FFD400'
                   : '#1A1A1A';
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
@@ -137,6 +142,7 @@ function _padUp(pad, e) {
   if (!pad.drawing) return;
   pad.drawing = false;
   pad.ctx.globalAlpha = 1; // reset so snapshots/other paints stay opaque
+  pad.ctx.globalCompositeOperation = 'source-over'; // reset after marker's 'multiply'
   pad.hasInk = true;
   pad.dirty = true;
 }
@@ -146,7 +152,7 @@ function _padUp(pad, e) {
 function sketchSetTool(tool, btn) {
   if (!SK) return;
   SK.tool = tool;
-  ['pen', 'pencil', 'eraser'].forEach(t => {
+  ['pen', 'pencil', 'marker', 'eraser'].forEach(t => {
     const b = document.getElementById('sk-' + t);
     if (b) b.classList.toggle('active', t === tool);
   });
@@ -187,7 +193,8 @@ function sketchSyncSizeUI() {
     dot.style.width = d + 'px';
     dot.style.height = d + 'px';
     dot.style.background = SK.tool === 'eraser' ? '#C7D4DE'
-                         : SK.tool === 'pencil' ? '#9AA6B0' : '#E8EEF2';
+                         : SK.tool === 'pencil' ? '#9AA6B0'
+                         : SK.tool === 'marker' ? '#FFD400' : '#E8EEF2';
   }
   const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
   document.querySelectorAll('#sketchpad-fg .dock-preset').forEach(b => {
