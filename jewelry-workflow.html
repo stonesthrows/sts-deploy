@@ -934,7 +934,11 @@
       color: var(--text3); margin: 18px 0 8px;
       border-top: 1px solid var(--bdr-light); padding-top: 14px;
     }
-    .eo-sec-label:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+    /* #eo-sec-customer is the visually-first section label — targeted by id
+       rather than :first-of-type since it now sits after the (edit-mode-
+       hidden) .eo-view-identity div, which would otherwise count as the
+       true first <div> child and break the :first-of-type match. */
+    .eo-sec-label:first-of-type, #eo-sec-customer { margin-top: 0; border-top: none; padding-top: 0; }
     .eo-sec-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
     .eo-foot {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -989,6 +993,36 @@
     /* Design Sketch reads as a compact attachment in view mode */
     .eo-modal.eo-view-mode #eo-sketch-view { padding: 6px; }
     .eo-modal.eo-view-mode #eo-sketch-view img { max-height: 140px; }
+    /* No sketch on the order — drop the section entirely in view mode
+       (eo-no-sketch toggled by _eoSetSketchSectionVisible in js/orders.js) */
+    .eo-modal.eo-view-mode #eo-sketch-sec.eo-no-sketch,
+    .eo-modal.eo-view-mode #eo-sketch-view.eo-no-sketch { display: none; }
+
+    /* View-mode-only combined identity block (Name/Phone/Email/dates) —
+       hidden in edit mode, where the real First/Last Name, Email, Phone,
+       Deadline and Take In fields (below) are still used for editing. */
+    .eo-view-only { display: none; }
+    .eo-modal.eo-view-mode .eo-view-only { display: block; }
+    .eo-view-identity { margin-bottom: 26px; text-align: left; }
+    .eo-view-name { font-size: 20px; font-weight: 700; color: var(--text); }
+    .eo-view-detail { font-size: 13.5px; color: var(--text2); margin-top: 5px; }
+    .eo-view-dates { display: flex; gap: 36px; margin-top: 16px; }
+    .eo-view-date-item { text-align: left; }
+    .eo-view-date-item label {
+      display: block; font-size: 10px; font-weight: 600;
+      letter-spacing: 0.7px; color: #A79E8F; margin-bottom: 2px;
+    }
+    .eo-view-date-item span { font-size: 13.5px; color: var(--text); }
+    /* The corresponding raw fields, Order Type, and the Customer & Logistics
+       heading are redundant once the identity block above is showing. */
+    .eo-modal.eo-view-mode #eo-sec-customer,
+    .eo-modal.eo-view-mode #order-type-fg,
+    .eo-modal.eo-view-mode #firstname-fg,
+    .eo-modal.eo-view-mode #lastname-fg,
+    .eo-modal.eo-view-mode #email-fg,
+    .eo-modal.eo-view-mode #phone-fg,
+    .eo-modal.eo-view-mode #deadline-fg,
+    .eo-modal.eo-view-mode #takein-fg { display: none; }
 
     /* ── View mode "document" redesign ──────────────────────────
        View mode is a read-only summary, so it drops the boxed-form look
@@ -1043,6 +1077,9 @@
       gap: 16px; padding: 7px 0; border-bottom: 1px solid #F1EBE0;
     }
     .eo-modal.eo-view-mode .eo-price-grid .fg label { white-space: nowrap; }
+    /* The "→ sum of items…" helper text is edit-mode guidance — drop it
+       here so the long label doesn't crowd the value off the row. */
+    .eo-modal.eo-view-mode .eo-price-grid .fg label span { display: none; }
     .eo-modal.eo-view-mode .eo-price-grid .fg input,
     .eo-modal.eo-view-mode .eo-price-grid .fg select { text-align: right; }
     .eo-modal.eo-view-mode .eo-price-grid .fg.full {
@@ -5638,7 +5675,27 @@
       <input type="hidden" id="f-editing-id">
       <input type="hidden" id="f-items-json" value="[]">
 
-      <div class="eo-sec-label">Customer &amp; Logistics</div>
+      <!-- View-mode-only identity block: combined Name, Phone, Email, then
+           Take In/Due dates — replaces the First/Last Name + Email + Phone +
+           Deadline + Take In fields below (hidden in view mode). Populated
+           by eoRenderViewIdentity() in js/orders.js. -->
+      <div class="eo-view-identity eo-view-only">
+        <div class="eo-view-name" id="eo-view-name"></div>
+        <div class="eo-view-detail" id="eo-view-phone"></div>
+        <div class="eo-view-detail" id="eo-view-email"></div>
+        <div class="eo-view-dates">
+          <div class="eo-view-date-item" id="eo-view-takein-item">
+            <label>Take In</label>
+            <span id="eo-view-takein"></span>
+          </div>
+          <div class="eo-view-date-item" id="eo-view-deadline-item">
+            <label>Due</label>
+            <span id="eo-view-deadline"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="eo-sec-label" id="eo-sec-customer">Customer &amp; Logistics</div>
       <div class="form-grid">
         <div class="fg full" id="f-stage-row">
           <label>Stage</label>
@@ -5674,7 +5731,7 @@
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-        <div class="fg">
+        <div class="fg" id="order-type-fg">
           <label>Order Type</label>
           <select id="f-order-type" onchange="onOrderTypeChange(); eoApplyOrderTypeModule(this.value)">
             <option value="order">💍 Custom Order</option>
@@ -5685,19 +5742,19 @@
             <option value="website-order">🌐 Website Order</option>
           </select>
         </div>
-        <div class="fg">
+        <div class="fg" id="firstname-fg">
           <label>First Name</label>
           <input type="text" id="f-firstname" placeholder="Sarah">
         </div>
-        <div class="fg">
+        <div class="fg" id="lastname-fg">
           <label>Last Name</label>
           <input type="text" id="f-lastname" placeholder="Johnson">
         </div>
-        <div class="fg">
+        <div class="fg" id="email-fg">
           <label>Email</label>
           <input type="email" id="f-email" placeholder="sarah@example.com">
         </div>
-        <div class="fg">
+        <div class="fg" id="phone-fg">
           <label>Phone</label>
           <input type="tel" id="f-phone" placeholder="(512) 555-0100" oninput="fmtPhoneInput(this)" onblur="fmtPhoneInput(this)">
         </div>
@@ -5737,11 +5794,11 @@
             <option value="Stevie">Stevie</option>
           </select>
         </div>
-        <div class="fg">
+        <div class="fg" id="deadline-fg">
           <label>Deadline</label>
           <input type="date" id="f-deadline">
         </div>
-        <div class="fg">
+        <div class="fg" id="takein-fg">
           <label>Take In Date</label>
           <input type="date" id="f-takein">
         </div>
@@ -5805,6 +5862,37 @@
       <div id="eo-design-module">
         <div class="eo-sec-label">Design</div>
         <div class="form-grid">
+          <div class="fg full" id="jobdesc-fg">
+            <label>Job Title <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
+            <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
+              <option value="custom">Custom Item</option>
+              <option value="square">Square Item</option>
+            </select>
+            <div id="jobdesc-custom-wrap">
+              <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
+            </div>
+            <div id="jobdesc-square-wrap" style="display:none;">
+              <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+              <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
+            </div>
+          </div>
+          <div class="fg full" id="orderdesc-fg">
+            <label>Job Description</label>
+            <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
+          </div>
+        </div>
+
+        <div class="eo-sec-label" id="eo-sketch-sec">Design Sketch <span class="eo-sec-note">→ drawn in the Intake app on the iPad, or added below</span></div>
+        <div id="eo-sketch-view"><div class="eo-sketch-empty">No sketch on this order</div></div>
+        <div class="eo-sketch-actions eo-edit-only">
+          <button type="button" class="btn btn-outline btn-sm" id="eo-sketch-draw-btn" onclick="openSketchDrawModal()">✎ Draw Sketch</button>
+          <label class="btn btn-outline btn-sm" style="cursor:pointer;margin-bottom:0;">
+            📤 Upload Image
+            <input type="file" accept="image/*" id="eo-sketch-upload" style="display:none;" onchange="eoUploadSketchFile(this)">
+          </label>
+        </div>
+
+        <div class="form-grid" style="margin-top:18px;">
           <div class="fg">
             <label>Piece Type</label>
             <select id="f-piece-type">
@@ -5839,38 +5927,10 @@
             <label>Gemstones / Components</label>
             <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
           </div>
-          <div class="fg full" id="jobdesc-fg">
-            <label>Job Description <span style="font-size:11px;font-weight:400;color:var(--text3);">→ sent as estimate title</span></label>
-            <select id="f-jobdesc-type" onchange="jdSetType(this.value)" style="margin-bottom:6px;">
-              <option value="custom">Custom Item</option>
-              <option value="square">Square Item</option>
-            </select>
-            <div id="jobdesc-custom-wrap">
-              <input type="text" id="f-job-desc" placeholder="e.g. Custom engagement ring — rose gold with oval sapphire">
-            </div>
-            <div id="jobdesc-square-wrap" style="display:none;">
-              <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-              <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
-            </div>
-          </div>
-          <div class="fg full" id="orderdesc-fg">
-            <label>Order Description</label>
-            <textarea id="f-description" rows="2" style="min-height:44px;" placeholder="Brief description of the piece…"></textarea>
-          </div>
           <div class="fg full legacy-hide" id="sketch-fg">
             <label>Sketch Notes</label>
             <textarea id="f-sketch" placeholder="Sketch description or approval notes…" style="min-height:60px;"></textarea>
           </div>
-        </div>
-
-        <div class="eo-sec-label">Design Sketch <span class="eo-sec-note">→ drawn in the Intake app on the iPad, or added below</span></div>
-        <div id="eo-sketch-view"><div class="eo-sketch-empty">No sketch on this order</div></div>
-        <div class="eo-sketch-actions eo-edit-only">
-          <button type="button" class="btn btn-outline btn-sm" id="eo-sketch-draw-btn" onclick="openSketchDrawModal()">✎ Draw Sketch</button>
-          <label class="btn btn-outline btn-sm" style="cursor:pointer;margin-bottom:0;">
-            📤 Upload Image
-            <input type="file" accept="image/*" id="eo-sketch-upload" style="display:none;" onchange="eoUploadSketchFile(this)">
-          </label>
         </div>
       </div>
 
@@ -9700,7 +9760,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/app.js"></script>
 <script src="js/sketchpad.js?v=3"></script>
 <script src="js/order-widgets.js?v=3"></script>
-<script src="js/orders.js?v=20260708d"></script>
+<script src="js/orders.js?v=20260709a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js"></script>
 <script src="js/etsy.js"></script>

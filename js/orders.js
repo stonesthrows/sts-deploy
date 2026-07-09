@@ -342,6 +342,7 @@ function eoPopulateFields(o) {
   document.getElementById('f-gemstones').value     = o.gemstones     || '';
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = (o.finish || []).includes(c.value));
   _orderFormLegacyFields(o);
+  eoRenderViewIdentity(o);
   eoLoadSketch(o);
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
@@ -406,6 +407,18 @@ function eoSetMode(mode) {
 
 function eoToggleMode() { eoSetMode(_eoMode === 'view' ? 'edit' : 'view'); }
 
+// Mirrors the #f-order-type <option> labels — used for the modal title,
+// which shows the order type in place of the generic "Edit Order".
+const EO_ORDER_TYPE_LABELS = {
+  'order':         '💍 Custom Order',
+  'repair':        '🔧 Repair',
+  'resize':        '💎 Resize',
+  'square-item':   '🟦 Square Item',
+  'etsy-order':    '🛍 Etsy Order',
+  'website-order': '🌐 Website Order',
+};
+function eoOrderTypeLabel(type) { return EO_ORDER_TYPE_LABELS[type] || EO_ORDER_TYPE_LABELS.order; }
+
 function openOrderCard(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
@@ -413,11 +426,45 @@ function openOrderCard(id) {
   eoPopulateFields(o);
 
   const title = document.getElementById('eo-title');
-  if (title) title.textContent = 'Edit Order — ' + o.name;
+  // Read back the resolved type (platform auto-select already applied by
+  // eoPopulateFields) rather than re-deriving it here.
+  const resolvedType = (document.getElementById('f-order-type') || {}).value || 'order';
+  if (title) title.textContent = eoOrderTypeLabel(resolvedType) + ' — ' + o.name;
   eoSetMode('view');
   document.getElementById('editOrderModalBg').classList.add('open');
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
+}
+
+// Combined Name/Phone/Email/dates shown only in view mode (see .eo-view-identity
+// in jewelry-workflow.html) — replaces the separate First/Last Name, Email,
+// Phone, Deadline and Take In fields, which stay in the DOM for editing.
+function eoRenderViewIdentity(o) {
+  const nameEl = document.getElementById('eo-view-name');
+  if (nameEl) nameEl.textContent = o.name || '';
+
+  const phoneEl = document.getElementById('eo-view-phone');
+  if (phoneEl) {
+    const phone = fmtPhone(o.phone);
+    phoneEl.textContent = phone;
+    phoneEl.style.display = phone ? '' : 'none';
+  }
+
+  const emailEl = document.getElementById('eo-view-email');
+  if (emailEl) {
+    emailEl.textContent = o.email || '';
+    emailEl.style.display = (o.email || '').trim() ? '' : 'none';
+  }
+
+  const takeinItem = document.getElementById('eo-view-takein-item');
+  const takeinEl   = document.getElementById('eo-view-takein');
+  if (takeinEl) takeinEl.textContent = fmtDate(o.takeIn);
+  if (takeinItem) takeinItem.style.display = o.takeIn ? '' : 'none';
+
+  const deadlineItem = document.getElementById('eo-view-deadline-item');
+  const deadlineEl   = document.getElementById('eo-view-deadline');
+  if (deadlineEl) deadlineEl.textContent = fmtDate(o.deadline);
+  if (deadlineItem) deadlineItem.style.display = o.deadline ? '' : 'none';
 }
 
 // Sketch viewer for the modal. Sketches are drawn in the intake app
@@ -428,6 +475,16 @@ function openOrderCard(id) {
 // saved — takes priority over o.sketchImg in the viewer until Save Changes
 // commits it (see saveOrderEdit) or the edit is discarded (see eoSetMode).
 let _eoSketchDraft = null;
+
+// View mode drops the whole Design Sketch section when there's nothing to
+// show (see .eo-no-sketch in jewelry-workflow.html) — edit mode always
+// keeps it, since that's where a sketch gets added.
+function _eoSetSketchSectionVisible(visible) {
+  const sec = document.getElementById('eo-sketch-sec');
+  const box = document.getElementById('eo-sketch-view');
+  if (sec) sec.classList.toggle('eo-no-sketch', !visible);
+  if (box) box.classList.toggle('eo-no-sketch', !visible);
+}
 
 function eoLoadSketch(o) {
   const box = document.getElementById('eo-sketch-view');
@@ -443,6 +500,7 @@ function eoLoadSketch(o) {
     note.className = 'eo-sketch-draft-note';
     note.textContent = '● Unsaved — click Save Changes to keep this sketch';
     box.appendChild(note);
+    _eoSetSketchSectionVisible(true);
     return;
   }
   if (o.sketchImg) {
@@ -451,10 +509,12 @@ function eoLoadSketch(o) {
     img.src = o.sketchImg;
     img.onclick = () => viewSketch(o.id);
     box.appendChild(img);
+    _eoSetSketchSectionVisible(true);
     return;
   }
   if (o.notionId) {
     box.innerHTML = '<div class="eo-sketch-spinner" title="Loading sketch from Notion…"></div>';
+    _eoSetSketchSectionVisible(true); // assume yes until the fetch below proves otherwise
     const src = '/api/notion-pipeline?sketch=' + encodeURIComponent(o.notionId);
     const img = new Image();
     img.alt = 'Design sketch';
@@ -462,12 +522,17 @@ function eoLoadSketch(o) {
       box.innerHTML = '';
       img.onclick = () => window.open(src, '_blank');
       box.appendChild(img);
+      _eoSetSketchSectionVisible(true);
     };
-    img.onerror = () => { box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>'; };
+    img.onerror = () => {
+      box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>';
+      _eoSetSketchSectionVisible(false);
+    };
     img.src = src;
     return;
   }
   box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>';
+  _eoSetSketchSectionVisible(false);
 }
 
 function eoUpdateSketchBtnLabel(o) {
