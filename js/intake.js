@@ -359,6 +359,12 @@ function intakeUseEstimate() {
   if (idx >= 0) _oiItems[idx].price = final;
   else _oiItems.push({ type: 'manual', name: 'Estimate Total', price: final, quantity: 1 });
   oiRender();
+  // In compare mode this tap is the crown ★ — the active version becomes
+  // the order total; the others persist as declined alternatives (3.4)
+  if (_estVariants) {
+    _estCrowned = _estActive;
+    intakeEstRenderVariants();
+  }
   toast('Estimate set as order total ✓', '✓');
 }
 
@@ -482,7 +488,11 @@ async function intakeSubmit() {
     customerNotes: g('f-customer-notes').value.trim() || '',
     notes:         [notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
-                    giftLine].filter(Boolean).join('\n'),
+                    giftLine,
+                    (_estVariants && _estVariants.length > 1)
+                      ? 'Declined options: ' + _estVariants.filter((v, i) => i !== _estCrowned)
+                          .map(v => v.label + ' $' + Math.round(_estStateTotal(v)).toLocaleString('en-US')).join(' · ')
+                      : ''].filter(Boolean).join('\n'),
     sensitivities: sens,
     ringSizes:     s1 ? s1.ringSizes : [],
     wrist:         s1 ? s1.wrist : '',
@@ -490,6 +500,11 @@ async function intakeSubmit() {
     styleProfile:  s1 ? s1.styleProfile : null,
     gift:          s1 ? s1.gift : null,
     stones:        (typeof _psStones !== 'undefined') ? _psStones.map(st => ({ ...st })) : [],
+    // Declined tier alternatives — upsell memory (3.4)
+    estimateAlternatives: (_estVariants && _estVariants.length > 1)
+      ? _estVariants.map((v, i) => ({ label: v.label, total: Math.round(_estStateTotal(v) * 100) / 100, crowned: i === _estCrowned }))
+                    .filter(v => !v.crowned)
+      : [],
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
@@ -540,6 +555,7 @@ function intakeReset() {
   if (typeof psReset === 'function') psReset();
   if (typeof intakeSigClear === 'function' && SIG) intakeSigClear();
   if (typeof intakeReviewClose === 'function') intakeReviewClose();
+  if (typeof intakeEstReset === 'function') intakeEstReset();
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
@@ -910,6 +926,181 @@ document.addEventListener('pointerdown', e => {
 window.addEventListener('offline', () => intakeUpdateUnsynced());
 window.addEventListener('online',  () => intakeUpdateUnsynced());
 
+// ── 3.2 Adjustment line + 3.4 Good/Better/Best tiers ──────────
+// Estimate state lifted out of the DOM into a plain object so it can be
+// held 2–3 times (variants) and replayed. The adjustment folds in AFTER
+// markup and BEFORE tax — applied by the intake-side calcEstimate wrapper,
+// never by editing shared order-widgets.js.
+let _estAdj = 0;            // dollars added to the marked total (negative = discount)
+let _estVariants = null;    // null = compare mode off; else [{label, rows, labor, shipping, taxOn, multiplier, adjustment}]
+let _estActive = 0;
+let _estCrowned = 0;
+
+function _estReadDom() {
+  let matTotal = 0;
+  const rows = [];
+  document.querySelectorAll('#est-materials .est-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc = inputs[0]?.value.trim() || '';
+    const cost = parseFloat(inputs[1]?.value) || 0;
+    matTotal += cost;
+    if (desc || cost) rows.push({ desc, cost });
+  });
+  const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
+  const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
+  const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
+  return { rows, matTotal, labor, shipping, taxOn, r: taxOn ? 0.0825 : 0, marked: (matTotal + labor) * estMultiplier };
+}
+
+// Re-derives tax + final with the adjustment in place and overwrites the
+// totals the shared calcEstimate() just wrote. Runs inside the wrapper.
+function intakeEstApplyAdjustment() {
+  const adjRow = document.getElementById('est-adj-row');
+  const clearBtn = document.getElementById('est-adj-clear');
+  if (clearBtn) clearBtn.style.display = _estAdj ? '' : 'none';
+  if (!_estAdj) { if (adjRow) adjRow.style.display = 'none'; return; }
+  const n = _estReadDom();
+  const adjusted = n.marked + _estAdj;
+  const tax = n.taxOn ? adjusted * 0.0825 : 0;
+  const final = adjusted + n.shipping + tax;
+  const fmt = v => '$' + v.toFixed(2);
+  if (adjRow) adjRow.style.display = '';
+  const disp = document.getElementById('est-adj-display');
+  if (disp) disp.textContent = (_estAdj < 0 ? '−$' : '+$') + Math.abs(_estAdj).toFixed(2);
+  const margin = document.getElementById('est-adj-margin');
+  if (margin) margin.textContent = n.marked ? ((_estAdj / n.marked) * 100).toFixed(1) + '% margin' : '';
+  if (document.getElementById('est-tax-display')) document.getElementById('est-tax-display').textContent = fmt(tax);
+  if (document.getElementById('est-final')) document.getElementById('est-final').textContent = fmt(final);
+}
+
+function _estCurrentFinal() {
+  return parseFloat((document.getElementById('est-final')?.textContent || '').replace(/[$,]/g, '')) || 0;
+}
+
+function _estSetAdjFromTarget(target) {
+  const n = _estReadDom();
+  if (!n.marked) { toast('Add materials or labor first', '⚠'); return; }
+  // Full precision on purpose: with tax on, a cent-rounded adjustment can
+  // leave the final a penny off the round target. Display rounds, math doesn't.
+  _estAdj = (target - n.shipping) / (1 + n.r) - n.marked;
+  if (Math.abs(_estAdj) < 0.005) _estAdj = 0;
+  calcEstimate();
+}
+
+function intakeEstRound(step) {
+  const final = _estCurrentFinal();
+  if (!final) { toast('Add materials or labor first', '⚠'); return; }
+  _estSetAdjFromTarget(Math.round(final / step) * step);
+}
+
+function intakeEstNudge(delta) {
+  const final = _estCurrentFinal();
+  if (!final) { toast('Add materials or labor first', '⚠'); return; }
+  _estSetAdjFromTarget(Math.round((final + delta) * 100) / 100);
+}
+
+function intakeEstAdjClear() {
+  _estAdj = 0;
+  calcEstimate();
+}
+
+// ── Variant (tier) plumbing ───────────────────────────────────
+function estStateCapture(label) {
+  const n = _estReadDom();
+  return { label, rows: n.rows.map(r => ({ ...r })), labor: n.labor, shipping: n.shipping,
+           taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj };
+}
+
+function estStateApply(s) {
+  const container = document.getElementById('est-materials');
+  if (container) container.innerHTML = '';
+  const laborEl = document.getElementById('est-labor');
+  if (laborEl) laborEl.value = s.labor || '';
+  const shipEl = document.getElementById('est-shipping');
+  if (shipEl) shipEl.value = s.shipping || '';
+  const taxEl = document.getElementById('est-tax-toggle');
+  if (taxEl) taxEl.checked = !!s.taxOn;
+  _estAdj = s.adjustment || 0;
+  setMultiplier(s.multiplier || 2.5);
+  if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : ''));
+  else addMaterialRow();
+}
+
+function _estStateTotal(s) {
+  const mat = s.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const adjusted = (mat + s.labor) * (s.multiplier || 2.5) + (s.adjustment || 0);
+  return adjusted * (s.taxOn ? 1.0825 : 1) + (s.shipping || 0);
+}
+
+function intakeEstCompare() {
+  if (_estVariants && _estVariants.length >= 3) {
+    toast('Three versions max — remove one first', '⚠');
+    return;
+  }
+  const nextLetter = String.fromCharCode(65 + (_estVariants ? _estVariants.length : 1)); // B, C
+  const label = (prompt('Label for the new version (e.g. "14k / lab"):', 'Option ' + nextLetter) || 'Option ' + nextLetter).trim();
+  if (!_estVariants) {
+    const base = estStateCapture('Option A');
+    _estVariants = [base, { ...estStateCapture(label) }];
+    _estActive = 1;
+    _estCrowned = 0;
+  } else {
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+    _estVariants.push(estStateCapture(label));
+    _estActive = _estVariants.length - 1;
+  }
+  estStateApply(_estVariants[_estActive]);
+  intakeEstRenderVariants();
+}
+
+function intakeEstSwitchVariant(i) {
+  if (!_estVariants || i === _estActive) return;
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+  _estActive = i;
+  estStateApply(_estVariants[i]);
+  intakeEstRenderVariants();
+}
+
+function intakeEstRemoveVariant(i) {
+  if (!_estVariants) return;
+  _estVariants.splice(i, 1);
+  if (_estCrowned >= _estVariants.length) _estCrowned = 0;
+  if (_estVariants.length < 2) {
+    if (_estVariants.length === 1) estStateApply(_estVariants[0]);
+    _estVariants = null;
+    _estActive = 0;
+  } else {
+    if (_estActive >= _estVariants.length) _estActive = _estVariants.length - 1;
+    estStateApply(_estVariants[_estActive]);
+  }
+  intakeEstRenderVariants();
+}
+
+function intakeEstRenderVariants() {
+  const bar = document.getElementById('est-variants');
+  if (!bar) return;
+  if (!_estVariants) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  // keep the active variant's snapshot fresh so inactive totals are honest
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  bar.style.display = '';
+  bar.innerHTML = _estVariants.map((v, i) =>
+    '<span class="est-var-chip' + (i === _estActive ? ' active' : '') + '" onclick="intakeEstSwitchVariant(' + i + ')">'
+    + (i === _estCrowned ? '★ ' : '') + esc(v.label)
+    + ' <span class="ev-total">$' + Math.round(_estStateTotal(v)).toLocaleString('en-US') + '</span>'
+    + (_estVariants.length > 1 ? '<button type="button" class="ev-x" onclick="event.stopPropagation();intakeEstRemoveVariant(' + i + ')" aria-label="Remove version">✕</button>' : '')
+    + '</span>'
+  ).join('');
+}
+
+function intakeEstReset() {
+  _estAdj = 0;
+  _estVariants = null;
+  _estActive = 0;
+  _estCrowned = 0;
+  intakeEstRenderVariants();
+}
+
 // ── 4.2 Client-facing review screen + 4.3 on-glass signature ──
 // Save & Close is two-beat: intakeReviewOpen() → ✓ Confirm runs the
 // unchanged intakeSubmit(). Front-of-house only — no markup, no
@@ -1017,6 +1208,8 @@ function intakeReviewConfirm() {
 const _owCalcEstimate = calcEstimate;
 calcEstimate = function () {
   _owCalcEstimate();
+  intakeEstApplyAdjustment();  // adjustment after markup, before tax (3.2)
+  if (_estVariants) intakeEstRenderVariants(); // keep variant totals live (3.4)
   intakeMiniTotalUpdate();
 };
 
