@@ -473,6 +473,85 @@
     .reg-conf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
     .reg-dial-actions { display: flex; gap: 8px; margin-top: 10px; }
     .reg-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+
+    /* ═══ Bottom parameter sheet (brief 2.1) — Metal/Stone/Sizing/Notes over
+       the sketch canvas. Three detents: peek / half / full. touch-action:none
+       keeps sheet gestures from leaking ink onto the canvas (dock discipline). ═══ */
+    .param-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+      height: 48px; display: flex; flex-direction: column;
+      background: rgba(15,23,32,0.96);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.35);
+      color: #E8EEF2; touch-action: none;
+      transition: height .28s var(--ease-smooth);
+    }
+    .param-sheet.half { height: 38%; }
+    .param-sheet.full { height: 86%; }
+    .param-sheet.dragging { transition: none; }
+    .ps-handle { flex-shrink: 0; padding: 5px 14px 6px; cursor: grab; }
+    .ps-handle:active { cursor: grabbing; }
+    .ps-grip { width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.25); margin: 0 auto 4px; }
+    .ps-handle-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+    .ps-tabs { display: flex; gap: 4px; flex-shrink: 0; }
+    .ps-tab {
+      border: none; background: none; color: #7E93A4; font-family: inherit;
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+      padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    }
+    .ps-tab.on { background: var(--accent); color: #201A0A; }
+    .param-sheet.peek .ps-tab.on { background: none; color: #C9983A; }
+    .ps-summary {
+      flex: 1; text-align: right; font-size: 12.5px; font-weight: 600; color: #C9B27E;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .ps-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 2px 16px 18px; display: none; }
+    .param-sheet.half .ps-body, .param-sheet.full .ps-body { display: block; }
+    .ps-pane { display: none; }
+    .ps-pane.on { display: block; }
+    .ps-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #8FA5B5; margin: 12px 0 2px; }
+    .ps-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
+    .ps-chip {
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
+      color: #DCE6EE; border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .ps-chip.on { background: var(--accent); border-color: var(--accent); color: #201A0A; }
+    .ps-chip.suggested { border: 1.5px dashed var(--accent); background: rgba(201,152,58,0.10); color: #E8C878; }
+    .ps-chip.suggested::after { content: ' 👤'; font-size: 11px; }
+    .ps-input {
+      border: 1px solid rgba(255,255,255,0.16); border-radius: var(--rad-sm);
+      background: rgba(255,255,255,0.06); color: #E8EEF2; padding: 10px 12px;
+      font-size: 16px; font-family: inherit; outline: none; min-height: 44px; box-sizing: border-box;
+    }
+    .ps-input:focus { border-color: var(--accent); }
+    .ps-step { display: inline-flex; align-items: center; gap: 8px; margin: 4px 16px 4px 0; }
+    .ps-step button {
+      width: 42px; height: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.06); color: #E8EEF2; font-size: 18px; cursor: pointer; line-height: 1;
+    }
+    .ps-step-val { min-width: 76px; text-align: center; font-size: 15px; font-weight: 700; }
+    .ps-stone-list { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+    .ps-stone-item {
+      display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px; padding: 9px 12px;
+    }
+    .ps-stone-item .ps-stone-x {
+      margin-left: auto; border: none; background: none; color: #B87878;
+      font-size: 15px; cursor: pointer; padding: 4px 6px; line-height: 1;
+    }
+    .ps-sens-warn {
+      display: none; font-size: 12.5px; color: #F2A0A0; background: rgba(224,80,80,0.12);
+      border: 1px solid rgba(224,80,80,0.30); border-radius: 8px; padding: 8px 10px; margin-top: 8px;
+    }
+    #ps-notes {
+      width: 100%; min-height: 130px; resize: none; line-height: 1.5; margin-top: 8px;
+    }
+    .ps-wheel { display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+    .ps-wheel .ps-chip { flex-shrink: 0; min-width: 56px; text-align: center; scroll-snap-align: center; border-radius: 10px; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -890,6 +969,31 @@
           <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
         </div>
       </div>
+
+      <!-- Bottom parameter sheet (brief 2.1/2.2/2.5) — panes are generated by
+           js/intake-sheet.js; the sheet writes into the hidden Step-1 fields
+           (f-materials / f-sizing / f-gemstones / f-piece-type / f-finish) so
+           intakeSubmit() and Notion sync are unchanged. -->
+      <div id="param-sheet" class="param-sheet peek">
+        <div class="ps-handle" id="ps-handle">
+          <div class="ps-grip"></div>
+          <div class="ps-handle-row">
+            <div class="ps-tabs" id="ps-tabs">
+              <button type="button" class="ps-tab on" data-tab="metal" onpointerdown="event.stopPropagation()">Metal</button>
+              <button type="button" class="ps-tab" data-tab="stone" onpointerdown="event.stopPropagation()">Stone</button>
+              <button type="button" class="ps-tab" data-tab="sizing" onpointerdown="event.stopPropagation()">Sizing</button>
+              <button type="button" class="ps-tab" data-tab="notes" onpointerdown="event.stopPropagation()">Notes</button>
+            </div>
+            <div class="ps-summary" id="ps-summary">tap a tab to set metal · stone · sizing</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <div class="ps-pane on" id="ps-pane-metal"></div>
+          <div class="ps-pane" id="ps-pane-stone"></div>
+          <div class="ps-pane" id="ps-pane-sizing"></div>
+          <div class="ps-pane" id="ps-pane-notes"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ── Step 3 · Items & Price + inline estimate builder ── -->
@@ -1038,6 +1142,7 @@
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
 <script src="js/intake-profiles.js?v=2"></script>
+<script src="js/intake-sheet.js?v=1"></script>
 <script src="js/intake.js?v=6"></script>
 </body>
 </html>

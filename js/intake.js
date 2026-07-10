@@ -115,6 +115,13 @@ function intakeApplyTypeLayout(type) {
     const el = document.getElementById(id);
     if (el) el.style.display = (t === type) ? '' : 'none';
   });
+  // Custom Design's technical parameters live in the Step-2 bottom sheet
+  // (brief 2.1) — the Step-1 grid stays in the DOM purely as the hidden
+  // fields the sheet writes into. Repair/Resize/Square layouts untouched.
+  if (type === 'order' && typeof psRenderPanes === 'function') {
+    const tc = document.getElementById('type-custom');
+    if (tc) tc.style.display = 'none';
+  }
 
   // Repair / Resize / Square Item collapse to a single page: Items & Price
   // moves up under Design Details and the sketch page + Estimate Builder
@@ -335,26 +342,38 @@ function _intakeBeforeUnload(e) {
 window.addEventListener('beforeunload', _intakeBeforeUnload);
 
 // ── Estimate → order total (inline builder, step 3) ───────────
+// Material lines are NOT round-tripped through f-materials: that's a
+// single-line <input> which strips the newlines the desktop's
+// populateEstimateFromOrder() splits on. intakeSubmit() reads the live
+// .est-row DOM instead (see _intakeEstMaterialLines).
 function intakeUseEstimate() {
   const final = parseFloat((document.getElementById('est-final')?.textContent || '').replace('$', '')) || 0;
   if (!final) { toast('Estimate is $0 — add materials or labor first', '⚠'); return; }
-  // Persist material lines in the same "desc — $cost" format the desktop
-  // estimate builder parses back out of o.materials (populateEstimateFromOrder)
+  document.querySelectorAll('#est-materials .est-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc = inputs[0]?.value.trim();
+    const cost = parseFloat(inputs[1]?.value) || 0;
+    if (desc) intakePresetHarvest(desc, cost ? String(cost) : ''); // feed the preset chips (3.3)
+  });
+  const idx = _oiItems.findIndex(it => it.type === 'manual' && it.name === 'Estimate Total');
+  if (idx >= 0) _oiItems[idx].price = final;
+  else _oiItems.push({ type: 'manual', name: 'Estimate Total', price: final, quantity: 1 });
+  oiRender();
+  toast('Estimate set as order total ✓', '✓');
+}
+
+// Current estimate material rows in the "desc — $cost" newline-joined
+// format populateEstimateFromOrder() (desktop) parses back out of
+// o.materials. Same read as the desktop's saveEstimateToNotion().
+function _intakeEstMaterialLines() {
   const lines = [];
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
     const cost = parseFloat(inputs[1]?.value) || 0;
     if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
-    if (desc) intakePresetHarvest(desc, cost ? String(cost) : ''); // feed the preset chips (3.3)
   });
-  const mat = document.getElementById('f-materials');
-  if (mat && lines.length) { mat.value = lines.join('\n'); intakeSensChanged(); }
-  const idx = _oiItems.findIndex(it => it.type === 'manual' && it.name === 'Estimate Total');
-  if (idx >= 0) _oiItems[idx].price = final;
-  else _oiItems.push({ type: 'manual', name: 'Estimate Total', price: final, quantity: 1 });
-  oiRender();
-  toast('Estimate set as order total ✓', '✓');
+  return lines.join('\n');
 }
 
 // ── Save & Close — builds the same order object shape as the old
@@ -436,6 +455,10 @@ async function intakeSubmit() {
     assignee:      g('f-assignee').value || null,
     orderType:     typeVal,
     contactMethod: '',
+    // Estimate rows are authoritative for Custom Design (the builder is
+    // custom-only); otherwise fall back to the Materials/Metal text. Fixes
+    // intake orders reaching Notion with no Materials at all.
+    materials:     (typeVal === 'order' && _intakeEstMaterialLines()) || g('f-materials').value.trim(),
     pieceType:     g('f-piece-type').value || '',
     sizing:        sizing,
     gemstones:     g('f-gemstones').value.trim(),
@@ -451,6 +474,7 @@ async function intakeSubmit() {
     neck:          s1 ? s1.neck : '',
     styleProfile:  s1 ? s1.styleProfile : null,
     gift:          s1 ? s1.gift : null,
+    stones:        (typeof _psStones !== 'undefined') ? _psStones.map(st => ({ ...st })) : [],
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
@@ -498,6 +522,7 @@ function intakeReset() {
   document.getElementById('est-preset-strip')?.classList.remove('open');
   if (typeof intakeProfileReset === 'function') intakeProfileReset();
   if (typeof intakeSection1Reset === 'function') intakeSection1Reset();
+  if (typeof psReset === 'function') psReset();
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
@@ -800,13 +825,15 @@ function intakeSensChanged() {
   const matText = (document.getElementById('f-materials')?.value || '') + ' '
                 + (document.getElementById('f-gemstones')?.value || '');
   const hits = checks.filter(c => _SENS_CONFLICTS[c] && _SENS_CONFLICTS[c].test(matText));
-  const warn = document.getElementById('sens-warn');
-  if (warn) {
-    if (hits.length) {
-      warn.textContent = '⚠ Client sensitivity: ' + hits.join(', ') + ' — double-check this alloy before committing.';
-      warn.style.display = 'block';
-    } else warn.style.display = 'none';
-  }
+  const msg = hits.length ? '⚠ Client sensitivity: ' + hits.join(', ') + ' — double-check this alloy before committing.' : '';
+  // Same warning renders in both places: the Step-1 grid (single-page
+  // types) and the bottom sheet's Metal pane (Custom Design, brief 2.5)
+  ['sens-warn', 'ps-sens-warn'].forEach(id => {
+    const warn = document.getElementById(id);
+    if (!warn) return;
+    warn.textContent = msg;
+    warn.style.display = msg ? 'block' : 'none';
+  });
 }
 
 // ── 4.5 Sync chip popover + manual retry ──────────────────────
