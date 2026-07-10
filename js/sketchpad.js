@@ -232,6 +232,17 @@ function _padMove(pad, e) {
   // than one path per point — chained curves join seamlessly via lineJoin,
   // while separate per-point paths would each get their own round end-caps,
   // showing as visible beading/scalloping along the stroke.
+  //
+  // That still leaves a cap at the SEAM between this call's path and the
+  // previous call's — 'round' would paint a full circle there too, and for
+  // any non-opaque tool (pencil's alpha, marker's multiply) that circle
+  // re-composites over the same pixels the previous call's end-cap already
+  // painted, darkening a visible bead at every handler call boundary. 'butt'
+  // ends the stroke flush at the seam instead, so consecutive calls join
+  // with no overlap and no gap. The initial down-dot in _padDown still wants
+  // 'round' (a butt-capped near-zero-length line is nearly invisible), so
+  // only override it here for the continuing strokes.
+  ctx.lineCap = 'butt';
   ctx.beginPath();
   ctx.moveTo(pad._pathPos.x, pad._pathPos.y);
   for (const ev of (events.length ? events : [e])) {
