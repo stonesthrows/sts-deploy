@@ -50,7 +50,44 @@ function _padCreate(canvasId, opts) {
   canvas.addEventListener('pointermove',   e => _padMove(pad, e));
   canvas.addEventListener('pointerup',     e => _padUp(pad, e));
   canvas.addEventListener('pointercancel', e => _padUp(pad, e));
+  _padWireTapGestures(pad);
   return pad;
+}
+
+// Two-finger tap ⇒ undo, three-finger tap ⇒ redo. Only live on a pen-only
+// pad (SK): touch is already ignored there for drawing, so fingers are free
+// for gestures — skip entirely once "Allow finger drawing" is toggled on,
+// since a tap can't then be told apart from a deliberate short stroke.
+function _padWireTapGestures(pad) {
+  const el = pad.canvas;
+  const touches = new Map(); // pointerId -> {x, y} at touchdown
+  const MOVE_TOL = 14, TAP_MS = 400;
+  let gestureStart = 0, peak = 0, moved = false;
+
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch' || !pad.penOnly) return;
+    if (touches.size === 0) { gestureStart = performance.now(); peak = 0; moved = false; }
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    peak = Math.max(peak, touches.size);
+  });
+  el.addEventListener('pointermove', e => {
+    const t = touches.get(e.pointerId);
+    if (!t || moved) return;
+    if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > MOVE_TOL) moved = true;
+  });
+  const release = e => {
+    if (!touches.has(e.pointerId)) return;
+    touches.delete(e.pointerId);
+    if (touches.size > 0) return; // gesture still in progress — wait for the last finger up
+    if (moved || performance.now() - gestureStart >= TAP_MS) return;
+    if (peak === 2) {
+      if (SK.undo.length) { sketchUndo(); toast('Undo', '↩'); } else toast('Nothing to undo', '↩');
+    } else if (peak === 3) {
+      if (SK.redo.length) { sketchRedo(); toast('Redo', '↪'); } else toast('Nothing to redo', '↪');
+    }
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
 }
 
 // Coarse pointer ⇒ a touchscreen is present (iPad, phone). Used so pen-only
