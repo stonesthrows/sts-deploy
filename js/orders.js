@@ -681,13 +681,27 @@ function _dsSketchComposite() {
   return c.toDataURL('image/png');
 }
 
-function eoUseDrawnSketch() {
+function eoUseDrawnSketch(btn) {
   const dataUrl = _dsSketchComposite();
   if (!dataUrl) { toast('Draw something (or add a photo) first', '⚠'); return; }
   _eoSketchDraft = dataUrl;
   const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
   eoLoadSketch(o || {});
-  closeSketchDrawModal();
+  // Brief "Saved" state on the button before the modal closes, so the tap
+  // visibly landed; the draft only commits to the order on Save Changes.
+  if (btn) {
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = '✓ Saved';
+    setTimeout(() => {
+      btn.textContent = prev;
+      btn.disabled = false;
+      closeSketchDrawModal();
+    }, 650);
+  } else {
+    closeSketchDrawModal();
+  }
+  toast('Sketch attached — Save Changes to keep it', '✓');
 }
 
 function eoUploadSketchFile(input) {
