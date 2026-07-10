@@ -290,6 +290,16 @@ function sketchDockToggle() {
   if (dock) dock.classList.toggle('collapsed');
 }
 
+// Show/hide the technical grid layer (#sketch-grid) — a drawing aid only,
+// layered under the ink and deliberately never exported (see sketchExport).
+function sketchGridToggle() {
+  const grid = document.getElementById('sketch-grid');
+  if (!grid) return;
+  const on = grid.classList.toggle('on');
+  const btn = document.getElementById('sk-grid-btn');
+  if (btn) btn.classList.toggle('on', on);
+}
+
 function sketchUndo() {
   if (!SK || !SK.undo.length) return;
   SK.redo.push(_padSnapshot(SK));
