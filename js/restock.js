@@ -1086,6 +1086,9 @@ function rqMatchEditCustom(pid, name) {
 function _rqSortedItems() {
   var items = itemsFor('restock').slice();
   items.sort(function(a, b) {
+    var aRunning = !!_rqTimers[a.notionPageId];
+    var bRunning = !!_rqTimers[b.notionPageId];
+    if (aRunning !== bRunning) return aRunning ? -1 : 1;
     var aAssigned = !!(_rqMeta.assignees[a.notionPageId]);
     var bAssigned = !!(_rqMeta.assignees[b.notionPageId]);
     if (aAssigned !== bAssigned) return aAssigned ? -1 : 1;
