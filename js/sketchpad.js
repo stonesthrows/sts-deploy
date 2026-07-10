@@ -64,8 +64,14 @@ function _padAccepts(pad, e) {
 }
 
 function _padBlank(pad) {
-  pad.ctx.fillStyle = '#fff';
-  pad.ctx.fillRect(0, 0, pad.canvas.width, pad.canvas.height);
+  // pad.transparent is opt-in (intake's photo underlay flips it on SK at
+  // runtime) — pads that never set it keep the white-backed behavior.
+  if (pad.transparent) {
+    pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
+  } else {
+    pad.ctx.fillStyle = '#fff';
+    pad.ctx.fillRect(0, 0, pad.canvas.width, pad.canvas.height);
+  }
   if (pad.background) pad.background(pad.ctx, pad.canvas.width, pad.canvas.height);
 }
 
@@ -105,6 +111,9 @@ function _padDown(pad, e) {
   // Eraser paints white — the canvas is white-filled, so exports stay
   // white-backed with no transparency to composite. Pencil is a lighter,
   // semi-transparent grey for a softer graphite line; Pen is solid ink.
+  // On a transparent-backed pad (pad.transparent) the eraser must punch
+  // holes instead of painting white, or it would mask the photo underlay.
+  ctx.globalCompositeOperation = (pad.transparent && pad.tool === 'eraser') ? 'destination-out' : 'source-over';
   ctx.globalAlpha = pad.tool === 'pencil' ? 0.55 : 1;
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
@@ -131,6 +140,7 @@ function _padUp(pad, e) {
   if (!pad.drawing) return;
   pad.drawing = false;
   pad.ctx.globalAlpha = 1; // reset so snapshots/other paints stay opaque
+  pad.ctx.globalCompositeOperation = 'source-over'; // undo/redo/load draws must never inherit eraser mode
   pad.hasInk = true;
   pad.dirty = true;
 }

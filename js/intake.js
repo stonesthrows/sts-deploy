@@ -481,13 +481,15 @@ async function intakeSubmit() {
     sizing:        sizing,
     gemstones:     g('f-gemstones').value.trim(),
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
-    sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
+    sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
+    sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
     // On-glass signature (4.3) — stored locally on the order like the
     // sketch; absent signature never blocks a save. Pushing it to Notion
     // as an attachment is deferred until the pipeline grows a slot for it.
     signatureImg:  (typeof SIG !== 'undefined' && SIG && SIG.hasInk) ? SIG.canvas.toDataURL('image/png') : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
-    notes:         [notes,
+    notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
+                    notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
                     giftLine,
                     (_estVariants && _estVariants.length > 1)
@@ -557,6 +559,8 @@ function intakeReset() {
   if (typeof intakeSigClear === 'function' && SIG) intakeSigClear();
   if (typeof intakeReviewClose === 'function') intakeReviewClose();
   if (typeof intakeEstReset === 'function') intakeEstReset();
+  if (typeof ulReset === 'function') ulReset();
+  if (typeof psVoiceReset === 'function') psVoiceReset();
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
@@ -1100,6 +1104,159 @@ function intakeEstReset() {
   _estActive = 0;
   _estCrowned = 0;
   intakeEstRenderVariants();
+}
+
+// ── 2.3 Reference-photo underlay ──────────────────────────────
+// Image layer UNDER the ink at ~30% opacity. The ink canvas is flipped
+// to transparent-backed (pad.transparent — guarded opt-in in
+// sketchpad.js; the desktop's pads never set it). Two-finger pinch/drag
+// positions the photo — touch pointers are ignored by the pen-only pad,
+// so the gesture can't be confused with Apple Pencil ink.
+const _ul = { img: null, x: 0, y: 0, s: 1, opacity: 0.3, visible: true };
+
+function _ulApply() {
+  const el = document.getElementById('sketch-underlay');
+  if (!el) return;
+  const on = _ul.img && _ul.visible;
+  el.style.display = on ? 'block' : 'none';
+  if (on) {
+    el.style.transform = 'translate(' + _ul.x + 'px,' + _ul.y + 'px) scale(' + _ul.s + ')';
+    el.style.opacity = _ul.opacity;
+  }
+  const controls = document.getElementById('ul-controls');
+  if (controls) controls.style.display = _ul.img ? '' : 'none';
+  const opRow = document.getElementById('ul-opacity-row');
+  if (opRow) opRow.style.display = (_ul.img && _ul.visible) ? '' : 'none';
+  const toggle = document.getElementById('ul-toggle-btn');
+  if (toggle) toggle.classList.toggle('on', _ul.visible);
+}
+
+function ulPick() { document.getElementById('ul-file')?.click(); }
+
+function ulFileChosen(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      _ul.img = img;
+      _ul.visible = true;
+      const el = document.getElementById('sketch-underlay');
+      if (el) el.src = img.src;
+      // Fit-contain into the stage, centered
+      const stage = document.getElementById('sketch-stage');
+      const sw = stage?.clientWidth || 800, sh = stage?.clientHeight || 600;
+      _ul.s = Math.min(sw / img.naturalWidth, sh / img.naturalHeight) * 0.92;
+      _ul.x = (sw - img.naturalWidth * _ul.s) / 2;
+      _ul.y = (sh - img.naturalHeight * _ul.s) / 2;
+      _ulApply();
+      toast('Photo under the ink — two-finger drag / pinch to position', '🖼', 3200);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function ulToggle() {
+  if (!_ul.img) return;
+  _ul.visible = !_ul.visible;
+  _ulApply();
+}
+
+function ulRemove() {
+  _ul.img = null;
+  const el = document.getElementById('sketch-underlay');
+  if (el) el.removeAttribute('src');
+  _ulApply();
+}
+
+function ulSetOpacity(v) {
+  _ul.opacity = (parseFloat(v) || 30) / 100;
+  const val = document.getElementById('ul-opacity-val');
+  if (val) val.textContent = Math.round(_ul.opacity * 100) + '%';
+  _ulApply();
+}
+
+function ulReset() {
+  ulRemove();
+  _ul.x = 0; _ul.y = 0; _ul.s = 1; _ul.opacity = 0.3; _ul.visible = true;
+  const slider = document.getElementById('ul-opacity');
+  if (slider) slider.value = 30;
+  const val = document.getElementById('ul-opacity-val');
+  if (val) val.textContent = '30%';
+}
+
+// Two-finger pinch/drag — tracked on the stage; captured pen strokes
+// still bubble here but pointerType 'touch' filtering keeps them apart.
+(function () {
+  const stage = document.getElementById('sketch-stage');
+  if (!stage) return;
+  const pts = new Map();
+  const mid  = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  stage.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch' || !_ul.img) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    if (pts.size === 2) {
+      const m0 = mid(), d0 = dist();
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const m1 = mid(), d1 = dist();
+      const ratio = d1 / d0;
+      const r = stage.getBoundingClientRect();
+      const mx = m1.x - r.left, my = m1.y - r.top;
+      // zoom anchored at the pinch midpoint, then pan by the midpoint delta
+      _ul.s = Math.max(0.05, Math.min(8, _ul.s * ratio));
+      _ul.x = mx - (mx - (_ul.x + (m1.x - m0.x))) * ratio;
+      _ul.y = my - (my - (_ul.y + (m1.y - m0.y))) * ratio;
+      _ulApply();
+    } else {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => stage.addEventListener(ev, e => pts.delete(e.pointerId)));
+})();
+
+// Flip the intake sketch pad to transparent-backed so the underlay shows
+// through (the pad was created blank by sketchpad.js — nothing to lose)
+if (typeof SK !== 'undefined' && SK) { SK.transparent = true; _padBlank(SK); }
+
+// Exports (2.3): composite (underlay + ink) is the default order.sketchImg;
+// ink-only stays available for the printed bag.
+const _owSketchExport = sketchExport;
+sketchExport = function () {
+  if (typeof SK === 'undefined' || !SK) return null;
+  const hasPhoto = !!(_ul.img && _ul.visible);
+  if (!SK.hasInk && !hasPhoto) return null;
+  const c = document.createElement('canvas');
+  c.width = SK.canvas.width; c.height = SK.canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  if (hasPhoto) {
+    ctx.globalAlpha = _ul.opacity;
+    ctx.setTransform(_ul.s, 0, 0, _ul.s, _ul.x, _ul.y);
+    ctx.drawImage(_ul.img, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+  ctx.drawImage(SK.canvas, 0, 0);
+  return c.toDataURL('image/png');
+};
+
+function sketchExportInkOnly() {
+  if (typeof SK === 'undefined' || !SK || !SK.hasInk) return null;
+  const c = document.createElement('canvas');
+  c.width = SK.canvas.width; c.height = SK.canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(SK.canvas, 0, 0);
+  return c.toDataURL('image/png');
 }
 
 // ── 4.1 Quick add-on slide-over ───────────────────────────────

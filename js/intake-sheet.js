@@ -79,10 +79,95 @@ function psRenderPanes() {
   const notes = document.getElementById('ps-pane-notes');
   if (notes) {
     notes.innerHTML =
-      '<div class="ps-label">Design Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;">— saved to Internal Notes</span></div>'
+      '<div class="ps-voice-chips" id="ps-voice-chips"></div>'
+      + '<div class="ps-label">Design Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;">— saved to Internal Notes</span></div>'
       + '<textarea class="ps-input" id="ps-notes" placeholder="Lower bezel profile, gloves, client hates prongs…"></textarea>';
+    psVoiceRenderChips();
   }
 }
+
+// ── 2.4 Voice-to-note capture — press-and-hold the dock mic ──
+// webkitSpeechRecognition where available. The brief's fallback (record →
+// transcribe via /api/claude-proxy) isn't viable — the Claude API doesn't
+// accept audio — so unsupported devices get a graceful toast instead.
+let _voiceNotes = [];   // {t: '2:14 PM', text}
+let _voiceRec = null;
+let _voiceBuf = '';
+
+function psVoiceRenderChips() {
+  const wrap = document.getElementById('ps-voice-chips');
+  if (!wrap) return;
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  wrap.innerHTML = _voiceNotes.map((n, i) =>
+    '<div class="ps-voice-chip"><span class="pv-time">🎙 ' + esc(n.t) + '</span><span>' + esc(n.text) + '</span>'
+    + '<button type="button" class="pv-x" onclick="psVoiceRemove(' + i + ')" aria-label="Delete note">✕</button></div>'
+  ).join('');
+}
+
+function psVoiceRemove(i) {
+  _voiceNotes.splice(i, 1);
+  psVoiceRenderChips();
+}
+
+// Timestamped lines joined into f-notes at submit (readable degradation)
+function psVoiceNotesText() {
+  return _voiceNotes.map(n => n.t + ' — ' + n.text).join('\n');
+}
+
+function psVoiceReset() {
+  _voiceNotes = [];
+  _voiceBuf = '';
+  psVoiceRenderChips();
+}
+
+function _voiceStart() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('voice-btn');
+  if (!SR) {
+    if (typeof toast === 'function') toast('Voice dictation isn\'t supported on this device', '⚠', 3000);
+    return;
+  }
+  if (_voiceRec) return;
+  _voiceBuf = '';
+  _voiceRec = new SR();
+  _voiceRec.continuous = true;
+  _voiceRec.interimResults = false;
+  _voiceRec.lang = 'en-US';
+  _voiceRec.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) _voiceBuf += (_voiceBuf ? ' ' : '') + e.results[i][0].transcript.trim();
+    }
+  };
+  _voiceRec.onend = () => {
+    _voiceRec = null;
+    btn?.classList.remove('recording');
+    if (_voiceBuf) {
+      const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      _voiceNotes.push({ t, text: _voiceBuf });
+      _voiceBuf = '';
+      psVoiceRenderChips();
+      if (typeof toast === 'function') toast('Note added — see the sheet\'s Notes tab', '🎙', 2400);
+    }
+  };
+  _voiceRec.onerror = () => { /* onend handles cleanup */ };
+  try {
+    _voiceRec.start();
+    btn?.classList.add('recording');
+  } catch (e) { _voiceRec = null; }
+}
+
+function _voiceStop() {
+  if (_voiceRec) { try { _voiceRec.stop(); } catch (e) {} }
+}
+
+(function () {
+  const btn = document.getElementById('voice-btn');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', e => { e.stopPropagation(); _voiceStart(); });
+  btn.addEventListener('pointerup', _voiceStop);
+  btn.addEventListener('pointercancel', _voiceStop);
+  btn.addEventListener('pointerleave', _voiceStop);
+})();
 
 // ── Detents ───────────────────────────────────────────────────
 function psSetDetent(d) {

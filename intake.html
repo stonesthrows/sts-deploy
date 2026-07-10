@@ -104,8 +104,15 @@
     }
     .sketch-stage > #sketch-canvas {
       position: absolute; inset: 0; width: 100%; height: 100%;
-      border: none; border-radius: inherit; background: #fff;
+      border: none; border-radius: inherit;
+      /* transparent (not white) so the reference-photo underlay shows
+         through — the ink layer itself is transparent-backed on intake */
+      background: transparent;
       touch-action: none; cursor: crosshair; display: block;
+    }
+    #sketch-underlay {
+      position: absolute; top: 0; left: 0; transform-origin: 0 0;
+      opacity: 0.3; pointer-events: none; display: none; max-width: none;
     }
     .sketch-dock {
       position: absolute; top: 12px; right: 12px; z-index: 3;
@@ -633,6 +640,21 @@
     .tp-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 4px 0; }
     .tp-row span:last-child { font-weight: 700; }
     #tab-peek img { width: 100%; max-height: 150px; object-fit: contain; border: 1px solid var(--bdr-light); border-radius: 8px; background: #fff; }
+
+    /* ═══ Voice note capture (brief 2.4) ═══ */
+    @keyframes vpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(224,80,80,0.55); } 50% { box-shadow: 0 0 0 9px rgba(224,80,80,0); } }
+    .dock-btn.recording { background: #C0392B !important; border-color: #C0392B !important; color: #fff; animation: vpulse 1s infinite; }
+    .ps-voice-chips { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+    .ps-voice-chip {
+      display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px; padding: 9px 12px;
+    }
+    .ps-voice-chip .pv-time { color: #8FA5B5; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+    .ps-voice-chip .pv-x {
+      margin-left: auto; border: none; background: none; color: #B87878;
+      font-size: 15px; cursor: pointer; padding: 4px 6px; line-height: 1;
+    }
     #sig-canvas {
       width: 100%; height: auto; display: block; touch-action: none;
       border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
@@ -1015,6 +1037,9 @@
            id must stay "sketchpad-fg" — sketchpad.js scopes its preset-highlight sync to it. -->
       <div id="sketchpad-fg" class="flex flex-1 min-h-0">
         <div class="sketch-stage" id="sketch-stage">
+          <!-- Reference-photo underlay (brief 2.3) — UNDER the ink, ~30%
+               opacity, two-finger pinch/drag positioned from intake.js -->
+          <img id="sketch-underlay" alt="">
           <canvas id="sketch-canvas" width="1000" height="620"></canvas>
 
           <!-- Floating, collapsible, DRAGGABLE vertical dock of drawing tools -->
@@ -1048,6 +1073,20 @@
             </div>
             <div class="dock-row">
               <button type="button" class="dock-btn" id="sk-finger" onclick="intakeToggleFingerDraw()" title="Allow finger drawing">☝</button>
+              <button type="button" class="dock-btn" id="ul-add-btn" onclick="ulPick()" title="Reference photo underlay">🖼</button>
+              <button type="button" class="dock-btn" id="voice-btn" title="Hold to dictate a note">🎤</button>
+            </div>
+            <div class="dock-row" id="ul-controls" style="display:none;">
+              <button type="button" class="dock-btn on" id="ul-toggle-btn" onclick="ulToggle()" title="Show/hide photo">👁</button>
+              <button type="button" class="dock-btn" onclick="ulRemove()" title="Remove photo">🗙</button>
+            </div>
+            <div class="dock-size" id="ul-opacity-row" style="display:none;">
+              <div class="dock-size-preview" style="font-size:13px;">🖼</div>
+              <div class="dock-slider-wrap">
+                <input type="range" class="dock-slider" id="ul-opacity" min="10" max="80" step="5" value="30"
+                       oninput="ulSetOpacity(this.value)" aria-label="Photo opacity">
+                <div class="dock-size-val" id="ul-opacity-val">30%</div>
+              </div>
             </div>
             <div class="dock-hint" id="dock-hint">✎ Apple Pencil only</div>
           </div>
@@ -1296,11 +1335,12 @@
 
 <div id="toast-wrap"></div>
 
-<script src="js/sketchpad.js?v=3"></script>
+<input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
+<script src="js/sketchpad.js?v=4"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
 <script src="js/intake-profiles.js?v=2"></script>
-<script src="js/intake-sheet.js?v=1"></script>
-<script src="js/intake.js?v=6"></script>
+<script src="js/intake-sheet.js?v=2"></script>
+<script src="js/intake.js?v=7"></script>
 </body>
 </html>
