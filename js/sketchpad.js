@@ -69,8 +69,14 @@ function _padAccepts(pad, e) {
 }
 
 function _padBlank(pad) {
-  pad.ctx.fillStyle = '#fff';
-  pad.ctx.fillRect(0, 0, pad.canvas.width, pad.canvas.height);
+  // pad.transparent is opt-in (intake's photo underlay flips it on SK at
+  // runtime) — pads that never set it keep the white-backed behavior.
+  if (pad.transparent) {
+    pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
+  } else {
+    pad.ctx.fillStyle = '#fff';
+    pad.ctx.fillRect(0, 0, pad.canvas.width, pad.canvas.height);
+  }
   if (pad.background) pad.background(pad.ctx, pad.canvas.width, pad.canvas.height);
 }
 
@@ -113,8 +119,12 @@ function _padDown(pad, e) {
   // Marker is a translucent highlighter color composited with 'multiply' so
   // overlapping strokes deepen like real ink instead of just re-flattening.
   // Opacity is user-adjustable per tool via the dock slider (pad.opacities).
+  // On a transparent-backed pad (pad.transparent) the eraser must punch
+  // holes instead of painting white, or it would mask the photo underlay —
+  // that takes priority since 'eraser' and 'marker' are mutually exclusive.
   ctx.globalAlpha = pad.opacities[pad.tool] != null ? pad.opacities[pad.tool] : 1;
-  ctx.globalCompositeOperation = pad.tool === 'marker' ? 'multiply' : 'source-over';
+  ctx.globalCompositeOperation = (pad.transparent && pad.tool === 'eraser') ? 'destination-out'
+                                : pad.tool === 'marker' ? 'multiply' : 'source-over';
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
                   : pad.tool === 'marker' ? '#FFD400'
@@ -170,7 +180,7 @@ function _padUp(pad, e) {
   if (!pad.drawing) return;
   pad.drawing = false;
   pad.ctx.globalAlpha = 1; // reset so snapshots/other paints stay opaque
-  pad.ctx.globalCompositeOperation = 'source-over'; // reset after marker's 'multiply'
+  pad.ctx.globalCompositeOperation = 'source-over'; // reset after marker's 'multiply' / eraser's 'destination-out'
   pad.hasInk = true;
   pad.dirty = true;
 }

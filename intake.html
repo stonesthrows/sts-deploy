@@ -104,8 +104,15 @@
     }
     .sketch-stage > #sketch-canvas {
       position: absolute; inset: 0; width: 100%; height: 100%;
-      border: none; border-radius: inherit; background: #fff;
+      border: none; border-radius: inherit;
+      /* transparent (not white) so the reference-photo underlay shows
+         through — the ink layer itself is transparent-backed on intake */
+      background: transparent;
       touch-action: none; cursor: crosshair; display: block;
+    }
+    #sketch-underlay {
+      position: absolute; top: 0; left: 0; transform-origin: 0 0;
+      opacity: 0.3; pointer-events: none; display: none; max-width: none;
     }
     .sketch-dock {
       position: absolute; top: 12px; right: 12px; z-index: 3;
@@ -306,6 +313,354 @@
       animation: toastIn .25s ease;
     }
     @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* ═══ Sticky mini estimate total — pinned to the top of Step 3, fades
+       away once the real .est-total-box scrolls into view ═══ */
+    #est-mini-bar {
+      position: sticky; top: 0; z-index: 20;
+      max-width: 56rem; margin: 0 auto 12px;
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      background: linear-gradient(135deg, #F8F0E0, #F3E6CC);
+      border: 1px solid #E0CDA4; border-radius: 12px; padding: 10px 16px;
+      box-shadow: 0 4px 14px rgba(120,90,30,0.16);
+      transition: opacity .25s var(--ease-smooth), transform .25s var(--ease-smooth);
+    }
+    #est-mini-bar.est-mini-hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+    #est-mini-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #6A5A3A; }
+    #est-mini-total { font-size: 20px; font-weight: 800; color: #3A2E14; }
+    #est-mini-crumb { font-size: 12.5px; color: #8A7448; font-weight: 600; }
+
+    /* ═══ Material preset chips — opened by ＋ Add Line in the Estimate Builder ═══ */
+    .est-preset-strip { display: none; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    .est-preset-strip.open { display: flex; }
+    .est-preset-chip {
+      border: 1px solid #E0CDA4; background: #fff; color: #5A4A28;
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 6px;
+      -webkit-touch-callout: none;
+    }
+    .est-preset-chip:active { background: #FBF3E2; }
+    .est-preset-chip .chip-cost { color: #A08850; font-weight: 700; font-size: 12px; }
+    .est-preset-chip.pinned::before { content: '★'; color: var(--accent); font-size: 12px; }
+    .est-preset-chip.blank { border-style: dashed; color: #8A7448; background: transparent; }
+
+    /* ═══ Deposit presets + due-today/balance split bar ═══ */
+    .dep-presets { display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm); overflow: hidden; margin-top: 6px; }
+    .dep-preset-btn {
+      flex: 1; border: none; background: #FAFAF8; color: #7A7268; font-family: inherit;
+      font-size: 12.5px; font-weight: 700; padding: 9px 2px; min-height: 40px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .dep-preset-btn:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .dep-preset-btn.selected { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+    .dep-split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid #E4D8C4; background: #EDE6DA; }
+    .dep-split-today { background: linear-gradient(135deg, #C9983A, #B08432); transition: width .25s var(--ease-smooth); }
+    .dep-split-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); font-weight: 600; margin-top: 4px; }
+    @keyframes depFlash { 0% { box-shadow: 0 0 0 3px rgba(201,152,58,0.55); } 100% { box-shadow: none; } }
+    .dep-flash { animation: depFlash .8s ease; }
+
+    /* ═══ Metal / skin sensitivities — badge by the client name + inline conflict warning ═══ */
+    .sens-badge {
+      display: none; margin-left: 8px; background: #FDECEC; color: #B03030;
+      border: 1px solid #ECC5C5; border-radius: 999px; font-size: 11px; font-weight: 700;
+      padding: 3px 10px; vertical-align: middle; letter-spacing: .3px; text-transform: none;
+    }
+    .sens-warn {
+      display: none; font-size: 12.5px; color: #B03030; background: #FDF1F0;
+      border: 1px solid #F0D5D2; border-radius: 8px; padding: 8px 10px; margin-top: 4px;
+    }
+
+    /* ═══ Sync status chip (header) — offline queue vs. failing-while-online ═══ */
+    .sync-chip {
+      display: none; align-items: center; gap: 6px; border-radius: 999px;
+      padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+      border: 1px solid transparent; font-family: inherit; white-space: nowrap;
+    }
+    .sync-chip.state-offline { display: inline-flex; background: rgba(100,116,139,0.20); border-color: rgba(148,163,184,0.40); color: #B8C6D4; }
+    .sync-chip.state-error   { display: inline-flex; background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.45); color: #FBBF77; }
+    #sync-pop {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 400; width: 300px;
+      background: #fff; color: var(--text); border: 1px solid var(--bdr); border-radius: 12px;
+      box-shadow: 0 12px 34px rgba(0,0,0,0.35); padding: 14px; display: none; text-align: left;
+    }
+    #sync-pop.open { display: block; }
+    .sync-pop-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 6px; }
+    .sync-pop-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--bdr-light); }
+    .sync-pop-row:last-of-type { border-bottom: none; }
+    .sync-pop-row .sp-name { font-weight: 600; }
+    .sync-pop-row .sp-meta { color: var(--text3); flex-shrink: 0; }
+
+    /* ═══ Returning-client banner (brief 1.6) ═══ */
+    .client-banner {
+      position: relative; display: flex; flex-direction: column; gap: 2px;
+      background: #EFF6FC; border: 1px solid #C8DFEE; border-radius: 10px;
+      padding: 8px 40px 8px 12px;
+    }
+    .client-banner.loaded { background: #F0F9F1; border-color: #CBE5CE; }
+    .client-banner-row, .client-banner.loaded { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+    .client-banner-row { padding: 3px 0; }
+    .cb-text { flex: 1; font-size: 13.5px; color: var(--text2); min-width: 0; }
+    .cb-text strong { color: var(--text); }
+    .cb-load {
+      flex-shrink: 0; border: 1px solid var(--accent); background: #fff; color: #8A6A20;
+      border-radius: 8px; padding: 8px 14px; min-height: 40px; font-size: 13px;
+      font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .cb-dismiss {
+      position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+      border: none; background: none; color: var(--text3); font-size: 13px;
+      cursor: pointer; line-height: 1;
+    }
+
+    /* ═══ Section-1 accordions — ring registry / occasion / style profile ═══ */
+    .acc-row { border: 1px solid var(--bdr-light); border-radius: 10px; overflow: hidden; background: #FBFDFE; }
+    .acc-head {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      border: none; background: none; padding: 11px 12px; min-height: 44px;
+      font-family: inherit; font-size: 14px; cursor: pointer; text-align: left;
+    }
+    .acc-title { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .acc-summary {
+      flex: 1; text-align: right; font-size: 12.5px; color: var(--text3);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .acc-summary.filled { color: #8A6A20; font-weight: 600; }
+    .acc-chev { color: var(--text3); font-size: 15px; transition: transform .18s var(--ease-smooth); }
+    .acc-row.open .acc-chev { transform: rotate(90deg); }
+    .acc-body { padding: 6px 12px 12px; border-top: 1px dashed var(--bdr-light); }
+
+    /* Selectable chips (occasion + style groups) */
+    .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 10px; }
+    .sel-chip {
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .sel-chip.on { background: linear-gradient(135deg, #C9983A, #A07428); border-color: #A07428; color: #fff; }
+    .occ-mini-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+    .occ-date-row { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 4px 0; }
+    .occ-surprise {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px;
+      font-weight: 500; color: var(--text); cursor: pointer; min-height: 44px;
+    }
+    .occ-surprise input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
+
+    /* Ring registry — two-hand diagram + size dial */
+    .reg-tabs { display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm); overflow: hidden; width: fit-content; margin: 6px 0 2px; }
+    .reg-tab {
+      border: none; background: #FAFAF8; color: #7A7268; font-family: inherit;
+      font-size: 13px; font-weight: 700; padding: 9px 20px; min-height: 40px; cursor: pointer;
+    }
+    .reg-tab:not(:last-child) { border-right: 1px solid #D8D0C8; }
+    .reg-tab.on { background: linear-gradient(135deg, #C9983A, #A07428); color: #fff; }
+    .reg-hands { display: flex; gap: 22px; justify-content: center; padding: 8px 0 2px; }
+    .reg-hand-wrap { text-align: center; }
+    .reg-hand-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-top: 2px; }
+    .rf-finger { cursor: pointer; }
+    .reg-hint { text-align: center; font-size: 12px; color: var(--text3); padding-bottom: 6px; }
+    .reg-dial { border: 1px solid var(--bdr); border-radius: 10px; background: #fff; padding: 12px; margin: 8px 0; }
+    .reg-dial-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .reg-wheel {
+      display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px;
+      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+    }
+    .reg-size {
+      flex-shrink: 0; min-width: 58px; min-height: 44px; scroll-snap-align: center;
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .reg-size.on { background: linear-gradient(135deg, #C9983A, #A07428); border-color: #A07428; color: #fff; }
+    .reg-conf { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
+    .reg-conf-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .reg-conf-btn.on { border-color: var(--accent); background: #FBF3E2; color: var(--text); }
+    .reg-conf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .reg-dial-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .reg-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+
+    /* ═══ Bottom parameter sheet (brief 2.1) — Metal/Stone/Sizing/Notes over
+       the sketch canvas. Three detents: peek / half / full. touch-action:none
+       keeps sheet gestures from leaking ink onto the canvas (dock discipline). ═══ */
+    .param-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+      height: 48px; display: flex; flex-direction: column;
+      background: rgba(15,23,32,0.96);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.35);
+      color: #E8EEF2; touch-action: none;
+      transition: height .28s var(--ease-smooth);
+    }
+    .param-sheet.half { height: 38%; }
+    .param-sheet.full { height: 86%; }
+    .param-sheet.dragging { transition: none; }
+    .ps-handle { flex-shrink: 0; padding: 5px 14px 6px; cursor: grab; }
+    .ps-handle:active { cursor: grabbing; }
+    .ps-grip { width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.25); margin: 0 auto 4px; }
+    .ps-handle-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+    .ps-tabs { display: flex; gap: 4px; flex-shrink: 0; }
+    .ps-tab {
+      border: none; background: none; color: #7E93A4; font-family: inherit;
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+      padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    }
+    .ps-tab.on { background: var(--accent); color: #201A0A; }
+    .param-sheet.peek .ps-tab.on { background: none; color: #C9983A; }
+    .ps-summary {
+      flex: 1; text-align: right; font-size: 12.5px; font-weight: 600; color: #C9B27E;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .ps-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 2px 16px 18px; display: none; }
+    .param-sheet.half .ps-body, .param-sheet.full .ps-body { display: block; }
+    .ps-pane { display: none; }
+    .ps-pane.on { display: block; }
+    .ps-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #8FA5B5; margin: 12px 0 2px; }
+    .ps-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
+    .ps-chip {
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
+      color: #DCE6EE; border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .ps-chip.on { background: var(--accent); border-color: var(--accent); color: #201A0A; }
+    .ps-chip.suggested { border: 1.5px dashed var(--accent); background: rgba(201,152,58,0.10); color: #E8C878; }
+    .ps-chip.suggested::after { content: ' 👤'; font-size: 11px; }
+    .ps-input {
+      border: 1px solid rgba(255,255,255,0.16); border-radius: var(--rad-sm);
+      background: rgba(255,255,255,0.06); color: #E8EEF2; padding: 10px 12px;
+      font-size: 16px; font-family: inherit; outline: none; min-height: 44px; box-sizing: border-box;
+    }
+    .ps-input:focus { border-color: var(--accent); }
+    .ps-step { display: inline-flex; align-items: center; gap: 8px; margin: 4px 16px 4px 0; }
+    .ps-step button {
+      width: 42px; height: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.06); color: #E8EEF2; font-size: 18px; cursor: pointer; line-height: 1;
+    }
+    .ps-step-val { min-width: 76px; text-align: center; font-size: 15px; font-weight: 700; }
+    .ps-stone-list { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+    .ps-stone-item {
+      display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px; padding: 9px 12px;
+    }
+    .ps-stone-item .ps-stone-x {
+      margin-left: auto; border: none; background: none; color: #B87878;
+      font-size: 15px; cursor: pointer; padding: 4px 6px; line-height: 1;
+    }
+    .ps-sens-warn {
+      display: none; font-size: 12.5px; color: #F2A0A0; background: rgba(224,80,80,0.12);
+      border: 1px solid rgba(224,80,80,0.30); border-radius: 8px; padding: 8px 10px; margin-top: 8px;
+    }
+    #ps-notes {
+      width: 100%; min-height: 130px; resize: none; line-height: 1.5; margin-top: 8px;
+    }
+    .ps-wheel { display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+    .ps-wheel .ps-chip { flex-shrink: 0; min-width: 56px; text-align: center; scroll-snap-align: center; border-radius: 10px; }
+
+    /* ═══ Client-facing review screen (brief 4.2) + signature (4.3) ═══ */
+    .rv-rows { border: 1px solid var(--bdr-light); border-radius: 12px; overflow: hidden; }
+    .rv-row {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      padding: 11px 14px; font-size: 14.5px; border-bottom: 1px solid var(--bdr-light);
+    }
+    .rv-row:last-child { border-bottom: none; }
+    .rv-row span:first-child { color: var(--text3); font-weight: 600; }
+    .rv-row span:last-child { color: var(--text); font-weight: 600; }
+    .rv-row.rv-strong { background: #F8F3EC; }
+    .rv-row.rv-strong span:last-child { font-size: 17px; font-weight: 800; }
+
+    /* ═══ Estimate adjustment controls (3.2) + variant strip (3.4) ═══ */
+    .est-adj-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+    .est-adj-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+    .est-adj-btn {
+      border: 1px solid #E0CDA4; background: #fff; color: #5A4A28;
+      border-radius: 999px; padding: 8px 14px; min-height: 40px;
+      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .est-adj-btn:active { background: #FBF3E2; }
+    .est-adj-sep { width: 1px; height: 24px; background: #E4D8C4; }
+    .est-adj-margin { font-size: 11px; font-weight: 700; color: #B08432; margin-left: 6px; }
+    .est-variants { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    .est-var-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid #E0CDA4; background: #fff; color: #5A4A28;
+      border-radius: 12px; padding: 8px 12px; min-height: 44px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .est-var-chip.active { border-color: var(--accent); background: #FBF3E2; box-shadow: var(--focus-ring); }
+    .est-var-chip .ev-total { font-weight: 800; color: #3A2E14; }
+    .est-var-chip .ev-x { border: none; background: none; color: #B87878; font-size: 13px; cursor: pointer; padding: 2px 4px; line-height: 1; }
+
+    /* ═══ Quick add-on slide-over (brief 4.1) — right edge, ~40% width ═══ */
+    #qa-scrim {
+      position: fixed; inset: 0; z-index: 150; background: rgba(10,16,22,0.45);
+      opacity: 0; pointer-events: none; transition: opacity .22s;
+    }
+    #qa-scrim.open { opacity: 1; pointer-events: auto; }
+    #qa-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 151;
+      width: min(420px, 88vw); display: flex; flex-direction: column;
+      background: #fff; color: var(--text); box-shadow: -14px 0 40px rgba(0,0,0,0.30);
+      transform: translateX(105%); transition: transform .26s var(--ease-smooth);
+      padding: calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom));
+      overflow-y: auto; touch-action: pan-y;
+    }
+    #qa-panel.open { transform: translateX(0); }
+    .qa-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .qa-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+    .qa-close { border: none; background: none; color: var(--text3); font-size: 17px; cursor: pointer; padding: 8px; line-height: 1; }
+    .qa-addon {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+      border: 1px solid var(--bdr-light); background: #FBFDFE; border-radius: 10px;
+      padding: 12px 14px; min-height: 48px; margin-bottom: 8px;
+      font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--text); cursor: pointer;
+      text-align: left;
+    }
+    .qa-addon:active { background: var(--hover); }
+    .qa-addon .qa-price { color: #8A6A20; font-weight: 800; flex-shrink: 0; }
+    .qa-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin: 14px 0 8px; }
+
+    /* ═══ Step-tab completion glyphs + long-press peek (brief 4.4) ═══ */
+    .tab-glyph { margin-right: 5px; font-size: 11px; }
+    .tab-glyph.g-done { color: #4ADE80; }
+    .tab-glyph.g-partial { color: #FBBF24; }
+    .tab-glyph.g-empty { color: #5A7186; }
+    #tab-peek {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 160;
+      width: 300px; background: #fff; color: var(--text);
+      border: 1px solid var(--bdr); border-radius: 14px; padding: 14px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.35); display: none;
+    }
+    #tab-peek.open { display: block; }
+    .tp-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 8px; }
+    .tp-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 4px 0; }
+    .tp-row span:last-child { font-weight: 700; }
+    #tab-peek img { width: 100%; max-height: 150px; object-fit: contain; border: 1px solid var(--bdr-light); border-radius: 8px; background: #fff; }
+
+    /* ═══ Voice note capture (brief 2.4) ═══ */
+    @keyframes vpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(224,80,80,0.55); } 50% { box-shadow: 0 0 0 9px rgba(224,80,80,0); } }
+    .dock-btn.recording { background: #C0392B !important; border-color: #C0392B !important; color: #fff; animation: vpulse 1s infinite; }
+    .ps-voice-chips { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+    .ps-voice-chip {
+      display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px; padding: 9px 12px;
+    }
+    .ps-voice-chip .pv-time { color: #8FA5B5; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+    .ps-voice-chip .pv-x {
+      margin-left: auto; border: none; background: none; color: #B87878;
+      font-size: 15px; cursor: pointer; padding: 4px 6px; line-height: 1;
+    }
+    #sig-canvas {
+      width: 100%; height: auto; display: block; touch-action: none;
+      border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
+    }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -329,10 +684,19 @@
       </div>
     </div>
     <div class="flex-1"></div>
+    <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
+            class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
             class="rounded-lg px-2.5 py-2 text-base text-[#63788A]">⚙</button>
-    <span id="intake-unsynced" class="hidden rounded-full bg-amber-500/20 border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-300"></span>
-    <button type="button" id="intake-save-btn" onclick="intakeSubmit()"
+    <div class="relative">
+      <button type="button" id="intake-unsynced" class="sync-chip" onclick="intakeSyncPopToggle()"></button>
+      <div id="sync-pop">
+        <div class="sync-pop-title">Waiting to sync</div>
+        <div id="sync-pop-list"></div>
+        <button type="button" class="btn btn-gold" id="sync-retry-btn" style="width:100%;margin-top:10px;" onclick="intakeSyncRetry()">↻ Retry now</button>
+      </div>
+    </div>
+    <button type="button" id="intake-save-btn" onclick="intakeReviewOpen()"
             class="rounded-lg bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-2.5 text-sm font-bold text-[#201A0A] shadow-lg shadow-amber-900/30 active:scale-95 disabled:opacity-50">
       Save &amp; Close
     </button>
@@ -344,7 +708,7 @@
     <!-- ── Step 1 · Customer ── -->
     <section id="step-1" class="absolute inset-0 step-scroll px-3 py-4 md:px-6">
       <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
-        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-3">Customer Info</div>
+        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-3">Customer Info<span class="sens-badge" id="sens-badge"></span></div>
         <div class="form-grid">
           <div class="fg">
             <label>First Name *</label>
@@ -354,6 +718,9 @@
             <label>Last Name</label>
             <input type="text" id="f-lastname" placeholder="Johnson" autocomplete="off">
           </div>
+          <!-- Returning-client banner (js/intake-profiles.js) — only ever
+               fills the form on an explicit "Load profile" tap -->
+          <div class="fg full" id="client-match-fg" style="display:none;"></div>
           <div class="fg">
             <label>Email</label>
             <input type="email" id="f-email" placeholder="sarah@example.com" autocomplete="off">
@@ -430,6 +797,124 @@
             <label>Country</label>
             <input type="text" id="f-addr-country" placeholder="United States" value="United States">
           </div>
+          <div class="fg full">
+            <label>Metal / Skin Sensitivities <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ optional, flags risky alloys</span></label>
+            <div class="finish-checks" id="f-sensitivities">
+              <label><input type="checkbox" value="Nickel" onchange="intakeSensChanged()"> Nickel</label>
+              <label><input type="checkbox" value="Sterling/copper alloys" onchange="intakeSensChanged()"> Sterling / copper</label>
+              <label><input type="checkbox" value="Gold-fill" onchange="intakeSensChanged()"> Gold-fill</label>
+              <label><input type="checkbox" value="Brass/bronze" onchange="intakeSensChanged()"> Brass / bronze</label>
+              <label><input type="checkbox" value="Plated finishes" onchange="intakeSensChanged()"> Plated finishes</label>
+            </div>
+            <input type="text" id="f-sensitivity-note" placeholder="Other / context — e.g. reacts to cheap earring posts" oninput="intakeSensChanged()">
+          </div>
+
+          <!-- ── Client profile accordions: ring registry (1.2) · occasion (1.4) · style (1.5) ── -->
+          <div class="fg full" style="gap:8px;">
+            <div class="acc-row" id="acc-sizes">
+              <button type="button" class="acc-head" onclick="accToggle('sizes')">
+                <span>💍</span><span class="acc-title">Ring Sizes</span>
+                <span class="acc-summary" id="reg-summary">none on file</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-sizes-body" style="display:none;">
+                <div class="reg-tabs" id="reg-tabs" style="display:none;">
+                  <button type="button" class="reg-tab on" id="reg-tab-client" onclick="regSetPerson('client')">Client</button>
+                  <button type="button" class="reg-tab" id="reg-tab-recipient" onclick="regSetPerson('recipient')">Recipient</button>
+                </div>
+                <div class="reg-hands" id="reg-hands"></div>
+                <div class="reg-hint">Tap a finger to dial in its size</div>
+                <div class="reg-dial" id="reg-dial" style="display:none;"></div>
+                <div class="reg-extras">
+                  <div class="fg"><label>Wrist (in)</label><input type="text" id="f-wrist" placeholder="6.5" inputmode="decimal"></div>
+                  <div class="fg"><label>Neck (in)</label><input type="text" id="f-neck" placeholder="16" inputmode="decimal"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="acc-row" id="acc-occasion">
+              <button type="button" class="acc-head" onclick="accToggle('occasion')">
+                <span>🎁</span><span class="acc-title">Occasion</span>
+                <span class="acc-summary" id="occ-summary">for self</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-occasion-body" style="display:none;">
+                <div class="mult-toggle" style="margin:6px 0 10px;">
+                  <button type="button" class="mult-btn selected" id="occ-self-btn" onclick="occSetGift(false)">For Self</button>
+                  <button type="button" class="mult-btn" id="occ-gift-btn" onclick="occSetGift(true)">Gift</button>
+                </div>
+                <div id="occ-gift-block" style="display:none;">
+                  <div class="fg" style="margin-bottom:8px;">
+                    <label>Recipient Name</label>
+                    <input type="text" id="f-gift-recipient" placeholder="Emma" oninput="occChanged()">
+                  </div>
+                  <div class="occ-mini-label">Relationship</div>
+                  <div class="sel-chips" id="occ-relationship">
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Partner</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Parent</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Child</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Friend</button>
+                  </div>
+                  <div class="occ-mini-label">Occasion</div>
+                  <div class="sel-chips" id="occ-occasion">
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Anniversary</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Engagement</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birthday</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birth</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Memorial</button>
+                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Just Because</button>
+                  </div>
+                  <div class="occ-date-row">
+                    <div class="fg">
+                      <label>Occasion Date</label>
+                      <input type="date" id="f-gift-date" onchange="occChanged()">
+                    </div>
+                    <label class="occ-surprise"><input type="checkbox" id="f-gift-surprise" onchange="occChanged()"> 🤫 Surprise — discretion at pickup</label>
+                  </div>
+                  <div class="sens-warn" id="occ-date-warn"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="acc-row" id="acc-style">
+              <button type="button" class="acc-head" onclick="accToggle('style')">
+                <span>✨</span><span class="acc-title">Style Profile</span>
+                <span class="acc-summary" id="style-summary">not set</span>
+                <span class="acc-chev">›</span>
+              </button>
+              <div class="acc-body" id="acc-style-body" style="display:none;">
+                <div class="occ-mini-label">Aesthetic <span style="font-weight:400;text-transform:none;letter-spacing:0;">— pick any</span></div>
+                <div class="sel-chips" id="style-aesthetic" data-multi="1">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Minimal</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Vintage</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Organic</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Geometric</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Statement</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Delicate</button>
+                </div>
+                <div class="occ-mini-label">Metal Tone</div>
+                <div class="sel-chips" id="style-tone">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Yellow</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">White</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Rose</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Mixed</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Silver-only</button>
+                </div>
+                <div class="occ-mini-label">Wear Pattern <span style="font-weight:400;text-transform:none;letter-spacing:0;">— drives durability recs</span></div>
+                <div class="sel-chips" id="style-wear">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Everyday</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Occasion</button>
+                </div>
+                <div class="occ-mini-label">Budget Comfort <span style="font-weight:400;text-transform:none;letter-spacing:0;">— studio-only, never client-facing</span></div>
+                <div class="sel-chips" id="style-budget">
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">&lt;$250</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$250–750</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$750–1.5k</button>
+                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$1.5k+</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="fg full hw-toggle-row">
             <button type="button" class="sketch-btn" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
           </div>
@@ -486,11 +971,13 @@
           </div>
           <div class="fg" id="materials-fg">
             <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
+            <div class="sens-warn" id="sens-warn"></div>
           </div>
           <div class="fg">
             <label>Sizing / Dimensions</label>
             <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
+            <div class="sens-warn" id="sizing-verify-hint"></div>
           </div>
           <div class="fg">
             <label>Texture / Finish</label>
@@ -503,7 +990,7 @@
           </div>
           <div class="fg full">
             <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;"></textarea>
+            <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;" oninput="intakeSensChanged()"></textarea>
           </div>
         </div>
 
@@ -552,6 +1039,9 @@
            id must stay "sketchpad-fg" — sketchpad.js scopes its preset-highlight sync to it. -->
       <div id="sketchpad-fg" class="flex flex-1 min-h-0">
         <div class="sketch-stage" id="sketch-stage">
+          <!-- Reference-photo underlay (brief 2.3) — UNDER the ink, ~30%
+               opacity, two-finger pinch/drag positioned from intake.js -->
+          <img id="sketch-underlay" alt="">
           <canvas id="sketch-canvas" width="1000" height="620"></canvas>
 
           <!-- Floating, collapsible, DRAGGABLE vertical dock of drawing tools -->
@@ -602,6 +1092,20 @@
             </div>
             <div class="dock-row">
               <button type="button" class="dock-btn" id="sk-finger" onclick="intakeToggleFingerDraw()" title="Allow finger drawing">☝</button>
+              <button type="button" class="dock-btn" id="ul-add-btn" onclick="ulPick()" title="Reference photo underlay">🖼</button>
+              <button type="button" class="dock-btn" id="voice-btn" title="Hold to dictate a note">🎤</button>
+            </div>
+            <div class="dock-row" id="ul-controls" style="display:none;">
+              <button type="button" class="dock-btn on" id="ul-toggle-btn" onclick="ulToggle()" title="Show/hide photo">👁</button>
+              <button type="button" class="dock-btn" onclick="ulRemove()" title="Remove photo">🗙</button>
+            </div>
+            <div class="dock-size" id="ul-opacity-row" style="display:none;">
+              <div class="dock-size-preview" style="font-size:13px;">🖼</div>
+              <div class="dock-slider-wrap">
+                <input type="range" class="dock-slider" id="ul-opacity" min="10" max="80" step="5" value="30"
+                       oninput="ulSetOpacity(this.value)" aria-label="Photo opacity">
+                <div class="dock-size-val" id="ul-opacity-val">30%</div>
+              </div>
             </div>
             <div class="dock-hint" id="dock-hint">✎ Apple Pencil only</div>
           </div>
@@ -610,10 +1114,43 @@
           <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
         </div>
       </div>
+
+      <!-- Bottom parameter sheet (brief 2.1/2.2/2.5) — panes are generated by
+           js/intake-sheet.js; the sheet writes into the hidden Step-1 fields
+           (f-materials / f-sizing / f-gemstones / f-piece-type / f-finish) so
+           intakeSubmit() and Notion sync are unchanged. -->
+      <div id="param-sheet" class="param-sheet peek">
+        <div class="ps-handle" id="ps-handle">
+          <div class="ps-grip"></div>
+          <div class="ps-handle-row">
+            <div class="ps-tabs" id="ps-tabs">
+              <button type="button" class="ps-tab on" data-tab="metal" onpointerdown="event.stopPropagation()">Metal</button>
+              <button type="button" class="ps-tab" data-tab="stone" onpointerdown="event.stopPropagation()">Stone</button>
+              <button type="button" class="ps-tab" data-tab="sizing" onpointerdown="event.stopPropagation()">Sizing</button>
+              <button type="button" class="ps-tab" data-tab="notes" onpointerdown="event.stopPropagation()">Notes</button>
+            </div>
+            <div class="ps-summary" id="ps-summary">tap a tab to set metal · stone · sizing</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <div class="ps-pane on" id="ps-pane-metal"></div>
+          <div class="ps-pane" id="ps-pane-stone"></div>
+          <div class="ps-pane" id="ps-pane-sizing"></div>
+          <div class="ps-pane" id="ps-pane-notes"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ── Step 3 · Items & Price + inline estimate builder ── -->
     <section id="step-3" class="absolute inset-0 hidden step-scroll px-3 py-4 md:px-6">
+      <!-- Sticky running total — mirrors the Estimate Builder's Final Estimate
+           so the number stays visible while scrolling; fades once the real
+           .est-total-box is on screen (IntersectionObserver in intake.js) -->
+      <div id="est-mini-bar" class="est-mini-hidden">
+        <span id="est-mini-label">Final Estimate</span>
+        <span id="est-mini-total">$0.00</span>
+        <span id="est-mini-crumb"></span>
+      </div>
       <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl" id="step3-card">
         <!-- id="items-price-grid" — relocated between here and #step1-items-price-card
              (see intakeApplyTypeLayout in js/intake.js) depending on order type, so keep
@@ -630,7 +1167,12 @@
           </div>
           <div class="fg" id="deposit-fg">
             <label>Deposit ($)</label>
-            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
+            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="intakeDepositManual();eoUpdateBalanceDue()">
+            <div class="dep-presets" id="dep-presets">
+              <button type="button" class="dep-preset-btn" id="dep-50" onclick="intakeDepositPreset(0.5)">50%</button>
+              <button type="button" class="dep-preset-btn" id="dep-100" onclick="intakeDepositPreset(1)">100%</button>
+              <button type="button" class="dep-preset-btn" id="dep-custom" onclick="intakeDepositPreset('custom')">Custom</button>
+            </div>
           </div>
           <div class="fg" id="shipping-fg">
             <label>Shipping ($)</label>
@@ -639,6 +1181,10 @@
           <div class="fg" id="balance-fg">
             <label>Balance Due ($)</label>
             <input type="number" id="f-balance-due" placeholder="0.00" readonly>
+          </div>
+          <div class="fg full" id="deposit-split-fg" style="display:none;">
+            <div class="dep-split-bar"><div class="dep-split-today" id="dep-split-today" style="width:0%;"></div></div>
+            <div class="dep-split-labels"><span id="dep-split-label-today">Due today $0</span><span id="dep-split-label-balance">Balance at pickup $0</span></div>
           </div>
           <div class="fg full">
             <label>Internal Notes</label>
@@ -650,8 +1196,14 @@
         <div class="mt-6 rounded-xl border border-[#E4D8C4] bg-[#FDFAF4] p-4" id="intake-estimate">
           <div class="mb-3 flex items-center justify-between">
             <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A]">💰 Estimate Builder</div>
-            <button type="button" class="btn btn-ghost" onclick="addMaterialRow()">＋ Add Line</button>
+            <div class="flex items-center gap-1">
+              <button type="button" class="btn btn-ghost" onclick="intakeEstCompare()">⧉ Compare</button>
+              <button type="button" class="btn btn-ghost" onclick="intakeEstAddLine()">＋ Add Line</button>
+            </div>
           </div>
+          <!-- Good/Better/Best variant strip (brief 3.4) — hidden until ⧉ Compare -->
+          <div class="est-variants" id="est-variants" style="display:none;"></div>
+          <div class="est-preset-strip" id="est-preset-strip"></div>
           <div class="est-col-labels">
             <div class="est-col-label">Description</div>
             <div class="est-col-label">Cost ($)</div>
@@ -693,8 +1245,22 @@
             <hr class="est-total-divider">
             <div class="est-total-row"><span>Subtotal</span><span id="est-subtotal">$0.00</span></div>
             <div class="est-total-row" id="est-shipping-row" style="display:none;"><span>Shipping</span><span id="est-shipping-display">$0.00</span></div>
+            <!-- Explicit adjustment line (brief 3.2) — folded in after markup,
+                 before tax; margin-impact badge is studio-eyes only -->
+            <div class="est-total-row" id="est-adj-row" style="display:none;"><span>Adjustment <span class="est-adj-margin" id="est-adj-margin"></span></span><span id="est-adj-display"></span></div>
             <div class="est-total-row" id="est-tax-row" style="display:none;"><span>Sales Tax (8.25%)</span><span id="est-tax-display">$0.00</span></div>
             <div class="est-total-final"><span>Final Estimate</span><span id="est-final">$0.00</span></div>
+          </div>
+          <!-- Round-to + nudge controls (brief 3.2) -->
+          <div class="est-adj-controls">
+            <span class="est-adj-label">Round to</span>
+            <button type="button" class="est-adj-btn" onclick="intakeEstRound(25)">$25</button>
+            <button type="button" class="est-adj-btn" onclick="intakeEstRound(50)">$50</button>
+            <button type="button" class="est-adj-btn" onclick="intakeEstRound(100)">$100</button>
+            <span class="est-adj-sep"></span>
+            <button type="button" class="est-adj-btn" onclick="intakeEstNudge(-25)">−$25</button>
+            <button type="button" class="est-adj-btn" onclick="intakeEstNudge(25)">＋$25</button>
+            <button type="button" class="btn btn-ghost" id="est-adj-clear" style="display:none;min-height:40px;" onclick="intakeEstAdjClear()">Reset</button>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" class="btn btn-gold" onclick="intakeUseEstimate()">⬇ Use estimate as order total</button>
@@ -712,13 +1278,65 @@
     <button type="button" id="intake-back-btn" onclick="intakeStep(_intakeStep - 1)"
             class="invisible rounded-lg border border-[#35576D] px-5 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">‹ Back</button>
     <div class="flex flex-1 items-center justify-center gap-2">
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)">1 · Customer</button>
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)">2 · Design</button>
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)">3 · Items &amp; Price</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)"><span class="tab-glyph g-empty" id="tab-glyph-1">○</span>Customer</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)"><span class="tab-glyph g-empty" id="tab-glyph-2">○</span>Design</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)"><span class="tab-glyph g-empty" id="tab-glyph-3">○</span>Items &amp; Price</button>
     </div>
     <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
             class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
   </footer>
+</div>
+
+<!-- ═══ Quick add-on slide-over (brief 4.1) — standing add-ons + embedded
+     Square catalog search; reachable from any step, never leaves it ═══ -->
+<div id="qa-scrim" onclick="qaClose()"></div>
+<div id="qa-panel">
+  <div class="qa-head">
+    <div class="qa-title">Quick add-ons</div>
+    <button type="button" class="qa-close" onclick="qaClose()" aria-label="Close">✕</button>
+  </div>
+  <div id="qa-addon-list"></div>
+  <div class="qa-section">Square catalog</div>
+  <div class="rq-setup-search-wrap">
+    <span class="rq-setup-search-icon">🔍</span>
+    <input type="text" class="rq-setup-search-input" id="qa-search" placeholder="Search the Square catalog…" oninput="oiSearchInput('qa', this.value)" autocomplete="off">
+    <div class="rq-setup-spinner" id="oi-spinner-qa"></div>
+  </div>
+  <div class="rq-setup-results" id="oi-results-qa" style="margin-top:8px;"></div>
+</div>
+
+<!-- Long-press step-tab peek (brief 4.4) -->
+<div id="tab-peek"></div>
+
+<!-- ═══ Review with client (brief 4.2) — pure presentation over the fields
+     intakeSubmit() collects; deliberately NOT editable, studio-only data
+     (markup, internal notes, margin) absent. Signature (4.3) at the foot. ═══ -->
+<div id="intake-review" class="fixed inset-0 z-[190] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
+    <div class="flex items-center justify-between">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">Review with client</div>
+      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeReviewSkip()">Skip review · save now</button>
+    </div>
+    <div id="rv-name" class="mt-1 text-xl font-bold"></div>
+    <div id="rv-piece" class="mt-1 text-[15px] text-slate-600"></div>
+    <img id="rv-sketch" alt="Design sketch" class="mt-3 w-full rounded-xl border border-slate-200" style="display:none;max-height:220px;object-fit:contain;background:#fff;">
+    <div class="rv-rows mt-4">
+      <div class="rv-row"><span>Deadline</span><span id="rv-deadline">—</span></div>
+      <div class="rv-row"><span>Pickup</span><span id="rv-pickup">—</span></div>
+      <div class="rv-row"><span>Total</span><span id="rv-total">—</span></div>
+      <div class="rv-row" id="rv-deposit-row"><span>Deposit due today</span><span id="rv-deposit">—</span></div>
+      <div class="rv-row rv-strong"><span>Balance at pickup</span><span id="rv-balance">—</span></div>
+    </div>
+    <div class="mt-5">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Signature <span style="font-weight:400;text-transform:none;letter-spacing:0;">— finger is fine</span></div>
+      <canvas id="sig-canvas" width="880" height="180"></canvas>
+      <button type="button" class="btn btn-ghost" style="margin-top:2px;min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeSigClear()">Clear signature</button>
+    </div>
+    <div class="mt-4 flex gap-2">
+      <button type="button" class="btn btn-outline" onclick="intakeReviewClose()">‹ Back</button>
+      <button type="button" class="btn btn-outline" id="rv-confirm" style="flex:1;" onclick="intakeReviewConfirm()">Confirm &amp; Save (not signed)</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ Saved overlay — shown after Save & Close ═══ -->
@@ -736,9 +1354,12 @@
 
 <div id="toast-wrap"></div>
 
-<script src="js/sketchpad.js?v=3"></script>
+<input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
+<script src="js/sketchpad.js?v=4"></script>
 <script src="js/notion.js?v=20260707a"></script>
 <script src="js/order-widgets.js?v=3"></script>
-<script src="js/intake.js?v=4"></script>
+<script src="js/intake-profiles.js?v=2"></script>
+<script src="js/intake-sheet.js?v=2"></script>
+<script src="js/intake.js?v=7"></script>
 </body>
 </html>
