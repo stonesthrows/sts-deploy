@@ -586,6 +586,53 @@
     .est-var-chip.active { border-color: var(--accent); background: #FBF3E2; box-shadow: var(--focus-ring); }
     .est-var-chip .ev-total { font-weight: 800; color: #3A2E14; }
     .est-var-chip .ev-x { border: none; background: none; color: #B87878; font-size: 13px; cursor: pointer; padding: 2px 4px; line-height: 1; }
+
+    /* ═══ Quick add-on slide-over (brief 4.1) — right edge, ~40% width ═══ */
+    #qa-scrim {
+      position: fixed; inset: 0; z-index: 150; background: rgba(10,16,22,0.45);
+      opacity: 0; pointer-events: none; transition: opacity .22s;
+    }
+    #qa-scrim.open { opacity: 1; pointer-events: auto; }
+    #qa-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 151;
+      width: min(420px, 88vw); display: flex; flex-direction: column;
+      background: #fff; color: var(--text); box-shadow: -14px 0 40px rgba(0,0,0,0.30);
+      transform: translateX(105%); transition: transform .26s var(--ease-smooth);
+      padding: calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom));
+      overflow-y: auto; touch-action: pan-y;
+    }
+    #qa-panel.open { transform: translateX(0); }
+    .qa-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .qa-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+    .qa-close { border: none; background: none; color: var(--text3); font-size: 17px; cursor: pointer; padding: 8px; line-height: 1; }
+    .qa-addon {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+      border: 1px solid var(--bdr-light); background: #FBFDFE; border-radius: 10px;
+      padding: 12px 14px; min-height: 48px; margin-bottom: 8px;
+      font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--text); cursor: pointer;
+      text-align: left;
+    }
+    .qa-addon:active { background: var(--hover); }
+    .qa-addon .qa-price { color: #8A6A20; font-weight: 800; flex-shrink: 0; }
+    .qa-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin: 14px 0 8px; }
+
+    /* ═══ Step-tab completion glyphs + long-press peek (brief 4.4) ═══ */
+    .tab-glyph { margin-right: 5px; font-size: 11px; }
+    .tab-glyph.g-done { color: #4ADE80; }
+    .tab-glyph.g-partial { color: #FBBF24; }
+    .tab-glyph.g-empty { color: #5A7186; }
+    #tab-peek {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 160;
+      width: 300px; background: #fff; color: var(--text);
+      border: 1px solid var(--bdr); border-radius: 14px; padding: 14px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.35); display: none;
+    }
+    #tab-peek.open { display: block; }
+    .tp-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 8px; }
+    .tp-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 4px 0; }
+    .tp-row span:last-child { font-weight: 700; }
+    #tab-peek img { width: 100%; max-height: 150px; object-fit: contain; border: 1px solid var(--bdr-light); border-radius: 8px; background: #fff; }
     #sig-canvas {
       width: 100%; height: auto; display: block; touch-action: none;
       border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
@@ -613,6 +660,8 @@
       </div>
     </div>
     <div class="flex-1"></div>
+    <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
+            class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
             class="rounded-lg px-2.5 py-2 text-base text-[#63788A]">⚙</button>
     <div class="relative">
@@ -1171,14 +1220,35 @@
     <button type="button" id="intake-back-btn" onclick="intakeStep(_intakeStep - 1)"
             class="invisible rounded-lg border border-[#35576D] px-5 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">‹ Back</button>
     <div class="flex flex-1 items-center justify-center gap-2">
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)">1 · Customer</button>
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)">2 · Design</button>
-      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)">3 · Items &amp; Price</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)"><span class="tab-glyph g-empty" id="tab-glyph-1">○</span>Customer</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)"><span class="tab-glyph g-empty" id="tab-glyph-2">○</span>Design</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)"><span class="tab-glyph g-empty" id="tab-glyph-3">○</span>Items &amp; Price</button>
     </div>
     <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
             class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
   </footer>
 </div>
+
+<!-- ═══ Quick add-on slide-over (brief 4.1) — standing add-ons + embedded
+     Square catalog search; reachable from any step, never leaves it ═══ -->
+<div id="qa-scrim" onclick="qaClose()"></div>
+<div id="qa-panel">
+  <div class="qa-head">
+    <div class="qa-title">Quick add-ons</div>
+    <button type="button" class="qa-close" onclick="qaClose()" aria-label="Close">✕</button>
+  </div>
+  <div id="qa-addon-list"></div>
+  <div class="qa-section">Square catalog</div>
+  <div class="rq-setup-search-wrap">
+    <span class="rq-setup-search-icon">🔍</span>
+    <input type="text" class="rq-setup-search-input" id="qa-search" placeholder="Search the Square catalog…" oninput="oiSearchInput('qa', this.value)" autocomplete="off">
+    <div class="rq-setup-spinner" id="oi-spinner-qa"></div>
+  </div>
+  <div class="rq-setup-results" id="oi-results-qa" style="margin-top:8px;"></div>
+</div>
+
+<!-- Long-press step-tab peek (brief 4.4) -->
+<div id="tab-peek"></div>
 
 <!-- ═══ Review with client (brief 4.2) — pure presentation over the fields
      intakeSubmit() collects; deliberately NOT editable, studio-only data

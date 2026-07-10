@@ -86,6 +86,7 @@ function intakeStep(n) {
   if (next) next.classList.toggle('invisible', _intakeStep === maxStep);
   document.querySelectorAll('.step-scroll').forEach(p => { p.scrollTop = 0; });
   if (_intakeStep === 2) intakeSizeSketchStage();
+  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh(); // sketch ink has no input event — catch it on step changes
 }
 
 // ── Order-type layout switch (step 1 Design Details) ──────────
@@ -1101,6 +1102,158 @@ function intakeEstReset() {
   intakeEstRenderVariants();
 }
 
+// ── 4.1 Quick add-on slide-over ───────────────────────────────
+// Standing add-ons are hardcoded v1 per the brief; the Square search
+// reuses the row plumbing with a reserved 'qa' index — the inline
+// oiSelectSquareResult('qa', i) in rendered rows no-ops safely
+// (_oiItems['qa'] is undefined), our delegated handler does the work.
+const _QA_ADDONS = [
+  { name: 'Engraving',     price: 45 },
+  { name: 'Rush fee',      price: 50 },
+  { name: 'Chain upgrade', price: 30 },
+  { name: 'Gift wrap',     price: 5 },
+];
+
+function qaOpen() {
+  document.getElementById('qa-scrim')?.classList.add('open');
+  document.getElementById('qa-panel')?.classList.add('open');
+}
+
+function qaClose() {
+  document.getElementById('qa-scrim')?.classList.remove('open');
+  document.getElementById('qa-panel')?.classList.remove('open');
+  const search = document.getElementById('qa-search');
+  if (search) search.value = '';
+  const box = document.getElementById('oi-results-qa');
+  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+}
+
+function qaAddManual(name, price) {
+  _oiItems.push({ type: 'manual', name, price, quantity: 1 });
+  oiRender();
+  toast(name + ' +$' + price + ' added', '✓', 2200);
+  qaClose();
+}
+
+(function () {
+  const list = document.getElementById('qa-addon-list');
+  if (list) {
+    list.innerHTML = _QA_ADDONS.map((a, i) =>
+      '<button type="button" class="qa-addon" onclick="qaAddManual(\'' + a.name + '\',' + a.price + ')">'
+      + '<span>' + a.name + '</span><span class="qa-price">+$' + a.price + '</span></button>'
+    ).join('');
+  }
+  // Square result tap: adopt the row plumbing's item shape by pushing a
+  // placeholder, aliasing the cached results to that index, and letting
+  // oiSelectSquareResult() build the item (modifier defaults included).
+  document.getElementById('oi-results-qa')?.addEventListener('click', e => {
+    const row = e.target.closest('.rq-result-item');
+    if (!row) return;
+    const i = [...row.parentElement.querySelectorAll('.rq-result-item')].indexOf(row);
+    const results = _oiLastResults['qa'] || [];
+    if (!results[i]) return;
+    const idx = _oiItems.length;
+    _oiItems.push({ type: 'square' });
+    _oiLastResults[idx] = results;
+    oiSelectSquareResult(idx, i);
+    delete _oiLastResults[idx];
+    toast(results[i].name + ' added', '✓', 2200);
+    qaClose();
+  });
+  // Swipe-right dismissal — can't be confused with drawing (right edge)
+  const panel = document.getElementById('qa-panel');
+  if (panel) {
+    let sx = null;
+    panel.addEventListener('pointerdown', e => { sx = e.clientX; });
+    panel.addEventListener('pointermove', e => {
+      if (sx !== null && e.clientX - sx > 70) { sx = null; qaClose(); }
+    });
+    panel.addEventListener('pointerup', () => { sx = null; });
+  }
+})();
+
+// ── 4.4 Step tabs: completion glyphs + long-press peek ────────
+function _intakeTabStates() {
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const s1done = !!(getFullName() && v('f-description'));
+  const s1any = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-description', 'f-job-desc'].some(id => v(id))
+    || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
+    || intakeSensList().length > 0;
+  const sketch = typeof SK !== 'undefined' && SK && SK.hasInk;
+  const params = !!(v('f-materials') || v('f-gemstones') || v('f-sizing'));
+  const price = parseFloat(v('f-price')) || 0;
+  const s3any = !!(price || v('f-notes') || v('f-deposit') || _estReadDom().marked > 0);
+  const state = (done, any) => done ? 'done' : any ? 'partial' : 'empty';
+  return {
+    1: state(s1done, s1any),
+    2: state(sketch && params, sketch || params),
+    3: state(price > 0, s3any),
+  };
+}
+
+function intakeTabsRefresh() {
+  const states = _intakeTabStates();
+  const GLYPH = { done: '✓', partial: '●', empty: '○' };
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('tab-glyph-' + i);
+    if (!el) continue;
+    el.textContent = GLYPH[states[i]];
+    el.className = 'tab-glyph g-' + states[i];
+  }
+}
+
+function _intakeTabPeekShow(step) {
+  const peek = document.getElementById('tab-peek');
+  if (!peek) return;
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const row = (label, ok, val) =>
+    '<div class="tp-row"><span>' + label + '</span><span>' + (val || (ok ? '✓' : '—')) + '</span></div>';
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let html = '';
+  if (step === 1) {
+    html = '<div class="tp-title">1 · Customer</div>'
+      + row('Name', !!getFullName(), esc(getFullName()))
+      + row('Contact', !!(v('f-email') || v('f-phone')))
+      + row('Description', !!v('f-description'))
+      + row('Deadline', !!v('f-deadline'), v('f-deadline'));
+  } else if (step === 2) {
+    const hasInk = typeof SK !== 'undefined' && SK && SK.hasInk;
+    const summary = document.getElementById('ps-summary')?.textContent || '';
+    html = '<div class="tp-title">2 · Design</div>'
+      + (hasInk ? '<img src="' + SK.canvas.toDataURL('image/png') + '" alt="Sketch">' : '<div class="tp-row"><span>Sketch</span><span>—</span></div>')
+      + (summary && !summary.startsWith('tap a tab') ? '<div class="tp-row"><span>Specs</span><span>' + esc(summary) + '</span></div>' : '');
+  } else {
+    html = '<div class="tp-title">3 · Items &amp; Price</div>'
+      + row('Total', false, v('f-price') ? '$' + v('f-price') : '—')
+      + row('Deposit', false, v('f-deposit') ? '$' + v('f-deposit') : '—')
+      + row('Estimate lines', false, String(_estReadDom().rows.length));
+  }
+  peek.innerHTML = html;
+  peek.classList.add('open');
+}
+
+(function () {
+  const tabsWrap = document.querySelector('#intake-footer .flex-1');
+  if (tabsWrap && typeof _intakeLongPress === 'function') {
+    _intakeLongPress(tabsWrap, t => {
+      const tab = t.closest && t.closest('.intake-tab');
+      if (tab) _intakeTabPeekShow(parseInt(tab.dataset.step, 10));
+    });
+  }
+  // Any tap anywhere dismisses the peek
+  document.addEventListener('pointerdown', e => {
+    const peek = document.getElementById('tab-peek');
+    if (peek && peek.classList.contains('open') && !e.target.closest('#tab-peek')) {
+      peek.classList.remove('open');
+    }
+  });
+  // Completion glyphs recompute on the input events that already fire
+  let tabsDebounce = null;
+  const queue = () => { clearTimeout(tabsDebounce); tabsDebounce = setTimeout(intakeTabsRefresh, 250); };
+  document.addEventListener('input', queue);
+  document.addEventListener('change', queue);
+})();
+
 // ── 4.2 Client-facing review screen + 4.3 on-glass signature ──
 // Save & Close is two-beat: intakeReviewOpen() → ✓ Confirm runs the
 // unchanged intakeSubmit(). Front-of-house only — no markup, no
@@ -1217,6 +1370,7 @@ const _owUpdateBalanceDue = eoUpdateBalanceDue;
 eoUpdateBalanceDue = function () {
   _owUpdateBalanceDue();
   intakeDepositRefresh();
+  intakeTabsRefresh(); // item/price changes flow through here (4.4)
 };
 
 // ── Init ──────────────────────────────────────────────────────
