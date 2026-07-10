@@ -1234,9 +1234,11 @@
       font-size: 12px; cursor: pointer; line-height: 1;
       display: flex; align-items: center; justify-content: center;
     }
-    .dock-row { display: flex; gap: 5px; }
+    .dock-row { display: flex; gap: 5px; flex-wrap: wrap; }
     .dock-btn {
-      flex: 1; height: 34px; border-radius: 8px;
+      /* min-width so rows of 4+ buttons wrap instead of squeezing —
+         ~3 fit per row at the dock's width */
+      flex: 1 1 28px; min-width: 28px; height: 34px; border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
       color: #E8EEF2; font-size: 15px; cursor: pointer; line-height: 1;
       display: flex; align-items: center; justify-content: center;
@@ -6216,6 +6218,7 @@
             <button type="button" class="dock-btn tool active" id="sk-pen"    onclick="sketchSetTool('pen',this)"    title="Pen">🖊</button>
             <button type="button" class="dock-btn tool"        id="sk-pencil" onclick="sketchSetTool('pencil',this)" title="Pencil">✏️</button>
             <button type="button" class="dock-btn tool"        id="sk-marker" onclick="sketchSetTool('marker',this)" title="Marker">🖍️</button>
+            <button type="button" class="dock-btn tool"        id="sk-water"  onclick="sketchSetTool('water',this)"  title="Watercolor">💧</button>
             <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
           </div>
           <div class="dock-size">

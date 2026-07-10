@@ -21,6 +21,7 @@ const SK_PRESETS = {
   pen:    { S: 2.5, M: 5,   L: 12 },
   pencil: { S: 1.5, M: 2.5, L: 5  },
   marker: { S: 8,   M: 14,  L: 22 },
+  water:  { S: 12,  M: 22,  L: 36 },
   eraser: { S: 16,  M: 28,  L: 48 },
 };
 
@@ -30,13 +31,13 @@ function _padCreate(canvasId, opts) {
   const pad = {
     canvas,
     ctx: canvas.getContext('2d'),
-    tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'eraser'
+    tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'water' | 'eraser'
     // Independent stroke weight per tool (canvas units)
-    widths: { pen: 5, pencil: 2.5, marker: 14, eraser: 28 },
+    widths: { pen: 5, pencil: 2.5, marker: 14, water: 22, eraser: 28 },
     // Independent stroke opacity per tool (0–1), user-adjustable via the dock slider
-    opacities: { pen: 1, pencil: 0.55, marker: 0.35, eraser: 1 },
+    opacities: { pen: 1, pencil: 0.55, marker: 0.35, water: 0.3, eraser: 1 },
     // Independent line-smoothing strength per tool (0–1, 1 = fully smoothed)
-    flows: { pen: 1, pencil: 1, marker: 1, eraser: 1 },
+    flows: { pen: 1, pencil: 1, marker: 1, water: 1, eraser: 1 },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
@@ -123,20 +124,64 @@ function _padDown(pad, e) {
   // holes instead of painting white, or it would mask the photo underlay —
   // that takes priority since 'eraser' and 'marker' are mutually exclusive.
   ctx.globalAlpha = pad.opacities[pad.tool] != null ? pad.opacities[pad.tool] : 1;
+  // Watercolor also multiplies: overlapping washes and existing strokes
+  // deepen/bleed into each other instead of flattening over one another.
   ctx.globalCompositeOperation = (pad.transparent && pad.tool === 'eraser') ? 'destination-out'
-                                : pad.tool === 'marker' ? 'multiply' : 'source-over';
+                                : (pad.tool === 'marker' || pad.tool === 'water') ? 'multiply'
+                                : 'source-over';
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
                   : pad.tool === 'marker' ? '#FFD400'
                   : '#1A1A1A';
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
+  if (pad.tool === 'water') {
+    // Watercolor doesn't stroke a path — it stamps soft dabs (see _padDab)
+    pad._lastDab = p;
+    _padDab(pad, p.x, p.y);
+    return;
+  }
   pad._last = p;    // anchor for the quadratic-through-midpoints smoothing in _padMove
   pad._pathPos = p; // actual path endpoint so far — lets _padMove stroke only new segments
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
   ctx.lineTo(p.x + 0.01, p.y + 0.01); // a tap leaves a dot
   ctx.stroke();
+}
+
+// ── Watercolor brush ──────────────────────────────────────────
+// One soft dab: a radial gradient that fades to fully transparent at the
+// rim, so dabs have no hard edge. Stamped densely along the pointer path
+// (under 'multiply' + the tool's globalAlpha), overlapping dabs pool and
+// deepen organically — a cheap, convincing wash without the cost of live
+// pixel sampling on a 1000px canvas.
+function _padDab(pad, x, y) {
+  const ctx = pad.ctx;
+  const r = Math.max(2, (pad.widths.water || 22) / 2);
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0,    'rgba(61,126,194,0.55)');
+  g.addColorStop(0.65, 'rgba(61,126,194,0.30)');
+  g.addColorStop(1,    'rgba(61,126,194,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Walk from the last stamped dab toward (x,y) at fixed spacing, stamping as
+// we go. Fixed spacing (not per-event) keeps wash density independent of
+// pointer speed, so fast strokes don't come out lighter than slow ones.
+function _padWaterTo(pad, x, y) {
+  const spacing = Math.max(2, (pad.widths.water || 22) / 5);
+  let dx = x - pad._lastDab.x, dy = y - pad._lastDab.y;
+  let d = Math.hypot(dx, dy);
+  while (d >= spacing) {
+    const t = spacing / d;
+    pad._lastDab = { x: pad._lastDab.x + dx * t, y: pad._lastDab.y + dy * t };
+    _padDab(pad, pad._lastDab.x, pad._lastDab.y);
+    dx = x - pad._lastDab.x; dy = y - pad._lastDab.y;
+    d = Math.hypot(dx, dy);
+  }
 }
 
 // Smooths the raw point stream by curving through the midpoint of each
@@ -157,6 +202,13 @@ function _padMove(pad, e) {
   if (!pad.drawing) return;
   const flow = pad.flows[pad.tool] != null ? pad.flows[pad.tool] : 1;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
+  if (pad.tool === 'water') {
+    for (const ev of (events.length ? events : [e])) {
+      const p = _padPoint(pad, ev);
+      _padWaterTo(pad, p.x, p.y);
+    }
+    return;
+  }
   const ctx = pad.ctx;
   // One path per handler call (chaining every coalesced point into it) rather
   // than one path per point — chained curves join seamlessly via lineJoin,
@@ -190,7 +242,7 @@ function _padUp(pad, e) {
 function sketchSetTool(tool, btn) {
   if (!SK) return;
   SK.tool = tool;
-  ['pen', 'pencil', 'marker', 'eraser'].forEach(t => {
+  ['pen', 'pencil', 'marker', 'water', 'eraser'].forEach(t => {
     const b = document.getElementById('sk-' + t);
     if (b) b.classList.toggle('active', t === tool);
   });
@@ -275,7 +327,8 @@ function sketchSyncSizeUI() {
     dot.style.height = d + 'px';
     dot.style.background = SK.tool === 'eraser' ? '#C7D4DE'
                          : SK.tool === 'pencil' ? '#9AA6B0'
-                         : SK.tool === 'marker' ? '#FFD400' : '#E8EEF2';
+                         : SK.tool === 'marker' ? '#FFD400'
+                         : SK.tool === 'water'  ? '#3D7EC2' : '#E8EEF2';
   }
   const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
   document.querySelectorAll('#sketchpad-fg .dock-preset').forEach(b => {
