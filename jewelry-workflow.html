@@ -9544,6 +9544,7 @@ body.theme-midnight .recon-under { color: #E08A80; }
     <button class="btn btn-outline btn-sm" onclick="rqRenderProductionReport(true)">⟳ Refresh</button>
   </div>
   <div id="prod-report-rates"></div>
+  <div id="prod-report-controls"></div>
   <div id="prod-report-summary"></div>
   <div id="prod-report-body">
     <div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>
@@ -9666,6 +9667,56 @@ body.theme-midnight #tab-prod-report button[style*="#3A7A4A"] { border-color: #3
 body.theme-midnight #tab-prod-report [style*="#A0402A"] { color: #E08A80 !important; }
 body.theme-midnight #tab-prod-report .rq-sbar-del:hover { border-color: #E08A80; color: #E08A80; }
 body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A4A50; }
+
+/* ── Report controls: date range + view toggle (one row above the content) ── */
+#prod-report-controls { padding: var(--sp-2) 20px 0; flex-shrink: 0; }
+#prod-report-controls .rq-report-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#prod-report-controls select.rq-report-range {
+  background: var(--input-bg); color: var(--text); border: 1px solid var(--bdr);
+  border-radius: var(--rad-sm); font-size: 12px; padding: 4px 8px;
+}
+#prod-report-controls .rq-report-views { display: flex; gap: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm); overflow: hidden; }
+#prod-report-controls .rq-report-view-btn {
+  background: var(--card-bg); color: var(--text2); border: none; font-size: 12px;
+  padding: 4px 10px; cursor: pointer;
+}
+#prod-report-controls .rq-report-view-btn + .rq-report-view-btn { border-left: 1px solid var(--bdr-light); }
+#prod-report-controls .rq-report-view-btn.rq-view-on { background: var(--accent); color: #fff; font-weight: 600; }
+#prod-report-controls .rq-report-view-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Aggregate (By Design / By Category) table ── */
+#prod-report-body .rq-agg-wrap { overflow-x: auto; background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); }
+#prod-report-body table.rq-agg-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+#prod-report-body .rq-agg-table th {
+  text-align: right; padding: 7px 10px; color: var(--text2); font-weight: 600; white-space: nowrap;
+  border-bottom: 1px solid var(--bdr-light); cursor: pointer; user-select: none;
+}
+#prod-report-body .rq-agg-table th:first-child { text-align: left; }
+#prod-report-body .rq-agg-table td {
+  text-align: right; padding: 6px 10px; color: var(--text); white-space: nowrap;
+  border-bottom: 1px solid var(--bdr-light); font-variant-numeric: tabular-nums;
+}
+#prod-report-body .rq-agg-table tr:last-child td { border-bottom: none; }
+#prod-report-body .rq-agg-table td:first-child { text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+#prod-report-body .rq-agg-table input.rq-mat-input {
+  width: 62px; text-align: right; font-size: 12px; padding: 2px 4px;
+  background: var(--input-bg); color: var(--text); border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+}
+#prod-report-body .rq-agg-note { color: var(--text3); font-size: 11px; padding: 6px 2px; }
+#prod-report-body .rq-sunset-flag { font-size: 11px; margin-left: 4px; cursor: help; }
+
+/* ── Margin quadrant chart ── */
+#prod-report-body .rq-quad-card { background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); padding: 10px 12px 4px; margin-bottom: 10px; position: relative; }
+#prod-report-body .rq-quad-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+#prod-report-body .rq-quad-sub { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+#prod-report-body .rq-quad-tip {
+  position: absolute; pointer-events: none; display: none; z-index: 5;
+  background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+  box-shadow: var(--shadow-sm); padding: 6px 9px; font-size: 11.5px; color: var(--text2); max-width: 220px;
+}
+#prod-report-body .rq-quad-tip b { color: var(--text); font-variant-numeric: tabular-nums; }
+#prod-report-body .rq-quad-hit:focus { outline: none; }
+#prod-report-body .rq-quad-hit:focus + circle { stroke-width: 3; }
 </style>
 
 <style>

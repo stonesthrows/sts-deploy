@@ -551,6 +551,53 @@ function _rqSaveRatesObj(rates) {
   localStorage.setItem('sts-employee-rates', JSON.stringify(rates));
 }
 
+// ── Shared settings (rates + material costs) ────────────────────────────────
+// Rates/material costs are Notion-backed via /api/prod-settings so every
+// device agrees; localStorage is just the offline cache. Rates that lived
+// only in localStorage were per-browser, so timers stopped on the shop
+// tablet snapshotted $0/hr labor.
+
+var _rqSettingsSynced = false;
+var _rqMatSaveTimer   = null;
+
+function _rqLoadMatCosts() {
+  try { return JSON.parse(localStorage.getItem('sts-material-costs') || '{}'); }
+  catch (e) { return {}; }
+}
+
+function _rqMatCostFor(key) {
+  var m = _rqLoadMatCosts();
+  var v = m[key];
+  return (typeof v === 'number' && !isNaN(v)) ? v : null;
+}
+
+function _rqSyncProdSettings() {
+  if (_rqSettingsSynced) return;
+  _rqSettingsSynced = true; // fetch once per page load; every Save re-PUTs
+  fetch('/api/prod-settings')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(cfg) {
+      if (!cfg) return;
+      if (cfg.rates && typeof cfg.rates === 'object') _rqSaveRatesObj(cfg.rates);
+      if (cfg.materialCosts && typeof cfg.materialCosts === 'object') {
+        localStorage.setItem('sts-material-costs', JSON.stringify(cfg.materialCosts));
+      }
+      if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+    })
+    .catch(function() {});
+}
+
+function _rqPushProdSettings() {
+  fetch('/api/prod-settings', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rates: _rqLoadRates(), materialCosts: _rqLoadMatCosts() }),
+  }).then(function(r) {
+    if (!r.ok) toast('Settings sync failed — saved on this device only', '⚠');
+  }).catch(function() {
+    toast('Settings sync failed — saved on this device only', '⚠');
+  });
+}
+
 // Notion's Employee field stores full names, but rates are keyed by the
 // short first name used in the queue assignee dropdown — alias them so
 // historical sessions still resolve to a rate (see rqSyncShiftsForSession's
@@ -599,6 +646,7 @@ function rqSaveRatesPanel() {
     rates[name] = (v != null && !isNaN(v)) ? v : 0;
   });
   _rqSaveRatesObj(rates);
+  _rqPushProdSettings();
   _rqRatesPanelOpen = false;
   _rqRenderRatesPanel();
   if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
@@ -629,6 +677,7 @@ function _rqAttachItemPrices(items) {
 
 function rqRenderProductionReport(forceRefresh) {
   _rqRenderRatesPanel();
+  _rqSyncProdSettings();
   var body = document.getElementById('prod-report-body');
   if (!body) return;
   if (_rqReportSessions && !forceRefresh) { _rqRenderReportBody(_rqReportSessions); return; }
@@ -646,6 +695,7 @@ function rqRenderProductionReport(forceRefresh) {
           notionPageId: s.notionPageId,
           items: items,
           employee: { name: s.employeeName || '' },
+          category: s.category || '',
           startTime: s.startTime, stopTime: s.stopTime,
           totalMs: (s.totalMin || 0) * 60000,
           netMs: (s.netMin || 0) * 60000,
@@ -702,15 +752,26 @@ function _rqRenderReportBody(sessions) {
   var body = document.getElementById('prod-report-body');
   var summaryEl = document.getElementById('prod-report-summary');
   if (!body) return;
+  _rqRenderReportControls();
   if (!sessions.length) {
     body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No production data yet</div>';
     if (summaryEl) summaryEl.innerHTML = '';
     return;
   }
 
-  var grandLabor = 0, grandValue = 0, unpricedCount = 0;
+  var idxs = _rqVisibleReportIdxs(sessions);
+  _rqRenderReportSummary(sessions, idxs, summaryEl);
+  if (!idxs.length) {
+    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No sessions in this date range</div>';
+    return;
+  }
+  if (_rqReportView === 'design' || _rqReportView === 'category') {
+    _rqRenderAggView(sessions, idxs);
+    return;
+  }
 
-  var cards = sessions.map(function(s, i) {
+  var cards = idxs.map(function(i) {
+    var s = sessions[i];
     var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
     var extraCount  = (s.items && s.items.length > 1) ? ' +' + (s.items.length - 1) + ' more' : '';
     var safeName    = (primaryName + extraCount).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -719,29 +780,13 @@ function _rqRenderReportBody(sessions) {
     var totalPcs = null;
     (s.items || []).forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
 
-    var hrs           = (s.netMs || 0) / 3600000;
-    var rateIsEstimate = s.laborRate == null;
-    var rate          = rateIsEstimate ? (_rqRateFor(emp) || 0) : s.laborRate;
-    var laborCost     = hrs * rate;
+    var m = _rqSessionMetrics(s);
 
-    var hasAnyValue   = (s.items || []).some(function(it) { return it.pieces != null && it.unitPrice != null; });
-    var valueIsEstimate = false;
-    var itemValue     = 0;
-    (s.items || []).forEach(function(it) {
-      if (it.pieces == null || it.unitPrice == null) return;
-      itemValue += it.pieces * it.unitPrice;
-      if (it._priceIsEstimate) valueIsEstimate = true;
-    });
-    var profit = itemValue - laborCost;
-
-    grandLabor += laborCost;
-    if (hasAnyValue) grandValue += itemValue;
-    else unpricedCount++;
-
-    var laborTxt  = 'Labor: $' + laborCost.toFixed(2) + ' (' + hrs.toFixed(1) + 'h × $' + rate.toFixed(2) + '/hr)' + (rateIsEstimate ? ' (est.)' : '');
-    var valueTxt  = hasAnyValue ? 'Value: $' + itemValue.toFixed(2) + (valueIsEstimate ? ' (est.)' : '') : 'Value: —';
-    var profitTxt = hasAnyValue ? 'Profit: ' + (profit >= 0 ? '+$' + profit.toFixed(2) : '-$' + Math.abs(profit).toFixed(2)) : 'Profit: —';
-    var profitColor = profit >= 0 ? '#3A7A4A' : '#A0402A';
+    var laborTxt  = 'Labor: $' + m.laborCost.toFixed(2) + ' (' + m.hrs.toFixed(1) + 'h × $' + m.rate.toFixed(2) + '/hr)' + (m.rateIsEstimate ? ' (est.)' : '');
+    var matTxt    = m.matCost > 0 ? 'Mat: $' + m.matCost.toFixed(2) : '';
+    var valueTxt  = m.hasAnyValue ? 'Value: $' + m.itemValue.toFixed(2) + (m.valueIsEstimate ? ' (est.)' : '') : 'Value: —';
+    var profitTxt = m.hasAnyValue ? 'Profit: ' + (m.profit >= 0 ? '+$' + m.profit.toFixed(2) : '-$' + Math.abs(m.profit).toFixed(2)) : 'Profit: —';
+    var profitColor = m.profit >= 0 ? '#3A7A4A' : '#A0402A';
 
     var editRow = _rqSessionEditRowHTML('report', i, s);
 
@@ -763,6 +808,7 @@ function _rqRenderReportBody(sessions) {
       + '<div class="rq-sbar-footer" style="flex-wrap:wrap;">'
       + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
       + '<span class="rq-sbar-pieces">' + laborTxt + '</span>'
+      + (matTxt ? '<span class="rq-sbar-pieces">' + matTxt + '</span>' : '')
       + '<span class="rq-sbar-pieces">' + valueTxt + '</span>'
       + '<span class="rq-sbar-pieces" style="font-weight:700;color:' + profitColor + ';">' + profitTxt + '</span>'
       + '</div>'
@@ -771,16 +817,462 @@ function _rqRenderReportBody(sessions) {
   }).join('');
 
   body.innerHTML = cards;
-  if (summaryEl) {
-    var grandProfit = grandValue - grandLabor;
-    summaryEl.innerHTML = '<div class="prod-report-summary">'
-      + '<span>' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : '') + '</span>'
-      + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
-      + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
-      + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
-      + (unpricedCount ? '<span title="Labor from these sessions counts against Total Profit, but their output value is unknown">⚠ ' + unpricedCount + ' session' + (unpricedCount !== 1 ? 's' : '') + ' missing price data</span>' : '')
-      + '</div>';
+}
+
+// Per-session derived cost/value figures — shared by the session cards, the
+// range summary, and the By Design / By Category rollups so every view agrees.
+function _rqSessionMetrics(s) {
+  var emp = s.employee ? s.employee.name : '';
+  var hrs = (s.netMs || 0) / 3600000;
+  var rateIsEstimate = s.laborRate == null;
+  var rate = rateIsEstimate ? (_rqRateFor(emp) || 0) : s.laborRate;
+  var laborCost = hrs * rate;
+  var hasAnyValue = false, valueIsEstimate = false, itemValue = 0, matCost = 0;
+  (s.items || []).forEach(function(it) {
+    if (it.pieces != null && it.pieces > 0) {
+      var mc = _rqMatCostFor(_rqAggKeyForItem(it));
+      if (mc != null) matCost += it.pieces * mc;
+    }
+    if (it.pieces == null || it.unitPrice == null) return;
+    hasAnyValue = true;
+    itemValue += it.pieces * it.unitPrice;
+    if (it._priceIsEstimate) valueIsEstimate = true;
+  });
+  return { hrs: hrs, rate: rate, rateIsEstimate: rateIsEstimate, laborCost: laborCost,
+           hasAnyValue: hasAnyValue, valueIsEstimate: valueIsEstimate, itemValue: itemValue,
+           matCost: matCost, profit: itemValue - laborCost - matCost };
+}
+
+function _rqRenderReportSummary(sessions, idxs, summaryEl) {
+  if (!summaryEl) return;
+  var grandLabor = 0, grandValue = 0, grandMat = 0, unpricedCount = 0;
+  idxs.forEach(function(i) {
+    var m = _rqSessionMetrics(sessions[i]);
+    grandLabor += m.laborCost;
+    grandMat   += m.matCost;
+    if (m.hasAnyValue) grandValue += m.itemValue;
+    else unpricedCount++;
+  });
+  var grandProfit = grandValue - grandLabor - grandMat;
+  summaryEl.innerHTML = '<div class="prod-report-summary">'
+    + '<span>' + idxs.length + ' session' + (idxs.length !== 1 ? 's' : '') + '</span>'
+    + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
+    + (grandMat > 0 ? '<span>Total Mat: <b>$' + grandMat.toFixed(2) + '</b></span>' : '')
+    + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
+    + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
+    + (unpricedCount ? '<span title="Labor from these sessions counts against Total Profit, but their output value is unknown">⚠ ' + unpricedCount + ' session' + (unpricedCount !== 1 ? 's' : '') + ' missing price data</span>' : '')
+    + '</div>';
+}
+
+// ── Report views: controls, date range, rollups, sales, quadrant ────────────
+// The session ledger answers "what happened"; the By Design / By Category
+// rollups + Square sales join answer the planning questions (is this design
+// priced right / underperforming / worth doubling down on).
+
+var _rqReportView  = 'sessions';   // 'sessions' | 'design' | 'category'
+var _rqReportRange = 'all';        // 'all' | 'month' | '30d' | '90d'
+var _rqAggSort     = { key: 'value', dir: -1 };
+var _rqSales       = {};           // { [range]: { status, byId: { [variationId]: { sold, revenue } }, capped } }
+var _rqQuadPoints  = [];
+
+var RQ_SUNSET_SELLTHRU = 0.4;      // flag designs under both thresholds
+var RQ_SUNSET_MARGIN   = 0.25;
+
+function _rqEsc2(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function rqSetReportView(v)  { _rqReportView = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
+function rqSetReportRange(v) { _rqReportRange = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
+
+function _rqRenderReportControls() {
+  var el = document.getElementById('prod-report-controls');
+  if (!el) return;
+  var ranges = [['all','All time'],['month','This month'],['30d','Last 30 days'],['90d','Last 90 days']];
+  var views  = [['sessions','Sessions'],['design','By Design'],['category','By Category']];
+  el.innerHTML = '<div class="rq-report-controls">'
+    + '<select class="rq-report-range" onchange="rqSetReportRange(this.value)">'
+    + ranges.map(function(r) { return '<option value="' + r[0] + '"' + (_rqReportRange === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
+    + '</select>'
+    + '<div class="rq-report-views">'
+    + views.map(function(v) {
+        return '<button class="rq-report-view-btn' + (_rqReportView === v[0] ? ' rq-view-on' : '') + '" onclick="rqSetReportView(\'' + v[0] + '\')">' + v[1] + '</button>';
+      }).join('')
+    + '</div>'
+    + '</div>';
+}
+
+function _rqRangeStartMs(range) {
+  var now = new Date();
+  if (range === '30d')   return Date.now() - 30 * 86400000;
+  if (range === '90d')   return Date.now() - 90 * 86400000;
+  if (range === 'month') return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  return null;
+}
+
+function _rqVisibleReportIdxs(sessions) {
+  var startMs = _rqRangeStartMs(_rqReportRange);
+  var idxs = [];
+  sessions.forEach(function(s, i) {
+    if (startMs != null) {
+      var t = s.startTime || s.stopTime;
+      if (!t || new Date(t).getTime() < startMs) return;
+    }
+    idxs.push(i);
+  });
+  return idxs;
+}
+
+// ── Rollup: group filtered sessions by design (Square variation) or category.
+// A session's labor is allocated across its items proportionally by pieces.
+
+function _rqAggKeyForItem(it) {
+  return (it.squareId && !it.isCustom) ? it.squareId : 'custom:' + (it.name || '');
+}
+
+function _rqReportAgg(sessions, idxs, byCategory) {
+  var groups = {};
+  function group(key, name, squareId) {
+    return groups[key] || (groups[key] = {
+      key: key, name: name, squareId: squareId || '',
+      pcs: 0, hrs: 0, labor: 0, value: 0, mat: 0, unpricedPcs: 0,
+      sessionCount: 0, estimate: false, _seen: {},
+    });
   }
+  idxs.forEach(function(i) {
+    var s = sessions[i];
+    var m = _rqSessionMetrics(s);
+    var items = (s.items || []).filter(function(it) { return it.pieces != null && it.pieces > 0; });
+    var totalPcs = 0;
+    items.forEach(function(it) { totalPcs += it.pieces; });
+    function mark(g) {
+      if (!g._seen[i]) { g._seen[i] = true; g.sessionCount++; }
+      if (m.rateIsEstimate) g.estimate = true;
+    }
+    if (!items.length) {
+      // Keep hours/labor from sessions with no counted pieces visible instead
+      // of silently dropping their cost from the rollup.
+      var g0 = group(byCategory ? 'cat:' + (s.category || '') : '__none__',
+                     byCategory ? (s.category || 'Uncategorized') : '(no counted pieces)');
+      mark(g0);
+      g0.hrs += m.hrs; g0.labor += m.laborCost;
+      return;
+    }
+    items.forEach(function(it) {
+      var itemKey = _rqAggKeyForItem(it);
+      var key = byCategory ? 'cat:' + (s.category || '') : itemKey;
+      var g = group(key, byCategory ? (s.category || 'Uncategorized') : (it.name || '—'), (!byCategory && it.squareId && !it.isCustom) ? it.squareId : '');
+      mark(g);
+      var share = totalPcs ? it.pieces / totalPcs : 0;
+      g.pcs   += it.pieces;
+      g.hrs   += m.hrs * share;
+      g.labor += m.laborCost * share;
+      if (it.unitPrice != null) {
+        g.value += it.pieces * it.unitPrice;
+        if (it._priceIsEstimate) g.estimate = true;
+      } else {
+        g.unpricedPcs += it.pieces;
+      }
+      var mc = _rqMatCostFor(itemKey);
+      if (mc != null) g.mat += it.pieces * mc;
+    });
+  });
+  return Object.keys(groups).map(function(k) {
+    var g = groups[k];
+    delete g._seen;
+    g.profit   = g.value - g.labor - g.mat;
+    g.margin   = g.value > 0 ? g.profit / g.value : null;
+    g.valPerHr = g.hrs > 0 ? g.value / g.hrs : null;
+    return g;
+  });
+}
+
+// ── Square sales join (units sold + revenue per variation in the range) ────
+// Uses the existing /api/square proxy; fetched once per range per page load.
+// "All time" is capped to the last 365 days of orders to bound the fetch.
+
+function _rqEnsureSales(range) {
+  if (_rqSales[range]) return;
+  _rqSales[range] = { status: 'loading', byId: {} };
+  var startMs = _rqRangeStartMs(range);
+  var capped = startMs == null;
+  var startIso = new Date(startMs != null ? startMs : Date.now() - 365 * 86400000).toISOString();
+  var byId = {};
+  function fetchPage(cursor, pageNum) {
+    var reqBody = {
+      location_ids: [INV_LOCATION_ID],
+      query: {
+        filter: {
+          state_filter: { states: ['COMPLETED'] },
+          date_time_filter: { closed_at: { start_at: startIso, end_at: new Date().toISOString() } },
+        },
+        sort: { sort_field: 'CLOSED_AT', sort_order: 'DESC' },
+      },
+      limit: 200,
+    };
+    if (cursor) reqBody.cursor = cursor;
+    return _rqSqCall('/orders/search', { method: 'POST', body: reqBody }).then(function(data) {
+      if (data.errors && data.errors.length) throw new Error(data.errors[0].detail || 'Square error');
+      (data.orders || []).forEach(function(o) {
+        (o.line_items || []).forEach(function(li) {
+          if (!li.catalog_object_id) return;
+          var q = parseFloat(li.quantity || '0') || 0;
+          var rec = byId[li.catalog_object_id] || (byId[li.catalog_object_id] = { sold: 0, revenue: 0 });
+          rec.sold += q;
+          rec.revenue += li.total_money ? li.total_money.amount / 100 : 0;
+        });
+      });
+      if (data.cursor && pageNum < 15) return fetchPage(data.cursor, pageNum + 1);
+    });
+  }
+  fetchPage(null, 0).then(function() {
+    _rqSales[range] = { status: 'ready', byId: byId, capped: capped };
+    if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+  }).catch(function() {
+    _rqSales[range] = { status: 'error', byId: {}, capped: capped };
+    if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+  });
+}
+
+function rqRetrySales() {
+  delete _rqSales[_rqReportRange];
+  if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+}
+
+function rqSetAggSort(key) {
+  if (_rqAggSort.key === key) _rqAggSort.dir = -_rqAggSort.dir;
+  else _rqAggSort = { key: key, dir: -1 };
+  if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+}
+
+function rqSetMatCost(inp) {
+  var key = inp.getAttribute('data-key');
+  if (!key) return;
+  var raw = inp.value.trim();
+  var v = raw === '' ? null : parseFloat(raw);
+  var m = _rqLoadMatCosts();
+  if (v == null || isNaN(v)) delete m[key]; else m[key] = v;
+  localStorage.setItem('sts-material-costs', JSON.stringify(m));
+  clearTimeout(_rqMatSaveTimer);
+  _rqMatSaveTimer = setTimeout(_rqPushProdSettings, 800);
+  if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+}
+
+function _rqFmtMoney(n) {
+  var abs = Math.abs(n);
+  var digits = abs >= 1000 ? 0 : 2;
+  return (n < 0 ? '-$' : '$') + abs.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function _rqRenderAggView(sessions, idxs) {
+  var body = document.getElementById('prod-report-body');
+  if (!body) return;
+  var byCategory = _rqReportView === 'category';
+  var rows = _rqReportAgg(sessions, idxs, byCategory);
+  if (!rows.length) {
+    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Nothing to aggregate in this range</div>';
+    return;
+  }
+
+  if (!_rqSales[_rqReportRange]) _rqEnsureSales(_rqReportRange);
+  var sales = _rqSales[_rqReportRange];
+  var salesReady = sales && sales.status === 'ready';
+
+  rows.forEach(function(g) {
+    var rec = (salesReady && g.squareId) ? sales.byId[g.squareId] : null;
+    g.sold     = rec ? rec.sold : (salesReady && g.squareId ? 0 : null);
+    g.revenue  = rec ? rec.revenue : null;
+    g.sellThru = (g.sold != null && g.pcs > 0) ? g.sold / g.pcs : null;
+    g.sunset   = g.sellThru != null && g.margin != null && g.sellThru < RQ_SUNSET_SELLTHRU && g.margin < RQ_SUNSET_MARGIN;
+  });
+
+  var sortKey = _rqAggSort.key, sortDir = _rqAggSort.dir;
+  rows.sort(function(a, b) {
+    var av = a[sortKey], bv = b[sortKey];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * (av - bv);
+  });
+
+  var cols = byCategory
+    ? [['name','Category'],['sessionCount','Sessions'],['pcs','Pcs'],['hrs','Hrs'],['labor','Labor'],['mat','Mat'],['value','Value'],['profit','Profit'],['margin','Margin'],['valPerHr','$/hr']]
+    : [['name','Design'],['pcs','Pcs'],['hrs','Hrs'],['labor','Labor'],['matPc','Mat $/pc'],['value','Value'],['profit','Profit'],['margin','Margin'],['valPerHr','$/hr'],['sold','Sold'],['sellThru','Sell-thru']];
+
+  var arrow = function(key) { return sortKey === key ? (sortDir < 0 ? ' ▾' : ' ▴') : ''; };
+  var thead = '<tr>' + cols.map(function(c) {
+    var sk = c[0] === 'matPc' ? 'mat' : c[0];
+    return '<th onclick="rqSetAggSort(\'' + sk + '\')">' + c[1] + arrow(sk) + '</th>';
+  }).join('') + '</tr>';
+
+  var totals = { pcs: 0, hrs: 0, labor: 0, mat: 0, value: 0, profit: 0, sold: 0, sessionCount: 0 };
+  var trs = rows.map(function(g) {
+    totals.pcs += g.pcs; totals.hrs += g.hrs; totals.labor += g.labor; totals.mat += g.mat;
+    totals.value += g.value; totals.profit += g.profit; totals.sessionCount += g.sessionCount;
+    if (g.sold != null) totals.sold += g.sold;
+    var nameCell = _rqEsc2(g.name)
+      + (g.estimate ? ' <span title="Includes estimated rates or prices">≈</span>' : '')
+      + (g.unpricedPcs ? ' <span title="' + g.unpricedPcs + ' pcs have no unit price and are excluded from Value">⚠</span>' : '')
+      + (g.sunset ? ' <span class="rq-sunset-flag" title="Sell-through under ' + Math.round(RQ_SUNSET_SELLTHRU * 100) + '% and margin under ' + Math.round(RQ_SUNSET_MARGIN * 100) + '% — consider sunsetting">🌅</span>' : '');
+    var marginTxt = g.margin != null ? Math.round(g.margin * 100) + '%' : '—';
+    var marginColor = g.margin == null ? '' : (g.margin >= 0 ? (g.margin < RQ_SUNSET_MARGIN ? '#B07A2A' : '#3A7A4A') : '#A0402A');
+    var matCell = byCategory
+      ? _rqFmtMoney(g.mat)
+      : '<input class="rq-mat-input" type="number" min="0" step="0.01" placeholder="—" data-key="' + _rqEsc2(g.key) + '"'
+        + ' value="' + (_rqMatCostFor(g.key) != null ? _rqMatCostFor(g.key) : '') + '" onchange="rqSetMatCost(this)">';
+    return '<tr>'
+      + '<td title="' + _rqEsc2(g.name) + '">' + nameCell + '</td>'
+      + (byCategory ? '<td>' + g.sessionCount + '</td>' : '')
+      + '<td>' + g.pcs + '</td>'
+      + '<td>' + g.hrs.toFixed(1) + '</td>'
+      + '<td>' + _rqFmtMoney(g.labor) + '</td>'
+      + '<td>' + matCell + '</td>'
+      + '<td>' + (g.value ? _rqFmtMoney(g.value) : '—') + '</td>'
+      + '<td style="font-weight:600;color:' + (g.profit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + _rqFmtMoney(g.profit) + '</td>'
+      + '<td' + (marginColor ? ' style="color:' + marginColor + ';"' : '') + '>' + marginTxt + '</td>'
+      + '<td>' + (g.valPerHr != null ? _rqFmtMoney(g.valPerHr) : '—') + '</td>'
+      + (byCategory ? '' :
+          '<td>' + (g.sold != null ? g.sold : '—') + '</td>'
+        + '<td>' + (g.sellThru != null ? Math.round(g.sellThru * 100) + '%' : '—') + '</td>')
+      + '</tr>';
+  }).join('');
+
+  var totalMargin = totals.value > 0 ? Math.round((totals.profit / totals.value) * 100) + '%' : '—';
+  var totalRow = '<tr style="font-weight:700;">'
+    + '<td>Total</td>'
+    + (byCategory ? '<td>' + totals.sessionCount + '</td>' : '')
+    + '<td>' + totals.pcs + '</td>'
+    + '<td>' + totals.hrs.toFixed(1) + '</td>'
+    + '<td>' + _rqFmtMoney(totals.labor) + '</td>'
+    + '<td>' + _rqFmtMoney(totals.mat) + '</td>'
+    + '<td>' + _rqFmtMoney(totals.value) + '</td>'
+    + '<td style="color:' + (totals.profit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + _rqFmtMoney(totals.profit) + '</td>'
+    + '<td>' + totalMargin + '</td>'
+    + '<td></td>'
+    + (byCategory ? '' : '<td>' + (salesReady ? totals.sold : '—') + '</td><td></td>')
+    + '</tr>';
+
+  var salesNote = '';
+  if (!byCategory) {
+    if (!sales || sales.status === 'loading') salesNote = '<div class="rq-agg-note">Loading Square sales for this range…</div>';
+    else if (sales.status === 'error') salesNote = '<div class="rq-agg-note">Couldn’t load Square sales — <a href="javascript:void(0)" onclick="rqRetrySales()">retry</a></div>';
+    else if (sales.capped) salesNote = '<div class="rq-agg-note">Sold / Sell-thru use the last 365 days of Square sales</div>';
+  }
+
+  var quad = (!byCategory && salesReady) ? _rqQuadrantHTML(rows) : '';
+
+  body.innerHTML = quad
+    + '<div class="rq-agg-wrap"><table class="rq-agg-table"><thead>' + thead + '</thead><tbody>' + trs + totalRow + '</tbody></table></div>'
+    + salesNote
+    + '<div class="rq-agg-note">Profit = Value − allocated labor − material · Labor is split across a session’s items by piece count' + (byCategory ? ' · Category comes from each session’s primary item' : '') + '</div>';
+}
+
+// ── Margin quadrant (menu-engineering matrix): margin % vs units sold ──────
+// Single series (dots use the app accent; identity lives in the tooltip and
+// the table above), hairline dividers at the means, ≥24px hit targets.
+
+function _rqQuadrantHTML(rows) {
+  var pts = rows.filter(function(g) { return g.margin != null && g.sold != null && g.key !== '__none__'; });
+  if (pts.length < 3) return '';
+  _rqQuadPoints = pts;
+
+  var W = 640, H = 290, L = 46, R = 14, T = 16, B = 34;
+  var pw = W - L - R, ph = H - T - B;
+
+  var maxSold = 0, sumSold = 0, minM = 0, maxM = 0.5, sumM = 0;
+  pts.forEach(function(p) {
+    if (p.sold > maxSold) maxSold = p.sold;
+    sumSold += p.sold;
+    if (p.margin < minM) minM = p.margin;
+    if (p.margin > maxM) maxM = p.margin;
+    sumM += p.margin;
+  });
+  var xMax = Math.max(1, Math.ceil(maxSold * 1.08));
+  var yMin = Math.floor((minM - 0.05) * 10) / 10;
+  var yMax = Math.ceil((maxM + 0.05) * 10) / 10;
+  var xDiv = sumSold / pts.length;
+  var yDiv = sumM / pts.length;
+
+  var X = function(v) { return L + (v / xMax) * pw; };
+  var Y = function(v) { return T + (1 - (v - yMin) / (yMax - yMin)) * ph; };
+
+  // Clean ticks: x at 0/half/max (rounded), y every 25 points of margin
+  var xTicks = [0, Math.round(xMax / 2), xMax];
+  var yTicks = [];
+  for (var yv = Math.ceil(yMin * 4) / 4; yv <= yMax + 1e-9; yv += 0.25) yTicks.push(Math.round(yv * 100) / 100);
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" role="img" aria-label="Margin versus units sold per design">';
+  yTicks.forEach(function(v) {
+    svg += '<line x1="' + L + '" y1="' + Y(v) + '" x2="' + (W - R) + '" y2="' + Y(v) + '" stroke="var(--bdr-light)" stroke-width="1"/>'
+        +  '<text x="' + (L - 6) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + Math.round(v * 100) + '%</text>';
+  });
+  xTicks.forEach(function(v) {
+    svg += '<text x="' + X(v) + '" y="' + (H - B + 14) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + v + '</text>';
+  });
+  // Quadrant dividers (means)
+  svg += '<line x1="' + X(xDiv) + '" y1="' + T + '" x2="' + X(xDiv) + '" y2="' + (H - B) + '" stroke="var(--bdr)" stroke-width="1"/>'
+      +  '<line x1="' + L + '" y1="' + Y(yDiv) + '" x2="' + (W - R) + '" y2="' + Y(yDiv) + '" stroke="var(--bdr)" stroke-width="1"/>';
+  // Corner labels
+  var lab = function(x, y, anchor, text) {
+    return '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-size="10" fill="var(--text3)">' + text + '</text>';
+  };
+  svg += lab(L + 5, T + 11, 'start', 'Niche win')
+      +  lab(W - R - 5, T + 11, 'end', 'Star ★')
+      +  lab(L + 5, H - B - 5, 'start', 'Sunset?')
+      +  lab(W - R - 5, H - B - 5, 'end', 'Reprice');
+  // Axis titles
+  svg += '<text x="' + (L + pw / 2) + '" y="' + (H - 3) + '" text-anchor="middle" font-size="10" fill="var(--text3)">Units sold</text>';
+  // Dots (2px surface ring) + oversized transparent hit targets
+  pts.forEach(function(p, i) {
+    var cx = X(Math.min(p.sold, xMax)), cy = Y(Math.max(Math.min(p.margin, yMax), yMin));
+    svg += '<g>'
+      + '<circle class="rq-quad-hit" data-i="' + i + '" cx="' + cx + '" cy="' + cy + '" r="14" fill="transparent" tabindex="0"'
+      + ' onmouseenter="rqQuadTip(this)" onmouseleave="rqQuadTipHide(this)" onfocus="rqQuadTip(this)" onblur="rqQuadTipHide(this)"/>'
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="var(--accent)" stroke="var(--card-bg)" stroke-width="2" pointer-events="none"/>'
+      + '</g>';
+  });
+  svg += '</svg>';
+
+  return '<div class="rq-quad-card">'
+    + '<div class="rq-quad-title">Margin vs. units sold</div>'
+    + '<div class="rq-quad-sub">Each dot is a design · dividers sit at the averages · hover or tab to a dot for details</div>'
+    + svg
+    + '<div class="rq-quad-tip"></div>'
+    + '</div>';
+}
+
+function rqQuadTip(el) {
+  var i = parseInt(el.getAttribute('data-i'), 10);
+  var p = _rqQuadPoints[i];
+  var card = el.closest('.rq-quad-card');
+  var tip = card && card.querySelector('.rq-quad-tip');
+  if (!p || !tip) return;
+  while (tip.firstChild) tip.removeChild(tip.firstChild);
+  var name = document.createElement('div');
+  name.textContent = p.name;
+  name.style.cssText = 'font-weight:600;color:var(--text);margin-bottom:2px;';
+  tip.appendChild(name);
+  [Math.round(p.margin * 100) + '% margin',
+   p.sold + ' sold / ' + p.pcs + ' made' + (p.sellThru != null ? ' (' + Math.round(p.sellThru * 100) + '%)' : ''),
+   _rqFmtMoney(p.profit) + ' profit',
+  ].forEach(function(line) {
+    var d = document.createElement('div');
+    d.textContent = line;
+    tip.appendChild(d);
+  });
+  var cardRect = card.getBoundingClientRect();
+  var dotRect = el.getBoundingClientRect();
+  tip.style.display = 'block';
+  var left = dotRect.left - cardRect.left + dotRect.width / 2 + 10;
+  var top  = dotRect.top - cardRect.top - 8;
+  if (left + 230 > cardRect.width) left = Math.max(4, dotRect.left - cardRect.left - 236);
+  tip.style.left = left + 'px';
+  tip.style.top  = Math.max(4, top) + 'px';
+}
+
+function rqQuadTipHide(el) {
+  var card = el.closest('.rq-quad-card');
+  var tip = card && card.querySelector('.rq-quad-tip');
+  if (tip) tip.style.display = 'none';
 }
 
 function rqSyncShiftsForSession(store, i) {

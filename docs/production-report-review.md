@@ -4,6 +4,14 @@ Code audited: `js/restock-sessions.js` (report UI + math), `js/restock.js` (time
 stop → session save), `functions/api/notion-timesession.js` (Notion CRUD),
 `functions/api/square-sync.js` (Square shift reconciliation).
 
+> **Status:** Phase 1 fixes (A1–A5, B1–B3, C1–C3, C6, C7) and Phase 2 steps 1–5
+> (shared rates via `/api/prod-settings`, material costs, date-range filter,
+> By Design / By Category rollups, Square sales join with sell-through, margin
+> quadrant + sunset flags) are implemented on this branch. Still open by
+> design: B4 (flat 15-min deduction — business-rule decision), C4 (estimate
+> price locked in on edit), C5 (idempotency key blocks corrected re-push —
+> unreachable via current UI).
+
 ---
 
 ## Phase 1 — Bugs & Issue Resolution
