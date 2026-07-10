@@ -1572,6 +1572,15 @@ function rqStartTimer(pid, itemText, assigneeName) {
   }
 }
 
+// Strip transient/private keys (_priceIsEstimate etc.) so the Notion
+// "Items JSON" snapshot stays small and canonical.
+function _rqItemsForJson(items) {
+  return (items || []).map(function(it) {
+    return { name: it.name || '', squareId: it.squareId || '', pieces: it.pieces != null ? it.pieces : null,
+             isCustom: !!it.isCustom, unitPrice: it.unitPrice != null ? it.unitPrice : null };
+  });
+}
+
 function rqStopTimer(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
@@ -1632,11 +1641,48 @@ function rqStopTimer(pid) {
   if (expandedItems.some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; })) {
     rqShowPushPrompt(session);
   }
-  if (!session.notionPageId) { session.saved = true; rqRenderSessions(); return; }
+  if (!session.notionPageId) {
+    // The Notion page create at timer start failed (offline, Notion hiccup) —
+    // create the page now instead of silently marking the session "Saved"
+    // and losing the hours/pieces on reload.
+    _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
+      session.items = pricedItems;
+      var postBody = {
+        itemName:     (pricedItems[0] && pricedItems[0].name) || '',
+        employeeName: (session.employee && session.employee.name) || '',
+        squareItemId: (pricedItems[0] && !pricedItems[0].isCustom && pricedItems[0].squareId) || '',
+        date:         session.startTime.slice(0, 10),
+        startTime:    session.startTime,
+        stopTime:     stopTime,
+        totalMin:     totalMin,
+        netMin:       netMin,
+        notes:        notes,
+        itemsJson:    JSON.stringify(_rqItemsForJson(pricedItems)),
+      };
+      if (totalPcs  != null) postBody.pieces    = totalPcs;
+      if (laborRate != null) postBody.laborRate = laborRate;
+      return fetch('/api/notion-timesession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(postBody),
+      }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+      .then(function(res) {
+        session.notionPageId = (res.data && res.data.notionPageId) || null;
+        session.saved = !!session.notionPageId;
+        session.error = session.saved ? null : 'Notion error';
+        rqRenderSessions();
+        toast(session.saved ? 'Session saved ✓' : 'Notion save failed', session.saved ? '✓' : '⚠');
+      });
+    }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
+    return;
+  }
   _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
     session.items = pricedItems;
-    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(pricedItems), laborRate: laborRate };
-    if (totalPcs != null) patchBody.pieces = totalPcs;
+    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(_rqItemsForJson(pricedItems)) };
+    if (totalPcs  != null) patchBody.pieces    = totalPcs;
+    // Only snapshot a real configured rate — writing the 0 that _rqRateFor
+    // used to return for "no rate set" locked sessions at $0/hr forever.
+    if (laborRate != null) patchBody.laborRate = laborRate;
     return fetch('/api/notion-timesession', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

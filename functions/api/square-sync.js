@@ -54,23 +54,29 @@ export async function onRequestPost(context) {
 
   const body = await context.request.json().catch(() => ({}));
 
-  const deps = { notionToken, squareToken };
-  const teamMembers = await fetchTeamMembers(deps);
+  try {
+    const deps = { notionToken, squareToken };
+    const teamMembers = await fetchTeamMembers(deps);
 
-  if (body.pageId) {
-    const page = await fetchNotionPage(deps, body.pageId);
-    if (!page) return jsonResp({ error: 'Notion page not found' }, 404);
-    const result = await syncOneSession(deps, teamMembers, page);
-    return jsonResp(result);
-  }
+    if (body.pageId) {
+      const page = await fetchNotionPage(deps, body.pageId);
+      if (!page) return jsonResp({ error: 'Notion page not found' }, 404);
+      const result = await syncOneSession(deps, teamMembers, page);
+      return jsonResp(result);
+    }
 
-  const pages = await fetchEligibleSessions(deps);
-  const results = [];
-  for (const page of pages) {
-    results.push(await syncOneSession(deps, teamMembers, page));
+    const pages = await fetchEligibleSessions(deps);
+    const results = [];
+    for (const page of pages) {
+      results.push(await syncOneSession(deps, teamMembers, page));
+    }
+    return jsonResp({ swept: results.length, synced: results.filter(r => r.status === 'synced').length,
+      failed: results.filter(r => r.status === 'failed').length, results });
+  } catch (e) {
+    // Surface Notion/Square failures (e.g. a missing DB property breaking the
+    // eligibility query) as a structured error instead of an opaque 1101.
+    return jsonResp({ error: e.message || String(e) }, 500);
   }
-  return jsonResp({ swept: results.length, synced: results.filter(r => r.status === 'synced').length,
-    failed: results.filter(r => r.status === 'failed').length, results });
 }
 
 // ── Notion reads ──────────────────────────────────────────────────────
@@ -93,9 +99,13 @@ async function fetchEligibleSessions(deps) {
         { property: 'Square Sync Failed', checkbox: { equals: false } },
         { property: 'Square Synced', checkbox: { equals: false } },
       ]},
+      // Recheck recently-*stopped* sessions for late Square corrections.
+      // Keyed off the immutable Stop Time — keying off Last Square Sync
+      // (which every sync resets to now) kept every synced session in the
+      // recheck window forever, re-patching all of them each cron sweep.
       { and: [
         { property: 'Square Synced', checkbox: { equals: true } },
-        { property: 'Last Square Sync', date: { after: recheckSinceIso } },
+        { property: 'Stop Time', date: { after: recheckSinceIso } },
       ]},
     ],
   };
@@ -140,14 +150,32 @@ function resolveTeamMemberId(empName, teamMembers) {
   return match ? match.id : '';
 }
 
-async function fetchShifts(deps, empId) {
+async function fetchShifts(deps, empId, startTime, stopTime) {
+  // Scope the search to the session's window (±24h for overnight/adjacent
+  // shifts) and sort newest-first. Unscoped, Square returns the oldest 100
+  // shifts, so once an employee passed 100 lifetime shifts no recent session
+  // could ever match — every sync went pending → "Square Sync Failed".
+  const padMs = 24 * 60 * 60 * 1000;
   const res = await fetch(`${SQUARE_API}/v2/labor/shifts/search`, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + deps.squareToken, 'Square-Version': SQUARE_VER, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: { filter: { team_member_ids: [empId], location_ids: [SQ_LOCATION] } }, limit: 100 }),
+    body: JSON.stringify({
+      query: {
+        filter: {
+          team_member_ids: [empId],
+          location_ids: [SQ_LOCATION],
+          start: {
+            start_at: new Date(new Date(startTime).getTime() - padMs).toISOString(),
+            end_at:   new Date(new Date(stopTime).getTime()  + padMs).toISOString(),
+          },
+        },
+        sort: { field: 'START_AT', order: 'DESC' },
+      },
+      limit: 100,
+    }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Square shift search failed');
+  if (!res.ok) throw new Error((data.errors && data.errors[0] && data.errors[0].detail) || data.message || 'Square shift search failed');
   return data.shifts || [];
 }
 
@@ -198,7 +226,9 @@ function reconcile(startTime, stopTime, shifts) {
 
 // ── Per-session sync ────────────────────────────────────────────────
 
-function txt(prop) { return prop?.rich_text?.[0]?.plain_text || ''; }
+// Join every rich_text block — long values are stored split across multiple
+// 2000-char blocks (see rtBlocks in notion-timesession.js).
+function txt(prop) { return (prop?.rich_text || []).map(r => r.plain_text || '').join(''); }
 
 async function syncOneSession(deps, teamMembers, page) {
   const props = page.properties;
@@ -214,7 +244,7 @@ async function syncOneSession(deps, teamMembers, page) {
 
   let shifts = [];
   try {
-    if (empId) shifts = await fetchShifts(deps, empId);
+    if (empId) shifts = await fetchShifts(deps, empId, startTime, stopTime);
   } catch (e) {
     if (pastFailCutoff) await markFailed(deps, pageId);
     return { pageId, status: 'error', reason: e.message };

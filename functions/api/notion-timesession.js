@@ -21,6 +21,17 @@ function jsonResp(data, status) {
   });
 }
 
+// Notion caps each rich_text element at 2000 chars but allows up to 100
+// elements — split long values (Items JSON on multi-variant sessions) across
+// blocks instead of truncating mid-string, which corrupted the stored JSON.
+function rtBlocks(str) {
+  var out = [], v = String(str || '');
+  for (var i = 0; i < v.length && out.length < 100; i += 2000) {
+    out.push({ text: { content: v.slice(i, i + 2000) } });
+  }
+  return out.length ? out : [{ text: { content: '' } }];
+}
+
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
@@ -38,10 +49,11 @@ export async function onRequestPatch(context) {
   if (s.dedMin    != null) props['Clocked-Out Deducted (min)'] = { number: s.dedMin };
   if (s.netMin    != null) props['Net Work Time (min)']        = { number: s.netMin };
   if (s.pieces         != null) props['Pieces Made']       = { number: s.pieces };
-  if (s.itemsJson      != null) props['Items JSON']        = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
+  if (s.itemsJson      != null) props['Items JSON']        = { rich_text: rtBlocks(s.itemsJson) };
   if (s.pushedToSquare != null) props['Pushed to Square']  = { checkbox: !!s.pushedToSquare };
   if (s.itemName       != null) props['Item Name']         = { rich_text: [{ text: { content: (s.itemName||'').slice(0,2000) } }] };
-  if (s.laborRate      != null) props['Labor Rate']        = { number: s.laborRate };
+  // Key-presence check (not != null) so an explicit null clears the rate.
+  if ('laborRate' in s)         props['Labor Rate']        = { number: s.laborRate };
 
   async function notionPatch(properties) {
     return fetch(NOTION_API + '/pages/' + s.pageId, {
@@ -56,7 +68,7 @@ export async function onRequestPatch(context) {
 
   // If Notion rejected because one of the newer optional properties doesn't exist
   // on this database yet, retry with just the core fields so the rest still saves.
-  if (!res.ok && data.message && (s.itemsJson != null || s.pushedToSquare != null || s.itemName != null || s.pieces != null || s.laborRate != null)) {
+  if (!res.ok && data.message && (s.itemsJson != null || s.pushedToSquare != null || s.itemName != null || s.pieces != null || 'laborRate' in s)) {
     var core = {};
     if (s.notes     != null) core['Notes']                      = props['Notes'];
     if (s.stopTime  != null) core['Stop Time']                  = props['Stop Time'];
@@ -83,7 +95,7 @@ export async function onRequestDelete(context) {
   var pageId = new URL(context.request.url).searchParams.get('pageId');
   if (!pageId) return jsonResp({ error: 'pageId required' }, 400);
 
-  await fetch(NOTION_API + '/pages/' + pageId, {
+  var res = await fetch(NOTION_API + '/pages/' + pageId, {
     method: 'PATCH',
     headers: {
       'Authorization':  'Bearer ' + token,
@@ -92,6 +104,10 @@ export async function onRequestDelete(context) {
     },
     body: JSON.stringify({ archived: true }),
   });
+  if (!res.ok) {
+    var data = await res.json().catch(function() { return {}; });
+    return jsonResp({ error: data.message || 'Notion error ' + res.status }, res.status);
+  }
   return jsonResp({ ok: true });
 }
 
@@ -116,7 +132,8 @@ export async function onRequestPost(context) {
     'Notes':                        { rich_text: [{ text: { content: (s.notes || '').slice(0, 2000) } }] },
   };
   if (s.pieces    != null) props['Pieces Made'] = { number: s.pieces };
-  if (s.itemsJson != null) props['Items JSON']  = { rich_text: [{ text: { content: (s.itemsJson||'').slice(0,2000) } }] };
+  if (s.itemsJson != null) props['Items JSON']  = { rich_text: rtBlocks(s.itemsJson) };
+  if (s.laborRate != null) props['Labor Rate']  = { number: s.laborRate };
   if (s.startTime)         props['Start Time']  = { date: { start: s.startTime } };
   if (s.stopTime)          props['Stop Time']   = { date: { start: s.stopTime  } };
 
@@ -136,11 +153,12 @@ export async function onRequestPost(context) {
   var data = await res.json();
 
   // If Notion rejected due to missing optional properties, retry without them
-  if (!res.ok && data.message && (s.pieces != null || s.itemsJson != null)) {
+  if (!res.ok && data.message && (s.pieces != null || s.itemsJson != null || s.laborRate != null)) {
     var propsWithout = Object.assign({}, props);
     delete propsWithout['Pieces Made'];
     delete propsWithout['Items JSON'];
     delete propsWithout['Pushed to Square'];
+    delete propsWithout['Labor Rate'];
     res  = await notionPost(propsWithout);
     data = await res.json();
   }
@@ -184,7 +202,9 @@ export async function onRequestGet(context) {
     cursor  = (fetchAll && data.has_more) ? data.next_cursor : null;
   } while (cursor);
 
-  function txt(prop) { return prop?.rich_text?.[0]?.plain_text || ''; }
+  // Join every rich_text block — long values (Items JSON) are stored split
+  // across multiple 2000-char blocks; reading only [0] re-truncated them.
+  function txt(prop) { return (prop?.rich_text || []).map(function(r) { return r.plain_text || ''; }).join(''); }
   function num(prop) { return prop?.number ?? null; }
 
   var sessions = results

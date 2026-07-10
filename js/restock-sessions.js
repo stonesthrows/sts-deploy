@@ -37,6 +37,7 @@ function rqLoadSessions() {
             totalMs:   (s.totalMin || 0) * 60000,
             netMs:     (s.netMin   || 0) * 60000,
             notes:     s.notes || '',
+            laborRate: s.laborRate != null ? s.laborRate : null,
             saved: true, error: null,
             pushed: !!s.pushed,
           };
@@ -443,8 +444,12 @@ function rqSaveEditSession(store, i) {
   }
   s.startTime = newStart; s.stopTime = newStop;
   if (newStart && newStop) {
+    // Preserve the session's existing deduction (Square-reconciled clocked-out
+    // time, or the default 15 min) instead of resetting to a flat 15 min —
+    // editing times used to silently wipe the /api/square-sync reconciliation.
+    var prevDedMs = Math.max(0, (s.totalMs || 0) - (s.netMs || 0)) || 15 * 60000;
     s.totalMs = new Date(newStop) - new Date(newStart);
-    s.netMs   = Math.max(0, s.totalMs - 15 * 60000);
+    s.netMs   = Math.max(0, s.totalMs - prevDedMs);
   }
   var rateEl = document.getElementById('rq-edit-rate-' + store + '-' + i);
   var newRate = null;
@@ -480,7 +485,10 @@ function rqSaveEditSession(store, i) {
       }
     }
     return next;
-  }).filter(function(it) { return it.pieces != null; });
+  });
+  // No blank-pieces filter here: legacy sessions load with pieces == null, and
+  // dropping those rows on Save silently erased their items. Removal is the
+  // explicit ✕ button only.
   delete s._itemsBackup;
   delete _rqEditAdds[store][i];
   _rqEditingSession[store] = null;
@@ -499,15 +507,22 @@ function rqSaveEditSession(store, i) {
     if (newStart && newStop) {
       patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
       patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
+      patch.dedMin   = parseFloat(((s.totalMs - s.netMs) / 60000).toFixed(2));
     }
     if (totalPcs != null) patch.pieces = totalPcs;
-    if (rateChanged && newRate != null) patch.laborRate = newRate;
-    patch.itemsJson = JSON.stringify(pricedItems);
+    // Send the rate even when cleared (null) — omitting it left the old rate
+    // in Notion, so a cleared field reappeared on the next load.
+    if (rateChanged) patch.laborRate = newRate;
+    patch.itemsJson = JSON.stringify(_rqItemsForJson(pricedItems));
     patch.itemName  = (pricedItems[0] && pricedItems[0].name) || '';
     return fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
       .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
       .then(function(res) {
         if (!res.ok) { toast('Notion update failed', '⚠'); return; }
+        // The other store's copy of this session is now stale — drop the
+        // report cache / refetch the log so both surfaces agree.
+        if (store === 'log') { _rqReportSessions = null; }
+        else { rqLoadSessions(); }
         if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
         toast('Session updated ✓', '✓');
       });
@@ -546,7 +561,10 @@ function _rqRateFor(name) {
   var rates = _rqLoadRates();
   var key = RQ_NAME_ALIASES[name] || name;
   var r = rates[key];
-  return (typeof r === 'number' && !isNaN(r)) ? r : 0;
+  // null (not 0) when unset: a 0 here used to get snapshotted to Notion as an
+  // authoritative $0/hr rate on any device where rates were never entered,
+  // permanently zeroing that session's labor cost in the report.
+  return (typeof r === 'number' && !isNaN(r) && r > 0) ? r : null;
 }
 
 function _rqRenderRatesPanel() {
@@ -629,6 +647,7 @@ function rqRenderProductionReport(forceRefresh) {
           items: items,
           employee: { name: s.employeeName || '' },
           startTime: s.startTime, stopTime: s.stopTime,
+          totalMs: (s.totalMin || 0) * 60000,
           netMs: (s.netMin || 0) * 60000,
           laborRate: s.laborRate != null ? s.laborRate : null,
         };
@@ -689,7 +708,7 @@ function _rqRenderReportBody(sessions) {
     return;
   }
 
-  var grandLabor = 0, grandValue = 0;
+  var grandLabor = 0, grandValue = 0, unpricedCount = 0;
 
   var cards = sessions.map(function(s, i) {
     var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
@@ -702,7 +721,7 @@ function _rqRenderReportBody(sessions) {
 
     var hrs           = (s.netMs || 0) / 3600000;
     var rateIsEstimate = s.laborRate == null;
-    var rate          = rateIsEstimate ? _rqRateFor(emp) : s.laborRate;
+    var rate          = rateIsEstimate ? (_rqRateFor(emp) || 0) : s.laborRate;
     var laborCost     = hrs * rate;
 
     var hasAnyValue   = (s.items || []).some(function(it) { return it.pieces != null && it.unitPrice != null; });
@@ -717,6 +736,7 @@ function _rqRenderReportBody(sessions) {
 
     grandLabor += laborCost;
     if (hasAnyValue) grandValue += itemValue;
+    else unpricedCount++;
 
     var laborTxt  = 'Labor: $' + laborCost.toFixed(2) + ' (' + hrs.toFixed(1) + 'h × $' + rate.toFixed(2) + '/hr)' + (rateIsEstimate ? ' (est.)' : '');
     var valueTxt  = hasAnyValue ? 'Value: $' + itemValue.toFixed(2) + (valueIsEstimate ? ' (est.)' : '') : 'Value: —';
@@ -758,6 +778,7 @@ function _rqRenderReportBody(sessions) {
       + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
       + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
       + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
+      + (unpricedCount ? '<span title="Labor from these sessions counts against Total Profit, but their output value is unknown">⚠ ' + unpricedCount + ' session' + (unpricedCount !== 1 ? 's' : '') + ' missing price data</span>' : '')
       + '</div>';
   }
 }
@@ -905,14 +926,44 @@ function rqRenderSessions() {
   }).join('');
 }
 
+// Splicing a session out shifts every index after it — remap the store's
+// open edit/push state so an in-progress edit doesn't jump onto (and then
+// save over) a neighboring session.
+function _rqShiftStoreState(store, removedIdx) {
+  if (_rqEditingSession[store] === removedIdx) _rqEditingSession[store] = null;
+  else if (_rqEditingSession[store] > removedIdx) _rqEditingSession[store]--;
+  if (_rqPushingSession[store] === removedIdx) _rqPushingSession[store] = null;
+  else if (_rqPushingSession[store] > removedIdx) _rqPushingSession[store]--;
+  var adds = {};
+  Object.keys(_rqEditAdds[store] || {}).forEach(function(k) {
+    var ki = parseInt(k, 10);
+    if (ki === removedIdx) return;
+    adds[ki > removedIdx ? ki - 1 : ki] = _rqEditAdds[store][k];
+  });
+  _rqEditAdds[store] = adds;
+}
+
+function _rqDeleteSessionPage(s, store) {
+  if (!s.notionPageId) return;
+  fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' })
+    .then(function(r) {
+      if (r.ok) return;
+      toast('Delete failed — restoring', '⚠');
+      if (store === 'report') rqRenderProductionReport(true); else rqLoadSessions();
+    })
+    .catch(function() {
+      toast('Delete failed — restoring', '⚠');
+      if (store === 'report') rqRenderProductionReport(true); else rqLoadSessions();
+    });
+}
+
 function rqDeleteSession(i) {
   var s = _rqSessions[i]; if (!s) return;
   var name = (s.items && s.items[0] && s.items[0].name) || '?';
   if (!confirm('Delete this session?\n' + name + ' — ' + (s.employee ? s.employee.name : ''))) return;
-  if (s.notionPageId) {
-    fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' }).catch(function() {});
-  }
+  _rqDeleteSessionPage(s, 'log');
   _rqSessions.splice(i, 1);
+  _rqShiftStoreState('log', i);
   rqRenderSessions();
 }
 
@@ -920,10 +971,9 @@ function rqDeleteReportSession(i) {
   var s = _rqReportSessions && _rqReportSessions[i]; if (!s) return;
   var name = (s.items && s.items[0] && s.items[0].name) || '?';
   if (!confirm('Permanently delete this entry?\n' + name + ' — ' + (s.employee ? s.employee.name : '') + '\nThis cannot be undone.')) return;
-  if (s.notionPageId) {
-    fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' }).catch(function() {});
-  }
+  _rqDeleteSessionPage(s, 'report');
   _rqReportSessions.splice(i, 1);
+  _rqShiftStoreState('report', i);
   _rqRenderReportBody(_rqReportSessions);
 }
 
