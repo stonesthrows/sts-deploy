@@ -136,8 +136,12 @@ function _padDown(pad, e) {
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
   if (pad.tool === 'water') {
-    // Watercolor doesn't stroke a path — it stamps soft dabs (see _padDab)
+    // Watercolor doesn't stroke a path — it stamps soft dabs (see _padDab).
+    // _last/_pathPos are still tracked so _padMove can smooth the dab path
+    // through the same flow-blended curve the other tools use.
     pad._lastDab = p;
+    pad._last = p;
+    pad._pathPos = p;
     _padDab(pad, p.x, p.y);
     return;
   }
@@ -203,9 +207,23 @@ function _padMove(pad, e) {
   const flow = pad.flows[pad.tool] != null ? pad.flows[pad.tool] : 1;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
   if (pad.tool === 'water') {
+    // Same flow-blended quadratic as the path tools below, but flattened into
+    // short chords and dabbed along each — otherwise "Smooth" would be a
+    // dead control for this tool while doing real work for every other one.
     for (const ev of (events.length ? events : [e])) {
       const p = _padPoint(pad, ev);
-      _padWaterTo(pad, p.x, p.y);
+      const mid = { x: (pad._last.x + p.x) / 2, y: (pad._last.y + p.y) / 2 };
+      const endX = p.x + (mid.x - p.x) * flow;
+      const endY = p.y + (mid.y - p.y) * flow;
+      const STEPS = 8;
+      for (let s = 1; s <= STEPS; s++) {
+        const t = s / STEPS, it = 1 - t;
+        const qx = it * it * pad._pathPos.x + 2 * it * t * pad._last.x + t * t * endX;
+        const qy = it * it * pad._pathPos.y + 2 * it * t * pad._last.y + t * t * endY;
+        _padWaterTo(pad, qx, qy);
+      }
+      pad._pathPos = { x: endX, y: endY };
+      pad._last = p;
     }
     return;
   }
