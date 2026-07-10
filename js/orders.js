@@ -361,6 +361,7 @@ function _eoPopulateFieldsInner(o) {
   _orderFormLegacyFields(o);
   eoRenderViewIdentity(o);
   eoLoadSketch(o);
+  eoLoadRefPhotos(o);
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
@@ -424,9 +425,28 @@ function eoSetMode(mode) {
   const btn = document.getElementById('eo-mode-toggle');
   if (btn) btn.textContent = mode === 'view' ? '✎ Edit' : '👁 View';
   oiRender();
+  eoAutoGrowTextareas();
 }
 
 function eoToggleMode() { eoSetMode(_eoMode === 'view' ? 'edit' : 'view'); }
+
+// Textareas (Materials/Metal, Gemstones, Sketch Notes) hold multi-line
+// intake text but had a small fixed min-height — in view mode the textarea
+// is pointer-events:none (read-only "document" look), so overflow content
+// couldn't even be scrolled into view. Growing to scrollHeight removes the
+// clipped tail in both modes; view/edit use different font sizes so this
+// re-runs on every mode toggle, not just on populate.
+function eoAutoGrowTextarea(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+function eoAutoGrowTextareas() {
+  document.querySelectorAll('#editOrderModalBg .eo-body textarea').forEach(eoAutoGrowTextarea);
+}
+document.getElementById('editOrderModalBg')?.addEventListener('input', e => {
+  if (e.target.tagName === 'TEXTAREA') eoAutoGrowTextarea(e.target);
+});
 
 // Mirrors the #f-order-type <option> labels — used for the modal title,
 // which shows the order type in place of the generic "Edit Order".
@@ -451,8 +471,10 @@ function openOrderCard(id) {
   // eoPopulateFields) rather than re-deriving it here.
   const resolvedType = (document.getElementById('f-order-type') || {}).value || 'order';
   if (title) title.textContent = eoOrderTypeLabel(resolvedType) + ' — ' + o.name;
-  eoSetMode('view');
+  // Open before setting the mode — eoSetMode auto-grows the textareas to
+  // scrollHeight, which reads back 0 while the modal is still display:none.
   document.getElementById('editOrderModalBg').classList.add('open');
+  eoSetMode('view');
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
 }
@@ -564,6 +586,84 @@ function eoLoadSketch(o) {
   }
   box.innerHTML = '<div class="eo-sketch-empty">No sketch on this order</div>';
   _eoSetSketchSectionVisible(false);
+}
+
+// Shared read-only lightbox opener — hides the sketch/photo Replace/Remove
+// actions (viewPhoto/viewSketch's job when they own the image) since a
+// design sketch or reference photo has nothing to replace from here.
+function _eoOpenViewLightbox(src, title) {
+  const actions = document.querySelector('#photoLightbox .lb-actions');
+  if (actions) actions.style.display = 'none';
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lbTitle').textContent = title;
+  document.getElementById('photoLightbox').classList.add('open');
+}
+
+// Reference-photos viewer for the modal — client-shown inspiration/existing-
+// piece photos captured in the intake app's Photos tab (js/intake-sheet.js).
+// View-only: the iPad is the only capture point, so unlike the sketch there's
+// no draw/upload fallback here. Same local-first / Notion-proxy-fallback
+// pattern as eoLoadSketch — o.refPhotos only has data on the device that ran
+// intake; every other device streams thumbnails through the pipeline proxy.
+function _eoSetRefPhotosSectionVisible(visible) {
+  const sec = document.getElementById('eo-refphotos-sec');
+  const box = document.getElementById('eo-refphotos-view');
+  if (sec) sec.classList.toggle('eo-no-refphotos', !visible);
+  if (box) box.classList.toggle('eo-no-refphotos', !visible);
+}
+
+function eoLoadRefPhotos(o) {
+  const box = document.getElementById('eo-refphotos-view');
+  if (!box) return;
+  box.innerHTML = '';
+  if (o.refPhotos && o.refPhotos.length) {
+    o.refPhotos.forEach(src => {
+      const thumb = document.createElement('div');
+      thumb.className = 'eo-refphoto-thumb';
+      const img = document.createElement('img');
+      img.alt = 'Reference photo';
+      img.src = src;
+      img.onclick = () => _eoOpenViewLightbox(src, o.name + ' — reference photo');
+      thumb.appendChild(img);
+      box.appendChild(thumb);
+    });
+    _eoSetRefPhotosSectionVisible(true);
+    return;
+  }
+  if (o.notionId) {
+    box.innerHTML = '<div class="eo-sketch-spinner" title="Loading reference photos from Notion…"></div>';
+    _eoSetRefPhotosSectionVisible(true); // assume yes until the count fetch proves otherwise
+    const base = '/api/notion-pipeline?sketch=' + encodeURIComponent(o.notionId) + '&prop=' + encodeURIComponent('Reference Photos');
+    fetch(base + '&list=1')
+      .then(r => r.json())
+      .then(d => {
+        box.innerHTML = '';
+        const count = (d && d.count) || 0;
+        if (!count) {
+          box.innerHTML = '<div class="eo-refphotos-empty">No reference photos on this order</div>';
+          _eoSetRefPhotosSectionVisible(false);
+          return;
+        }
+        for (let i = 0; i < count; i++) {
+          const src = base + '&idx=' + i;
+          const thumb = document.createElement('div');
+          thumb.className = 'eo-refphoto-thumb';
+          const img = document.createElement('img');
+          img.alt = 'Reference photo';
+          img.src = src;
+          img.onclick = () => window.open(src, '_blank');
+          thumb.appendChild(img);
+          box.appendChild(thumb);
+        }
+      })
+      .catch(() => {
+        box.innerHTML = '<div class="eo-refphotos-empty">No reference photos on this order</div>';
+        _eoSetRefPhotosSectionVisible(false);
+      });
+    return;
+  }
+  box.innerHTML = '<div class="eo-refphotos-empty">No reference photos on this order</div>';
+  _eoSetRefPhotosSectionVisible(false);
 }
 
 function eoUpdateSketchBtnLabel(o) {

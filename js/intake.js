@@ -484,6 +484,10 @@ async function intakeSubmit() {
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
     sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
+    // Client-shown reference photos (Photos tab in the bottom sheet) —
+    // stored locally like the sketch; synced to Notion's 'Reference Photos'
+    // files property by the pipeline proxy.
+    refPhotos:     (typeof _refPhotos !== 'undefined') ? [..._refPhotos] : [],
     // On-glass signature (4.3) — stored locally on the order like the
     // sketch; absent signature never blocks a save. Pushing it to Notion
     // as an attachment is deferred until the pipeline grows a slot for it.
@@ -1348,7 +1352,8 @@ function _intakeTabStates() {
     || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
     || intakeSensList().length > 0;
   const sketch = typeof SK !== 'undefined' && SK && SK.hasInk;
-  const params = !!(v('f-materials') || v('f-gemstones') || v('f-sizing'));
+  const hasPhotos = typeof _refPhotos !== 'undefined' && _refPhotos.length > 0;
+  const params = !!(v('f-materials') || v('f-gemstones') || v('f-sizing') || hasPhotos);
   const price = parseFloat(v('f-price')) || 0;
   const s3any = !!(price || v('f-notes') || v('f-deposit') || _estReadDom().marked > 0);
   const state = (done, any) => done ? 'done' : any ? 'partial' : 'empty';

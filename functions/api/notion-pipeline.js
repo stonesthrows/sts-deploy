@@ -331,6 +331,7 @@ const NEW_SCHEMA_PROPS = {
   'Resize To':              { rich_text: {} },
   'App Data':               { rich_text: {} },
   'Signature':              { files: {} },
+  'Reference Photos':       { files: {} },
 };
 
 async function ensureSchema(hdrs) {
@@ -386,23 +387,29 @@ async function uploadSketchToNotion(token, dataURL, filename = 'sketch.png') {
   return cu.id;
 }
 
-// ── Sketch fetch-on-view ──────────────────────────────────────
-// GET ?sketch=<notionPageId> streams the current sketch PNG for a page.
+// ── Sketch / Reference Photos fetch-on-view ───────────────────
+// GET ?sketch=<notionPageId> streams the current sketch PNG for a page
+// (also doubles as the Signature and Reference Photos viewer via ?prop=).
 // Notion's S3 file URLs expire hourly and send no CORS headers, so the
 // client can't hold onto them — this proxies fresh bytes on every view,
-// which is what lets a sketch drawn on the iPad show up on desktop.
-async function getSketch(hdrs, pageId, propName = 'Sketch') {
+// which is what lets a sketch (or reference photo) added on the iPad show
+// up on desktop. Reference Photos holds several files, so ?idx= picks which
+// one, and ?list=1 returns just the count so the client knows how many
+// <img> tags to render before requesting them one at a time.
+async function getSketch(hdrs, pageId, propName = 'Sketch', idx = 0, listOnly = false) {
   if (!/^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
     return json({ error: 'bad page id' }, 400);
   }
-  if (propName !== 'Sketch' && propName !== 'Signature') return json({ error: 'bad prop' }, 400);
+  if (!['Sketch', 'Signature', 'Reference Photos'].includes(propName)) return json({ error: 'bad prop' }, 400);
   const r = await fetch(`${NOTION_API}/pages/${pageId}`, { headers: hdrs });
   if (!r.ok) {
     const err = await r.json().catch(() => ({}));
     return json({ error: err.message || 'page fetch failed' }, r.status);
   }
   const page = await r.json();
-  const f = page.properties?.[propName]?.files?.[0];
+  const files = page.properties?.[propName]?.files || [];
+  if (listOnly) return json({ count: files.length });
+  const f = files[idx];
   const fileUrl = f && (f.file?.url || f.external?.url);
   if (!fileUrl) return json({ error: 'no-sketch' }, 404);
 
@@ -431,7 +438,11 @@ export async function onRequestGet(context) {
 
   const reqUrl = new URL(context.request.url);
   const sketchId = reqUrl.searchParams.get('sketch');
-  if (sketchId) return getSketch(hdrs, sketchId, reqUrl.searchParams.get('prop') || 'Sketch');
+  if (sketchId) {
+    const idx = parseInt(reqUrl.searchParams.get('idx') || '0', 10) || 0;
+    const listOnly = reqUrl.searchParams.get('list') === '1';
+    return getSketch(hdrs, sketchId, reqUrl.searchParams.get('prop') || 'Sketch', idx, listOnly);
+  }
 
   const orders = [];
   let cursor;
@@ -521,6 +532,26 @@ export async function onRequestPost(context) {
     } catch (e) { /* best-effort */ }
   }
 
+  // Reference photo gallery from the intake app — same dirty-hash gate and
+  // isolation as the sketch. All photos re-upload together on any change
+  // (add/remove/reorder), since Notion files properties are set wholesale.
+  let refPhotosSynced = false, refPhotosError = null;
+  if (order._refPhotosChanged && Array.isArray(order.refPhotos) && order.refPhotos.length) {
+    try {
+      const fileRefs = [];
+      for (let i = 0; i < order.refPhotos.length; i++) {
+        const name = 'reference-' + (i + 1) + '.jpg';
+        const fid = await uploadSketchToNotion(token, order.refPhotos[i], name);
+        fileRefs.push({ name, type: 'file_upload', file_upload: { id: fid } });
+      }
+      props['Reference Photos'] = { files: fileRefs };
+      refPhotosSynced = true;
+    } catch (e) { refPhotosError = e.message || String(e); }
+  } else if (order._refPhotosChanged && (!order.refPhotos || !order.refPhotos.length)) {
+    props['Reference Photos'] = { files: [] }; // last photo was removed — empty the property
+    refPhotosSynced = true;
+  }
+
   // Update existing Notion page
   if (order.notionId) {
     const r = await writePage(hdrs, `${NOTION_API}/pages/${order.notionId}`, 'PATCH',
@@ -529,7 +560,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'update failed' }, r.status);
     }
-    return json({ notionId: order.notionId, sketchSynced, sketchError });
+    return json({ notionId: order.notionId, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
   }
 
   // Idempotency guard — if a page with this App ID already exists (e.g. a
@@ -553,7 +584,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id, sketchSynced, sketchError });
+        return json({ notionId: match.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
       }
     }
   }
@@ -563,5 +594,5 @@ export async function onRequestPost(context) {
     { parent: { database_id: PIPELINE_DB }, properties: props });
   const d = await r.json();
   if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
-  return json({ notionId: d.id, sketchSynced, sketchError });
+  return json({ notionId: d.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
 }

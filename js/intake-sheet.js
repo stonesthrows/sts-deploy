@@ -34,6 +34,78 @@ let _psStones = [];        // committed stones (serialized to the order + f-gems
 let _psDetent = 'peek';
 let _psSuggestedDone = false; // smart defaults are applied once per intake
 
+// ── Reference Photos (Photos tab) ─────────────────────────────
+// Client-shown inspiration/existing-piece photos — distinct from the
+// sketch-canvas underlay (which is a single trace guide, never saved).
+// Downscaled client-side before storing so a handful of camera photos
+// don't blow the localStorage quota or Notion's 4.5 MiB per-file cap.
+const RP_MAX_PHOTOS = 6;
+const RP_MAX_DIM = 1280;
+const RP_JPEG_QUALITY = 0.82;
+let _refPhotos = []; // array of JPEG dataURLs
+
+function _rpResizeFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, RP_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', RP_JPEG_QUALITY));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function rpPick() {
+  if (_refPhotos.length >= RP_MAX_PHOTOS) {
+    if (typeof toast === 'function') toast('Up to ' + RP_MAX_PHOTOS + ' reference photos per order', '⚠', 2600);
+    return;
+  }
+  document.getElementById('rp-file')?.click();
+}
+
+async function rpFilesChosen(input) {
+  const files = [...(input.files || [])];
+  input.value = '';
+  if (!files.length) return;
+  const room = RP_MAX_PHOTOS - _refPhotos.length;
+  for (const file of files.slice(0, room)) {
+    try { _refPhotos.push(await _rpResizeFile(file)); } catch (e) { /* skip a bad file */ }
+  }
+  if (files.length > room && typeof toast === 'function') {
+    toast('Only added ' + Math.max(room, 0) + ' — up to ' + RP_MAX_PHOTOS + ' reference photos per order', '⚠', 3000);
+  }
+  rpRenderGrid();
+  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+}
+
+function rpRemove(i) {
+  _refPhotos.splice(i, 1);
+  rpRenderGrid();
+  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+}
+
+function rpRenderGrid() {
+  const grid = document.getElementById('rp-grid');
+  if (!grid) return;
+  const thumbs = _refPhotos.map((src, i) =>
+    '<div class="rp-thumb"><img src="' + src + '" alt="Reference photo">'
+    + '<button type="button" class="rp-x" onclick="rpRemove(' + i + ')" aria-label="Remove photo">✕</button></div>'
+  ).join('');
+  const canAdd = _refPhotos.length < RP_MAX_PHOTOS;
+  grid.innerHTML = thumbs
+    + (canAdd ? '<button type="button" class="rp-add" onclick="rpPick()">＋<span>Add</span></button>' : '');
+}
+
 // ── Pane rendering ────────────────────────────────────────────
 function _psChipsHtml(group) {
   const cfg = _PS_GROUPS[group];
@@ -75,6 +147,14 @@ function psRenderPanes() {
       + '<span class="ps-step">Width <button type="button" onclick="psStep(\'width\',-0.5)">−</button><span class="ps-step-val" id="ps-width-val">—</span><button type="button" onclick="psStep(\'width\',0.5)">＋</button></span>'
       + '<span class="ps-step">Thickness <button type="button" onclick="psStep(\'thick\',-0.25)">−</button><span class="ps-step-val" id="ps-thick-val">—</span><button type="button" onclick="psStep(\'thick\',0.25)">＋</button></span>'
       + '</div>';
+  }
+  const photos = document.getElementById('ps-pane-photos');
+  if (photos) {
+    photos.innerHTML =
+      '<div class="ps-label">Reference Photos <span style="font-weight:400;text-transform:none;letter-spacing:0;">— shown by the client, not the sketch</span></div>'
+      + '<div class="rp-grid" id="rp-grid"></div>'
+      + '<div class="rp-hint">' + RP_MAX_PHOTOS + ' max — synced to Notion with the order</div>';
+    rpRenderGrid();
   }
   const notes = document.getElementById('ps-pane-notes');
   if (notes) {
@@ -417,6 +497,7 @@ function psReset() {
   _psStones = [];
   _psBand.width = 0; _psBand.thick = 0;
   _psSuggestedDone = false;
+  _refPhotos = [];
   psRenderPanes();
   psRenderStoneList();
   psSetTab('metal');

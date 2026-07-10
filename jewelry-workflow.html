@@ -958,6 +958,21 @@
       border: 2px solid var(--bdr); border-top-color: var(--accent);
       animation: rq-spin 0.7s linear infinite;
     }
+    /* Reference Photos gallery — client-shown inspiration/existing-piece
+       photos captured in the intake app's Photos tab (distinct from the
+       Design Sketch above). View-only here too; added from the iPad only. */
+    #eo-refphotos-view {
+      display: flex; flex-wrap: wrap; gap: 10px;
+    }
+    .eo-refphoto-thumb {
+      width: 92px; height: 92px; border-radius: var(--rad-sm); overflow: hidden;
+      border: 1px solid var(--bdr-light); background: #fff; cursor: zoom-in;
+    }
+    .eo-refphoto-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .eo-refphotos-empty { font-size: 12.5px; color: var(--text3); }
+    .eo-modal.eo-view-mode .eo-refphoto-thumb { width: 76px; height: 76px; }
+    .eo-modal.eo-view-mode #eo-refphotos-sec.eo-no-refphotos,
+    .eo-modal.eo-view-mode #eo-refphotos-view.eo-no-refphotos { display: none; }
     /* Estimate builder + invoice compose live inside the modal now */
     .eo-body #eo-estimate-module {
       margin-top: 16px; border: 1px solid var(--accent-border);
@@ -5969,6 +5984,9 @@
             <input type="file" accept="image/*" id="eo-sketch-upload" style="display:none;" onchange="eoUploadSketchFile(this)">
           </label>
         </div>
+
+        <div class="eo-sec-label" id="eo-refphotos-sec">Reference Photos <span class="eo-sec-note">→ shown by the client, captured in the Intake app</span></div>
+        <div id="eo-refphotos-view"><div class="eo-refphotos-empty">No reference photos on this order</div></div>
 
         <div class="form-grid" style="margin-top:18px;">
           <div class="fg">
