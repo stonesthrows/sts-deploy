@@ -1151,6 +1151,30 @@
       z-index: 20; max-height: 260px; box-shadow: var(--shadow-md);
     }
 
+    /* ── Client Details (intake-parity) section: row editors for the
+       structured data captured by the intake app (ring registry, stones),
+       gift block, declined-tier chips, signature viewer. ── */
+    .eo-row-editor { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .eo-row-editor select, .eo-row-editor input { width: auto; }
+    .eo-row-editor .eo-row-size { width: 76px; }
+    .eo-row-editor .eo-row-wide { flex: 1 1 120px; min-width: 100px; }
+    .eo-rows-empty { font-size: 12px; color: var(--text3); font-style: italic; }
+    .eo-alt-chip {
+      display: inline-flex; gap: 8px; align-items: center; background: var(--hover);
+      border: 1px solid rgba(0,0,0,.08); border-radius: 14px; padding: 4px 10px;
+      margin: 0 6px 6px 0; font-size: 12.5px;
+    }
+    .eo-alt-chip .eo-alt-total { font-weight: 700; }
+    #eo-signature-view img {
+      max-width: 320px; max-height: 130px; background: #fff;
+      border: 1px solid rgba(0,0,0,.12); border-radius: 8px; display: block;
+    }
+    #eo-gift-block { margin-top: 8px; }
+    .eo-gift-surprise-on { color: #A0702A; font-weight: 700; }
+    /* View mode: hide the whole module when the intake captured none of it */
+    .eo-modal.eo-view-mode #eo-intake-module.eo-empty-mod { display: none; }
+    .eo-modal.eo-view-mode #eo-intake-module .eo-edit-only { display: none; }
+
     /* Add/Replace Sketch actions under the sketch viewer, and the staged
        (unsaved) draft indicator shown after drawing/uploading but before
        Save Changes commits it to the order. */
@@ -5962,7 +5986,10 @@
           </div>
           <div class="fg" id="materials-fg">
             <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire">
+            <!-- Textarea, not input: intake saves Custom Order materials as
+                 newline-joined estimate lines — a single-line input strips
+                 those newlines on populate and a Save would garble them. -->
+            <textarea id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" style="min-height:48px;"></textarea>
           </div>
           <div class="fg">
             <label>Sizing / Dimensions</label>
@@ -5980,6 +6007,11 @@
           <div class="fg">
             <label>Gemstones / Components</label>
             <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
+          </div>
+          <div class="fg full" id="stones-fg">
+            <label>Stones (structured) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ from the intake app; editing rewrites the Gemstones text above</span></label>
+            <div id="eo-stone-list"></div>
+            <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="eoStoneAdd()">+ Add Stone</button>
           </div>
           <div class="fg full legacy-hide" id="sketch-fg">
             <label>Sketch Notes</label>
@@ -6020,6 +6052,134 @@
             <label>Item(s) <span class="eo-sec-note">→ picked from the Square catalog</span></label>
             <div id="square-module-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
             <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="jdAddSquareItem()">+ Add Item</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Client Details — 1:1 with the intake app's structured capture
+           (sensitivities, ring registry, gift context, style profile,
+           declined estimate tiers, on-glass signature). Shown for every
+           order type; hidden whole in view mode when nothing was captured
+           (eo-empty-mod, toggled by eoIntakeUpdateEmpty in js/orders.js). ── -->
+      <div id="eo-intake-module">
+        <div class="eo-sec-label">Client Details <span class="eo-sec-note">→ captured by the Intake app on the iPad</span></div>
+        <div class="form-grid">
+          <div class="fg full" id="sens-fg">
+            <label>Metal / Skin Sensitivities</label>
+            <div class="finish-checks" id="f-sensitivities">
+              <label><input type="checkbox" value="Nickel"> Nickel</label>
+              <label><input type="checkbox" value="Sterling/copper alloys"> Sterling/copper alloys</label>
+              <label><input type="checkbox" value="Gold-fill"> Gold-fill</label>
+              <label><input type="checkbox" value="Brass/bronze"> Brass/bronze</label>
+              <label><input type="checkbox" value="Plated finishes"> Plated finishes</label>
+            </div>
+            <input type="text" id="f-sensitivity-note" placeholder="Other sensitivity…" style="margin-top:6px;">
+          </div>
+          <div class="fg full" id="reg-fg">
+            <label>Ring Size Registry <span style="font-size:11px;font-weight:400;color:var(--text3);">→ the client's own measured fingers</span></label>
+            <div id="eo-reg-list"></div>
+            <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="eoRegAdd('client')">+ Add Size</button>
+          </div>
+          <div class="fg" id="wrist-fg">
+            <label>Wrist</label>
+            <input type="text" id="f-wrist" placeholder='e.g. 6.5"'>
+          </div>
+          <div class="fg" id="neck-fg">
+            <label>Neck</label>
+            <input type="text" id="f-neck" placeholder='e.g. 16"'>
+          </div>
+          <div class="fg full" id="gift-fg">
+            <label>Occasion / Gift</label>
+            <label class="eo-checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
+              <input type="checkbox" id="f-gift-toggle" onchange="eoGiftToggle()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+              This order is a gift
+            </label>
+            <div id="eo-gift-block" style="display:none;">
+              <div class="form-grid">
+                <div class="fg">
+                  <label>Recipient</label>
+                  <input type="text" id="f-gift-recipient" placeholder="Recipient's name">
+                </div>
+                <div class="fg">
+                  <label>Relationship</label>
+                  <select id="f-gift-relationship">
+                    <option value="">— Select —</option>
+                    <option value="Partner">Partner</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Child">Child</option>
+                    <option value="Friend">Friend</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label>Occasion</label>
+                  <select id="f-gift-occasion">
+                    <option value="">— Select —</option>
+                    <option value="Anniversary">Anniversary</option>
+                    <option value="Engagement">Engagement</option>
+                    <option value="Birthday">Birthday</option>
+                    <option value="Birth">Birth</option>
+                    <option value="Memorial">Memorial</option>
+                    <option value="Just Because">Just Because</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label>Occasion Date</label>
+                  <input type="date" id="f-gift-date">
+                </div>
+                <div class="fg full">
+                  <label class="eo-checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text1);">
+                    <input type="checkbox" id="f-gift-surprise" onchange="eoGiftSurpriseHint()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+                    <span id="eo-gift-surprise-label">SURPRISE — discretion at pickup, no emails to shared inboxes</span>
+                  </label>
+                </div>
+                <div class="fg full">
+                  <label>Recipient's Ring Sizes</label>
+                  <div id="eo-reg-list-recipient"></div>
+                  <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="eoRegAdd('recipient')">+ Add Size</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="fg full" id="style-fg">
+            <label>Style Profile</label>
+            <div class="finish-checks" id="f-style-aesthetic">
+              <label><input type="checkbox" value="Minimal"> Minimal</label>
+              <label><input type="checkbox" value="Vintage"> Vintage</label>
+              <label><input type="checkbox" value="Organic"> Organic</label>
+              <label><input type="checkbox" value="Geometric"> Geometric</label>
+              <label><input type="checkbox" value="Statement"> Statement</label>
+              <label><input type="checkbox" value="Delicate"> Delicate</label>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+              <select id="f-style-tone" style="width:auto;">
+                <option value="">Tone —</option>
+                <option value="Yellow">Yellow</option>
+                <option value="White">White</option>
+                <option value="Rose">Rose</option>
+                <option value="Mixed">Mixed</option>
+                <option value="Silver-only">Silver-only</option>
+              </select>
+              <select id="f-style-wear" style="width:auto;">
+                <option value="">Wear —</option>
+                <option value="Everyday">Everyday</option>
+                <option value="Occasion">Occasion</option>
+              </select>
+              <select id="f-style-budget" style="width:auto;">
+                <option value="">Budget —</option>
+                <option value="&lt;$250">&lt;$250</option>
+                <option value="$250–750">$250–750</option>
+                <option value="$750–1.5k">$750–1.5k</option>
+                <option value="$1.5k+">$1.5k+</option>
+              </select>
+            </div>
+          </div>
+          <div class="fg full" id="alts-fg">
+            <label>Declined Estimate Options <span style="font-size:11px;font-weight:400;color:var(--text3);">→ tiers the client passed on at intake (upsell memory)</span></label>
+            <div id="eo-alt-list"></div>
+          </div>
+          <div class="fg full" id="signature-fg">
+            <label>Customer Signature <span style="font-size:11px;font-weight:400;color:var(--text3);">→ signed on-glass at intake</span></label>
+            <div id="eo-signature-view"></div>
           </div>
         </div>
       </div>
@@ -6100,6 +6260,17 @@
               </label>
             </div>
 
+            <!-- Adjustment — the intake app's price rounding/nudge lands here
+                 (after markup, before tax); negative = discount -->
+            <div class="form-sec">
+              <div class="form-sec-label">Adjustment ($) <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ added after markup, before tax; negative = discount</span></div>
+              <div style="max-width:220px;">
+                <div class="fg">
+                  <input type="number" id="est-adjustment" placeholder="0.00" step="0.01" oninput="calcEstimate()">
+                </div>
+              </div>
+            </div>
+
             <!-- Notes for Customer (used when sending the estimate) -->
             <div class="form-sec">
               <div class="form-sec-label">Notes for Customer <span style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">→ sent with estimate</span></div>
@@ -6126,6 +6297,10 @@
               <div class="est-total-row" style="margin-top:2px;">
                 <span id="est-mult-label">× 2.5 markup</span>
                 <span></span>
+              </div>
+              <div class="est-total-row" id="est-adj-row-eo" style="display:none;">
+                <span>Adjustment</span>
+                <span id="est-adj-display-eo"></span>
               </div>
               <div class="est-total-row" id="est-shipping-row" style="display:none;">
                 <span>Shipping</span>
@@ -9901,12 +10076,12 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/data.js?v=2"></script>
 <script src="js/order-normalize.js?v=20260708a"></script>
-<script src="js/notion.js?v=20260708a"></script>
+<script src="js/notion.js?v=20260710a"></script>
 <script src="js/customers.js?v=20260708a"></script>
 <script src="js/app.js?v=20260708a"></script>
 <script src="js/sketchpad.js?v=4"></script>
-<script src="js/order-widgets.js?v=3"></script>
-<script src="js/orders.js?v=20260709b"></script>
+<script src="js/order-widgets.js?v=20260710a"></script>
+<script src="js/orders.js?v=20260710a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260708a"></script>
 <script src="js/etsy.js?v=20260708a"></script>

@@ -669,6 +669,12 @@ function oiSetModifier(idx, listId, modifierId) {
 let estMultiplier = 2.5;
 let estRowCount   = 0;
 let estSaveTimer  = null;
+// True while populateEstimateFromOrder() rebuilds the module from a saved
+// order — calcEstimate() then refreshes the DISPLAY only, without writing
+// Total ($) or arming the Notion auto-save. Without this, merely OPENING a
+// custom order in the Edit modal recomputed (and silently re-synced) its
+// price from whatever estimate state this device happened to have.
+let _estPopulating = false;
 
 function addMaterialRow(desc = '', cost = '') {
   const container = document.getElementById('est-materials');
@@ -693,33 +699,44 @@ function addMaterialRow(desc = '', cost = '') {
 function populateEstimateFromOrder(o) {
   const container = document.getElementById('est-materials');
   if (!container) return;
-  container.innerHTML = '';
-  estRowCount = 0;
+  const prevPopulating = _estPopulating;
+  _estPopulating = true;
+  try {
+    container.innerHTML = '';
+    estRowCount = 0;
 
-  const lines = (o.materials || '').split('\n').filter(l => l.trim());
-  if (lines.length) {
-    lines.forEach(line => {
-      const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
-      if (match) addMaterialRow(match[1].trim(), match[2]);
-      else        addMaterialRow(line.trim(), '');
-    });
-  } else {
-    addMaterialRow();
+    const lines = (o.materials || '').split('\n').filter(l => l.trim());
+    if (lines.length) {
+      lines.forEach(line => {
+        const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
+        if (match) addMaterialRow(match[1].trim(), match[2]);
+        else        addMaterialRow(line.trim(), '');
+      });
+    } else {
+      addMaterialRow();
+    }
+
+    // Labor, shipping, tax, multiplier + adjustment: prefer the estimate
+    // state saved ON the order (written at intake and by Save Estimate —
+    // travels with the order across devices via Notion App Data); fall back
+    // to the legacy per-device localStorage stash for older orders.
+    let estState = {};
+    try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
+    const saved = (o.estimate && typeof o.estimate === 'object') ? o.estimate : (estState[o.id] || {});
+    const laborEl = document.getElementById('est-labor');
+    if (laborEl) laborEl.value = saved.labor != null && saved.labor !== '' ? saved.labor : '';
+    const shippingEl = document.getElementById('est-shipping');
+    if (shippingEl) shippingEl.value = saved.shipping != null && saved.shipping !== '' ? saved.shipping : '';
+    const taxToggle = document.getElementById('est-tax-toggle');
+    if (taxToggle) taxToggle.checked = saved.taxOn || false;
+    const adjEl = document.getElementById('est-adjustment');
+    if (adjEl) adjEl.value = saved.adjustment ? saved.adjustment : '';
+    setMultiplier(saved.multiplier || 2.5);
+    // Visibility of #eo-estimate-module is owned by the order-type module
+    // (js/orders.js's eoApplyOrderTypeModule), not by this function.
+  } finally {
+    _estPopulating = prevPopulating;
   }
-
-  // Restore labor, shipping, tax + multiplier from localStorage (not synced to Notion)
-  let estState = {};
-  try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
-  const saved = estState[o.id] || {};
-  const laborEl = document.getElementById('est-labor');
-  if (laborEl) laborEl.value = saved.labor != null ? saved.labor : '';
-  const shippingEl = document.getElementById('est-shipping');
-  if (shippingEl) shippingEl.value = saved.shipping != null ? saved.shipping : '';
-  const taxToggle = document.getElementById('est-tax-toggle');
-  if (taxToggle) taxToggle.checked = saved.taxOn || false;
-  setMultiplier(saved.multiplier || 2.5);
-  // Visibility of #eo-estimate-module is owned by the order-type module
-  // (js/orders.js's eoApplyOrderTypeModule), not by this function.
 }
 
 function removeMaterialRow(id) {
@@ -733,11 +750,17 @@ function calcEstimate() {
   rows.forEach(row => { matTotal += parseFloat(row.querySelectorAll('input')[1]?.value) || 0; });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
+  // Adjustment ($, negative = discount) folds in AFTER markup, BEFORE tax —
+  // same math as the intake's rounding/nudge controls, so a price adjusted
+  // on the iPad reproduces exactly here. The #est-adjustment input only
+  // exists in the desktop module; intake keeps its own wrapper (_estAdj).
+  const adjustment = parseFloat(document.getElementById('est-adjustment')?.value) || 0;
   const subtotal = matTotal + labor;
   const marked   = subtotal * estMultiplier;
+  const adjusted = marked + adjustment;
   const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
-  const tax      = taxOn ? marked * 0.0825 : 0;
-  const final    = marked + shipping + tax;
+  const tax      = taxOn ? adjusted * 0.0825 : 0;
+  const final    = adjusted + shipping + tax;
   const fmt = n => '$' + n.toFixed(2);
   const g = id => document.getElementById(id);
   if (g('est-mat-total'))     g('est-mat-total').textContent     = fmt(matTotal);
@@ -747,9 +770,16 @@ function calcEstimate() {
   const shippingRow = g('est-shipping-row');
   if (shippingRow) shippingRow.style.display = shipping > 0 ? '' : 'none';
   if (g('est-shipping-display')) g('est-shipping-display').textContent = fmt(shipping);
+  const adjRowEo = g('est-adj-row-eo');
+  if (adjRowEo) adjRowEo.style.display = adjustment ? '' : 'none';
+  if (g('est-adj-display-eo')) g('est-adj-display-eo').textContent = (adjustment < 0 ? '−$' : '+$') + Math.abs(adjustment).toFixed(2);
   const taxRow = g('est-tax-row');
   if (taxRow) taxRow.style.display = taxOn ? '' : 'none';
   if (g('est-tax-display')) g('est-tax-display').textContent = fmt(tax);
+
+  // Populating the module from a saved order is display-only: never write
+  // Total ($) and never arm the auto-save from a programmatic rebuild.
+  if (_estPopulating) return;
 
   // When the Estimate module is the active pricing display (Custom/Etsy/
   // Website order types), its Final Estimate feeds Total ($) directly —
@@ -790,17 +820,22 @@ async function saveEstimateToNotion() {
 
   o.materials = materialsText;
   if (finalPrice > 0) o.price = finalPrice;
+  // Estimate state lives ON the order (synced via Notion App Data) so any
+  // device reproduces this exact total — the localStorage stash below is
+  // kept only as a fallback for orders saved before o.estimate existed.
+  o.estimate = {
+    labor:      parseFloat(document.getElementById('est-labor')?.value) || 0,
+    shipping:   parseFloat(document.getElementById('est-shipping')?.value) || 0,
+    taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
+    multiplier: estMultiplier,
+    adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
+  };
   saveToStorage();
 
   // Persist labor, shipping, tax + multiplier locally so they survive a page refresh
   try {
     const estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}');
-    estState[editingId] = {
-      labor:      parseFloat(document.getElementById('est-labor')?.value) || 0,
-      shipping:   parseFloat(document.getElementById('est-shipping')?.value) || 0,
-      taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
-      multiplier: estMultiplier,
-    };
+    estState[editingId] = { ...o.estimate };
     localStorage.setItem('sts-est-state', JSON.stringify(estState));
   } catch(e) {}
 

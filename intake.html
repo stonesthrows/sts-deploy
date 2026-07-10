@@ -1211,6 +1211,15 @@
             <div class="dep-split-bar"><div class="dep-split-today" id="dep-split-today" style="width:0%;"></div></div>
             <div class="dep-split-labels"><span id="dep-split-label-today">Due today $0</span><span id="dep-split-label-balance">Balance at pickup $0</span></div>
           </div>
+          <div class="fg" id="paid-by-fg">
+            <label>Deposit Paid By</label>
+            <select id="f-paid-by">
+              <option value="">— Select —</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Square Invoice">Square Invoice</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
           <div class="fg full">
             <label>Internal Notes</label>
             <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source…"></textarea>
@@ -1381,10 +1390,10 @@
 
 <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
 <script src="js/sketchpad.js?v=4"></script>
-<script src="js/notion.js?v=20260707a"></script>
-<script src="js/order-widgets.js?v=3"></script>
+<script src="js/notion.js?v=20260710a"></script>
+<script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/intake-sheet.js?v=2"></script>
-<script src="js/intake.js?v=7"></script>
+<script src="js/intake.js?v=8"></script>
 </body>
 </html>

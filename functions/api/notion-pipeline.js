@@ -101,9 +101,47 @@ function notionHdrs(token) {
   };
 }
 
+// ── Structured app fields ⇄ the 'App Data' JSON property ─────
+// Fields the app needs verbatim on every device but that have no natural
+// Notion property (nested objects/arrays from the intake wizard, plus a
+// few flat fields that predate this and were device-local until now).
+// Serialized as one JSON blob into a rich_text property, chunked to
+// Notion's 2000-chars-per-text-object limit. Images (sketch/signature)
+// are deliberately NOT included — they're far too large for a property.
+const APP_DATA_FIELDS = [
+  'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
+  'stones', 'estimateAlternatives', 'estimate',
+  'items', 'jobDescMode', 'fullyPaid', 'shipping',
+];
+
+function appDataToProp(o) {
+  const data = {};
+  let has = false;
+  APP_DATA_FIELDS.forEach(k => {
+    if (o[k] !== undefined) { data[k] = o[k]; has = true; }
+  });
+  if (!has) return null;
+  const s = JSON.stringify(data);
+  // A rich_text property tops out at 100 text objects; stay well under it.
+  // Oversized payloads are dropped whole rather than truncated — a cut-off
+  // JSON string would fail to parse and read back as nothing anyway.
+  if (s.length > 90 * 2000) return null;
+  const chunks = [];
+  for (let i = 0; i < s.length; i += 2000) chunks.push(s.slice(i, i + 2000));
+  return { rich_text: chunks.map(c => ({ text: { content: c } })) };
+}
+
+function appDataFromPage(p) {
+  const full = (p['App Data']?.rich_text || []).map(t => t.plain_text || '').join('');
+  if (!full) return {};
+  try { return JSON.parse(full) || {}; } catch (e) { return {}; }
+}
+
 // ── App order → Notion property payload ──────────────────────
 function orderToProps(o) {
   const props = {};
+  const appData = appDataToProp(o);
+  if (appData) props['App Data'] = appData;
   if (o.name != null) props['Customer Name'] = { title: [{ text: { content: (o.name || '').slice(0, 2000) } }] };
   if (o.id   != null) props['App ID']        = { rich_text: [{ text: { content: o.id || '' } }] };
 
@@ -201,7 +239,9 @@ function pageToOrder(page) {
     || ((stage === 'complete' || stage === 'delivered') ? (page.last_edited_time || '').slice(0, 10) : null)
     || null;
 
-  return {
+  const appData = appDataFromPage(p);
+
+  const order = {
     id:            appId || ('n_' + page.id.replace(/-/g, '')),
     notionId:      page.id,
     name:          p['Customer Name']?.title?.[0]?.plain_text || '',
@@ -262,6 +302,14 @@ function pageToOrder(page) {
     resizeFrom:    txt(p['Resize From']),
     resizeTo:      txt(p['Resize To']),
   };
+
+  // Structured fields ride back out of the App Data JSON blob — explicit
+  // property mappings above always win, so only unmapped keys land here.
+  APP_DATA_FIELDS.forEach(k => {
+    if (appData[k] !== undefined && order[k] === undefined) order[k] = appData[k];
+  });
+
+  return order;
 }
 
 // ── Sketch upload + schema self-heal ──────────────────────────
@@ -281,6 +329,8 @@ const NEW_SCHEMA_PROPS = {
   'Repair Notes':           { rich_text: {} },
   'Resize From':            { rich_text: {} },
   'Resize To':              { rich_text: {} },
+  'App Data':               { rich_text: {} },
+  'Signature':              { files: {} },
 };
 
 async function ensureSchema(hdrs) {
@@ -310,19 +360,19 @@ async function writePage(hdrs, url, method, bodyObj) {
 // single-part mode) and returns the file_upload id to attach to the
 // 'Sketch' files property. Throws on any failure — the caller catches so
 // a sketch problem never breaks the order save itself.
-async function uploadSketchToNotion(token, dataURL) {
+async function uploadSketchToNotion(token, dataURL, filename = 'sketch.png') {
   const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/.exec(dataURL || '');
   if (!m) throw new Error('bad sketch dataURL');
   const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
   if (bytes.length > 4.5 * 1024 * 1024) throw new Error('sketch too large'); // free-plan cap is 5 MiB
   const create = await fetch(`${NOTION_API}/file_uploads`, {
     method: 'POST', headers: notionHdrs(token),
-    body: JSON.stringify({ filename: 'sketch.png', content_type: m[1] }),
+    body: JSON.stringify({ filename, content_type: m[1] }),
   });
   const cu = await create.json().catch(() => ({}));
   if (!create.ok) throw new Error(cu.message || 'file_upload create failed');
   const fd = new FormData();
-  fd.append('file', new Blob([bytes], { type: m[1] }), 'sketch.png');
+  fd.append('file', new Blob([bytes], { type: m[1] }), filename);
   const send = await fetch(`${NOTION_API}/file_uploads/${cu.id}/send`, {
     method: 'POST',
     // No Content-Type — fetch sets the multipart boundary itself
@@ -341,17 +391,18 @@ async function uploadSketchToNotion(token, dataURL) {
 // Notion's S3 file URLs expire hourly and send no CORS headers, so the
 // client can't hold onto them — this proxies fresh bytes on every view,
 // which is what lets a sketch drawn on the iPad show up on desktop.
-async function getSketch(hdrs, pageId) {
+async function getSketch(hdrs, pageId, propName = 'Sketch') {
   if (!/^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
     return json({ error: 'bad page id' }, 400);
   }
+  if (propName !== 'Sketch' && propName !== 'Signature') return json({ error: 'bad prop' }, 400);
   const r = await fetch(`${NOTION_API}/pages/${pageId}`, { headers: hdrs });
   if (!r.ok) {
     const err = await r.json().catch(() => ({}));
     return json({ error: err.message || 'page fetch failed' }, r.status);
   }
   const page = await r.json();
-  const f = page.properties?.['Sketch']?.files?.[0];
+  const f = page.properties?.[propName]?.files?.[0];
   const fileUrl = f && (f.file?.url || f.external?.url);
   if (!fileUrl) return json({ error: 'no-sketch' }, 404);
 
@@ -378,8 +429,9 @@ export async function onRequestGet(context) {
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const hdrs = notionHdrs(token);
 
-  const sketchId = new URL(context.request.url).searchParams.get('sketch');
-  if (sketchId) return getSketch(hdrs, sketchId);
+  const reqUrl = new URL(context.request.url);
+  const sketchId = reqUrl.searchParams.get('sketch');
+  if (sketchId) return getSketch(hdrs, sketchId, reqUrl.searchParams.get('prop') || 'Sketch');
 
   const orders = [];
   let cursor;
@@ -456,6 +508,17 @@ export async function onRequestPost(context) {
   } else if (order._sketchChanged && !order.sketchImg) {
     props['Sketch'] = { files: [] }; // sketch was cleared — empty the property
     sketchSynced = true;
+  }
+
+  // On-glass signature from the intake iPad — only creates/offline retries
+  // ever carry signatureImg (the desktop never round-trips the image data),
+  // so this can't clobber an existing signature. Isolated like the sketch:
+  // an upload failure never breaks the order save.
+  if (order.signatureImg) {
+    try {
+      const fid = await uploadSketchToNotion(token, order.signatureImg, 'signature.png');
+      props['Signature'] = { files: [{ name: 'signature.png', type: 'file_upload', file_upload: { id: fid } }] };
+    } catch (e) { /* best-effort */ }
   }
 
   // Update existing Notion page

@@ -152,12 +152,12 @@ function intakeApplyTypeLayout(type) {
   const oiSection = document.getElementById('oi-section');
   if (oiSection) oiSection.style.display = (isSingle && type !== 'square-item') ? '' : 'none';
 
-  // Total/Deposit/Balance Due travel with the relocated block for the 3
-  // single-page types; hidden on Custom Design's Items & Price page
-  // (Internal Notes stays visible either way — it's outside this toggle).
-  ['price-fg', 'deposit-fg', 'balance-fg'].forEach(id => {
+  // Total/Deposit/Balance Due/Paid By show for every order type — deposits
+  // are taken at the counter during intake, Custom Design included (its
+  // Total is still fed by the Estimate Builder's "Use Estimate").
+  ['price-fg', 'deposit-fg', 'balance-fg', 'paid-by-fg'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = isSingle ? '' : 'none';
+    if (el) el.style.display = '';
   });
   intakeUpdateShippingField();
 
@@ -472,6 +472,7 @@ async function intakeSubmit() {
     contactSource: g('f-source').value   || null,
     assignee:      g('f-assignee').value || null,
     orderType:     typeVal,
+    paidBy:        g('f-paid-by')?.value || '',
     contactMethod: '',
     // Estimate rows are authoritative for Custom Design (the builder is
     // custom-only); otherwise fall back to the Materials/Metal text. Fixes
@@ -511,6 +512,17 @@ async function intakeSubmit() {
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
+    // Estimate state (Custom Design only) — travels with the order so the
+    // desktop Estimate Builder reproduces this exact total instead of
+    // recomputing from defaults (labor/adjustment otherwise never leave
+    // this iPad's DOM). Matches the shape saveEstimateToNotion() writes.
+    estimate: typeVal === 'order' ? {
+      labor:      parseFloat(g('est-labor')?.value) || 0,
+      shipping:   parseFloat(g('est-shipping')?.value) || 0,
+      taxOn:      g('est-tax-toggle')?.checked || false,
+      multiplier: (typeof estMultiplier !== 'undefined') ? estMultiplier : 2.5,
+      adjustment: (typeof _estAdj !== 'undefined') ? _estAdj : 0,
+    } : null,
   };
 
   ORDERS.push(order);
@@ -561,7 +573,7 @@ function intakeReset() {
   if (typeof intakeEstReset === 'function') intakeEstReset();
   if (typeof ulReset === 'function') ulReset();
   if (typeof psVoiceReset === 'function') psVoiceReset();
-  ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['f-pickup', 'f-source', 'f-assignee', 'f-paid-by'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
   const takein = document.getElementById('f-takein');
@@ -821,8 +833,7 @@ function intakeDepositRefresh() {
   }
   const wrap = document.getElementById('deposit-split-fg');
   if (!wrap) return;
-  const type = document.getElementById('f-order-type')?.value || 'order';
-  const show = type !== 'order' && base > 0;
+  const show = base > 0;
   wrap.style.display = show ? '' : 'none';
   if (!show) return;
   const seg = document.getElementById('dep-split-today');

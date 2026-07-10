@@ -210,7 +210,12 @@ async function notionSyncFromNotion() {
     // round-trip through Notion at all, so the local copy is the only copy.
     const preserveIfEmpty = ['photo', 'sketchImg', 'sketchSyncedHash', 'contactedAt', 'deliveredAt',
       'items', 'jobDescMode', 'shippingAddress', 'fullyPaid', 'shipping', 'takeIn',
-      'orderKind', 'orderSource', 'sourceOrderNumber'];
+      'orderKind', 'orderSource', 'sourceOrderNumber',
+      // Structured intake fields (round-trip via the App Data property, but
+      // never let an older/blank Notion copy erase a local value) + images
+      // that live only on-device.
+      'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
+      'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg'];
 
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
@@ -348,6 +353,15 @@ async function notionStartupSync() {
       if (o.orderKind)       localFields[o.id].orderKind       = o.orderKind;
       if (o.orderSource)     localFields[o.id].orderSource     = o.orderSource;
       if (o.sourceOrderNumber) localFields[o.id].sourceOrderNumber = o.sourceOrderNumber;
+      // Structured intake fields + on-device images — same rule as above:
+      // a Notion copy without them must not erase the local ones.
+      ['sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
+       'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg'].forEach(f => {
+        const v = o[f];
+        if (v == null) return;
+        if (Array.isArray(v) && !v.length) return;
+        localFields[o.id][f] = v;
+      });
     });
 
     // Keep any locally-created orders (id starts with 'u') not yet in Notion
@@ -383,6 +397,12 @@ async function notionStartupSync() {
       if (!no.orderKind       && lf.orderKind)       no.orderKind       = lf.orderKind;
       if (!no.orderSource     && lf.orderSource)     no.orderSource     = lf.orderSource;
       if (!no.sourceOrderNumber && lf.sourceOrderNumber) no.sourceOrderNumber = lf.sourceOrderNumber;
+      ['sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
+       'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg'].forEach(f => {
+        if (lf[f] == null) return;
+        const nv = no[f];
+        if (nv == null || (Array.isArray(nv) && !nv.length)) no[f] = lf[f];
+      });
       if (typeof normalizeOrder === 'function') normalizeOrder(no);
       if (no.stage === 'complete' || no.stage === 'delivered') completedHidden.add(no.id);
       ORDERS.push(no);

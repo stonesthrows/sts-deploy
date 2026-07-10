@@ -298,6 +298,9 @@ function eoUpdateEmptyFields() {
     if (fields.length !== 1) return;
     fg.classList.toggle('eo-empty', !(fields[0].value || '').trim());
   });
+  // Composite Client Details widgets judge their own emptiness (and can
+  // refine the finish-checks result above for #sens-fg / #style-fg).
+  if (typeof eoIntakeUpdateEmpty === 'function') eoIntakeUpdateEmpty();
 }
 
 // Populates every modal field from an order object — used both when the
@@ -307,6 +310,20 @@ function eoPopulateFields(o) {
   // Discard any staged-but-unsaved sketch draft — matches every other
   // field's "re-populate from last-saved data" behavior on open/discard.
   _eoSketchDraft = null;
+  // Populating must never reprice the order: eoApplyOrderTypeModule and
+  // populateEstimateFromOrder both trigger calcEstimate(), which would
+  // otherwise overwrite Total ($) and arm the estimate auto-save with
+  // whatever estimate state this device has (see _estPopulating in
+  // js/order-widgets.js).
+  _estPopulating = true;
+  try {
+  _eoPopulateFieldsInner(o);
+  } finally {
+  _estPopulating = false;
+  }
+}
+
+function _eoPopulateFieldsInner(o) {
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
   document.getElementById('f-job-desc').value      = o.jobDesc        || '';
@@ -373,6 +390,10 @@ function eoPopulateFields(o) {
   }
   document.getElementById('f-resize-from').value = rFrom;
   document.getElementById('f-resize-to').value   = rTo;
+
+  // Client Details — structured intake data (sensitivities, registry,
+  // gift, style, stones, declined tiers, signature)
+  eoIntakePopulate(o);
 
   // Auto-select Etsy/Shopify in the Order Type dropdown for synced orders —
   // only when orderType is still the generic default, so a manual
@@ -872,6 +893,28 @@ function saveOrderEdit() {
     country: o.addrCountry,
   };
 
+  // Client Details — structured intake data round-trips through this modal
+  o.sensitivities = eoSensCollect();
+  o.wrist         = document.getElementById('f-wrist').value.trim();
+  o.neck          = document.getElementById('f-neck').value.trim();
+  o.ringSizes     = eoRegCollect('client');
+  o.gift          = eoGiftCollect();
+  o.styleProfile  = eoStyleCollect();
+  o.stones        = eoStonesCollect();
+  o.estimateAlternatives = _eoAlts.map(a => ({ ...a }));
+  // Estimate state — same shape saveEstimateToNotion writes, captured here
+  // too so a plain Save Changes carries the current builder state along.
+  const eoEstModule = document.getElementById('eo-estimate-module');
+  if (eoEstModule && eoEstModule.style.display !== 'none') {
+    o.estimate = {
+      labor:      parseFloat(document.getElementById('est-labor')?.value) || 0,
+      shipping:   parseFloat(document.getElementById('est-shipping')?.value) || 0,
+      taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
+      multiplier: estMultiplier,
+      adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
+    };
+  }
+
   updateCompletedToggle();
   renderKanban();
   closeEditOrderModal();
@@ -908,6 +951,337 @@ function _orderFormLegacyFields(o) {
   const cm = document.getElementById('contact-method-fg');
   if (cm) cm.classList.toggle('legacy-hide', !(o && (o.contactMethod || '').trim()));
 }
+
+
+// ════════════════════════════════════════════
+//  CLIENT DETAILS — 1:1 editors for the structured data the intake app
+//  captures (sensitivities, ring registry, gift context, style profile,
+//  structured stones, declined estimate tiers, signature). Vocabulary
+//  mirrors intake.html / js/intake-sheet.js / js/intake-profiles.js.
+// ════════════════════════════════════════════
+
+const _eoEsc = t => String(t == null ? '' : t)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+// ── Sensitivities — checkboxes for the intake's fixed set; anything else
+//    in the list (the intake's free-text note) lands in the note input ──
+const EO_SENS_VALUES = ['Nickel', 'Sterling/copper alloys', 'Gold-fill', 'Brass/bronze', 'Plated finishes'];
+
+function eoSensPopulate(list) {
+  list = list || [];
+  document.querySelectorAll('#f-sensitivities input').forEach(c => {
+    c.checked = list.includes(c.value);
+  });
+  const note = document.getElementById('f-sensitivity-note');
+  if (note) note.value = list.filter(s => !EO_SENS_VALUES.includes(s)).join('; ');
+}
+
+function eoSensCollect() {
+  const checks = [...document.querySelectorAll('#f-sensitivities input:checked')].map(c => c.value);
+  const note = (document.getElementById('f-sensitivity-note')?.value || '').trim();
+  return note ? checks.concat([note]) : checks;
+}
+
+// ── Ring size registry — flat rows standing in for the intake's tap-a-hand
+//    picker; entry shape matches: {hand:'L'|'R', finger, size, conf?, date} ──
+const EO_REG_LIST_IDS = { client: 'eo-reg-list', recipient: 'eo-reg-list-recipient' };
+const EO_REG_FINGERS  = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+
+function _eoRegRowHtml(e) {
+  const handOpts = ['L', 'R'].map(h =>
+    '<option value="' + h + '"' + (e.hand === h ? ' selected' : '') + '>' + (h === 'L' ? 'Left' : 'Right') + '</option>').join('');
+  const fingerOpts = EO_REG_FINGERS.map(f =>
+    '<option value="' + f + '"' + (e.finger === f ? ' selected' : '') + '>' + f.charAt(0).toUpperCase() + f.slice(1) + '</option>').join('');
+  return '<div class="eo-row-editor eo-reg-row" data-date="' + _eoEsc(e.date || '') + '" data-conf="' + _eoEsc(e.conf || '') + '">'
+    + '<select class="reg-hand">' + handOpts + '</select>'
+    + '<select class="reg-finger">' + fingerOpts + '</select>'
+    + '<input class="eo-row-size reg-size" type="number" step="0.25" min="1" max="16" placeholder="Size" value="' + _eoEsc(e.size != null ? e.size : '') + '">'
+    + (e.date ? '<span style="font-size:11px;color:var(--text3);">' + _eoEsc(e.date) + '</span>' : '')
+    + '<button type="button" class="est-remove-btn eo-edit-only" onclick="this.closest(\'.eo-reg-row\').remove();eoIntakeUpdateEmpty()">&#215;</button>'
+    + '</div>';
+}
+
+function eoRegRender(person, entries) {
+  const box = document.getElementById(EO_REG_LIST_IDS[person]);
+  if (!box) return;
+  box.innerHTML = (entries && entries.length)
+    ? entries.map(_eoRegRowHtml).join('')
+    : '<div class="eo-rows-empty">No sizes on file</div>';
+}
+
+function eoRegAdd(person) {
+  const box = document.getElementById(EO_REG_LIST_IDS[person]);
+  if (!box) return;
+  box.querySelector('.eo-rows-empty')?.remove();
+  box.insertAdjacentHTML('beforeend',
+    _eoRegRowHtml({ hand: 'L', finger: 'ring', size: '', date: new Date().toISOString().slice(0, 10) }));
+  eoIntakeUpdateEmpty();
+}
+
+function eoRegCollect(person) {
+  const box = document.getElementById(EO_REG_LIST_IDS[person]);
+  if (!box) return [];
+  return [...box.querySelectorAll('.eo-reg-row')].map(row => {
+    const size = parseFloat(row.querySelector('.reg-size')?.value);
+    if (isNaN(size)) return null;
+    const e = {
+      hand:   row.querySelector('.reg-hand')?.value || 'L',
+      finger: row.querySelector('.reg-finger')?.value || 'ring',
+      size:   size,
+      date:   row.dataset.date || new Date().toISOString().slice(0, 10),
+    };
+    if (row.dataset.conf) e.conf = row.dataset.conf;
+    return e;
+  }).filter(Boolean);
+}
+
+// ── Occasion / gift block ─────────────────────────────────────
+function eoGiftToggle() {
+  const on = document.getElementById('f-gift-toggle')?.checked;
+  const block = document.getElementById('eo-gift-block');
+  if (block) block.style.display = on ? '' : 'none';
+  eoIntakeUpdateEmpty();
+}
+
+function eoGiftSurpriseHint() {
+  const on = document.getElementById('f-gift-surprise')?.checked;
+  document.getElementById('eo-gift-surprise-label')?.classList.toggle('eo-gift-surprise-on', !!on);
+}
+
+// Selects a value in a fixed-option dropdown, appending it first if it's a
+// value the vocabulary doesn't know (older orders, hand-typed intake data).
+function _eoSetSelect(id, value) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  value = value || '';
+  if (value && ![...sel.options].some(op => op.value === value)) {
+    const op = document.createElement('option');
+    op.value = op.textContent = value;
+    sel.appendChild(op);
+  }
+  sel.value = value;
+}
+
+function eoGiftPopulate(g) {
+  const toggle = document.getElementById('f-gift-toggle');
+  if (toggle) toggle.checked = !!g;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('f-gift-recipient', g && g.recipient);
+  _eoSetSelect('f-gift-relationship', g && g.relationship);
+  _eoSetSelect('f-gift-occasion', g && g.occasion);
+  set('f-gift-date', g && g.occasionDate);
+  const sup = document.getElementById('f-gift-surprise');
+  if (sup) sup.checked = !!(g && g.surprise);
+  eoGiftSurpriseHint();
+  eoRegRender('recipient', (g && g.ringSizes) || []);
+  eoGiftToggle();
+}
+
+function eoGiftCollect() {
+  if (!document.getElementById('f-gift-toggle')?.checked) return null;
+  return {
+    recipient:    document.getElementById('f-gift-recipient')?.value.trim() || '',
+    relationship: document.getElementById('f-gift-relationship')?.value || '',
+    occasion:     document.getElementById('f-gift-occasion')?.value || '',
+    occasionDate: document.getElementById('f-gift-date')?.value || '',
+    surprise:     !!document.getElementById('f-gift-surprise')?.checked,
+    ringSizes:    eoRegCollect('recipient'),
+  };
+}
+
+// ── Style profile ─────────────────────────────────────────────
+function eoStylePopulate(s) {
+  document.querySelectorAll('#f-style-aesthetic input').forEach(c => {
+    c.checked = !!(s && (s.aesthetic || []).includes(c.value));
+  });
+  _eoSetSelect('f-style-tone',   s && s.tone);
+  _eoSetSelect('f-style-wear',   s && s.wear);
+  _eoSetSelect('f-style-budget', s && s.budget);
+}
+
+function eoStyleCollect() {
+  const aesthetic = [...document.querySelectorAll('#f-style-aesthetic input:checked')].map(c => c.value);
+  const tone   = document.getElementById('f-style-tone')?.value || '';
+  const wear   = document.getElementById('f-style-wear')?.value || '';
+  const budget = document.getElementById('f-style-budget')?.value || '';
+  return (aesthetic.length || tone || wear || budget) ? { aesthetic, tone, wear, budget } : null;
+}
+
+// ── Structured stones — same shape + text rendering as the intake's
+//    parameter sheet, so the Gemstones text regenerates identically ──
+const EO_STONE_OPTS = {
+  origin:  ['Natural', 'Lab', 'Client-supplied'],
+  cut:     ['Round', 'Oval', 'Pear', 'Emerald', 'Marquise', 'Cab'],
+  setting: ['Bezel', 'Prong ×4', 'Prong ×6', 'Flush', 'Channel', 'Pavé'],
+  role:    ['Center', 'Accent'],
+};
+
+function _eoStoneSel(cls, opts, value, label) {
+  value = value || '';
+  return '<select class="' + cls + '">'
+    + '<option value="">' + label + ' —</option>'
+    + opts.map(o => '<option value="' + _eoEsc(o) + '"' + (o === value ? ' selected' : '') + '>' + _eoEsc(o) + '</option>').join('')
+    + (value && !opts.includes(value) ? '<option value="' + _eoEsc(value) + '" selected>' + _eoEsc(value) + '</option>' : '')
+    + '</select>';
+}
+
+function _eoStoneRowHtml(s) {
+  return '<div class="eo-row-editor eo-stone-row">'
+    + '<input class="st-type eo-row-wide" type="text" placeholder="Stone type" value="' + _eoEsc(s.type || '') + '">'
+    + _eoStoneSel('st-origin', EO_STONE_OPTS.origin, s.origin, 'Origin')
+    + _eoStoneSel('st-cut', EO_STONE_OPTS.cut, s.cut, 'Cut')
+    + '<input class="st-size eo-row-size" type="text" placeholder="1ct / 6mm" value="' + _eoEsc(s.size || '') + '">'
+    + _eoStoneSel('st-setting', EO_STONE_OPTS.setting, s.setting, 'Setting')
+    + _eoStoneSel('st-role', EO_STONE_OPTS.role, s.role, 'Role')
+    + '<button type="button" class="est-remove-btn eo-edit-only" onclick="this.closest(\'.eo-stone-row\').remove();eoStonesChanged()">&#215;</button>'
+    + '</div>';
+}
+
+function eoStonesRender(stones) {
+  const box = document.getElementById('eo-stone-list');
+  if (!box) return;
+  box.innerHTML = (stones && stones.length)
+    ? stones.map(_eoStoneRowHtml).join('')
+    : '<div class="eo-rows-empty">No structured stones on file</div>';
+}
+
+function eoStoneAdd() {
+  const box = document.getElementById('eo-stone-list');
+  if (!box) return;
+  box.querySelector('.eo-rows-empty')?.remove();
+  const role = box.querySelector('.eo-stone-row') ? 'Accent' : 'Center';
+  box.insertAdjacentHTML('beforeend', _eoStoneRowHtml({ role }));
+  eoIntakeUpdateEmpty();
+}
+
+function eoStonesCollect() {
+  const box = document.getElementById('eo-stone-list');
+  if (!box) return [];
+  return [...box.querySelectorAll('.eo-stone-row')].map(row => {
+    const v = cls => row.querySelector('.' + cls)?.value.trim() || '';
+    const s = { type: v('st-type'), origin: v('st-origin'), cut: v('st-cut'),
+                size: v('st-size'), setting: v('st-setting'), role: v('st-role') };
+    return s.type ? s : null;
+  }).filter(Boolean);
+}
+
+// Mirror of the intake's _psStoneLine (js/intake-sheet.js) — one place per
+// app, same output, so a stone edited here reads identically on the bag.
+function eoStoneLine(s) {
+  const bits = [s.size, s.cut ? s.cut.toLowerCase() : '', s.type].filter(Boolean).join(' ');
+  let line = (s.role || 'Stone') + ': ' + bits;
+  if (s.origin === 'Client-supplied') line += ' (CLIENT-SUPPLIED — heirloom: photograph at intake)';
+  else if (s.origin) line += ' (' + s.origin.toLowerCase() + ')';
+  if (s.setting) line += ', ' + s.setting.toLowerCase() + ' set';
+  return line;
+}
+
+// Structured stones drive the Gemstones text one-way, exactly like intake:
+// only rewrites when there ARE stones — an empty editor never blanks a
+// hand-written Gemstones field.
+function eoStonesChanged() {
+  const stones = eoStonesCollect();
+  if (stones.length) {
+    const gem = document.getElementById('f-gemstones');
+    if (gem) gem.value = stones.map(eoStoneLine).join('\n');
+  }
+  eoIntakeUpdateEmpty();
+}
+
+// ── Declined estimate alternatives (read-only chips, removable) ──
+let _eoAlts = [];
+
+function eoAltsRender() {
+  const box = document.getElementById('eo-alt-list');
+  if (!box) return;
+  box.innerHTML = _eoAlts.length
+    ? _eoAlts.map((a, i) =>
+        '<span class="eo-alt-chip">' + _eoEsc(a.label || 'Option')
+        + ' <span class="eo-alt-total">$' + Math.round(a.total || 0).toLocaleString('en-US') + '</span>'
+        + '<button type="button" class="est-remove-btn eo-edit-only" onclick="eoAltRemove(' + i + ')">&#215;</button></span>').join('')
+    : '<div class="eo-rows-empty">None recorded</div>';
+}
+
+function eoAltRemove(i) {
+  _eoAlts.splice(i, 1);
+  eoAltsRender();
+  eoIntakeUpdateEmpty();
+}
+
+// ── Signature viewer — local image if the order has one (same device as
+//    intake), else streamed from Notion's Signature file property via the
+//    pipeline proxy, exactly like the sketch. View-only by design. ──
+function eoLoadSignature(o) {
+  const box = document.getElementById('eo-signature-view');
+  if (!box) return;
+  box.innerHTML = '<div class="eo-rows-empty">No signature on file</div>';
+  const show = src => {
+    box.innerHTML = '<img src="' + src + '" alt="Customer signature">';
+    eoIntakeUpdateEmpty();
+  };
+  if (o.signatureImg) { show(o.signatureImg); return; }
+  if (!o.notionId || typeof PIPELINE_PROXY === 'undefined') return;
+  const forId = o.id;
+  fetch(PIPELINE_PROXY + '?sketch=' + encodeURIComponent(o.notionId) + '&prop=Signature')
+    .then(r => (r.ok ? r.blob() : null))
+    .then(b => {
+      if (!b) return;
+      // The modal may have moved to a different order while this streamed
+      if (document.getElementById('f-editing-id')?.value !== forId) return;
+      show(URL.createObjectURL(b));
+    })
+    .catch(() => {});
+}
+
+// ── Empty-state upkeep — composite .fg's that eoUpdateEmptyFields can't
+//    judge (it only handles single-input fields + finish-check groups),
+//    plus whole-module hiding in view mode when intake captured nothing ──
+function eoIntakeUpdateEmpty() {
+  const set = (id, empty) => document.getElementById(id)?.classList.toggle('eo-empty', !!empty);
+  const sensAny = document.querySelector('#f-sensitivities input:checked')
+    || (document.getElementById('f-sensitivity-note')?.value || '').trim();
+  set('sens-fg', !sensAny);
+  set('reg-fg', !document.querySelector('#eo-reg-list .eo-reg-row'));
+  set('gift-fg', !document.getElementById('f-gift-toggle')?.checked);
+  const styleAny = document.querySelector('#f-style-aesthetic input:checked')
+    || document.getElementById('f-style-tone')?.value
+    || document.getElementById('f-style-wear')?.value
+    || document.getElementById('f-style-budget')?.value;
+  set('style-fg', !styleAny);
+  set('stones-fg', !document.querySelector('#eo-stone-list .eo-stone-row'));
+  set('alts-fg', !_eoAlts.length);
+  set('signature-fg', !document.querySelector('#eo-signature-view img'));
+  const mod = document.getElementById('eo-intake-module');
+  if (mod) {
+    const anyFilled = [...mod.querySelectorAll('.fg')].some(fg => !fg.classList.contains('eo-empty'));
+    mod.classList.toggle('eo-empty-mod', !anyFilled);
+  }
+}
+
+// Populate all Client Details widgets from an order — called from
+// eoPopulateFields so open/discard behave like every other field.
+function eoIntakePopulate(o) {
+  eoSensPopulate(o.sensitivities || []);
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('f-wrist', o.wrist);
+  set('f-neck',  o.neck);
+  eoRegRender('client', o.ringSizes || []);
+  eoGiftPopulate(o.gift || null);
+  eoStylePopulate(o.styleProfile || null);
+  eoStonesRender(o.stones || []);
+  _eoAlts = (o.estimateAlternatives || []).map(a => ({ ...a }));
+  eoAltsRender();
+  eoLoadSignature(o);
+}
+
+// Live edits in the stone editor keep the Gemstones text in sync
+(function () {
+  const list = document.getElementById('eo-stone-list');
+  if (list) {
+    list.addEventListener('input',  eoStonesChanged);
+    list.addEventListener('change', eoStonesChanged);
+  }
+})();
 
 
 // ════════════════════════════════════════════
