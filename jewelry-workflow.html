@@ -3355,7 +3355,11 @@
     .rq-add-chip-x { cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1; flex-shrink: 0; }
     .rq-add-chip-x:hover { color: var(--text); }
     .rq-add-sizes { flex: 1 1 100%; }
-    @media (max-width: 640px) { .rq-add-bar { display: none; } }
+    @media (max-width: 640px) {
+      .rq-add-bar { padding: 8px 12px 12px; }
+      .rq-add-bar input { font-size: 16px; } /* ≥16px so iOS Safari doesn't zoom on focus */
+      .rq-add-dropdown { left: 0; right: 0; min-width: 0; }
+    }
     .notes-save-dot {
       width: 7px; height: 7px; background: #6AB87A; border-radius: 50%;
       display: inline-block; opacity: 0; transition: opacity 0.3s; margin-left: 6px;
