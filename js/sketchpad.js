@@ -316,8 +316,21 @@ function sketchClear() {
 
 // ── Sketch state for orders.js ────────────────────────────────
 
+// Flatten to a white-backed PNG. The ink canvas may be transparent-backed
+// (pad.transparent — the layered-stage model), but order.sketchImg and the
+// Notion sync always expect an opaque white-backed image. The on-screen grid
+// overlay (#sketch-grid) is a drawing aid only and is deliberately NOT baked
+// into exports. (intake.js overrides this wholesale to also composite its
+// reference-photo underlay.)
 function sketchExport() {
-  return (SK && SK.hasInk) ? SK.canvas.toDataURL('image/png') : null;
+  if (!SK || !SK.hasInk) return null;
+  const c = document.createElement('canvas');
+  c.width = SK.canvas.width; c.height = SK.canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(SK.canvas, 0, 0);
+  return c.toDataURL('image/png');
 }
 
 function sketchIsDirty() {
@@ -479,6 +492,15 @@ function sketchInit() {
   SK = _padCreate('sketch-canvas', { penOnly: true }); // Apple Pencil only
   HW = _padCreate('hw-canvas', { background: _hwBackground });
   if (HW) HW.widths.pen = 6; // handwriting pen is fixed medium
+  // A #sketch-grid element means the host page uses the layered stage
+  // (white .sketch-stage, DOM layers beneath the ink) — flip the ink canvas
+  // to transparent-backed so those layers show through; sketchExport()
+  // re-adds the white backing. intake.js sets this again for its photo
+  // underlay, which is redundant but harmless.
+  if (SK && document.getElementById('sketch-grid')) {
+    SK.transparent = true;
+    _padBlank(SK);
+  }
   sketchSyncSizeUI();         // prime the dock controls to the default weight
   sketchSyncOpacityUI();      // prime the dock controls to the default opacity
   sketchSyncFlowUI();         // prime the dock controls to the default smoothing

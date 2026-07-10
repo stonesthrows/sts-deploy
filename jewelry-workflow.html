@@ -1196,9 +1196,23 @@
     }
     .sketch-stage > #sketch-canvas {
       position: absolute; inset: 0; width: 100%; height: 100%;
-      border: none; background: #fff;
+      /* transparent (not white) so stage layers beneath — the technical
+         grid — show through; the white comes from .sketch-stage and is
+         re-added on export by sketchExport() (same model as intake.html) */
+      border: none; background: transparent;
       touch-action: none; cursor: crosshair; display: block;
     }
+    /* Fine technical grid — a toggleable drawing aid layered UNDER the ink.
+       Pure CSS so it never touches canvas pixels and is never exported. */
+    #sketch-grid {
+      position: absolute; inset: 0; display: none; pointer-events: none;
+      background-image:
+        repeating-linear-gradient(0deg,  rgba(90,130,160,0.16) 0, rgba(90,130,160,0.16) 1px, transparent 1px, transparent 24px),
+        repeating-linear-gradient(90deg, rgba(90,130,160,0.16) 0, rgba(90,130,160,0.16) 1px, transparent 1px, transparent 24px),
+        repeating-linear-gradient(0deg,  rgba(90,130,160,0.30) 0, rgba(90,130,160,0.30) 1px, transparent 1px, transparent 120px),
+        repeating-linear-gradient(90deg, rgba(90,130,160,0.30) 0, rgba(90,130,160,0.30) 1px, transparent 1px, transparent 120px);
+    }
+    #sketch-grid.on { display: block; }
     .sketch-dock {
       position: absolute; top: 12px; right: 12px; z-index: 3;
       display: flex; flex-direction: column; gap: 6px;
@@ -6192,6 +6206,7 @@
          the S/M/L preset-highlight sync to this id (same contract as intake.html). -->
     <div id="sketchpad-fg" style="flex:1;min-height:0;display:flex;">
       <div class="sketch-stage" id="sketch-stage">
+        <div id="sketch-grid"></div>
         <canvas id="sketch-canvas" width="1000" height="620"></canvas>
         <div class="sketch-dock" id="sketch-dock">
           <div class="dock-head">
