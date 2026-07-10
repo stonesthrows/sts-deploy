@@ -552,6 +552,22 @@
     }
     .ps-wheel { display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
     .ps-wheel .ps-chip { flex-shrink: 0; min-width: 56px; text-align: center; scroll-snap-align: center; border-radius: 10px; }
+
+    /* ═══ Client-facing review screen (brief 4.2) + signature (4.3) ═══ */
+    .rv-rows { border: 1px solid var(--bdr-light); border-radius: 12px; overflow: hidden; }
+    .rv-row {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      padding: 11px 14px; font-size: 14.5px; border-bottom: 1px solid var(--bdr-light);
+    }
+    .rv-row:last-child { border-bottom: none; }
+    .rv-row span:first-child { color: var(--text3); font-weight: 600; }
+    .rv-row span:last-child { color: var(--text); font-weight: 600; }
+    .rv-row.rv-strong { background: #F8F3EC; }
+    .rv-row.rv-strong span:last-child { font-size: 17px; font-weight: 800; }
+    #sig-canvas {
+      width: 100%; height: auto; display: block; touch-action: none;
+      border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
+    }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -585,7 +601,7 @@
         <button type="button" class="btn btn-gold" id="sync-retry-btn" style="width:100%;margin-top:10px;" onclick="intakeSyncRetry()">↻ Retry now</button>
       </div>
     </div>
-    <button type="button" id="intake-save-btn" onclick="intakeSubmit()"
+    <button type="button" id="intake-save-btn" onclick="intakeReviewOpen()"
             class="rounded-lg bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-2.5 text-sm font-bold text-[#201A0A] shadow-lg shadow-amber-900/30 active:scale-95 disabled:opacity-50">
       Save &amp; Close
     </button>
@@ -1121,6 +1137,37 @@
     <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
             class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
   </footer>
+</div>
+
+<!-- ═══ Review with client (brief 4.2) — pure presentation over the fields
+     intakeSubmit() collects; deliberately NOT editable, studio-only data
+     (markup, internal notes, margin) absent. Signature (4.3) at the foot. ═══ -->
+<div id="intake-review" class="fixed inset-0 z-[190] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
+    <div class="flex items-center justify-between">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">Review with client</div>
+      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeReviewSkip()">Skip review · save now</button>
+    </div>
+    <div id="rv-name" class="mt-1 text-xl font-bold"></div>
+    <div id="rv-piece" class="mt-1 text-[15px] text-slate-600"></div>
+    <img id="rv-sketch" alt="Design sketch" class="mt-3 w-full rounded-xl border border-slate-200" style="display:none;max-height:220px;object-fit:contain;background:#fff;">
+    <div class="rv-rows mt-4">
+      <div class="rv-row"><span>Deadline</span><span id="rv-deadline">—</span></div>
+      <div class="rv-row"><span>Pickup</span><span id="rv-pickup">—</span></div>
+      <div class="rv-row"><span>Total</span><span id="rv-total">—</span></div>
+      <div class="rv-row" id="rv-deposit-row"><span>Deposit due today</span><span id="rv-deposit">—</span></div>
+      <div class="rv-row rv-strong"><span>Balance at pickup</span><span id="rv-balance">—</span></div>
+    </div>
+    <div class="mt-5">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Signature <span style="font-weight:400;text-transform:none;letter-spacing:0;">— finger is fine</span></div>
+      <canvas id="sig-canvas" width="880" height="180"></canvas>
+      <button type="button" class="btn btn-ghost" style="margin-top:2px;min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeSigClear()">Clear signature</button>
+    </div>
+    <div class="mt-4 flex gap-2">
+      <button type="button" class="btn btn-outline" onclick="intakeReviewClose()">‹ Back</button>
+      <button type="button" class="btn btn-outline" id="rv-confirm" style="flex:1;" onclick="intakeReviewConfirm()">Confirm &amp; Save (not signed)</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ Saved overlay — shown after Save & Close ═══ -->

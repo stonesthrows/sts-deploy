@@ -376,6 +376,22 @@ function _intakeEstMaterialLines() {
   return lines.join('\n');
 }
 
+// Required-field validation shared by the review screen and the save
+// itself — flags the first gap and deep-links to it (toast + red border).
+function _intakeValidate() {
+  const g = id => document.getElementById(id);
+  const typeVal = (g('f-order-type') || {}).value || 'order';
+  let desc = g('f-description').value.trim();
+  if (typeVal === 'square-item' && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
+  const flag = (id) => {
+    const el = g(id);
+    if (el) { el.style.borderColor = '#E05050'; el.addEventListener('input', () => el.style.borderColor = '', { once: true }); }
+  };
+  if (!getFullName()) { toast('Please fill in the customer name', '⚠'); flag('f-firstname'); intakeStep(1); return false; }
+  if (!desc) { toast('Please add an Order Description', '⚠'); flag('f-description'); intakeStep(1); return false; }
+  return true;
+}
+
 // ── Save & Close — builds the same order object shape as the old
 //    submitOrder() so Notion sync and the desktop app see no difference ──
 async function intakeSubmit() {
@@ -393,12 +409,7 @@ async function intakeSubmit() {
   // Square Item: fall back to the picked catalog item names if no description typed.
   if (isSquare && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
 
-  const flag = (id) => {
-    const el = g(id);
-    if (el) { el.style.borderColor = '#E05050'; el.addEventListener('input', () => el.style.borderColor = '', { once: true }); }
-  };
-  if (!name) { toast('Please fill in the customer name', '⚠'); flag('f-firstname'); intakeStep(1); return; }
-  if (!desc) { toast('Please add an Order Description', '⚠'); flag('f-description'); intakeStep(1); return; }
+  if (!_intakeValidate()) return;
   if (btn) btn.disabled = true;
 
   const items       = _oiItems.map(it => ({ ...it }));
@@ -464,6 +475,10 @@ async function intakeSubmit() {
     gemstones:     g('f-gemstones').value.trim(),
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null,
+    // On-glass signature (4.3) — stored locally on the order like the
+    // sketch; absent signature never blocks a save. Pushing it to Notion
+    // as an attachment is deferred until the pipeline grows a slot for it.
+    signatureImg:  (typeof SIG !== 'undefined' && SIG && SIG.hasInk) ? SIG.canvas.toDataURL('image/png') : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
     notes:         [notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
@@ -523,6 +538,8 @@ function intakeReset() {
   if (typeof intakeProfileReset === 'function') intakeProfileReset();
   if (typeof intakeSection1Reset === 'function') intakeSection1Reset();
   if (typeof psReset === 'function') psReset();
+  if (typeof intakeSigClear === 'function' && SIG) intakeSigClear();
+  if (typeof intakeReviewClose === 'function') intakeReviewClose();
   ['f-pickup', 'f-source', 'f-assignee'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
@@ -892,6 +909,107 @@ document.addEventListener('pointerdown', e => {
 });
 window.addEventListener('offline', () => intakeUpdateUnsynced());
 window.addEventListener('online',  () => intakeUpdateUnsynced());
+
+// ── 4.2 Client-facing review screen + 4.3 on-glass signature ──
+// Save & Close is two-beat: intakeReviewOpen() → ✓ Confirm runs the
+// unchanged intakeSubmit(). Front-of-house only — no markup, no
+// internal notes, no margin.
+let SIG = null; // third _padCreate instance — penOnly:false, clients sign with fingers
+
+function _sigBackground(ctx, w, h) {
+  ctx.strokeStyle = '#C8BFB4';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(24, h - 40);
+  ctx.lineTo(w - 24, h - 40);
+  ctx.stroke();
+  ctx.fillStyle = '#B0A89E';
+  ctx.font = '600 22px system-ui, sans-serif';
+  ctx.fillText('✕', 24, h - 50);
+}
+
+function _sigInit() {
+  if (SIG || typeof _padCreate !== 'function') return;
+  SIG = _padCreate('sig-canvas', { background: _sigBackground });
+  if (SIG) {
+    SIG.widths.pen = 4;
+    // Signature presence drives the Confirm button's weight
+    SIG.canvas.addEventListener('pointerup', () => setTimeout(_rvConfirmState, 0));
+  }
+}
+
+function _rvConfirmState() {
+  const btn = document.getElementById('rv-confirm');
+  if (!btn) return;
+  const signed = SIG && SIG.hasInk;
+  btn.classList.toggle('btn-gold', signed);
+  btn.classList.toggle('btn-outline', !signed);
+  btn.innerHTML = signed ? '✓ Confirm &amp; Save' : 'Confirm &amp; Save (not signed)';
+}
+
+function intakeSigClear() {
+  if (!SIG) return;
+  _padBlank(SIG);
+  SIG.hasInk = false;
+  SIG.undo.length = 0;
+  SIG.redo.length = 0;
+  _rvConfirmState();
+}
+
+function intakeReviewOpen() {
+  if (!_intakeValidate()) return;
+  _sigInit();
+  const g = id => document.getElementById(id);
+  const money = v => '$' + (parseFloat(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const nameEl = g('rv-name');
+  if (nameEl) nameEl.textContent = getFullName();
+  // Piece summary: the sheet's peek line for Custom Design, else the description
+  const typeVal = (g('f-order-type') || {}).value || 'order';
+  const peek = g('ps-summary')?.textContent || '';
+  const piece = (typeVal === 'order' && peek && !peek.startsWith('tap a tab'))
+    ? peek : g('f-description').value.trim();
+  const pieceEl = g('rv-piece');
+  if (pieceEl) pieceEl.textContent = piece;
+  // Sketch thumbnail
+  const img = g('rv-sketch');
+  if (img) {
+    const hasSketch = typeof SK !== 'undefined' && SK && SK.hasInk;
+    img.style.display = hasSketch ? '' : 'none';
+    if (hasSketch) img.src = SK.canvas.toDataURL('image/png');
+  }
+  // Money + logistics rows
+  const deadline = g('f-deadline')?.value;
+  if (g('rv-deadline')) g('rv-deadline').textContent = deadline
+    ? new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  if (g('rv-pickup')) g('rv-pickup').textContent = g('f-pickup')?.value || '—';
+  const price    = parseFloat(g('f-price')?.value) || 0;
+  const deposit  = parseFloat(g('f-deposit')?.value) || 0;
+  const shipping = parseFloat(g('f-shipping')?.value) || 0;
+  if (g('rv-total')) g('rv-total').textContent = price ? money(price + shipping) : '—';
+  const depRow = g('rv-deposit-row');
+  if (depRow) depRow.style.display = deposit > 0 ? '' : 'none';
+  if (g('rv-deposit')) g('rv-deposit').textContent = money(deposit);
+  if (g('rv-balance')) g('rv-balance').textContent = price ? money(Math.max(price + shipping - deposit, 0)) : '—';
+
+  _rvConfirmState();
+  const overlay = g('intake-review');
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function intakeReviewClose() {
+  document.getElementById('intake-review')?.classList.add('hidden');
+}
+
+function intakeReviewSkip() {
+  intakeReviewClose();
+  intakeSubmit();
+}
+
+function intakeReviewConfirm() {
+  intakeReviewClose();
+  intakeSubmit();
+}
 
 // ── Wrap the shared order-widgets.js entry points (loaded before this
 //    file) so every recalc also refreshes the intake-only UI. The desktop
