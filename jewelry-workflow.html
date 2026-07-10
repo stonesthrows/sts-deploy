@@ -1202,6 +1202,14 @@
       border: none; background: transparent;
       touch-action: none; cursor: crosshair; display: block;
     }
+    /* Reference-photo underlay — UNDER the ink and grid, dimmed; same
+       element/ids as intake.html so the dock markup stays copy-identical.
+       Desktop variant is fit-contain centered (no pinch/drag — the mouse
+       is the drawing device here). */
+    #sketch-underlay {
+      position: absolute; top: 0; left: 0; transform-origin: 0 0;
+      opacity: 0.3; pointer-events: none; display: none; max-width: none;
+    }
     /* Fine technical grid — a toggleable drawing aid layered UNDER the ink.
        Pure CSS so it never touches canvas pixels and is never exported. */
     #sketch-grid {
@@ -6208,6 +6216,7 @@
          the S/M/L preset-highlight sync to this id (same contract as intake.html). -->
     <div id="sketchpad-fg" style="flex:1;min-height:0;display:flex;">
       <div class="sketch-stage" id="sketch-stage">
+        <img id="sketch-underlay" alt="">
         <div id="sketch-grid"></div>
         <canvas id="sketch-canvas" width="1000" height="620"></canvas>
         <div class="sketch-dock" id="sketch-dock">
@@ -6255,6 +6264,19 @@
             <button type="button" class="dock-btn" onclick="sketchRedo()"  title="Redo">↪</button>
             <button type="button" class="dock-btn" onclick="sketchClear()" title="Clear">🗑</button>
             <button type="button" class="dock-btn" id="sk-grid-btn" onclick="sketchGridToggle()" title="Grid overlay">▦</button>
+            <button type="button" class="dock-btn" id="ul-add-btn" onclick="ulPick()" title="Reference photo underlay">🖼</button>
+          </div>
+          <div class="dock-row" id="ul-controls" style="display:none;">
+            <button type="button" class="dock-btn on" id="ul-toggle-btn" onclick="ulToggle()" title="Show/hide photo">👁</button>
+            <button type="button" class="dock-btn" onclick="ulRemove()" title="Remove photo">🗙</button>
+          </div>
+          <div class="dock-size" id="ul-opacity-row" style="display:none;">
+            <div class="dock-size-preview" style="font-size:13px;">🖼</div>
+            <div class="dock-slider-wrap">
+              <input type="range" class="dock-slider" id="ul-opacity" min="10" max="80" step="5" value="30"
+                     oninput="ulSetOpacity(this.value)" aria-label="Photo opacity">
+              <div class="dock-size-val" id="ul-opacity-val">30%</div>
+            </div>
           </div>
         </div>
         <button type="button" class="dock-reopen" id="sketch-dock-reopen" onclick="sketchDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
@@ -6266,6 +6288,7 @@
       <button class="btn btn-outline btn-sm" onclick="closeSketchDrawModal()">Cancel</button>
       <button class="btn btn-gold btn-sm" onclick="eoUseDrawnSketch()">✓ Use Sketch</button>
     </div>
+    <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
   </div>
 </div>
 

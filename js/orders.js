@@ -557,6 +557,7 @@ function openSketchDrawModal() {
   const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
   if (!o) return;
   if (typeof sketchReset === 'function') sketchReset();
+  ulReset(); // don't leak the previous order's reference photo
   // Seed the canvas from whichever sketch is currently "current" — a draft
   // staged earlier this session takes priority, else the order's saved one.
   const seed = _eoSketchDraft || o.sketchImg || null;
@@ -570,9 +571,119 @@ function closeSketchDrawModal() {
   if (bg) bg.classList.remove('open');
 }
 
+// ── Reference-photo underlay for the Draw Sketch modal ─────────
+// Desktop port of intake.js's underlay: same element ids and function
+// names so the dock markup stays copy-identical between the two pages
+// (orders.js and intake.js are never loaded together). Simplified for
+// desktop: the photo is fit-contain centered with an opacity slider —
+// no pinch/drag repositioning, since the mouse is the drawing device.
+const _ul = { img: null, x: 0, y: 0, s: 1, opacity: 0.3, visible: true };
+
+function _ulApply() {
+  const el = document.getElementById('sketch-underlay');
+  if (!el) return;
+  const on = _ul.img && _ul.visible;
+  el.style.display = on ? 'block' : 'none';
+  if (on) {
+    el.style.transform = 'translate(' + _ul.x + 'px,' + _ul.y + 'px) scale(' + _ul.s + ')';
+    el.style.opacity = _ul.opacity;
+  }
+  const controls = document.getElementById('ul-controls');
+  if (controls) controls.style.display = _ul.img ? '' : 'none';
+  const opRow = document.getElementById('ul-opacity-row');
+  if (opRow) opRow.style.display = (_ul.img && _ul.visible) ? '' : 'none';
+  const toggle = document.getElementById('ul-toggle-btn');
+  if (toggle) toggle.classList.toggle('on', _ul.visible);
+}
+
+function ulPick() { document.getElementById('ul-file')?.click(); }
+
+function ulFileChosen(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      _ul.img = img;
+      _ul.visible = true;
+      const el = document.getElementById('sketch-underlay');
+      if (el) el.src = img.src;
+      // Fit-contain into the stage, centered
+      const stage = document.getElementById('sketch-stage');
+      const sw = stage?.clientWidth || 800, sh = stage?.clientHeight || 600;
+      _ul.s = Math.min(sw / img.naturalWidth, sh / img.naturalHeight) * 0.92;
+      _ul.x = (sw - img.naturalWidth * _ul.s) / 2;
+      _ul.y = (sh - img.naturalHeight * _ul.s) / 2;
+      _ulApply();
+      toast('Photo under the ink — trace away', '🖼');
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function ulToggle() {
+  if (!_ul.img) return;
+  _ul.visible = !_ul.visible;
+  _ulApply();
+}
+
+function ulRemove() {
+  _ul.img = null;
+  const el = document.getElementById('sketch-underlay');
+  if (el) el.removeAttribute('src');
+  _ulApply();
+}
+
+function ulSetOpacity(v) {
+  _ul.opacity = (parseFloat(v) || 30) / 100;
+  const val = document.getElementById('ul-opacity-val');
+  if (val) val.textContent = Math.round(_ul.opacity * 100) + '%';
+  _ulApply();
+}
+
+function ulReset() {
+  ulRemove();
+  _ul.x = 0; _ul.y = 0; _ul.s = 1; _ul.opacity = 0.3; _ul.visible = true;
+  const slider = document.getElementById('ul-opacity');
+  if (slider) slider.value = 30;
+  const val = document.getElementById('ul-opacity-val');
+  if (val) val.textContent = '30%';
+}
+
+// Composite (white + photo underlay + ink) for Use Sketch — mirrors
+// intake.js's sketchExport override. One wrinkle intake doesn't have:
+// intake resizes the canvas backing store to match the stage, but this
+// modal keeps the fixed 1000x620 backing CSS-stretched over the stage, so
+// the underlay's stage-CSS-px placement must be scaled per-axis into
+// backing px (the same non-uniform mapping _padPoint applies to strokes).
+function _dsSketchComposite() {
+  if (typeof SK === 'undefined' || !SK) return null;
+  const hasPhoto = !!(_ul.img && _ul.visible);
+  if (!hasPhoto) return (typeof sketchExport === 'function') ? sketchExport() : null;
+  if (!SK.hasInk && !hasPhoto) return null;
+  const c = document.createElement('canvas');
+  c.width = SK.canvas.width; c.height = SK.canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  const stage = document.getElementById('sketch-stage');
+  const fx = c.width  / (stage?.clientWidth  || c.width);
+  const fy = c.height / (stage?.clientHeight || c.height);
+  ctx.globalAlpha = _ul.opacity;
+  ctx.setTransform(_ul.s * fx, 0, 0, _ul.s * fy, _ul.x * fx, _ul.y * fy);
+  ctx.drawImage(_ul.img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(SK.canvas, 0, 0);
+  return c.toDataURL('image/png');
+}
+
 function eoUseDrawnSketch() {
-  const dataUrl = (typeof sketchExport === 'function') ? sketchExport() : null;
-  if (!dataUrl) { toast('Draw something first', '⚠'); return; }
+  const dataUrl = _dsSketchComposite();
+  if (!dataUrl) { toast('Draw something (or add a photo) first', '⚠'); return; }
   _eoSketchDraft = dataUrl;
   const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
   eoLoadSketch(o || {});
