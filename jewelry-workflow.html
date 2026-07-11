@@ -802,6 +802,11 @@
                   box-shadow var(--dur-fast) var(--ease-smooth);
       font-family: inherit;
     }
+    /* Safari/WebKit centers the date value inside <input type="date"> by
+       default, so it renders shifted right of a left-aligned text/select
+       sibling in the same grid row (e.g. Occasion Date vs. Relationship) —
+       force it flush left to match. */
+    .fg input[type="date"]::-webkit-date-and-time-value { text-align: left; }
     .fg input::placeholder, .fg textarea::placeholder { color: #B8B0A6; }
     .fg input:hover:not(:focus):not([readonly]),
     .fg textarea:hover:not(:focus),
