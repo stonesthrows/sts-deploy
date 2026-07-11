@@ -22,6 +22,7 @@ const SK_PRESETS = {
   pencil: { S: 1.5, M: 2.5, L: 5  },
   marker: { S: 8,   M: 14,  L: 22 },
   water:  { S: 12,  M: 22,  L: 36 },
+  smudge: { S: 10,  M: 20,  L: 34 },
   eraser: { S: 16,  M: 28,  L: 48 },
 };
 
@@ -31,19 +32,22 @@ function _padCreate(canvasId, opts) {
   const pad = {
     canvas,
     ctx: canvas.getContext('2d'),
-    tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'water' | 'eraser'
+    tool: 'pen',            // 'pen' | 'pencil' | 'marker' | 'water' | 'smudge' | 'eraser'
     // Independent stroke weight per tool (canvas units)
-    widths: { pen: 5, pencil: 2.5, marker: 14, water: 22, eraser: 28 },
-    // Independent stroke opacity per tool (0–1), user-adjustable via the dock slider
-    opacities: { pen: 1, pencil: 0.55, marker: 0.35, water: 0.3, eraser: 1 },
+    widths: { pen: 5, pencil: 2.5, marker: 14, water: 22, smudge: 20, eraser: 28 },
+    // Independent stroke opacity per tool (0–1), user-adjustable via the dock slider.
+    // For smudge this doubles as "blend strength" — how much of the smeared
+    // pixels replace the destination on each dab (see _padSmudgeDab).
+    opacities: { pen: 1, pencil: 0.55, marker: 0.35, water: 0.3, smudge: 0.45, eraser: 1 },
     // Independent line-smoothing strength per tool (0–1, 1 = fully smoothed)
-    flows: { pen: 1, pencil: 1, marker: 1, water: 1, eraser: 1 },
+    flows: { pen: 1, pencil: 1, marker: 1, water: 1, smudge: 1, eraser: 1 },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
     dirty: false,           // changed since load/reset — drives re-export on edit-save
     undo: [], redo: [],     // {url, ink} snapshots, capped at 20
     background: (opts && opts.background) || null,
+    smudgeBuf: document.createElement('canvas'), // reused scratch canvas for _padSmudgeDab
   };
   _padBlank(pad);
   canvas.addEventListener('pointerdown',   e => _padDown(pad, e));
@@ -182,6 +186,15 @@ function _padDown(pad, e) {
     _padDab(pad, p.x, p.y);
     return;
   }
+  if (pad.tool === 'smudge') {
+    // Smudge drags existing pixels rather than painting new ones — there's
+    // nothing to smear yet from a single point, so just anchor the walk
+    // (see _padSmudgeDab/_padSmudgeTo) for _padMove to pick up.
+    pad._smudgePos = p;
+    pad._last = p;
+    pad._pathPos = p;
+    return;
+  }
   pad._last = p;    // anchor for the quadratic-through-midpoints smoothing in _padMove
   pad._pathPos = p; // actual path endpoint so far — lets _padMove stroke only new segments
   ctx.beginPath();
@@ -225,6 +238,48 @@ function _padWaterTo(pad, x, y) {
   }
 }
 
+// ── Smudge brush ────────────────────────────────────────────────
+// Samples the canvas in a circle around the FROM point into a scratch
+// canvas, then paints that snapshot back centered on the TO point at
+// reduced alpha (pad.opacities.smudge = blend strength), clipped to a
+// circle so it doesn't square off. Repeated densely along the drag path,
+// this drags existing ink in the direction of travel like a finger
+// smearing wet paint, rather than laying down a new stroke color.
+function _padSmudgeDab(pad, fromX, fromY, toX, toY) {
+  const ctx = pad.ctx;
+  const r = Math.max(3, (pad.widths.smudge || 20) / 2);
+  const strength = pad.opacities.smudge != null ? pad.opacities.smudge : 0.45;
+  const size = r * 2;
+  const buf = pad.smudgeBuf;
+  buf.width = size; buf.height = size; // also clears the scratch canvas
+  buf.getContext('2d').drawImage(pad.canvas, fromX - r, fromY - r, size, size, 0, 0, size, size);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(toX, toY, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.globalAlpha = strength;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(buf, toX - r, toY - r, size, size);
+  ctx.restore();
+}
+
+// Walk from the last smudge position toward (x,y) at fixed spacing,
+// dabbing as we go — same fixed-spacing-not-per-event rationale as
+// _padWaterTo, so a fast drag smears exactly as much as a slow one.
+function _padSmudgeTo(pad, x, y) {
+  const spacing = Math.max(1.5, (pad.widths.smudge || 20) / 8);
+  let dx = x - pad._smudgePos.x, dy = y - pad._smudgePos.y;
+  let d = Math.hypot(dx, dy);
+  while (d >= spacing) {
+    const t = spacing / d;
+    const next = { x: pad._smudgePos.x + dx * t, y: pad._smudgePos.y + dy * t };
+    _padSmudgeDab(pad, pad._smudgePos.x, pad._smudgePos.y, next.x, next.y);
+    pad._smudgePos = next;
+    dx = x - pad._smudgePos.x; dy = y - pad._smudgePos.y;
+    d = Math.hypot(dx, dy);
+  }
+}
+
 // Smooths the raw point stream by curving through the midpoint of each
 // consecutive pair, using the raw point as the quadratic control — the
 // standard fix for jagged/stepped freehand canvas lines during fast tracking.
@@ -258,6 +313,26 @@ function _padMove(pad, e) {
         const qx = it * it * pad._pathPos.x + 2 * it * t * pad._last.x + t * t * endX;
         const qy = it * it * pad._pathPos.y + 2 * it * t * pad._last.y + t * t * endY;
         _padWaterTo(pad, qx, qy);
+      }
+      pad._pathPos = { x: endX, y: endY };
+      pad._last = p;
+    }
+    return;
+  }
+  if (pad.tool === 'smudge') {
+    // Same flow-blended quadratic + fixed-spacing-dab approach as water,
+    // just dragging existing pixels (_padSmudgeTo) instead of stamping color.
+    for (const ev of (events.length ? events : [e])) {
+      const p = _padPoint(pad, ev);
+      const mid = { x: (pad._last.x + p.x) / 2, y: (pad._last.y + p.y) / 2 };
+      const endX = p.x + (mid.x - p.x) * flow;
+      const endY = p.y + (mid.y - p.y) * flow;
+      const STEPS = 8;
+      for (let s = 1; s <= STEPS; s++) {
+        const t = s / STEPS, it = 1 - t;
+        const qx = it * it * pad._pathPos.x + 2 * it * t * pad._last.x + t * t * endX;
+        const qy = it * it * pad._pathPos.y + 2 * it * t * pad._last.y + t * t * endY;
+        _padSmudgeTo(pad, qx, qy);
       }
       pad._pathPos = { x: endX, y: endY };
       pad._last = p;
@@ -308,7 +383,7 @@ function _padUp(pad, e) {
 function sketchSetTool(tool, btn) {
   if (!SK) return;
   SK.tool = tool;
-  ['pen', 'pencil', 'marker', 'water', 'eraser'].forEach(t => {
+  ['pen', 'pencil', 'marker', 'water', 'smudge', 'eraser'].forEach(t => {
     const b = document.getElementById('sk-' + t);
     if (b) b.classList.toggle('active', t === tool);
   });
@@ -394,7 +469,8 @@ function sketchSyncSizeUI() {
     dot.style.background = SK.tool === 'eraser' ? '#C7D4DE'
                          : SK.tool === 'pencil' ? '#9AA6B0'
                          : SK.tool === 'marker' ? '#FFD400'
-                         : SK.tool === 'water'  ? '#3D7EC2' : '#E8EEF2';
+                         : SK.tool === 'water'  ? '#3D7EC2'
+                         : SK.tool === 'smudge' ? '#B98D6F' : '#E8EEF2';
   }
   const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
   document.querySelectorAll('#sketchpad-fg .dock-preset').forEach(b => {
