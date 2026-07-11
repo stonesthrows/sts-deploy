@@ -28,28 +28,55 @@ const PUBLIC = new Set([
   'timer-ping',      // trivial liveness probe, exposes nothing
 ]);
 
+// Only our own deploys (prod + Pages previews) and local dev may read
+// /api/* responses cross-origin. Everything else gets the canonical prod
+// origin, which the browser rejects — so we never emit a wildcard.
+const CANONICAL = 'https://sts-deploy.pages.dev';
+function isAllowedOrigin(origin) {
+  return /^https:\/\/([a-z0-9-]+\.)?sts-deploy\.pages\.dev$/.test(origin) ||
+         /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
+function corsFor(origin) {
+  return {
+    'Access-Control-Allow-Origin':  isAllowedOrigin(origin) ? origin : CANONICAL,
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-STS-Key',
+    'Vary': 'Origin',
+  };
+}
+
 export async function onRequest(context) {
   const { request, env, next } = context;
+  const origin = request.headers.get('Origin') || '';
+  const cors   = corsFor(origin);
 
-  // Never gate CORS preflight — each handler answers OPTIONS itself.
-  if (request.method === 'OPTIONS') return next();
+  // Answer CORS preflight centrally so every endpoint permits X-STS-Key
+  // and reflects only an allowed origin (never '*').
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: cors });
+  }
 
-  // Not yet configured → fail open so an un-set env var can't break the
-  // live app. The gate becomes real the moment APP_SHARED_KEY is set.
+  // Auth gate. Not yet configured → fail open so an un-set env var can't
+  // break the live app; enforced the moment APP_SHARED_KEY is set.
   const expected = env.APP_SHARED_KEY;
-  if (!expected) return next();
-
-  // /api/notion-orders/foo → "notion-orders"
-  const name = new URL(request.url).pathname
+  const name = new URL(request.url).pathname   // /api/notion-orders/x → "notion-orders"
     .replace(/^\/api\//, '')
     .replace(/\/.*$/, '');
-  if (PUBLIC.has(name)) return next();
-
-  if (request.headers.get('X-STS-Key') !== expected) {
+  if (expected && !PUBLIC.has(name) &&
+      request.headers.get('X-STS-Key') !== expected) {
     return new Response(
       JSON.stringify({ error: 'unauthorized' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
+      { status: 401, headers: { 'Content-Type': 'application/json', ...cors } }
     );
   }
-  return next();
+
+  // Run the handler, then replace its per-function CORS (which was '*')
+  // with the tightened origin. Skip redirects — their headers are
+  // immutable and they're same-origin navigations anyway.
+  const res = await next();
+  if (res.status < 300 || res.status >= 400) {
+    try { Object.entries(cors).forEach(([k, v]) => res.headers.set(k, v)); }
+    catch (e) { /* immutable response — leave as-is */ }
+  }
+  return res;
 }

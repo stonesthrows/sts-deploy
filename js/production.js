@@ -383,10 +383,10 @@ function prodOrderCardHTML(o, showDeliverBtn) {
           + ' onclick="event.stopPropagation();openProdStageSheet(\'' + o.id + '\')">↪</button>';
   }
   var nameHtml = showDeliverBtn
-    ? o.name
-    : '<span class="prod-cust-link" onclick="event.stopPropagation();prodOpenCustomer(\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')" title="View all orders for this customer">' + o.name + '</span>';
+    ? prodEsc(o.name)
+    : '<span class="prod-cust-link" onclick="event.stopPropagation();prodOpenCustomer(\'' + prodEsc((o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")) + '\')" title="View all orders for this customer">' + prodEsc(o.name) + '</span>';
   html += '<div class="prod-order-name">' + nameHtml + '</div>';
-  html += '<div class="prod-order-desc">' + o.desc + '</div>';
+  html += '<div class="prod-order-desc">' + prodEsc(o.desc) + '</div>';
   html += '<div class="prod-order-foot">';
   html += '<span class="o-tag ' + dl.cls + '">' + dl.text + '</span>';
   if (o.price || o.finalPrice) {
@@ -401,13 +401,13 @@ function prodOrderCardHTML(o, showDeliverBtn) {
     html += '<div class="prod-delivered-on">Cancelled ' + fmtDate(o.cancelledAt) + '</div>';
   }
   if (o.pdfUrl) {
-    html += '<a class="prod-pdf-btn" href="' + o.pdfUrl + '" target="_blank" onclick="event.stopPropagation()">📄 View PDF</a>';
+    html += '<a class="prod-pdf-btn" href="' + prodEsc(o.pdfUrl) + '" target="_blank" onclick="event.stopPropagation()">📄 View PDF</a>';
     if (!showDeliverBtn) {
       var cachedOcr = prodOcrCache(o.id);
       html += '<button class="prod-scan-btn" id="prod-scan-btn-' + o.id + '"'
             + ' onclick="event.stopPropagation();prodScanPdf(\'' + o.id + '\',\'' + o.pdfUrl.replace(/'/g,"\\'") + '\')">'
             + (cachedOcr ? '🔍 Re-scan PDF' : '🔍 Scan PDF') + '</button>';
-      var saveBtn = '<button class="prod-ocr-save-btn" onclick="event.stopPropagation();prodSaveToCustomerOpen(\'' + o.id + '\',\'' + (o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">📋 Save to Customer</button>';
+      var saveBtn = '<button class="prod-ocr-save-btn" onclick="event.stopPropagation();prodSaveToCustomerOpen(\'' + o.id + '\',\'' + prodEsc((o.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")) + '\')">📋 Save to Customer</button>';
       if (cachedOcr) {
         html += '<div class="prod-ocr-panel" id="prod-ocr-panel-' + o.id + '">'
               + '<div class="prod-ocr-head" onclick="event.stopPropagation();prodToggleOcr(\'' + o.id + '\')">'
@@ -430,7 +430,7 @@ function prodOrderCardHTML(o, showDeliverBtn) {
     html += '<button class="prod-delivered-btn" onclick="event.stopPropagation();prodMarkDelivered(\'' + o.id + '\')">✓ Mark Completed</button>';
   }
   if (!showDeliverBtn) {
-    var safeName  = (o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeName  = prodEsc((o.name  || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
     html += '<div class="prod-archive-actions">'
           + '<button class="prod-archive-btn prod-archive-btn-order"'
           + ' onclick="event.stopPropagation();prodArchiveAction(\'' + safeName + '\',\'order\')">'
@@ -506,8 +506,8 @@ function prodActionNameInput(val) {
 
   if (matches.length && !exact) {
     suggest.innerHTML = matches.map(function(c) {
-      var esc = (c.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      var safe = (c.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var esc = prodEsc(c.name);
+      var safe = prodEsc((c.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
       return '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #eee;"'
            + ' onmouseover="this.style.background=\'#F4F0E8\'"'
            + ' onmouseout="this.style.background=\'\'"'
@@ -609,7 +609,8 @@ function prodOcrCache(orderId, setText) {
 
 function prodEsc(s) {
   return String(s || '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // Extract Google Drive file ID from a Drive URL
