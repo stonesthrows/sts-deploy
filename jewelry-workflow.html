@@ -4399,6 +4399,19 @@
     .sot-modal input:focus, .sot-modal select:focus { border-color: var(--accent); }
     .sot-modal-row { display: flex; gap: 8px; margin-top: 4px; }
 
+    /* ── Materials Library ──────────────────── */
+    .mat-inactive { opacity: 0.5; }
+    .mat-conf {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; background: var(--card-head-bg); color: var(--text-dim);
+    }
+    .mat-conf-seeded    { background: #FFF3CD; color: #8A6D1F; }
+    .mat-conf-estimated { background: #FDE2E1; color: #B3392C; }
+    .mat-conf-verified  { background: #DCF5E3; color: #1E7B3C; }
+    body.theme-midnight .mat-conf-seeded    { background: #4a3d15; color: #e0c060; }
+    body.theme-midnight .mat-conf-estimated { background: #4a2320; color: #e08070; }
+    body.theme-midnight .mat-conf-verified  { background: #1a3a26; color: #6fd08a; }
+
     /* ── Theme Switcher UI ──────────────────── */
     .theme-wrap { position: relative; margin-right: 4px; }
     .theme-btn {
@@ -5425,6 +5438,7 @@
     <div class="sb-section">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
     <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
+    <div class="sb-item" data-sb="materials"     onclick="sbNav('supplies','materials',this)">🧱 Materials Library</div>
 
     <div class="sb-section">More</div>
     <div class="sb-item" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
@@ -5519,6 +5533,9 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="order-history" onclick="switchSubTab('order-history',this)">
     📋 Order History
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="materials" onclick="switchSubTab('materials',this)">
+    🧱 Materials Library
   </div>
 </div>
 
@@ -6954,6 +6971,154 @@
     </table>
   </div>
   <div class="oh-note" id="ohNote"></div>
+</div>
+
+<!-- Materials Library Tab -->
+<div id="tab-materials" class="tab-panel">
+  <div class="oh-head-row">
+    <div class="oh-title">Materials Library</div>
+    <div class="oh-head-actions">
+      <button class="btn btn-gold btn-sm" onclick="materialsOpenNew()">＋ Add Material</button>
+    </div>
+  </div>
+
+  <div class="oh-stats">
+    <div class="oh-stat">
+      <div class="v" id="materials-stat-total">—</div>
+      <div class="l">Total Materials</div>
+    </div>
+    <div class="oh-stat">
+      <div class="v" id="materials-stat-metals">—</div>
+      <div class="l">Metals</div>
+    </div>
+    <div class="oh-stat">
+      <div class="v" id="materials-stat-components">—</div>
+      <div class="l">Components</div>
+    </div>
+    <div class="oh-stat blue">
+      <div class="v" id="materials-stat-unweighed">—</div>
+      <div class="l">Estimated (not verified)</div>
+    </div>
+  </div>
+
+  <div class="oh-controls" id="materialsFilterBar">
+    <button class="oh-fbtn active" data-cat="all" onclick="materialsSetCatFilter('all')">All</button>
+    <button class="oh-fbtn" data-cat="metal" onclick="materialsSetCatFilter('metal')">Metals</button>
+    <button class="oh-fbtn" data-cat="component" onclick="materialsSetCatFilter('component')">Components</button>
+  </div>
+
+  <div class="oh-table-wrap">
+    <table class="oh-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Spec</th>
+          <th>Unit</th>
+          <th>Cost / Unit</th>
+          <th>Stock</th>
+          <th>Confidence</th>
+          <th>Supplier</th>
+        </tr>
+      </thead>
+      <tbody id="materialsTableBody">
+        <tr><td colspan="8" class="oh-empty">Loading materials…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Edit Material Modal -->
+<div id="materialsModalBg" class="sot-modal-bg" onclick="materialsModalClose(event)">
+  <div class="sot-modal">
+    <h3 id="materialsModalTitle">Add Material</h3>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Name</label>
+        <input id="matName" type="text" style="width:100%" placeholder="e.g. Sterling sheet 24ga">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Category</label>
+        <select id="matCategory" style="width:100%" onchange="materialsToggleMetalFields()">
+          <option value="metal">Metal</option>
+          <option value="component">Component</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Unit</label>
+        <select id="matUnit" style="width:100%">
+          <option value="gram">Gram</option>
+          <option value="piece">Piece</option>
+        </select>
+      </div>
+    </div>
+    <div class="sot-modal-row" id="matMetalFieldsRow">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Metal Type</label>
+        <select id="matMetalType" style="width:100%">
+          <option value="">—</option>
+          <option value="sterling">Sterling</option>
+          <option value="gold_fill">Gold Fill</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Form</label>
+        <select id="matForm" style="width:100%">
+          <option value="">—</option>
+          <option value="sheet">Sheet</option>
+          <option value="wire">Wire</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Gauge</label>
+        <input id="matGauge" type="text" style="width:100%" placeholder="e.g. 24ga">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Current Cost / Unit ($)</label>
+        <input id="matCost" type="number" step="0.01" min="0" style="width:100%">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Stock Level</label>
+        <input id="matStock" type="number" step="0.01" min="0" style="width:100%">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Stock Confidence</label>
+        <select id="matConfidence" style="width:100%">
+          <option value="seeded">Seeded (counted once)</option>
+          <option value="estimated">Estimated</option>
+          <option value="verified">Verified</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Default Supplier</label>
+        <select id="matSupplier" style="width:100%">
+          <option value="">—</option>
+          <option value="Rio Grande">Rio Grande</option>
+          <option value="Stuller">Stuller</option>
+          <option value="Gesswein">Gesswein</option>
+        </select>
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <label style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">
+        <input id="matActive" type="checkbox" style="width:auto;margin:0" checked>
+        Active
+      </label>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+      <button id="materialsModalDelete" type="button" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="materialsDelete()">Delete</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="materialsModalClose()">Cancel</button>
+        <button type="button" class="btn btn-gold btn-sm" onclick="materialsSave()">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═════════════════════ INVENTORY ═════════════════════ -->
@@ -10144,6 +10309,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/restock.js?v=9"></script>
 <script src="js/restock-sessions.js?v=3"></script>
 <script src="js/supplier-history.js"></script>
+<script src="js/materials.js?v=1"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
   <div class="sot-modal" style="width:400px;">
@@ -10306,6 +10472,7 @@ function applyStatFilter(key) {
     'prod-report':       'Production Report',
     'supplier':          'Order Materials',
     'order-history':     'Order History',
+    'materials':         'Materials Library',
     'triplog':           'Trips',
     'gmail':             'Gmail',
     'notes':             'Notes',
