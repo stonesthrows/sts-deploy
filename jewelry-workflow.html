@@ -1053,11 +1053,18 @@
       appearance: none; -webkit-appearance: none; -moz-appearance: none;
     }
 
-    /* The stone-name input's flex-grow (edit mode) is a typing convenience —
-       in view mode it just stretches the read-only box, stranding Origin/
-       Cut/Size/Setting/Role way off to the right. Fall back to its size=
-       attribute (set per-row in _eoStoneRowHtml) so it hugs the stone name. */
-    .eo-modal.eo-view-mode .eo-row-editor .eo-row-wide { flex: 0 0 auto; min-width: 0; }
+    /* Stone rows in view mode: each row shares ONE grid (rows unwrapped via
+       display:contents) so every column — stone name, Origin, Cut, Size,
+       Setting, Role — sizes to the widest value across ALL rows and lines
+       up between rows, instead of each row's flex-grown name box stretching
+       to a different width and staggering everything after it. The name
+       input's per-row size= attribute (set in _eoStoneRowHtml) is what lets
+       max-content size that column to content instead of the UA default. */
+    .eo-modal.eo-view-mode #eo-stone-list {
+      display: grid; grid-template-columns: repeat(6, max-content);
+      column-gap: 14px; row-gap: 4px; align-items: baseline;
+    }
+    .eo-modal.eo-view-mode .eo-stone-row { display: contents; }
 
     /* ── View mode "document" redesign ──────────────────────────
        View mode is a read-only summary, so it drops the boxed-form look
