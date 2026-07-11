@@ -241,8 +241,8 @@ function renderCustomers() {
           <div class="c-avatar-wrap">
             <div class="c-avatar">${initials(c.name)}</div>
             <div>
-              <div class="c-name">${c.name}</div>
-              <div class="c-email">${c.email}</div>
+              <div class="c-name">${esc(c.name)}</div>
+              <div class="c-email">${esc(c.email)}</div>
             </div>
           </div>
           <div class="c-td">
@@ -299,9 +299,12 @@ function openCustomerDrawer(idx) {
     </div>`;
 
   const stageLabel = id => { const s = STAGES.find(x => x.id === id); return s ? s.label : id; };
-  // Escape single quotes so they're safe inside onclick attributes
-  const safeName  = c.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  const safeEmail = (c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  // These land inside onclick="fn('…')" — a double-quoted HTML attribute
+  // holding a single-quoted JS string. JS-escape (\ and ') for the string
+  // context, then HTML-escape (esc) for the attribute context, so a name
+  // containing a quote can neither break the string nor the attribute.
+  const safeName  = esc(c.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+  const safeEmail = esc((c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
 
   // Body
   document.getElementById('dBody').innerHTML = `
@@ -321,12 +324,12 @@ function openCustomerDrawer(idx) {
         const stageClr = isActive ? '#2A5A9A' : '#7A7268';
         return `
           <div class="d-order">
-            <div class="d-order-name">${o.desc}</div>
+            <div class="d-order-name">${esc(o.desc)}</div>
             <div class="d-order-meta" style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <span style="background:${stageBg};color:${stageClr};padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;">${stageLabel(o.stage)}</span>
               ${o.price ? `<span style="font-size:11.5px;">${fmtPrice(o.price)}</span>` : ''}
               <span class="o-tag ${dl.cls}" style="font-size:10px;">${dl.text}</span>
-              ${o.pickup ? `<span style="font-size:10px;color:#6A6460;">📍 ${o.pickup}</span>` : ''}
+              ${o.pickup ? `<span style="font-size:10px;color:#6A6460;">📍 ${esc(o.pickup)}</span>` : ''}
             </div>
           </div>`;
       }).join('') : '<div style="color:var(--text3);font-size:13px;padding:4px 0;">No orders on record.</div>'}
@@ -370,8 +373,8 @@ function drawerSearchCustomer(q) {
       <div class="d-dropdown-item" onclick="openCustomerDrawer(${idx});">
         <div class="d-dd-avatar">${initials(c.name)}</div>
         <div>
-          <div class="d-dd-name">${c.name}</div>
-          <div class="d-dd-email">${c.email || '—'}</div>
+          <div class="d-dd-name">${esc(c.name)}</div>
+          <div class="d-dd-email">${esc(c.email || '—')}</div>
         </div>
       </div>`;
   }).join('');

@@ -335,10 +335,10 @@ function renderSales() {
                    : o.deadline    ? new Date(o.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
                    : '<span class="sales-td-muted">Unknown</span>';
       var typeLabel = typeLabels[o.orderType] || 'Custom';
-      var paidBy   = o.paidBy || '<span class="sales-td-muted">—</span>';
+      var paidBy   = o.paidBy ? esc(o.paidBy) : '<span class="sales-td-muted">—</span>';
       html += '<tr>';
-      html += '<td class="sales-td-label">'  + (o.name || '—') + '</td>';
-      html += '<td class="sales-td-desc">' + (o.desc || '—') + '</td>';
+      html += '<td class="sales-td-label">'  + esc(o.name || '—') + '</td>';
+      html += '<td class="sales-td-desc">' + esc(o.desc || '—') + '</td>';
       html += '<td><span class="sales-chip">' + typeLabel + '</span></td>';
       html += '<td class="sales-td-total">$' + amount.toLocaleString() + '</td>';
       html += '<td>' + dateStr + '</td>';

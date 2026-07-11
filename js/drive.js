@@ -477,6 +477,7 @@ function setField(id, val) { const el = document.getElementById(id); if (el) el.
 function getField(id)      { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
 function openIntegrationsModal() {
+  setField('int-api-key',              localStorage.getItem('sts-api-key')              || '');
   setField('int-google-client-id',     localStorage.getItem('sts-google-client-id')     || '');
   setField('int-google-client-secret', localStorage.getItem('sts-google-client-secret') || '');
   setField('int-anthropic-key',        localStorage.getItem('sts-anthropic-key')        || '');
@@ -491,12 +492,14 @@ function closeIntegrationsModal() {
 
 function saveIntegrations() {
   const prev            = localStorage.getItem('sts-google-client-id');
+  const apiKey          = getField('int-api-key');
   const googleClientId  = getField('int-google-client-id');
   const googleClientSec = getField('int-google-client-secret');
   const anthropicKey    = getField('int-anthropic-key');
   const squareToken    = getField('int-square-token');
   const squareLocation = getField('int-square-location');
 
+  apiKey          ? localStorage.setItem('sts-api-key',              apiKey)          : localStorage.removeItem('sts-api-key');
   googleClientId  ? localStorage.setItem('sts-google-client-id',     googleClientId)  : localStorage.removeItem('sts-google-client-id');
   googleClientSec ? localStorage.setItem('sts-google-client-secret', googleClientSec) : localStorage.removeItem('sts-google-client-secret');
   anthropicKey    ? localStorage.setItem('sts-anthropic-key',        anthropicKey)    : localStorage.removeItem('sts-anthropic-key');

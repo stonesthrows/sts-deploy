@@ -115,6 +115,37 @@ function groupSizes(parts) {
   return items;
 }
 
+// ── Twilio signature verification ─────────────
+// Twilio signs each webhook: base64(HMAC-SHA1(AuthToken, requestUrl +
+// each POST param name+value, params sorted case-sensitively by name)).
+// See twilio.com/docs/usage/security. Without this, anyone who knows the
+// URL could POST forged "texts" straight into the Notion Notes DB.
+//
+// Rollout: if TWILIO_AUTH_TOKEN is unset we skip the check so the live
+// webhook keeps working; set it (Cloudflare Pages env) to start rejecting
+// forgeries. If Cloudflare's request.url ever differs from the URL you
+// registered with Twilio, pin it via the TWILIO_WEBHOOK_URL env var.
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function verifyTwilioSignature(authToken, url, params, signature) {
+  if (!signature) return false;
+  const entries = [...params.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  let data = url;
+  for (const [k, v] of entries) data += k + v;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(authToken),
+    { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+  );
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  return timingSafeEqual(expected, signature);
+}
+
 // ── Twilio response ───────────────────────────
 function twimlResponse(message) {
   return new Response(
@@ -158,6 +189,17 @@ export async function onRequest({ request, env }) {
 
   const formText = await request.text();
   const params   = new URLSearchParams(formText);
+
+  // Reject forged webhooks once TWILIO_AUTH_TOKEN is configured.
+  const twilioToken = env.TWILIO_AUTH_TOKEN;
+  if (twilioToken) {
+    const url = env.TWILIO_WEBHOOK_URL || request.url;
+    const sig = request.headers.get('X-Twilio-Signature') || '';
+    if (!(await verifyTwilioSignature(twilioToken, url, params, sig))) {
+      return new Response('Invalid Twilio signature', { status: 403 });
+    }
+  }
+
   const body     = (params.get('Body') || '').trim();
 
   if (!body) return twimlResponse('Empty message, nothing saved.');

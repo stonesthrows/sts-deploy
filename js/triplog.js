@@ -566,7 +566,7 @@ function tvRenderPanel(trips, dayLabel) {
     const time = new Date(t.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     return `<div class="tv-trip-row">
       <span class="tv-trip-time">${time}</span>
-      <span class="tv-trip-route"><span class="tv-trip-from">${t.fromLocation?.display || '—'}</span><br>→ ${t.toLocation?.display || '—'}</span>
+      <span class="tv-trip-route"><span class="tv-trip-from">${esc(t.fromLocation?.display || '—')}</span><br>→ ${esc(t.toLocation?.display || '—')}</span>
       <span class="tv-trip-miles">${Number(t.mileage || 0).toFixed(1)} mi</span>
     </div>`;
   }).join('');
@@ -657,7 +657,7 @@ function odoRender() {
       <td>${new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>
       <td style="font-weight:700">${e.reading.toLocaleString()}</td>
       <td>${diffStr}</td>
-      <td style="color:var(--text-dim);font-size:12px">${e.notes || '—'}</td>
+      <td style="color:var(--text-dim);font-size:12px">${esc(e.notes || '—')}</td>
     </tr>`;
   }).join('');
 
@@ -746,7 +746,7 @@ function odoShowReconcilePanel(trips, actualMiles, recordedMiles, gap, startDate
     const diffStr = diff === 0 ? '' : `<span class="recon-diff ${diff > 0 ? 'recon-over' : 'recon-under'}">${diff > 0 ? '+' : ''}${diff.toFixed(1)}</span>`;
     return `<tr>
       <td style="color:var(--text-dim);font-size:12px">${dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}<br>${dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
-      <td style="font-size:12px">${t.fromLocation?.display||'—'} → ${t.toLocation?.display||'—'}</td>
+      <td style="font-size:12px">${esc(t.fromLocation?.display||'—')} → ${esc(t.toLocation?.display||'—')}</td>
       <td style="text-align:right">${t._origMileage.toFixed(1)}</td>
       <td style="text-align:right;font-weight:700">${t._proposedMileage.toFixed(1)} ${diffStr}</td>
     </tr>`;
