@@ -190,7 +190,7 @@ function cardHTML(o) {
          onclick="openOrderCard('${o.id}')">
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
-        <div class="o-name">${o.name}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
+        <div class="o-name">${esc(o.name)}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}"
                   title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}"
@@ -209,28 +209,28 @@ function cardHTML(o) {
       <div class="o-collapsed-summary">
         ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
           : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
-          : o.pickup ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
-        ${o.assignee ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
+          : o.pickup ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+        ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
         ${hasPhoto ? `
           <div class="card-photo" onclick="event.stopPropagation(); viewPhoto('${o.id}')">
-            <img src="${o.photo}" alt="Work order bag">
+            <img src="${esc(o.photo)}" alt="Work order bag">
             <div class="card-photo-label">📷 Tap to view full size</div>
           </div>` : ''}
         ${o.sketchImg ? `
           <div class="card-photo card-sketch" onclick="event.stopPropagation(); viewSketch('${o.id}')">
-            <img src="${o.sketchImg}" alt="Design sketch">
+            <img src="${esc(o.sketchImg)}" alt="Design sketch">
             <div class="card-photo-label">✏️ Tap to view sketch</div>
           </div>` : ''}
-        <div class="o-desc">${o.desc}</div>
+        <div class="o-desc">${esc(o.desc)}</div>
         ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
         <div class="o-badges">
-          ${o.pickup        ? `<span class="o-badge pickup">📍 ${pickupBadgeLabel(o.pickup)}</span>` : ''}
-          ${o.contactSource ? `<span class="o-badge source">💬 ${o.contactSource}</span>` : ''}
+          ${o.pickup        ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+          ${o.contactSource ? `<span class="o-badge source">💬 ${esc(o.contactSource)}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
-          ${o.assignee      ? `<span class="o-badge assignee">👤 ${o.assignee}</span>` : ''}
+          ${o.assignee      ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>

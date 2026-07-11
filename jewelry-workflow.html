@@ -9279,6 +9279,13 @@ body.theme-midnight .recon-under { color: #E08A80; }
     <p class="int-subtitle">API keys are stored locally in your browser — never sent to any server.</p>
 
     <div class="int-section">
+      <div class="int-section-title">App Access</div>
+      <label for="int-api-key">App API Key</label>
+      <input type="password" id="int-api-key" placeholder="the value of APP_SHARED_KEY">
+      <p class="int-hint">Sent as <code>X-STS-Key</code> on calls to this app's own <code>/api/*</code> endpoints so only your devices can reach your order/customer data. Set the matching <code>APP_SHARED_KEY</code> server-side in Cloudflare Pages → Settings → Environment Variables, then paste the same value here on each device. Until <code>APP_SHARED_KEY</code> is set, the gate stays off and nothing changes.</p>
+    </div>
+
+    <div class="int-section">
       <div class="int-section-title">Google</div>
       <label for="int-google-client-id">OAuth Client ID</label>
       <input type="text" id="int-google-client-id" placeholder="123456789.apps.googleusercontent.com">
@@ -9373,6 +9380,7 @@ body.theme-midnight .recon-under { color: #E08A80; }
           </div>
           <div class="dm-group">
             <div class="dm-group-label">API Keys</div>
+            <div class="dm-row"><span class="dm-key">sts-api-key</span><span class="dm-desc">App API key (X-STS-Key)</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-anthropic-key</span><span class="dm-desc">Claude API key</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-google-client-id</span><span class="dm-desc">Google OAuth ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-google-client-secret</span><span class="dm-desc">Google OAuth secret</span><span class="dm-tag dm-tag-cred">CRED</span></div>
@@ -10114,18 +10122,19 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 </style>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<script src="js/api-auth.js?v=1"></script>
 <script src="js/data.js?v=2"></script>
 <script src="js/order-normalize.js?v=20260708a"></script>
 <script src="js/notion.js?v=20260710a"></script>
-<script src="js/customers.js?v=20260708a"></script>
-<script src="js/app.js?v=20260708a"></script>
+<script src="js/customers.js?v=20260711a"></script>
+<script src="js/app.js?v=20260711a"></script>
 <script src="js/sketchpad.js?v=4"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
-<script src="js/orders.js?v=20260710a"></script>
+<script src="js/orders.js?v=20260711a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260708a"></script>
 <script src="js/etsy.js?v=20260708a"></script>
-<script src="js/drive.js"></script>
+<script src="js/drive.js?v=20260711a"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
 <script src="js/gmail.js"></script>
