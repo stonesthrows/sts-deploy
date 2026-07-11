@@ -5,6 +5,8 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API  = 'https://api.notion.com/v1';
 const NOTION_VER  = '2022-06-28';
 const PIPELINE_DB = '62de37d7-be83-48eb-a611-f494006d8085';
@@ -397,7 +399,7 @@ async function uploadSketchToNotion(token, dataURL, filename = 'sketch.png') {
 // one, and ?list=1 returns just the count so the client knows how many
 // <img> tags to render before requesting them one at a time.
 async function getSketch(hdrs, pageId, propName = 'Sketch', idx = 0, listOnly = false) {
-  if (!/^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
+  if (!isNotionId(pageId)) {
     return json({ error: 'bad page id' }, 400);
   }
   if (!['Sketch', 'Signature', 'Reference Photos'].includes(propName)) return json({ error: 'bad prop' }, 400);
@@ -474,6 +476,12 @@ export async function onRequestPost(context) {
   const hdrs = notionHdrs(token);
 
   const order = await context.request.json();
+
+  // Any request that carries a Notion page ID has it interpolated into a
+  // Notion API URL path below — validate it once here (absent on creates).
+  if (order && order.notionId && !isNotionId(order.notionId)) {
+    return json({ error: 'invalid notionId' }, 400);
+  }
 
   // Archive (delete) a Notion page
   if (order._archive) {

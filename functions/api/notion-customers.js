@@ -4,6 +4,8 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 const DB_ID      = 'faf0854d-7495-41d1-b3a0-f117d0979b43';
@@ -97,6 +99,7 @@ export async function onRequest({ request, env }) {
 
     // If we already have the Notion page ID, patch directly
     if (customer.notionPageId) {
+      if (!isNotionId(customer.notionPageId)) return json({ error: 'invalid notionPageId' }, 400);
       const r = await fetch(`${NOTION_API}/pages/${customer.notionPageId}`, {
         method: 'PATCH', headers: hdrs,
         body: JSON.stringify({ properties: props, archived: false }),
@@ -141,6 +144,7 @@ export async function onRequest({ request, env }) {
   if (request.method === 'DELETE') {
     const pageId = new URL(request.url).searchParams.get('pageId');
     if (!pageId) return json({ error: 'pageId required' }, 400);
+    if (!isNotionId(pageId)) return json({ error: 'invalid pageId' }, 400);
     await fetch(`${NOTION_API}/pages/${pageId}`, {
       method: 'PATCH', headers: hdrs,
       body: JSON.stringify({ archived: true }),

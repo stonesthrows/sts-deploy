@@ -4,6 +4,8 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 const DB_ID      = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
@@ -102,6 +104,7 @@ async function _handle({ request, env }) {
 
   const pageId = new URL(request.url).searchParams.get('pageId');
   if (!pageId) return json({ error: 'pageId required' }, 400);
+  if (!isNotionId(pageId)) return json({ error: 'invalid pageId' }, 400);
 
   // ── PATCH — update note fields ───────────────
   if (request.method === 'PATCH') {
