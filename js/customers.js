@@ -100,15 +100,18 @@ function updateCustTabCounts() {
 }
 
 // Rebuild CUSTOMERS from ORDERS, preserving Notion-sourced fields (notionPageId, notes)
+// and the locally-edited Style Profile (never stored on the Notion side — see
+// saveCustomerEdit).
 function refreshCustomersFromOrders() {
   // Keep a snapshot of Notion-sourced extra fields keyed by lowercase name
   const extras = {};
   CUSTOMERS.forEach(c => {
-    if (c.notionPageId || c.notes || c.address) {
+    if (c.notionPageId || c.notes || c.address || c.styleProfile) {
       extras[c.name.toLowerCase()] = {
         notionPageId: c.notionPageId,
         notes:        c.notes,
         address:      c.address,
+        styleProfile: c.styleProfile,
       };
     }
   });
@@ -126,6 +129,8 @@ function refreshCustomersFromOrders() {
         totalOrders:  0,
         totalValue:   0,
         activeOrders: 0,
+        styleProfile: null,
+        _styleDate:   '',
       };
     }
     map[key].totalOrders++;
@@ -134,10 +139,20 @@ function refreshCustomersFromOrders() {
     if (o.phone) map[key].phone = o.phone;
     if (!['complete','delivered'].includes(o.stage)) map[key].activeOrders++;
     if (o.deadline && o.deadline > map[key].lastContact) map[key].lastContact = o.deadline;
+    // Fall back to the most recent order's Style Profile when the customer
+    // has no local edit of their own (re-attached below).
+    if (o.styleProfile && Object.keys(o.styleProfile).length) {
+      const orderDate = o.takeIn || o.deadline || '';
+      if (orderDate >= map[key]._styleDate) {
+        map[key].styleProfile = o.styleProfile;
+        map[key]._styleDate   = orderDate;
+      }
+    }
   });
 
-  // Re-attach Notion extras
+  // Re-attach Notion extras (and any local-only Style Profile edit)
   Object.keys(map).forEach(key => {
+    delete map[key]._styleDate;
     if (extras[key]) Object.assign(map[key], extras[key]);
   });
 
@@ -368,6 +383,22 @@ function closeDrawerDropdown() {
   if (d) { d.innerHTML = ''; d.classList.remove('open'); }
 }
 
+// ── Style profile options (mirrors the New Order form's Style Profile block) ──
+const CT_STYLE_AESTHETIC = ['Minimal', 'Vintage', 'Organic', 'Geometric', 'Statement', 'Delicate'];
+const CT_STYLE_TONES     = ['Yellow', 'White', 'Rose', 'Mixed', 'Silver-only'];
+const CT_STYLE_WEARS     = ['Everyday', 'Occasion'];
+const CT_STYLE_BUDGETS   = ['<$250', '$250–750', '$750–1.5k', '$1.5k+'];
+
+function styleProfileText(sp) {
+  if (!sp) return null;
+  const parts = [];
+  if (Array.isArray(sp.aesthetic) && sp.aesthetic.length) parts.push(sp.aesthetic.join(', '));
+  if (sp.tone)   parts.push(sp.tone);
+  if (sp.wear)   parts.push(sp.wear);
+  if (sp.budget) parts.push(sp.budget);
+  return parts.length ? parts.join(' · ') : null;
+}
+
 function buildCustomerExpandHtml(idx) {
   const c = CUSTOMERS[idx];
   if (!c) return '';
@@ -438,6 +469,7 @@ function buildCustomerExpandHtml(idx) {
         ${infoRow('Email',   c.email,   c.email   ? 'mailto:' + c.email   : null)}
         ${infoRow('Address', c.address)}
         ${infoRow('Notes',   c.notes)}
+        ${infoRow('Style Profile', styleProfileText(c.styleProfile))}
         ${infoRow('Last Contact', c.lastContact ? (typeof fmtDate==='function'?fmtDate(c.lastContact):c.lastContact) : null)}
         ${infoRow('Lifetime Value', c.totalValue ? '$' + c.totalValue.toLocaleString() : null)}
       </div>
@@ -463,6 +495,26 @@ function buildCustomerExpandHtml(idx) {
           <label class="ct-edit-label ct-edit-full">Notes
             <input class="ct-edit-input" id="ct-edit-notes-${idx}"   type="text"  value="${q(c.notes)}"   placeholder="Optional notes…" onclick="event.stopPropagation()">
           </label>
+          <div class="ct-edit-label ct-edit-full">
+            <span>Style Profile</span>
+            <div class="finish-checks" id="ct-edit-style-aesthetic-${idx}" onclick="event.stopPropagation()">
+              ${CT_STYLE_AESTHETIC.map(v => `<label><input type="checkbox" value="${v}"${(c.styleProfile?.aesthetic||[]).includes(v)?' checked':''}> ${v}</label>`).join('')}
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+              <select class="ct-edit-input" id="ct-edit-style-tone-${idx}" style="width:auto;" onclick="event.stopPropagation()">
+                <option value="">Tone —</option>
+                ${CT_STYLE_TONES.map(v => `<option value="${v}"${c.styleProfile?.tone===v?' selected':''}>${v}</option>`).join('')}
+              </select>
+              <select class="ct-edit-input" id="ct-edit-style-wear-${idx}" style="width:auto;" onclick="event.stopPropagation()">
+                <option value="">Wear —</option>
+                ${CT_STYLE_WEARS.map(v => `<option value="${v}"${c.styleProfile?.wear===v?' selected':''}>${v}</option>`).join('')}
+              </select>
+              <select class="ct-edit-input" id="ct-edit-style-budget-${idx}" style="width:auto;" onclick="event.stopPropagation()">
+                <option value="">Budget —</option>
+                ${CT_STYLE_BUDGETS.map(v => `<option value="${esc(v)}"${c.styleProfile?.budget===v?' selected':''}>${esc(v)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
         </div>
         <div class="ct-edit-foot">
           <button class="btn btn-gold btn-sm"  onclick="saveCustomerEdit(${idx});event.stopPropagation()">✓ Save</button>
@@ -519,15 +571,23 @@ async function saveCustomerEdit(idx) {
   const address = document.getElementById('ct-edit-address-' + idx).value.trim();
   const notes   = document.getElementById('ct-edit-notes-'   + idx).value.trim();
 
+  const styleAesthetic = [...document.querySelectorAll('#ct-edit-style-aesthetic-' + idx + ' input:checked')].map(el => el.value);
+  const styleTone      = document.getElementById('ct-edit-style-tone-'   + idx).value;
+  const styleWear      = document.getElementById('ct-edit-style-wear-'   + idx).value;
+  const styleBudget    = document.getElementById('ct-edit-style-budget-' + idx).value;
+  const hasStyle     = styleAesthetic.length || styleTone || styleWear || styleBudget;
+  const styleProfile = hasStyle ? { aesthetic: styleAesthetic, tone: styleTone, wear: styleWear, budget: styleBudget } : null;
+
   if (!name) { status.textContent = 'Name is required.'; return; }
 
   status.textContent = 'Saving…';
 
-  c.name    = name;
-  c.email   = email;
-  c.phone   = phone;
-  c.address = address;
-  c.notes   = notes;
+  c.name         = name;
+  c.email        = email;
+  c.phone        = phone;
+  c.address      = address;
+  c.notes        = notes;
+  c.styleProfile = styleProfile;
 
   // Update all matching orders with new email/phone
   ORDERS.forEach(o => {
@@ -537,6 +597,11 @@ async function saveCustomerEdit(idx) {
     }
   });
 
+  // Style Profile has no standalone Notion property — it lives inside each
+  // order's "App Data" JSON blob alongside sensitivities/ringSizes/gift/etc.
+  // Patching it per-order here would overwrite that whole blob and silently
+  // drop those sibling fields, so it stays a local-only customer field
+  // (preserved across resyncs by refreshCustomersFromOrders' extras logic).
   try {
     await patchCustomerOrdersInNotion(name, { email, phone, notes });
     status.textContent = '✓ Saved';
