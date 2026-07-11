@@ -138,11 +138,15 @@ function intakeApplyTypeLayout(type) {
   const estimateCard = document.getElementById('intake-estimate');
   if (grid && step1Card && step3Card) {
     if (isSingle) {
+      grid.style.marginTop = '';
       step1Card.style.display = '';
       step1Card.appendChild(grid);
     } else {
       step1Card.style.display = 'none';
-      step3Card.insertBefore(grid, estimateCard || null);
+      // Custom Design: Estimate Builder drives the Total, so it reads top to
+      // bottom — build the estimate, then see Total/Deposit/Balance below it.
+      if (estimateCard) { grid.style.marginTop = '24px'; estimateCard.after(grid); }
+      else { grid.style.marginTop = ''; step3Card.appendChild(grid); }
     }
   }
 
