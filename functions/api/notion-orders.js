@@ -21,6 +21,13 @@ function json(data, status = 200) {
   });
 }
 
+// Caller-supplied page IDs are interpolated into Notion API URL paths, so
+// they must be genuine Notion IDs (32 hex, hyphenated or not) — never a
+// value that could steer the request to a different path.
+function isNotionId(id) {
+  return typeof id === 'string' && /^[0-9a-fA-F]{32}$/.test(id.replace(/-/g, ''));
+}
+
 function notionHdrs(token) {
   return {
     'Authorization':   'Bearer ' + token,
@@ -108,10 +115,14 @@ export async function onRequestPost(context) {
   const hdrs = notionHdrs(token);
 
   const order = await context.request.json();
+  if (!order || typeof order !== 'object' || Array.isArray(order)) {
+    return json({ error: 'invalid order payload' }, 400);
+  }
   const props = orderToProps(order);
 
   // If we already know the Notion page ID, patch it directly
   if (order.notionPageId) {
+    if (!isNotionId(order.notionPageId)) return json({ error: 'invalid notionPageId' }, 400);
     const r = await fetch(`${NOTION_API}/pages/${order.notionPageId}`, {
       method: 'PATCH', headers: hdrs,
       body: JSON.stringify({ properties: props, archived: false }),
@@ -140,6 +151,7 @@ export async function onRequestDelete(context) {
 
   const pageId = new URL(context.request.url).searchParams.get('pageId');
   if (!pageId) return json({ error: 'pageId required' }, 400);
+  if (!isNotionId(pageId)) return json({ error: 'invalid pageId' }, 400);
   await fetch(`${NOTION_API}/pages/${pageId}`, {
     method: 'PATCH', headers: hdrs,
     body: JSON.stringify({ archived: true }),
