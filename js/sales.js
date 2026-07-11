@@ -6,8 +6,7 @@
 // ── Square sync helpers ───────────────────────────────────────────────────────
 
 async function _salesSqFetch(path) {
-  var token = localStorage.getItem('sts-square-token');
-  if (!token) throw new Error('No Square token — add it in ⚙ Integrations');
+  var token = localStorage.getItem('sts-square-token') || '';
   var res = await fetch('/api/square', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -146,9 +145,6 @@ async function syncSquareSales() {
 // per calendar day so data stays current without manual intervention.
 
 function salesAutoSync() {
-  var token = localStorage.getItem('sts-square-token');
-  if (!token) return;
-
   var now      = new Date();
   var todayKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
   var lastKey  = localStorage.getItem('sts-square-autosync-date');
