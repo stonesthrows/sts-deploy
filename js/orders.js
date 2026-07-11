@@ -1348,7 +1348,15 @@ function eoIntakeUpdateEmpty() {
     || document.getElementById('f-style-wear')?.value
     || document.getElementById('f-style-budget')?.value;
   set('style-fg', !styleAny);
-  set('stones-fg', !document.querySelector('#eo-stone-list .eo-stone-row'));
+  const hasStones = !!document.querySelector('#eo-stone-list .eo-stone-row');
+  set('stones-fg', !hasStones);
+  // The structured list below already says everything the auto-generated
+  // Gemstones text would (eoStonesChanged keeps them in sync one-way) — once
+  // there ARE structured stones, showing both in view mode is pure
+  // duplication. No structured stones (repair/resize/marketplace-synced
+  // orders never get them) ⇒ this text is the ONLY record of gemstone info,
+  // so leave its visibility to the generic blank-check in eoUpdateEmptyFields.
+  if (hasStones) set('gemstones-fg', true);
   set('alts-fg', !_eoAlts.length);
   set('signature-fg', !document.querySelector('#eo-signature-view img'));
   const mod = document.getElementById('eo-intake-module');
