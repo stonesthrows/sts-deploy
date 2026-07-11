@@ -302,17 +302,6 @@ function intakeResetDockPos() {
   if (dock) { dock.style.left = ''; dock.style.top = ''; dock.style.right = ''; dock.classList.remove('collapsed'); }
 }
 
-// ── Apple Pencil ⇄ finger toggle (session-only — resets on relaunch) ──
-function intakeToggleFingerDraw() {
-  if (typeof SK === 'undefined' || !SK) return;
-  SK.penOnly = !SK.penOnly;
-  const btn = document.getElementById('sk-finger');
-  if (btn) btn.classList.toggle('on', !SK.penOnly);
-  const hint = document.getElementById('dock-hint');
-  if (hint) hint.textContent = SK.penOnly ? '✎ Apple Pencil only' : '☝ Finger drawing ON';
-  toast(SK.penOnly ? 'Apple Pencil only' : 'Finger drawing enabled for this session', '✎');
-}
-
 // ── Dirty check + exit ────────────────────────────────────────
 function _intakeDirty() {
   const ids = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-materials',

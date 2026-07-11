@@ -128,14 +128,22 @@
     #sketch-grid.on { display: block; }
     .sketch-dock {
       position: absolute; top: 12px; right: 12px; z-index: 3;
-      display: flex; flex-direction: column; gap: 6px;
-      width: 116px; padding: 7px;
-      background: rgba(22,32,42,0.94);
-      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.09); border-radius: 13px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+      display: flex; flex-direction: column; gap: 8px;
+      width: 132px; padding: 10px;
+      background: linear-gradient(165deg, rgba(32,45,58,0.96), rgba(15,22,29,0.96));
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.10); border-radius: 17px;
+      box-shadow: 0 14px 34px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.07);
       transition: opacity .22s;
       touch-action: none; /* the whole dock is a drag target region */
+    }
+    /* Thin accent stripe along the top edge — a small bit of color so the
+       dock reads as a live tool, not just a dark panel */
+    .sketch-dock::before {
+      content: ''; position: absolute; top: 0; left: 14px; right: 14px; height: 2px;
+      border-radius: 0 0 2px 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.75;
     }
     .sketch-dock.collapsed { opacity: 0; pointer-events: none; }
     /* Drag handle — the full header bar */
@@ -151,20 +159,22 @@
       font-size: 12px; cursor: pointer; line-height: 1;
       display: flex; align-items: center; justify-content: center;
     }
-    .dock-row { display: flex; gap: 5px; flex-wrap: wrap; }
+    .dock-row { display: flex; gap: 6px; flex-wrap: wrap; }
     .dock-btn {
       /* min-width so rows of 4+ buttons wrap instead of squeezing —
          ~3 fit per row at the dock's width */
-      flex: 1 1 28px; min-width: 28px; height: 34px; border-radius: 8px;
+      flex: 1 1 30px; min-width: 30px; height: 37px; border-radius: 9px;
       border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
-      color: #E8EEF2; font-size: 15px; cursor: pointer; line-height: 1;
+      color: #E8EEF2; font-size: 16px; cursor: pointer; line-height: 1;
       display: flex; align-items: center; justify-content: center;
-      transition: all .14s;
+      transition: transform .14s, background .14s, box-shadow .14s;
     }
+    .dock-btn:hover { background: rgba(255,255,255,0.13); transform: translateY(-1px); }
     .dock-btn:active { transform: scale(.94); }
     .dock-btn.tool.active, .dock-btn.on {
-      background: var(--accent); color: #1A1A1A; border-color: var(--accent);
-      box-shadow: 0 2px 10px rgba(201,152,58,0.45);
+      background: linear-gradient(160deg, #DBAE5C, var(--accent));
+      color: #1A1A1A; border-color: var(--accent);
+      box-shadow: 0 3px 12px rgba(201,152,58,0.50);
     }
     .dock-size { display: flex; align-items: center; gap: 7px; }
     .dock-size-preview {
@@ -190,16 +200,16 @@
     .dock-size-val { font-size: 9.5px; font-weight: 700; color: #9FB4C4; text-align: right; }
     .dock-lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #63788A; line-height: 1; }
     .dock-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 1px 2px; }
-    .dock-btn:hover { background: rgba(255,255,255,0.12); }
-    .dock-presets { display: flex; gap: 5px; }
+    .dock-presets { display: flex; gap: 6px; }
     .dock-preset {
-      flex: 1; height: 26px; border-radius: 7px;
+      flex: 1; height: 28px; border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
       color: #C7D4DE; font-size: 11px; font-weight: 700; cursor: pointer;
       transition: all .14s;
     }
+    .dock-preset:hover { background: rgba(255,255,255,0.13); }
     .dock-preset.active { background: rgba(201,152,58,0.22); border-color: var(--accent); color: #F1DFB6; }
-    .dock-hint { font-size: 9px; color: #63788A; text-align: center; letter-spacing: .2px; }
+    .dock-hint { font-size: 9px; color: #63788A; text-align: center; letter-spacing: .2px; line-height: 1.5; }
     .dock-reopen {
       position: absolute; top: 12px; right: 12px; z-index: 2;
       width: 46px; height: 46px; border-radius: 13px;
@@ -1120,14 +1130,8 @@
             </div>
             <div class="dock-sep"></div>
             <div class="dock-row">
-              <button type="button" class="dock-btn" onclick="sketchUndo()"  title="Undo">↩</button>
-              <button type="button" class="dock-btn" onclick="sketchRedo()"  title="Redo">↪</button>
               <button type="button" class="dock-btn" onclick="sketchClear()" title="Clear">🗑</button>
-            </div>
-            <div class="dock-row">
-              <button type="button" class="dock-btn" id="sk-finger" onclick="intakeToggleFingerDraw()" title="Allow finger drawing">☝</button>
               <button type="button" class="dock-btn" id="ul-add-btn" onclick="ulPick()" title="Reference photo underlay">🖼</button>
-              <button type="button" class="dock-btn" id="voice-btn" title="Hold to dictate a note">🎤</button>
               <button type="button" class="dock-btn" id="sk-grid-btn" onclick="sketchGridToggle()" title="Grid overlay">▦</button>
             </div>
             <div class="dock-row" id="ul-controls" style="display:none;">
@@ -1143,7 +1147,7 @@
                 <div class="dock-size-val" id="ul-opacity-val">30%</div>
               </div>
             </div>
-            <div class="dock-hint" id="dock-hint">✎ Apple Pencil only</div>
+            <div class="dock-hint">✎ Apple Pencil only<br>✌️ undo · 🤟 redo</div>
           </div>
 
           <!-- Subtle trigger left behind when the dock is folded away -->
