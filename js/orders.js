@@ -1226,8 +1226,12 @@ function _eoStoneSel(cls, opts, value, label) {
 }
 
 function _eoStoneRowHtml(s) {
+  // size= gives the input a content-fitted width in view mode (see the
+  // .eo-modal.eo-view-mode .eo-row-wide override) — edit mode ignores it,
+  // still sized by the flex-basis below, so typing room is unaffected.
+  const typeSize = Math.max(6, (s.type || '').length);
   return '<div class="eo-row-editor eo-stone-row">'
-    + '<input class="st-type eo-row-wide" type="text" placeholder="Stone type" value="' + _eoEsc(s.type || '') + '">'
+    + '<input class="st-type eo-row-wide" type="text" size="' + typeSize + '" placeholder="Stone type" value="' + _eoEsc(s.type || '') + '">'
     + _eoStoneSel('st-origin', EO_STONE_OPTS.origin, s.origin, 'Origin')
     + _eoStoneSel('st-cut', EO_STONE_OPTS.cut, s.cut, 'Cut')
     + '<input class="st-size eo-row-size" type="text" placeholder="1ct / 6mm" value="' + _eoEsc(s.size || '') + '">'

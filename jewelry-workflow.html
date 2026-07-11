@@ -1053,6 +1053,12 @@
       appearance: none; -webkit-appearance: none; -moz-appearance: none;
     }
 
+    /* The stone-name input's flex-grow (edit mode) is a typing convenience —
+       in view mode it just stretches the read-only box, stranding Origin/
+       Cut/Size/Setting/Role way off to the right. Fall back to its size=
+       attribute (set per-row in _eoStoneRowHtml) so it hugs the stone name. */
+    .eo-modal.eo-view-mode .eo-row-editor .eo-row-wide { flex: 0 0 auto; min-width: 0; }
+
     /* ── View mode "document" redesign ──────────────────────────
        View mode is a read-only summary, so it drops the boxed-form look
        for a cleaner, invoice-style document: quiet small-caps labels,
