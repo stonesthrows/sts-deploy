@@ -10,6 +10,8 @@
 //  DELETE ?id=      → soft delete (set Archived = true)
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 const DB_ID      = '814e07ea9b0e441bae10e2851e50697a';
@@ -74,6 +76,10 @@ async function _handle({ request, env }) {
   const h   = hdrs(token);
   const url = new URL(request.url);
   const id  = url.searchParams.get('id');
+
+  // id is interpolated into a Notion API URL path below; reject anything
+  // that isn't a real page ID. Absent id is fine (GET lists all events).
+  if (id && !isNotionId(id)) return json({ error: 'invalid id' }, 400);
 
   // ── GET ──────────────────────────────────────
   if (request.method === 'GET') {

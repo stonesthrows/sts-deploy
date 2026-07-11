@@ -4,6 +4,8 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 const DB_ID      = '3929d8fb-1b0f-8043-9425-d24d2bec3544';
@@ -19,13 +21,6 @@ function json(data, status = 200) {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
-}
-
-// Caller-supplied page IDs are interpolated into Notion API URL paths, so
-// they must be genuine Notion IDs (32 hex, hyphenated or not) — never a
-// value that could steer the request to a different path.
-function isNotionId(id) {
-  return typeof id === 'string' && /^[0-9a-fA-F]{32}$/.test(id.replace(/-/g, ''));
 }
 
 function notionHdrs(token) {

@@ -3,7 +3,11 @@
 //  Edit this file to update orders, customers, sales data
 // ════════════════════════════════════════════
 
-const TODAY = new Date('2026-05-20');
+// Real current date, normalized to local midnight so deadline day-diffs
+// (deadlineInfo in js/app.js) are stable integers. Previously hardcoded,
+// which silently froze every deadline badge to a past date.
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 
 const STAGES = [
   { id:'intake-custom',   label:'Custom Intake',                cls:'s-intake-custom'   },

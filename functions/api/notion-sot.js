@@ -5,6 +5,8 @@
 //  Requires env vars: NOTION_TOKEN, NOTION_SOT_DB
 // ════════════════════════════════════════════
 
+import { isNotionId } from './_notion.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 
@@ -115,6 +117,7 @@ export async function onRequestPost(context) {
 
   // Update existing page
   if (body.notionPageId) {
+    if (!isNotionId(body.notionPageId)) return jsonResp({ error: 'invalid notionPageId' }, 400);
     var pr = await fetch(NOTION_API + '/pages/' + body.notionPageId, {
       method: 'PATCH',
       headers: hdrs,
