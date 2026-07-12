@@ -149,7 +149,7 @@ function touchDragResolveMove(kind, orderId, bodyEl) {
 //  TAB SWITCHING
 // ════════════════════════════════════════════
 // Top-level tabs that have NO sub-nav (direct panels)
-const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs','bgab']);
+const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs']);
 
 // Each parent group and the ordered sub-tabs it contains
 const NAV_GROUPS = {
@@ -188,7 +188,6 @@ const TAB_HOOKS = {
   'prod-report': function() { if (typeof rqRenderProductionReport === 'function') rqRenderProductionReport(); },
   replenish:  function() { if (typeof replenishInit === 'function') replenishInit(); },
   'pj-ref':   function() { if (typeof pjBuildRef === 'function') pjBuildRef(); },
-  bgab:       function() { if (typeof bgabInit === 'function') bgabInit(); },
 };
 function runTabHook(id) { const h = TAB_HOOKS[id]; if (h) { try { h(); } catch(e) {} } }
 

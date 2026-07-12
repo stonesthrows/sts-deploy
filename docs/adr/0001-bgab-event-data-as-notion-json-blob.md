@@ -1,6 +1,6 @@
 # ADR 0001 — BGAB Event Data Stored as JSON Blob in Notion
 
-**Status:** Accepted  
+**Status:** Superseded — the BGAB feature (js/bgab.js, functions/api/notion-bgab.js) was removed on 2026-07-12. It was fully built (this ADR, the JS module, the Notion proxy) but never wired into jewelry-workflow.html's nav, so it was unreachable. Kept here as a record of the JSON-blob-in-Notion pattern reasoning, since Production Sessions' Items JSON property follows the same approach.  
 **Date:** 2026-06-18
 
 ## Context
