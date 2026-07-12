@@ -595,7 +595,7 @@ function _invRenderSub(sub) {
             style="${dirty ? 'background:var(--accent-bg);' : ''}">
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
-        <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
+        <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}',this)">Set</button>
         <button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue" style="${isLow ? '' : 'visibility:hidden'}">⚑ Queue</button>
         <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
           title="Remove this variation from webapp (won't affect Square)"
@@ -638,10 +638,19 @@ function invMarkDirty(varId, val) {
   if (input) input.style.background = 'var(--accent-bg)';
 }
 
-async function invSaveOne(varId, sub) {
+async function invSaveOne(varId, sub, btn) {
   const input = document.getElementById('inv-inp-' + varId);
   const qty   = parseInt(input?.value) || 0;
-  await _invSaveCount({ [varId]: qty }, sub);
+
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    await _invSaveCount({ [varId]: qty }, sub);
+    toast('Updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Set'; }
+  }
 }
 
 async function invUpdateAll() {

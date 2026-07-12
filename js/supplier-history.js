@@ -1002,8 +1002,8 @@ async function ohRunReceiptsCheck(btn, token, silent) {
             lineItems:   lineItems,
           };
           // Skip if already imported by order/inv number
-          var existing = ohFilterExisting([order]);
-          if (existing.length) {
+          var notDup = ohFilterNew([order]);
+          if (notDup.length) {
             ohOrders.push(order);
             imported++;
           }
@@ -1123,8 +1123,8 @@ async function ohRunRelinkReceipts(btn, token) {
               driveFileId: file.id,
               lineItems:   [],
             };
-            var existing = ohFilterExisting([order]);
-            if (existing.length) {
+            var notDup = ohFilterNew([order]);
+            if (notDup.length) {
               ohOrders.push(order);
               changed.push(order);
               added++;
@@ -1342,7 +1342,7 @@ function ohParseCsvSilent(text, supplierOverride) {
     })(cells);
   }
   newOrders = ohCollapseByOrder(newOrders);
-  newOrders = ohFilterExisting(newOrders);
+  newOrders = ohFilterNew(newOrders);
   ohOrders = ohOrders.concat(newOrders);
   ohCacheLocally();
   ohBatchSync(newOrders);
@@ -1420,7 +1420,7 @@ function ohParseCsv(text, supplierOverride) {
   if (imported === 0) { toast('No valid rows found in CSV', '⚠️'); return; }
 
   newOrders = ohCollapseByOrder(newOrders);
-  newOrders = ohFilterExisting(newOrders);
+  newOrders = ohFilterNew(newOrders);
   imported  = newOrders.length;
 
   if (imported === 0) { toast('No new orders to import (all already exist)', 'ℹ'); return; }
@@ -1450,8 +1450,8 @@ function ohCollapseByOrder(orders) {
   return result;
 }
 
-// Remove orders whose orderNum or invNum already exist in ohOrders
-function ohFilterExisting(newOrders) {
+// Returns only the orders whose orderNum/invNum are NOT already in ohOrders
+function ohFilterNew(newOrders) {
   var existing = {};
   ohOrders.forEach(function(o) {
     if (o.orderNum) existing[o.orderNum] = true;

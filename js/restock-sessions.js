@@ -578,9 +578,12 @@ function _rqMatCostFor(key) {
 
 function _rqSyncProdSettings() {
   if (_rqSettingsSynced) return;
-  _rqSettingsSynced = true; // fetch once per page load; every Save re-PUTs
+  _rqSettingsSynced = true; // dedup guard against concurrent calls; reset below on failure so a later call can retry
   fetch('/api/prod-settings')
-    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(r) {
+      if (!r.ok) { _rqSettingsSynced = false; return null; }
+      return r.json();
+    })
     .then(function(cfg) {
       if (!cfg) return;
       if (cfg.rates && typeof cfg.rates === 'object') _rqSaveRatesObj(cfg.rates);
@@ -589,7 +592,10 @@ function _rqSyncProdSettings() {
       }
       if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
     })
-    .catch(function() {});
+    .catch(function(err) {
+      _rqSettingsSynced = false;
+      console.warn('prod settings sync failed', err);
+    });
 }
 
 function _rqPushProdSettings() {

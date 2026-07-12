@@ -400,10 +400,10 @@ function designsHandleImages(files) {
   const MAX = 10;
   const remaining = MAX - _designsImgQueue.length;
   if (remaining <= 0) { toast(`Max ${MAX} images per design`, '⚠'); return; }
-  const toAdd = Array.from(files).slice(0, remaining);
+  const toAdd = Array.from(files).slice(0, remaining).filter(file => file.type.startsWith('image/'));
+  if (!toAdd.length) return;
   let loaded = 0;
   toAdd.forEach(file => {
-    if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();

@@ -10207,18 +10207,6 @@ body.theme-midnight .recon-under { color: #E08A80; }
   </div>
 </div>
 
-<!-- ── Possible Duplicate warning modal (Restock Queue / Production Report) ── -->
-<div id="inv-dup-warn-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:950;align-items:center;justify-content:center;"
-  onclick="if(event.target===this)_invDupWarnCancel()">
-  <div style="background:var(--card-bg);border-radius:14px;padding:24px;width:440px;max-width:calc(100vw - 32px);box-shadow:0 8px 40px rgba(0,0,0,.28);">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px;">⚠ Possible Duplicate</div>
-    <div id="inv-dup-warn-text" style="font-size:13px;color:var(--text2);margin-bottom:20px;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-outline" onclick="_invDupWarnCancel()">Cancel</button>
-      <button class="btn btn-gold" onclick="_invDupWarnProceed()">Add Anyway</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══════════════════ TO RESTOCK TAB ═══════════════════ -->
 <div id="tab-to-restock" class="tab-panel rq-page">
