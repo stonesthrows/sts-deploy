@@ -10,6 +10,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
+const API_VERSION = 'materials-api v4 (2026-07-12)';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -127,9 +128,17 @@ function pageToMaterial(page) {
 export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
+  // Diagnostics: variable NAMES only (never values — some are secrets).
+  // envKeysSeen answers "did my dashboard variable actually reach the
+  // deployed function?", version answers "is the latest code even live?".
+  const envKeysSeen = Object.keys(env).filter(k => /NOTION|MATERIAL/i.test(k)).sort();
+  if (new URL(request.url).searchParams.get('diag') === '1') {
+    return json({ version: API_VERSION, envKeysSeen });
+  }
+
   const token = env.NOTION_TOKEN;
-  if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
-  if (!env.NOTION_MATERIALS_DB_ID) return json({ error: 'NOTION_MATERIALS_DB_ID not set' }, 500);
+  if (!token) return json({ error: 'NOTION_TOKEN not set', version: API_VERSION, envKeysSeen }, 500);
+  if (!env.NOTION_MATERIALS_DB_ID) return json({ error: 'NOTION_MATERIALS_DB_ID not set', version: API_VERSION, envKeysSeen }, 500);
   const dbId = normDbId(env.NOTION_MATERIALS_DB_ID);
   if (!dbId) return json({ error: 'NOTION_MATERIALS_DB_ID does not contain a Notion database ID — paste the database URL or its 32-character ID' }, 500);
   const h = hdrs(token);
