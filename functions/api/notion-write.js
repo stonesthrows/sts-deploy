@@ -36,6 +36,17 @@ function catSum(lineItems, cat) {
   }, 0);
 }
 
+// Split a long string into ≤2000-char rich_text segments — Notion caps each
+// segment at 2000 chars. A single truncating .slice() corrupts line-item JSON
+// once material-linked fields (materialId/qty/unitCost) make it longer.
+function rtChunks(str) {
+  var s = String(str || '');
+  var out = [];
+  for (var i = 0; i < s.length; i += 2000) out.push({ text: { content: s.slice(i, i + 2000) } });
+  if (!out.length) out.push({ text: { content: '' } });
+  return out;
+}
+
 function orderToProps(o) {
   var label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' - ') || 'Order';
   var lineItems = o.lineItems || [];
@@ -45,7 +56,7 @@ function orderToProps(o) {
     'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes || '').slice(0, 2000) } }] },
-    'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
+    'Line Items':     { rich_text: rtChunks(JSON.stringify(lineItems)) },
     'Drive File ID':  { rich_text: [{ text: { content: o.driveFileId || '' } }] },
     'Amount':         o.amt != null ? { number: o.amt } : { number: null },
     'Materials':      { number: catSum(lineItems, 'Materials') },

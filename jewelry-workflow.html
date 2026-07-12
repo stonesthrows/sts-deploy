@@ -4411,6 +4411,26 @@
     body.theme-midnight .mat-conf-seeded    { background: #4a3d15; color: #e0c060; }
     body.theme-midnight .mat-conf-estimated { background: #4a2320; color: #e08070; }
     body.theme-midnight .mat-conf-verified  { background: #1a3a26; color: #6fd08a; }
+    .mat-spark { display: block; }
+    .mat-spark polyline { stroke: #2563eb; }
+    .mat-spark circle   { fill:   #2563eb; }
+    body.theme-midnight .mat-spark polyline { stroke: #7aafc8; }
+    body.theme-midnight .mat-spark circle   { fill:   #7aafc8; }
+
+    /* ── Receive Shipment modal ─────────────── */
+    .rcv-modal { width: 620px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; }
+    .rcv-li-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .rcv-li-row select, .rcv-li-row input { margin-bottom: 0; min-width: 0; }
+    .rcv-li-row .rcv-li-mat  { flex: 2.4; }
+    .rcv-li-row .rcv-ex-desc { flex: 2.4; }
+    .rcv-li-row .rcv-ex-cat  { flex: 1.2; }
+    .rcv-li-row input[type="number"] { flex: 1; }
+    .rcv-li-remove {
+      background: none; border: none; color: var(--text-dim);
+      cursor: pointer; font-size: 14px; padding: 2px 4px; flex: none;
+    }
+    .rcv-li-remove:hover { color: #e55; }
+    .rcv-total-row { display: flex; justify-content: flex-end; font-weight: 800; font-size: 14px; margin: 8px 0 2px; }
 
     /* ── Theme Switcher UI ──────────────────── */
     .theme-wrap { position: relative; margin-right: 4px; }
@@ -6894,6 +6914,7 @@
       <button class="btn btn-outline btn-sm" id="ohCsvHelpBtn" title="Show expected CSV format">?</button>
 <button class="btn btn-outline btn-sm" id="ohPushNotionBtn" onclick="ohPushAllToNotion()" title="Push all local orders up to Notion">⬆ Push to Notion</button>
 <button class="btn btn-outline btn-sm" id="ohCategorizeBtn" onclick="ohCategorizeAll(this)" title="Auto-categorize uncategorized orders: re-scans saved receipts, guesses the rest from notes">🏷 Categorize All</button>
+<button class="btn btn-gold btn-sm" id="rcvOpenBtn" onclick="rcvOpen()">📥 Receive Shipment</button>
 <button class="btn btn-gold btn-sm" id="ohAddBtn">＋ Add Order</button>
     </div>
   </div>
@@ -7016,6 +7037,7 @@
           <th>Spec</th>
           <th>Unit</th>
           <th>Cost / Unit</th>
+          <th>Trend</th>
           <th>Stock</th>
           <th>Confidence</th>
           <th>Supplier</th>
@@ -7117,6 +7139,52 @@
         <button type="button" class="btn btn-outline btn-sm" onclick="materialsModalClose()">Cancel</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="materialsSave()">Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Receive Shipment Modal -->
+<div id="rcvModalBg" class="sot-modal-bg" onclick="rcvModalClose(event)">
+  <div class="sot-modal rcv-modal">
+    <h3>📥 Receive Shipment</h3>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Date Received</label>
+        <input id="rcvDate" type="date" style="width:100%">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Supplier</label>
+        <input id="rcvSup" type="text" list="ohSupList" placeholder="Type or select…" style="width:100%">
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Order #</label>
+        <input id="rcvOrderNum" type="text" placeholder="Order number" style="width:100%">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Invoice #</label>
+        <input id="rcvInvNum" type="text" placeholder="Invoice number" style="width:100%">
+      </div>
+    </div>
+    <div style="margin-top:6px;">
+      <label style="font-size:12px;color:var(--text-dim);">Materials received</label>
+      <div id="rcvLines"></div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="rcvAddLine()">+ Add Material</button>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:12px;color:var(--text-dim);">Other charges (shipping, tax…)</label>
+      <div id="rcvExtras"></div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="rcvAddExtra()">+ Add Charge</button>
+    </div>
+    <div class="rcv-total-row" id="rcvTotal">Total: $0.00</div>
+    <div style="margin-top:6px;">
+      <label style="font-size:12px;color:var(--text-dim);">Notes</label>
+      <input id="rcvNotes" type="text" placeholder="Notes…" style="width:100%">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="rcvModalClose()">Cancel</button>
+      <button type="button" class="btn btn-gold btn-sm" id="rcvSaveBtn" onclick="rcvSave()">Save &amp; Apply</button>
     </div>
   </div>
 </div>
@@ -10309,7 +10377,8 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/restock.js?v=9"></script>
 <script src="js/restock-sessions.js?v=3"></script>
 <script src="js/supplier-history.js"></script>
-<script src="js/materials.js?v=1"></script>
+<script src="js/materials.js?v=2"></script>
+<script src="js/receiving.js?v=1"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
   <div class="sot-modal" style="width:400px;">
