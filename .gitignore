@@ -9,3 +9,5 @@ cf-screenshot.png
 *.log
 .netlify
 .claude/worktrees/
+# local state from `wrangler pages dev`
+.wrangler/
