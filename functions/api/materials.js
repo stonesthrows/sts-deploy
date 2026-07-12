@@ -32,6 +32,19 @@ function hdrs(token) {
   };
 }
 
+// Accept NOTION_MATERIALS_DB_ID as a raw ID (with or without hyphens) or
+// a full pasted Notion URL — extracts the database ID and re-hyphenates
+// it into the UUID form the API requires. Query strings are cut first so
+// a trailing ?v=<view id> can't be picked up; the DB ID is the last
+// 32-hex run in the path.
+function normDbId(raw) {
+  const path = String(raw || '').trim().split('?')[0].replace(/-/g, '');
+  const runs = path.match(/[0-9a-f]{32}/gi);
+  if (!runs) return null;
+  const s = runs[runs.length - 1].toLowerCase();
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+}
+
 // Full property schema. The Notion API auto-creates select OPTIONS on
 // page writes but not PROPERTIES — writing to an unknown property 400s.
 // ensureSchema() adds any missing properties (and converts wrong-typed
@@ -115,9 +128,10 @@ export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
   const token = env.NOTION_TOKEN;
-  const dbId  = env.NOTION_MATERIALS_DB_ID;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
-  if (!dbId)  return json({ error: 'NOTION_MATERIALS_DB_ID not set' }, 500);
+  if (!env.NOTION_MATERIALS_DB_ID) return json({ error: 'NOTION_MATERIALS_DB_ID not set' }, 500);
+  const dbId = normDbId(env.NOTION_MATERIALS_DB_ID);
+  if (!dbId) return json({ error: 'NOTION_MATERIALS_DB_ID does not contain a Notion database ID — paste the database URL or its 32-character ID' }, 500);
   const h = hdrs(token);
 
   // ── GET — fetch all materials ────────────────
