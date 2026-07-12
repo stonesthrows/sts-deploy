@@ -4471,6 +4471,25 @@
     .rp-shop-item  { font-size: 12.5px; color: var(--text2); padding: 2px 0 2px 12px; }
     .rp-par-head { font-size: 13px; font-weight: 800; color: var(--text); margin: 18px 0 8px; }
 
+    /* ── Top Sellers restock tab (#tab-top-sellers only) ── */
+    .ts-select {
+      background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+      color: var(--text); font-size: 12px; font-weight: 600; padding: 5px 8px; cursor: pointer;
+    }
+    .ts-select:focus { border-color: var(--accent); outline: none; }
+    .ts-chip {
+      display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .03em;
+      border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 1px;
+    }
+    .ts-chip-out { background: rgba(179,57,44,.12); color: #B3392C; }
+    .ts-chip-low { background: rgba(191,144,10,.16); color: #8A6A08; }
+    .ts-chip-untracked { background: rgba(0,0,0,.06); color: var(--text3); }
+    body.theme-midnight .ts-chip-out { color: #e08070; }
+    body.theme-midnight .ts-chip-low { color: #EFBF0A; }
+    body.theme-midnight .ts-chip-untracked { background: rgba(255,255,255,.08); }
+    .ts-sub  { color: var(--text3); font-size: 12px; }
+    .ts-foot { font-size: 12px; color: var(--text3); margin-top: 10px; display: flex; flex-direction: column; gap: 3px; }
+
     /* ── Theme Switcher UI ──────────────────── */
     .theme-wrap { position: relative; margin-right: 4px; }
     .theme-btn {
@@ -5494,6 +5513,7 @@
     <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
     <div class="sb-item" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
     <div class="sb-item" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
+    <div class="sb-item" data-sb="top-sellers"       onclick="sbNav('inventory','top-sellers',this)">🔥 Top Sellers</div>
 
     <div class="sb-section">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
@@ -5586,6 +5606,9 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="replenish" onclick="switchSubTab('replenish',this)">
     🔄 Replenishment
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="top-sellers" onclick="switchSubTab('top-sellers',this)">
+    🔥 Top Sellers
   </div>
 </div>
 
@@ -7280,6 +7303,44 @@
       </tbody>
     </table>
   </div>
+</div>
+
+<!-- Top Sellers Restock Tab -->
+<div id="tab-top-sellers" class="tab-panel">
+  <div class="oh-head-row">
+    <div class="oh-title">🔥 Top Sellers — Restock</div>
+    <div class="oh-head-actions">
+      <div class="oh-refresh-lbl" id="ts-note"></div>
+      <select id="ts-days" class="ts-select" onchange="tsSetDays(this.value)" title="Sales window pulled from Square">
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <button class="btn btn-outline btn-sm" id="ts-view-btn" onclick="tsToggleView()">Show all top sellers</button>
+      <button class="btn btn-outline btn-sm" onclick="tsRender(true)" title="Re-pull sales and stock from Square">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="oh-table-wrap">
+    <table class="oh-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Item</th>
+          <th>Sold</th>
+          <th>Revenue</th>
+          <th>On Hand</th>
+          <th>Days Left</th>
+          <th>Suggested</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ts-body">
+        <tr><td colspan="8" class="oh-empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="ts-foot" id="ts-foot"></div>
 </div>
 
 <!-- ═════════════════════ INVENTORY ═════════════════════ -->
@@ -10726,6 +10787,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
 <script src="js/replenish.js?v=1"></script>
+<script src="js/top-sellers.js?v=1"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() { /* timer now lives inline in the restock queue */ }
@@ -10809,6 +10871,7 @@ function applyStatFilter(key) {
     'to-restock':        'To Restock',
     'prod-report':       'Production Report',
     'replenish':         'Replenishment',
+    'top-sellers':       'Top Sellers',
     'supplier':          'Order Materials',
     'order-history':     'Order History',
     'materials':         'Materials Library',
