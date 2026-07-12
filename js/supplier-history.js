@@ -1567,8 +1567,3 @@ function ohFmtDate(ds) {
   }
   return new Date(ds).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
-
-function ohEsc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}

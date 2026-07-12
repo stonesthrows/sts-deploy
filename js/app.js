@@ -3,15 +3,6 @@
 //  Shared helpers, tab switching, storage, bootstrap
 // ════════════════════════════════════════════
 
-// Escape user-supplied text before it goes into innerHTML / template
-// strings. Safe for both element text and double-quoted attribute values.
-// Use this on ANY value that originates from a customer (names, emails,
-// descriptions, notes, pickup locations, image URLs, …).
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
-    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-}
-
 function initials(name) {
   return name.replace(/[()0-9\-]/g,'').trim().split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase() || '??';
 }
@@ -131,7 +122,7 @@ function cardPointerDown(ev, orderId, kind) {
 }
 
 function touchDragResolveMove(kind, orderId, bodyEl) {
-  const order = ORDERS.find(o => o.id === orderId);
+  const order = getOrder(orderId);
   if (!order) return;
   if (kind === 'kanban') {
     const stageId = bodyEl.dataset.stageId;

@@ -351,10 +351,6 @@ function calRenderUpcoming() {
   }).join('');
 }
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 // ── Day click / day panel ─────────────────────
 
 function calDayClick(dateKey) {

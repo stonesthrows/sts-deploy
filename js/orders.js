@@ -416,7 +416,7 @@ let _eoMode = 'view';
 
 function eoSetMode(mode) {
   if (_eoMode === 'edit' && mode === 'view') {
-    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    const o = getOrder(document.getElementById('f-editing-id').value);
     if (o) eoPopulateFields(o);
   }
   _eoMode = mode;
@@ -461,7 +461,7 @@ const EO_ORDER_TYPE_LABELS = {
 function eoOrderTypeLabel(type) { return EO_ORDER_TYPE_LABELS[type] || EO_ORDER_TYPE_LABELS.order; }
 
 function openOrderCard(id) {
-  const o = ORDERS.find(x => x.id === id);
+  const o = getOrder(id);
   if (!o) return;
 
   eoPopulateFields(o);
@@ -675,7 +675,7 @@ function eoUpdateSketchBtnLabel(o) {
 
 // ── Draw Sketch modal — Add/Replace a sketch on an already-taken-in order ──
 function openSketchDrawModal() {
-  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  const o = getOrder(document.getElementById('f-editing-id').value);
   if (!o) return;
   if (typeof sketchReset === 'function') sketchReset();
   ulReset(); // don't leak the previous order's reference photo
@@ -806,7 +806,7 @@ function eoUseDrawnSketch(btn) {
   const dataUrl = _dsSketchComposite();
   if (!dataUrl) { toast('Draw something (or add a photo) first', '⚠'); return; }
   _eoSketchDraft = dataUrl;
-  const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+  const o = getOrder(document.getElementById('f-editing-id').value);
   eoLoadSketch(o || {});
   // Brief "Saved" state on the button before the modal closes, so the tap
   // visibly landed; the draft only commits to the order on Save Changes.
@@ -830,7 +830,7 @@ function eoUploadSketchFile(input) {
   const reader = new FileReader();
   reader.onload = e => {
     _eoSketchDraft = e.target.result;
-    const o = ORDERS.find(x => x.id === document.getElementById('f-editing-id').value);
+    const o = getOrder(document.getElementById('f-editing-id').value);
     eoLoadSketch(o || {});
   };
   reader.readAsDataURL(input.files[0]);
@@ -850,7 +850,7 @@ function closeEditOrderModal() {
 
 function markOrderComplete() {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   if (!o) return;
 
   // Confirm final price (pre-filled with quoted price)
@@ -890,7 +890,7 @@ function markOrderComplete() {
 
 function markOrderCancelled() {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   if (!o) return;
   if (!confirm('Mark "' + o.name + '" as Cancelled?')) return;
   o.stage       = 'cancelled';
@@ -906,7 +906,7 @@ function markOrderCancelled() {
 
 function deleteOrder() {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   if (!o) return;
   if (!confirm('Permanently delete "' + o.name + '"? This cannot be undone.')) return;
   ORDERS.splice(ORDERS.indexOf(o), 1);
@@ -927,7 +927,7 @@ function deleteOrder() {
 
 function saveOrderEdit() {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   if (!o) return;
 
   o.name          = getFullName();
@@ -1033,7 +1033,7 @@ function saveOrderEdit() {
 
 function orderLookupTracking(btn) {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   ssLookupTracking({
     numberField:  'f-tracking-number',
     carrierField: 'f-tracking-carrier',
@@ -1059,9 +1059,6 @@ function _orderFormLegacyFields(o) {
 //  structured stones, declined estimate tiers, signature). Vocabulary
 //  mirrors intake.html / js/intake-sheet.js / js/intake-profiles.js.
 // ════════════════════════════════════════════
-
-const _eoEsc = t => String(t == null ? '' : t)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // ── Sensitivities — checkboxes for the intake's fixed set; anything else
 //    in the list (the intake's free-text note) lands in the note input ──
@@ -1510,7 +1507,7 @@ function drop(ev, stageId) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('drag-over');
   if (!draggedId) return;
-  const order = ORDERS.find(o => o.id === draggedId);
+  const order = getOrder(draggedId);
   if (order) applyStageChange(order, stageId);
   draggedId = null;
 }
@@ -1522,7 +1519,7 @@ function drop(ev, stageId) {
 let stageSheetOrderId = null;
 
 function openStageSheet(id) {
-  const order = ORDERS.find(o => o.id === id);
+  const order = getOrder(id);
   if (!order) return;
   stageSheetOrderId = id;
 
@@ -1550,7 +1547,7 @@ function closeStageSheet() {
 }
 
 function pickStageFromSheet(stageId) {
-  const order = ORDERS.find(o => o.id === stageSheetOrderId);
+  const order = getOrder(stageSheetOrderId);
   if (order) applyStageChange(order, stageId);
   closeStageSheet();
 }
@@ -1559,7 +1556,7 @@ function dropWithPickup(ev, stageId, location) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('drag-over');
   if (!draggedId) return;
-  const order = ORDERS.find(o => o.id === draggedId);
+  const order = getOrder(draggedId);
   if (order) {
     order.stage  = stageId;
     order.pickup = location;
@@ -1592,7 +1589,7 @@ function handlePhoto(input) {
   if (!input.files || !input.files[0]) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const order = ORDERS.find(o => o.id === currentPhotoOrderId);
+    const order = getOrder(currentPhotoOrderId);
     if (order) {
       order.photo = e.target.result;
       saveToStorage();
@@ -1604,7 +1601,7 @@ function handlePhoto(input) {
 }
 
 function viewPhoto(orderId) {
-  const order = ORDERS.find(o => o.id === orderId);
+  const order = getOrder(orderId);
   if (!order || !order.photo) return;
   currentPhotoOrderId = orderId;
   // Restore the Replace/Remove buttons in case viewSketch hid them
@@ -1625,7 +1622,7 @@ function retakePhoto() {
 }
 
 function removePhoto() {
-  const order = ORDERS.find(o => o.id === currentPhotoOrderId);
+  const order = getOrder(currentPhotoOrderId);
   if (order) { delete order.photo; saveToStorage(); renderKanban(); toast('Photo removed', '✓'); }
   closeLightbox();
 }
@@ -1635,7 +1632,7 @@ function removePhoto() {
 //  MANUAL NOTION RETRY  —  tap the "⚠ unsynced" badge on a card
 // ════════════════════════════════════════════
 async function retrySyncOrder(id) {
-  const order = ORDERS.find(o => o.id === id);
+  const order = getOrder(id);
   if (!order || order.notionId) return;
   toast('Retrying Notion sync…', '⟳');
 
@@ -1674,7 +1671,7 @@ async function retrySyncOrder(id) {
 
 
 function printOrder(id) {
-  const o = ORDERS.find(x => x.id === id);
+  const o = getOrder(id);
   if (!o) return;
   // Flat addr* fields are the address of record; shippingAddress{} is the
   // mirror kept for older orders (see order-normalize.js).
@@ -1738,7 +1735,7 @@ function printOrder(id) {
 // ════════════════════════════════════════════
 function eoShowInvoice() {
   const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+  const o  = getOrder(id);
   const compose = document.getElementById('eo-invoice-compose');
 
   const defaultDue = (typeof _gtInvDefaultDue === 'function') ? _gtInvDefaultDue() : (() => {

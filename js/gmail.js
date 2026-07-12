@@ -13,10 +13,6 @@ var _gmailTokenExpiry = 0;
 
 // ── Helpers ──────────────────────────────────
 
-function _esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function _decodeSnippet(s) {
   return String(s || '')
     .replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<')

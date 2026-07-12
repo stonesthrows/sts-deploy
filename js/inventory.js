@@ -1154,10 +1154,6 @@ function invConfirmQueueAllLow() {
   }).catch(() => toast('Failed to add to Restock Queue', '⚠'));
 }
 
-function _esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 // ── Last-Added audit trail ────────────────────────────────────────────────────
 
 function _invGetLastAdded() {

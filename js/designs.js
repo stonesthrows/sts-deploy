@@ -541,11 +541,6 @@ function dsnAutoResizeAll() {
   document.querySelectorAll('#designs-form-wrap .dsn-textarea').forEach(dsnAutoResize);
 }
 
-// ── Utility ───────────────────────────────────
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 // ════════════════════════════════════════════
 //  BOM EDITOR (Phase 3)
 //  Material recipe lines on the design record. Metal lines carry a

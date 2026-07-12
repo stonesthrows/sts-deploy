@@ -17,10 +17,6 @@ var _coSettings   = null; // shop settings (waste defaults)
 var _coRows       = null; // [{materialId, name, unit, qty}] staged in the open prompt
 var _coUnweighed  = null; // item names with no BOM to decrement
 
-function _coEsc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function _coLoadData() {
   // Designs + settings change rarely — cache per page session. Materials
   // stock moves constantly — refresh on every prompt.

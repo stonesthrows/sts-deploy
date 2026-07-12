@@ -889,8 +889,6 @@ var _rqQuadPoints  = [];
 var RQ_SUNSET_SELLTHRU = 0.4;      // flag designs under both thresholds
 var RQ_SUNSET_MARGIN   = 0.25;
 
-function _rqEsc2(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
-
 function rqSetReportView(v)  { _rqReportView = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
 function rqSetReportRange(v) { _rqReportRange = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
 

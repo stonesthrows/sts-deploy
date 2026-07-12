@@ -666,7 +666,8 @@ function oiSetModifier(idx, listId, modifierId) {
 //  eoApplyOrderTypeModule) — the Estimate Builder shows in place of Items &
 //  Price for Custom/Etsy/Website order types and is not reachable otherwise.
 // ════════════════════════════════════════════
-let estMultiplier = 2.5;
+const EST_DEFAULT_MULTIPLIER = 2.5;
+let estMultiplier = EST_DEFAULT_MULTIPLIER;
 let estRowCount   = 0;
 let estSaveTimer  = null;
 // True while populateEstimateFromOrder() rebuilds the module from a saved
@@ -731,7 +732,7 @@ function populateEstimateFromOrder(o) {
     if (taxToggle) taxToggle.checked = saved.taxOn || false;
     const adjEl = document.getElementById('est-adjustment');
     if (adjEl) adjEl.value = saved.adjustment ? saved.adjustment : '';
-    setMultiplier(saved.multiplier || 2.5);
+    setMultiplier(saved.multiplier || EST_DEFAULT_MULTIPLIER);
     // Visibility of #eo-estimate-module is owned by the order-type module
     // (js/orders.js's eoApplyOrderTypeModule), not by this function.
   } finally {

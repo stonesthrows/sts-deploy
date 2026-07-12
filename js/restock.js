@@ -63,16 +63,17 @@ var _rqInvFetchTimer  = null;
 // haven't matched/finished matching yet).
 function _rqCollectInvVariantIds() {
   var ids = [];
+  var seen = new Set();
+  function addId(id) { if (id && !seen.has(id)) { seen.add(id); ids.push(id); } }
+
   _rqSortedItems().forEach(function(item) {
     var pid = item.notionPageId;
     var match = pid ? _rqAutoMatches[pid] : null;
     if (!match || typeof match !== 'object' || match.isCustom) return;
     if (match.isParent) {
-      (match.variants || []).forEach(function(v) {
-        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
-      });
+      (match.variants || []).forEach(function(v) { addId(v.id); });
     } else if (match.id && match.id.indexOf('local-') !== 0 && match.id.indexOf('custom-') !== 0) {
-      if (ids.indexOf(match.id) === -1) ids.push(match.id);
+      addId(match.id);
     }
   });
   // Also collect variants from the add-panel's pending selection so stock
@@ -80,11 +81,9 @@ function _rqCollectInvVariantIds() {
   var pending = _rqAddPendingMatch;
   if (pending && !pending.isCustom) {
     if (pending.isParent) {
-      (pending.variants || []).forEach(function(v) {
-        if (v.id && ids.indexOf(v.id) === -1) ids.push(v.id);
-      });
+      (pending.variants || []).forEach(function(v) { addId(v.id); });
     } else if (pending.id && pending.id.indexOf('local-') !== 0 && pending.id.indexOf('custom-') !== 0) {
-      if (ids.indexOf(pending.id) === -1) ids.push(pending.id);
+      addId(pending.id);
     }
   }
   return ids;
@@ -277,11 +276,6 @@ function _rqApplyStyleFilter(pid, variants) {
   var filtered = current ? variants.filter(function(v) { return _rqStyleTokenFor(v.name) === current; }) : variants;
   return { variants: filtered, filterTabsHtml: _rqStyleFilterTabsHtml(pid, styles, current) };
 }
-
-function _rqEsc(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 
 // Groups variants by metal (parsed the same way as style tokens) so items
 // with 2+ metals (e.g. Stacker: Silver + Gold Fill) render as a labeled
@@ -1603,7 +1597,10 @@ function rqStopTimer(pid) {
   var stopTime = new Date().toISOString();
   var totalMs  = Date.now() - t.startTime;
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
-  var netMin   = Math.max(0, totalMin - 15);
+  // Flat per-session deduction applied before computing paid ("net") minutes.
+  // Exact rationale isn't documented elsewhere — confirm before changing.
+  var RQ_UNPAID_MIN_PER_SESSION = 15;
+  var netMin   = Math.max(0, totalMin - RQ_UNPAID_MIN_PER_SESSION);
   // Capture notes from the live DOM before clearing state; piece counts
   // come from the matched sizes table (_rqLiveTimerRows), reading whatever
   // was last edited — not a snapshot taken when the timer started.

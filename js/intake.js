@@ -517,7 +517,7 @@ async function intakeSubmit() {
       labor:      parseFloat(g('est-labor')?.value) || 0,
       shipping:   parseFloat(g('est-shipping')?.value) || 0,
       taxOn:      g('est-tax-toggle')?.checked || false,
-      multiplier: (typeof estMultiplier !== 'undefined') ? estMultiplier : 2.5,
+      multiplier: (typeof estMultiplier !== 'undefined') ? estMultiplier : EST_DEFAULT_MULTIPLIER,
       adjustment: (typeof _estAdj !== 'undefined') ? _estAdj : 0,
     } : null,
   };
@@ -1023,14 +1023,14 @@ function estStateApply(s) {
   const taxEl = document.getElementById('est-tax-toggle');
   if (taxEl) taxEl.checked = !!s.taxOn;
   _estAdj = s.adjustment || 0;
-  setMultiplier(s.multiplier || 2.5);
+  setMultiplier(s.multiplier || EST_DEFAULT_MULTIPLIER);
   if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : ''));
   else addMaterialRow();
 }
 
 function _estStateTotal(s) {
   const mat = s.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
-  const adjusted = (mat + s.labor) * (s.multiplier || 2.5) + (s.adjustment || 0);
+  const adjusted = (mat + s.labor) * (s.multiplier || EST_DEFAULT_MULTIPLIER) + (s.adjustment || 0);
   return adjusted * (s.taxOn ? 1.0825 : 1) + (s.shipping || 0);
 }
 
@@ -1537,7 +1537,7 @@ eoUpdateBalanceDue = function () {
   intakeApplyTypeLayout('order');
   toggleShippingAddress();
   addMaterialRow();      // one empty estimate line ready to go
-  setMultiplier(2.5);
+  setMultiplier(EST_DEFAULT_MULTIPLIER);
   intakeStep(1);
   intakeSizeSketchStage();
   intakeUpdateUnsynced();

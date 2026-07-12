@@ -31,22 +31,34 @@ function switchCustTab(tab, el) {
   renderCustomers();
 }
 
+// Groups ORDERS by customer name once so per-customer lookups below are O(1)
+// instead of re-scanning the full order list for every customer (this ran on
+// every keystroke in the search box via renderCustomers -> updateCustTabCounts).
+function _custOrdersByName() {
+  const map = {};
+  ORDERS.forEach(o => {
+    (map[o.name] || (map[o.name] = [])).push(o);
+  });
+  return map;
+}
+
 function getCustTabList(baseList) {
   const today = new Date();
   const ms60  = 60 * 24 * 60 * 60 * 1000;
   const ms90  = 90 * 24 * 60 * 60 * 1000;
+  const ordersByName = _custOrdersByName();
 
   switch (activeCustTab) {
     case 'current':
       return baseList.filter(c =>
-        ORDERS.some(o => o.name === c.name && !['complete','delivered'].includes(o.stage))
+        (ordersByName[c.name] || []).some(o => !['complete','delivered'].includes(o.stage))
       );
     case 'repeat':
       return baseList.filter(c => c.totalOrders >= 2);
     case 'new60':
       return baseList.filter(c => {
         // "new" = their first-ever order is within 60 days
-        const orders = ORDERS.filter(o => o.name === c.name);
+        const orders = ordersByName[c.name] || [];
         if (!orders.length) return false;
         const earliest = orders.reduce((min, o) => {
           const d = new Date(o.takeIn || o.deadline || '');
@@ -56,7 +68,7 @@ function getCustTabList(baseList) {
       });
     case 'followup':
       return baseList.filter(c => {
-        const hasActive = ORDERS.some(o => o.name === c.name && !['complete','delivered'].includes(o.stage));
+        const hasActive = (ordersByName[c.name] || []).some(o => !['complete','delivered'].includes(o.stage));
         if (hasActive) return false;
         const last = new Date(c.lastContact);
         return !isNaN(last) && (today - last) >= ms90;
@@ -72,13 +84,14 @@ function updateCustTabCounts() {
   const today = new Date();
   const ms60  = 60 * 24 * 60 * 60 * 1000;
   const ms90  = 90 * 24 * 60 * 60 * 1000;
+  const ordersByName = _custOrdersByName();
 
   const counts = {
-    current:  all.filter(c => ORDERS.some(o => o.name === c.name && !['complete','delivered'].includes(o.stage))).length,
+    current:  all.filter(c => (ordersByName[c.name] || []).some(o => !['complete','delivered'].includes(o.stage))).length,
     all:      all.length,
     repeat:   all.filter(c => c.totalOrders >= 2).length,
     new60:    all.filter(c => {
-                const orders = ORDERS.filter(o => o.name === c.name);
+                const orders = ordersByName[c.name] || [];
                 if (!orders.length) return false;
                 const earliest = orders.reduce((min, o) => {
                   const d = new Date(o.takeIn || o.deadline || '');
@@ -87,7 +100,7 @@ function updateCustTabCounts() {
                 return (today - earliest) <= ms60;
               }).length,
     followup: all.filter(c => {
-                const hasActive = ORDERS.some(o => o.name === c.name && !['complete','delivered'].includes(o.stage));
+                const hasActive = (ordersByName[c.name] || []).some(o => !['complete','delivered'].includes(o.stage));
                 if (hasActive) return false;
                 const last = new Date(c.lastContact);
                 return !isNaN(last) && (today - last) >= ms90;
@@ -738,7 +751,7 @@ function _openIntakePrefilled(name, email, type) {
 
 // Start a new order from an existing order (used by Current Orders click)
 function prefillFromOrder(orderId) {
-  const o = ORDERS.find(x => x.id === orderId);
+  const o = getOrder(orderId);
   if (!o) return;
   _openIntakePrefilled(o.name, o.email, o.orderType || o.type || 'order');
 }

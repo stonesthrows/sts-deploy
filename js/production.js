@@ -111,7 +111,7 @@ function prodDrop(ev, colKey) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('prod-drag-over');
   if (!prodDraggedId) return;
-  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  var o = getOrder(prodDraggedId);
   if (!o) { prodDraggedId = null; return; }
   prodApplyMove(o, colKey);
   prodDraggedId = null;
@@ -124,7 +124,7 @@ function prodDropShip(ev, subKey) {
   ev.stopPropagation();
   ev.currentTarget.classList.remove('prod-drag-over');
   if (!prodDraggedId) return;
-  var o = ORDERS.find(function(x){ return x.id === prodDraggedId; });
+  var o = getOrder(prodDraggedId);
   if (!o) { prodDraggedId = null; return; }
   o.shipChannel = subKey;
   prodApplyMove(o, '__ship__');
@@ -135,7 +135,7 @@ function prodDropShip(ev, subKey) {
 var prodStageSheetOrderId = null;
 
 function openProdStageSheet(id) {
-  var o = ORDERS.find(function(x){ return x.id === id; });
+  var o = getOrder(id);
   if (!o) return;
   prodStageSheetOrderId = id;
   var curCol = prodGetColumn(o);
@@ -155,7 +155,7 @@ function openProdStageSheet(id) {
 }
 
 function pickProdDestFromSheet(colKey) {
-  var o = ORDERS.find(function(x){ return x.id === prodStageSheetOrderId; });
+  var o = getOrder(prodStageSheetOrderId);
   if (o) prodApplyMove(o, colKey);
   closeStageSheet();
 }
@@ -575,7 +575,7 @@ function prodOpenCustomer(name) {
 }
 
 function prodMarkDelivered(id) {
-  var o = ORDERS.find(function(x){ return x.id === id; });
+  var o = getOrder(id);
   if (!o) return;
   var dateStr = new Date().toISOString().slice(0, 10);
   o.stage = 'delivered';
@@ -605,12 +605,6 @@ function prodOcrCache(orderId, setText) {
     }
     return cache[orderId] || null;
   } catch(e) { return null; }
-}
-
-function prodEsc(s) {
-  return String(s || '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // Extract Google Drive file ID from a Drive URL
@@ -831,7 +825,7 @@ function prodSaveToCustomerConfirm() {
   if (typeof renderCustomers      === 'function') renderCustomers();
 
   // Also update the order record with the parsed desc and notes
-  var order = (typeof ORDERS !== 'undefined') ? ORDERS.find(function(o){ return o.id === _prodSaveOrderId; }) : null;
+  var order = (typeof ORDERS !== 'undefined') ? getOrder(_prodSaveOrderId) : null;
   if (order) {
     if (jobDesc.trim()) order.desc  = jobDesc.trim();
     if (notes.trim())   order.notes = notes.trim();
@@ -1037,14 +1031,6 @@ var sotCatalogUrls  = {};
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
   return Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-}
-function sotEsc(s) {
-  return String(s||'')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
 }
 function sotGetUnit(desc) {
   var d = (desc||'').toLowerCase();

@@ -6,6 +6,34 @@
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
 
+// Escape user-supplied text before it goes into innerHTML / template
+// strings. Safe for both element text and double-quoted attribute values.
+// Use this on ANY value that originates from a customer (names, emails,
+// descriptions, notes, pickup locations, image URLs, …).
+//
+// Single source of truth — many files used to carry their own near-identical
+// copy under a different local name; all of those now delegate here so
+// escaping behavior can't silently drift depending on which file's copy
+// happened to load last.
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function _esc(s)     { return esc(s); }
+function escHtml(s)  { return esc(s); }
+function ohEsc(s)    { return esc(s); }
+function prodEsc(s)  { return esc(s); }
+function sotEsc(s)   { return esc(s); }
+function _rqEsc(s)   { return esc(s); }
+function _rqEsc2(v)  { return esc(v); }
+function _eoEsc(t)   { return esc(t); }
+function _coEsc(s)   { return esc(s); }
+// Not consolidated: js/intake-profiles.js's _profEsc (runs on intake.html,
+// which doesn't load this file), and the various function-scoped local
+// `const esc = ...` closures elsewhere (customers.js, designs.js CSV
+// quoting, intake.js, intake-sheet.js) — those shadow this one safely
+// within their own scope and aren't global duplicates.
+
 const STAGES = [
   { id:'intake-custom',   label:'Custom Intake',                cls:'s-intake-custom'   },
   { id:'intake-repair',   label:'Repair Intake',                cls:'s-intake-repair'   },
@@ -114,6 +142,10 @@ const SQUARE_WEEKENDS = [
 // and from localStorage as a fast cache. This array is intentionally
 // empty — do not add hardcoded orders here.
 const ORDERS = [];
+
+function getOrder(id) {
+  return ORDERS.find(o => o.id === id);
+}
 
 // Populated at runtime from Notion via loadCustomersFromNotion()
 const CUSTOMERS = [];
