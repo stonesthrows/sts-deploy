@@ -123,6 +123,8 @@ function rqShowPushPrompt(session) {
   overlay.addEventListener('click', function(e) { if (e.target === overlay) rqClosePushPrompt(); });
   document.body.appendChild(overlay);
   _rqPushPromptSession = session;
+  // Phase 5 close-out: append the BOM-computed "Materials used" section
+  if (typeof coAttachToPushPrompt === 'function') coAttachToPushPrompt(session);
 }
 
 function rqClosePushPrompt() {
@@ -178,6 +180,9 @@ function rqConfirmPush(store, i) {
     s.pushed = true;
     _rqPushingSession[store] = null;
     _rqStoreRender(store);
+    // Phase 5 close-out: after a successful push from the post-timer prompt,
+    // decrement the staged material consumption (no-op from other panels)
+    if (typeof coApplyFromPrompt === 'function' && document.getElementById('co-section')) coApplyFromPrompt();
     rqClosePushPrompt();
     toast('Pushed to Square ✓', '✓');
     if (s.notionPageId) {
