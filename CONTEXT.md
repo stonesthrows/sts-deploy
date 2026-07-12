@@ -98,7 +98,7 @@ Inventory tracked in Square for the main retail location (`D7EZ98V48F79A`). Quan
 A twice-yearly event at which STS sells jewelry in a booth setting. Occurs as two recurring types: May Market (May) and Art Bazaar (November/December). BGAB inventory is tracked entirely independently of Square — no Square reads or writes ever occur.
 
 **BGAB Event**
-A named record of inventory brought to a single BGAB occurrence. Identified by Type + Year (e.g. "May Market 2026"). Contains a list of BGAB Items. Source of truth is a dedicated Notion database, with full item data serialized as JSON on the Notion page. Displayed in the standalone "Blue Genie" tab.
+A named record of inventory brought to a single BGAB occurrence. Identified by Type + Year (e.g. "May Market 2026"). Contains a list of BGAB Items. Source of truth is a dedicated Notion database, with full item data serialized as JSON on the Notion page. The "Blue Genie" tab has been removed from the app nav (`js/bgab.js` is dormant, no longer loaded); the Notion data remains.
 
 **BGAB Item**
 A Square catalog item selected for inclusion in a BGAB Event. Name and variations are imported from Square at event-creation time (read-only reference — no Square quantities are touched). Each variation tracks Brought and Sold quantities independently.
@@ -111,6 +111,31 @@ The quantity of a specific variation sold at a BGAB Event. Updated during or aft
 
 **Remaining** (BGAB context)
 Brought − Sold for a variation. Computed in the UI; never stored.
+
+---
+
+## Costing & Materials (Phases 1–6 build, 2026-07)
+
+**Material**
+An entry in the Materials Library (Supplies → Materials Library; Notion database via `/api/materials`). Has a category (`metal` or component), unit (`gram` or piece), current stock level, current cost per unit, metal type (e.g. `sterling`, `gold_fill`), and default supplier. Stock and latest price are updated by Receive Shipment and decremented by batch Close-out.
+
+**BOM (Bill of Materials)**
+The material recipe on a Design: `[{materialId, qty}]` per piece. Metal lines carry a waste factor; component lines never do. A design with no BOM is "not weighed" — it still works everywhere, just without cost/consumption data.
+
+**Waste %** (hybrid model, spec §5)
+Extra metal consumed beyond the finished piece. Resolution priority: design override → per-metal-type default → shop default → 0. Shared math lives in `js/costing-core.js` (`wastePctResolve`), used identically by the design form, close-out, and replenishment.
+
+**Piece Cost / Cost Rollup**
+BOM materials (incl. waste, at current cost per unit) + labor (tracked minutes/piece from work sessions × shop hourly rate, or a manual override). Computed by `costRollup` in `costing-core.js`; surfaced on the design form and the Pricing Sheet with margin vs. Square retail and a suggested price at the target margin.
+
+**Receive Shipment**
+The Supplies flow (`js/receiving.js`) that records a supplier order and, per material line, adds qty to stock and sets latest cost per unit ("latest price wins" — history stays in the purchase record).
+
+**Close-out**
+After a production session's Square inventory push, the staged material consumption (per-piece BOM incl. waste × pieces made, editable for reality) is decremented from the Materials Library (`js/closeout.js`).
+
+**Par Level / Buildable / Shortfall**
+Replenishment terms (`js/replenish.js`): par is the desired on-hand count per Square-linked design; a design at/below par enters the queue. Buildable = min over BOM lines of floor(material stock ÷ per-piece consumption). Shortfalls aggregate into a supplier-grouped shopping list.
 
 ---
 
