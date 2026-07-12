@@ -32,6 +32,48 @@ function hdrs(token) {
   };
 }
 
+// Full property schema. The Notion API auto-creates select OPTIONS on
+// page writes but not PROPERTIES — writing to an unknown property 400s.
+// ensureSchema() adds any missing properties (and converts wrong-typed
+// ones), so the only manual Notion setup is creating an empty database
+// and sharing it with the integration. Same pattern as notion-pipeline.js.
+// 'Name' (the title property) always exists on a new database.
+const MATERIAL_SCHEMA_PROPS = {
+  'Category':              { select: {} },
+  'Metal Type':            { select: {} },
+  'Form':                  { select: {} },
+  'Gauge':                 { rich_text: {} },
+  'Unit':                  { select: {} },
+  'Current Cost Per Unit': { number: {} },
+  'Stock Level':           { number: {} },
+  'Stock Confidence':      { select: {} },
+  'Supplier Default':      { select: {} },
+  'Active':                { checkbox: {} },
+};
+
+async function ensureSchema(h, dbId) {
+  const r = await fetch(`${NOTION_API}/databases/${dbId}`, {
+    method: 'PATCH', headers: h,
+    body: JSON.stringify({ properties: MATERIAL_SCHEMA_PROPS }),
+  });
+  return r.ok;
+}
+
+// Page write (PATCH update or POST create) that self-heals the schema:
+// on a 400 for a missing or wrong-typed property, fix the database
+// schema and retry once.
+async function writePage(h, dbId, url, method, bodyObj) {
+  const body = JSON.stringify(bodyObj);
+  let r = await fetch(url, { method, headers: h, body });
+  if (r.status === 400) {
+    const err = await r.clone().json().catch(() => ({}));
+    if (/not a property that exists|is expected to be/i.test(err.message || '') && await ensureSchema(h, dbId)) {
+      r = await fetch(url, { method, headers: h, body });
+    }
+  }
+  return r;
+}
+
 function materialToProps(m) {
   return {
     'Name':                    { title:     [{ text: { content: m.name || '' } }] },
@@ -106,19 +148,15 @@ export async function onRequest({ request, env }) {
     const props = materialToProps(material);
 
     if (material.notionPageId) {
-      const r = await fetch(`${NOTION_API}/pages/${material.notionPageId}`, {
-        method: 'PATCH', headers: h,
-        body: JSON.stringify({ properties: props, archived: false }),
-      });
+      const r = await writePage(h, dbId, `${NOTION_API}/pages/${material.notionPageId}`, 'PATCH',
+        { properties: props, archived: false });
       const d = await r.json();
       if (!r.ok) return json({ error: d.message || 'Notion patch failed' }, r.status);
       return json({ notionPageId: material.notionPageId });
     }
 
-    const cr = await fetch(`${NOTION_API}/pages`, {
-      method: 'POST', headers: h,
-      body: JSON.stringify({ parent: { database_id: dbId }, properties: props }),
-    });
+    const cr = await writePage(h, dbId, `${NOTION_API}/pages`, 'POST',
+      { parent: { database_id: dbId }, properties: props });
     const cd = await cr.json();
     if (!cr.ok) return json({ error: cd.message || 'Notion create failed' }, cr.status);
     return json({ notionPageId: cd.id });
