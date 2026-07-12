@@ -7807,6 +7807,46 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
 .dsn-bom-chip { margin-left: 4px; background: var(--card-head-bg); color: var(--text3); border-color: var(--bdr); }
 .dsn-bom-chip.weighed { background: #DCF5E3; color: #1E7B3C; border-color: #b5e2c4; }
 body.theme-midnight .dsn-bom-chip.weighed { background: #1a3a26; color: #6fd08a; border-color: #2c5a3c; }
+
+/* ── Designs: costing & pricing sheet (Phase 4) ── */
+.dsn-sq-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 600;
+  background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 0 0 8px 8px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto;
+}
+.dsn-sq-result {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  border-bottom: 1px solid var(--bdr); padding: 8px 10px; font-size: 13px;
+  font-family: inherit; color: var(--text); cursor: pointer;
+}
+.dsn-sq-result:hover { background: var(--accent-bg); }
+.dsn-sq-result:last-child { border-bottom: none; }
+.dsn-ru-box { border-top: 1px dashed var(--bdr); padding-top: 8px; }
+.dsn-ru-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); padding: 2px 0; }
+.dsn-ru-row.dsn-ru-sub   { border-top: 1px dashed var(--bdr); margin-top: 4px; padding-top: 5px; font-weight: 600; color: var(--text); }
+.dsn-ru-row.dsn-ru-total { font-weight: 800; color: var(--text); font-size: 13.5px; }
+.dsn-ru-row.dsn-ru-bad   { color: #B3392C; font-weight: 700; }
+body.theme-midnight .dsn-ru-row.dsn-ru-bad { color: #e08070; }
+.dsn-ru-dim  { color: var(--text3); font-weight: 400; font-size: 11px; }
+.dsn-ru-dim2 { color: var(--text3); }
+.dsn-ps-settings {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-lg);
+  padding: 10px 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm);
+}
+.dsn-ps-settings label { font-size: 12px; color: var(--text3); font-weight: 600; }
+.dsn-ps-settings input {
+  width: 80px; padding: 7px 9px; border: 1px solid var(--bdr); border-radius: 7px;
+  font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text); outline: none;
+}
+.dsn-ps-settings input:focus { border-color: var(--accent); }
+.dsn-ps-alert {
+  background: #FDE2E1; color: #B3392C; border: 1px solid #f3b6b2; border-radius: 8px;
+  padding: 9px 13px; font-size: 12.5px; margin-bottom: 12px;
+}
+body.theme-midnight .dsn-ps-alert { background: #4a2320; color: #e08070; border-color: #6a3630; }
+.oh-table tr.dsn-ps-bad td { background: #FDF0EF; }
+body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:var(--shadow-sm); }
 /* Library grid */
 .dsn-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:var(--sp-3); }
@@ -7916,7 +7956,45 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <div class="page-title">🎨 Design Library</div>
       <div class="page-sub">Jewelry design specs, instructions &amp; reference images</div>
     </div>
-    <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="dsn-pricing-btn" class="btn btn-outline btn-sm" onclick="dsnPricingToggle()">💲 Pricing Sheet</button>
+      <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
+    </div>
+  </div>
+
+  <!-- Pricing Sheet view (Phase 4) -->
+  <div id="designs-pricing" style="display:none">
+    <div class="dsn-ps-settings">
+      <label>Hourly rate $</label>
+      <input id="dsn-set-rate" type="number" step="0.5" min="0" placeholder="—">
+      <label>Target margin %</label>
+      <input id="dsn-set-target" type="number" step="1" min="0" max="99" placeholder="—">
+      <label>Margin floor %</label>
+      <input id="dsn-set-floor" type="number" step="1" min="0" max="99" placeholder="—">
+      <button class="btn btn-gold btn-sm" onclick="dsnPricingSettingsSave()">Save</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="dsnPricingRender(true)" title="Re-fetch labor history and Square prices">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="dsnPricingExport()">⬇ Export CSV</button>
+    </div>
+    <div id="dsn-ps-alerts"></div>
+    <div class="oh-table-wrap">
+      <table class="oh-table">
+        <thead>
+          <tr>
+            <th>Design</th>
+            <th>Materials</th>
+            <th>Labor</th>
+            <th>Piece Cost</th>
+            <th>Retail</th>
+            <th>Margin</th>
+            <th>Suggested / Flags</th>
+          </tr>
+        </thead>
+        <tbody id="dsn-ps-body">
+          <tr><td colspan="7" class="oh-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Library view -->
@@ -8031,6 +8109,27 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
               <button type="button" class="btn btn-gold btn-sm" onclick="dsnWasteDefaultsSave()">Save Defaults</button>
             </div>
           </div>
+        </div>
+
+        <!-- Costing (Phase 4) -->
+        <label class="dsn-field-label">Costing</label>
+        <div class="dsn-bom-box">
+          <div id="dsn-sq-linked" style="display:none;font-size:13px;margin-bottom:8px;">
+            🔗 <span id="dsn-sq-linked-name" style="font-weight:600;"></span>
+            <button type="button" class="dsn-bom-remove" onclick="dsnSqUnlink()" title="Unlink Square item">✕</button>
+          </div>
+          <div id="dsn-sq-search-wrap" style="position:relative;margin-bottom:8px;">
+            <input id="dsn-sq-search" type="text" class="dsn-input" placeholder="🔗 Link to Square item — type to search…"
+              oninput="dsnSqSearchInput(this.value)" autocomplete="off">
+            <div id="dsn-sq-results" class="dsn-sq-results" style="display:none"></div>
+          </div>
+          <div class="dsn-bom-waste-row">
+            <label for="dsn-retail-ov">Retail override $</label>
+            <input id="dsn-retail-ov" type="number" step="0.01" min="0" placeholder="from Square" oninput="dsnRollupRender()">
+            <label for="dsn-labor-ov">Labor min/pc override</label>
+            <input id="dsn-labor-ov" type="number" step="0.1" min="0" placeholder="from timers" oninput="dsnRollupRender()">
+          </div>
+          <div id="dsn-rollup" style="margin-top:10px;"></div>
         </div>
 
       </div>
@@ -10528,7 +10627,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=2"></script>
+<script src="js/designs.js?v=3"></script>
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
