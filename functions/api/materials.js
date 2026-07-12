@@ -138,8 +138,11 @@ export async function onRequest({ request, env }) {
 
   const token = env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set', version: API_VERSION, envKeysSeen }, 500);
-  if (!env.NOTION_MATERIALS_DB_ID) return json({ error: 'NOTION_MATERIALS_DB_ID not set', version: API_VERSION, envKeysSeen }, 500);
-  const dbId = normDbId(env.NOTION_MATERIALS_DB_ID);
+  // Tolerate whitespace around the variable NAME (easy to type on iPad,
+  // invisible in the dashboard): match any env key that trims to it.
+  const dbIdKey = Object.keys(env).find(k => k.trim() === 'NOTION_MATERIALS_DB_ID');
+  if (!dbIdKey || !env[dbIdKey]) return json({ error: 'NOTION_MATERIALS_DB_ID not set', version: API_VERSION, envKeysSeen }, 500);
+  const dbId = normDbId(env[dbIdKey]);
   if (!dbId) return json({ error: 'NOTION_MATERIALS_DB_ID does not contain a Notion database ID — paste the database URL or its 32-character ID' }, 500);
   const h = hdrs(token);
 
