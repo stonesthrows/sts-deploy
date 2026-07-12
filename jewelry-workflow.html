@@ -4448,6 +4448,29 @@
     .co-note.co-warn { color: #B3392C; }
     body.theme-midnight .co-note.co-warn { color: #e08070; }
 
+    /* ── Replenishment (Phase 6) ─────────────── */
+    .rp-inline {
+      width: 64px; padding: 5px 7px; border: 1px solid var(--bdr); border-radius: 6px;
+      font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text);
+      text-align: center; outline: none;
+    }
+    .rp-inline:focus { border-color: var(--accent); }
+    .rp-ok      { color: #1E7B3C; font-weight: 700; }
+    .rp-short-n { color: #B3392C; font-weight: 700; }
+    .rp-flag    { color: var(--text3); font-size: 12px; }
+    .rp-short-detail { font-size: 12px; color: var(--text2); }
+    body.theme-midnight .rp-ok      { color: #6fd08a; }
+    body.theme-midnight .rp-short-n { color: #e08070; }
+    .rp-shopping {
+      background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-lg);
+      padding: 12px 16px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+    }
+    .rp-shopping:empty { display: none; }
+    .rp-shop-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+    .rp-shop-sup   { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 8px; }
+    .rp-shop-item  { font-size: 12.5px; color: var(--text2); padding: 2px 0 2px 12px; }
+    .rp-par-head { font-size: 13px; font-weight: 800; color: var(--text); margin: 18px 0 8px; }
+
     /* ── Theme Switcher UI ──────────────────── */
     .theme-wrap { position: relative; margin-right: 4px; }
     .theme-btn {
@@ -5470,6 +5493,7 @@
     <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
     <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
     <div class="sb-item" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
+    <div class="sb-item" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
 
     <div class="sb-section">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
@@ -5559,6 +5583,9 @@
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="prod-report" onclick="switchSubTab('prod-report',this)">
     📊 Production Report
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="replenish" onclick="switchSubTab('replenish',this)">
+    🔄 Replenishment
   </div>
 </div>
 
@@ -7202,6 +7229,56 @@
       <button type="button" class="btn btn-outline btn-sm" onclick="rcvModalClose()">Cancel</button>
       <button type="button" class="btn btn-gold btn-sm" id="rcvSaveBtn" onclick="rcvSave()">Save &amp; Apply</button>
     </div>
+  </div>
+</div>
+
+<!-- Replenishment Tab (Phase 6) -->
+<div id="tab-replenish" class="tab-panel">
+  <div class="oh-head-row">
+    <div class="oh-title">🔄 Replenishment</div>
+    <div class="oh-head-actions">
+      <div class="oh-refresh-lbl" id="rp-note"></div>
+      <button class="btn btn-outline btn-sm" onclick="rpRender(true)" title="Re-check Square stock and material levels">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div id="rp-shopping" class="rp-shopping"></div>
+
+  <div class="oh-table-wrap">
+    <table class="oh-table">
+      <thead>
+        <tr>
+          <th>Design</th>
+          <th>On Hand</th>
+          <th>Par</th>
+          <th>Batch</th>
+          <th>Buildable</th>
+          <th>Material Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rp-body">
+        <tr><td colspan="7" class="oh-empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rp-par-head">Par levels — all Square-linked designs</div>
+  <div class="oh-table-wrap">
+    <table class="oh-table">
+      <thead>
+        <tr>
+          <th>Design</th>
+          <th>On Hand</th>
+          <th>Par Level</th>
+          <th>Batch Size</th>
+          <th>Active</th>
+        </tr>
+      </thead>
+      <tbody id="rp-par-body">
+        <tr><td colspan="5" class="oh-empty">Loading…</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -10648,6 +10725,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
+<script src="js/replenish.js?v=1"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() { /* timer now lives inline in the restock queue */ }
@@ -10730,6 +10808,7 @@ function applyStatFilter(key) {
     'inv-adjust':        'Adjust Inventory',
     'to-restock':        'To Restock',
     'prod-report':       'Production Report',
+    'replenish':         'Replenishment',
     'supplier':          'Order Materials',
     'order-history':     'Order History',
     'materials':         'Materials Library',

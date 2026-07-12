@@ -10,7 +10,7 @@
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -75,6 +75,9 @@ export async function onRequestPost(context) {
     squareItemName:   design.squareItemName || null,
     retailPriceOverride:      design.retailPriceOverride      ?? null,
     laborMinPerPieceOverride: design.laborMinPerPieceOverride ?? null,
+    parLevel:             design.parLevel             ?? null,
+    suggestedBatchSize:   design.suggestedBatchSize   ?? null,
+    replenishmentActive:  design.replenishmentActive  !== false,
     createdAt: design.createdAt || new Date().toISOString(),
     updatedAt: design.updatedAt || new Date().toISOString(),
   };
@@ -90,6 +93,42 @@ export async function onRequestPost(context) {
   }
   await kv.put('designs:index', JSON.stringify(index));
 
+  return json({ ok: true });
+}
+
+// PATCH /api/designs  body: { id, ...fields }
+// Merges the given fields into the stored design (images stay untouched)
+// and rebuilds its index entry. Used for lightweight edits like the
+// replenishment page's inline par level / batch size — a full POST would
+// require round-tripping every base64 image.
+const PATCHABLE = ['parLevel', 'suggestedBatchSize', 'replenishmentActive'];
+
+export async function onRequestPatch(context) {
+  const kv = context.env.STS_DESIGNS;
+  if (!kv) return json({ error: 'KV binding STS_DESIGNS not configured' }, 503);
+
+  let patch;
+  try { patch = await context.request.json(); }
+  catch { return json({ error: 'Invalid JSON body' }, 400); }
+  if (!patch || !patch.id) return json({ error: 'Missing id' }, 400);
+
+  const raw = await kv.get(`designs:item:${patch.id}`);
+  if (!raw) return json({ error: 'Not found' }, 404);
+  const design = JSON.parse(raw);
+  PATCHABLE.forEach(k => { if (k in patch) design[k] = patch[k]; });
+  design.updatedAt = new Date().toISOString();
+  await kv.put(`designs:item:${patch.id}`, JSON.stringify(design));
+
+  const idxRaw = await kv.get('designs:index');
+  if (idxRaw) {
+    const index = JSON.parse(idxRaw);
+    const entry = index.find(d => d.id === patch.id);
+    if (entry) {
+      PATCHABLE.forEach(k => { if (k in patch) entry[k] = patch[k]; });
+      entry.updatedAt = design.updatedAt;
+      await kv.put('designs:index', JSON.stringify(index));
+    }
+  }
   return json({ ok: true });
 }
 
