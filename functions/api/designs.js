@@ -59,7 +59,9 @@ export async function onRequestPost(context) {
   // Save full design
   await kv.put(`designs:item:${design.id}`, JSON.stringify(design));
 
-  // Build compact index entry (no full images — thumb only)
+  // Build compact index entry (no full images — thumb only). BOM lines are
+  // tiny ({materialId, qty}) and ride in the index so the replenishment
+  // engine (Phase 6) can compute buildable quantities from one read.
   const entry = {
     id:        design.id,
     name:      design.name      || '',
@@ -67,6 +69,8 @@ export async function onRequestPost(context) {
     thumb:     design.thumb     || null,
     imgCount:  (design.images   || []).length,
     preview:   ((design.specs || design.instructions || '').slice(0, 120)),
+    bom:       Array.isArray(design.bom) ? design.bom : [],
+    wasteOverridePct: design.wasteOverridePct ?? null,
     createdAt: design.createdAt || new Date().toISOString(),
     updatedAt: design.updatedAt || new Date().toISOString(),
   };
