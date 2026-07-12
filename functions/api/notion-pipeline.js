@@ -5,15 +5,9 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
-const NOTION_API  = 'https://api.notion.com/v1';
-const NOTION_VER  = '2022-06-28';
-const PIPELINE_DB = '62de37d7-be83-48eb-a611-f494006d8085';
+import { json, notionHdrs, NOTION_API, NOTION_VER, CORS } from './_lib.js';
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+const PIPELINE_DB = '62de37d7-be83-48eb-a611-f494006d8085';
 
 // ── Stage ID ↔ Notion Stage option name ──────────────────────
 const STAGE_TO_NOTION = {
@@ -86,21 +80,6 @@ const KIND_TO_LEGACY_TYPE = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function notionHdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
-
 // ── Structured app fields ⇄ the 'App Data' JSON property ─────
 // Fields the app needs verbatim on every device but that have no natural
 // Notion property (nested objects/arrays from the intake wizard, plus a
@@ -425,10 +404,6 @@ async function getSketch(hdrs, pageId, propName = 'Sketch', idx = 0, listOnly = 
 }
 
 // ── Route handlers ────────────────────────────────────────────
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
-
 // GET /api/notion-pipeline  →  return all pipeline orders
 // GET /api/notion-pipeline?sketch=<id>  →  stream that page's sketch image
 export async function onRequestGet(context) {

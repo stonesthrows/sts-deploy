@@ -6,26 +6,11 @@
 //  Optional env: ETSY_SHOP_ID (fallback if KV lookup fails)
 // ════════════════════════════════════════════
 
+import { json } from './_lib.js';
+
 const ETSY_CLIENT_ID = 'jv4p59xlneoub7bzzew2m1xq';
 const ETSY_TOKEN_URL = 'https://api.etsy.com/v3/public/oauth/token';
 const ETSY_API_BASE  = 'https://openapi.etsy.com/v3';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
 
 async function getAccessToken(kv, clientSecret) {
   const expiresAt   = parseInt(await kv.get('etsy:expires_at') || '0');

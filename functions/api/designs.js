@@ -8,22 +8,7 @@
 //    "designs:item:{id}"  → JSON of full design (includes images)
 // ════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
-  });
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
+import { json, CORS } from './_lib.js';
 
 // GET /api/designs          → index array [{id, name, category, thumb, imgCount, preview, createdAt, updatedAt}]
 // GET /api/designs?id=xxx   → full design object (includes images)

@@ -7,8 +7,8 @@
 //    NOTION_TOKEN   — Notion integration token
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { NOTION_API, NOTION_VER } from './_lib.js';
+
 const DB_ID      = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 
 const BLOCK_MAP = {

@@ -7,34 +7,13 @@
 //  notes-overflow can never corrupt the meta blob — see those files' headers.
 // ════════════════════════════════════════════
 
-const NOTION_API  = 'https://api.notion.com/v1';
-const NOTION_VER  = '2022-06-28';
+import { json, notionHdrs as hdrs, NOTION_API, CORS } from './_lib.js';
+
 const DB_ID       = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 const META_BLOCK    = '__rq_meta__';
 const SIZES_BLOCK   = '__rq_sizes__';
 const NOTES_BLOCK   = '__rq_notes__';
 const MATCHES_BLOCK = '__rq_matches__';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function hdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
 
 // Join every title rich_text segment (sizes can span up to 100 chunks) then
 // parse — mirrors the read logic in restock-sizes.js / restock-notes.js.

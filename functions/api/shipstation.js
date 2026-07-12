@@ -3,6 +3,8 @@
 // GET /api/shipstation?orderNumber=1147        → looks up a ShipStation order by order #
 // GET /api/shipstation?trackingNumber=94001... → looks up a shipment by tracking #
 
+import { json as jsonResponse } from './_lib.js';
+
 const SS_API = 'https://ssapi.shipstation.com';
 
 const CARRIER_NAMES = {
@@ -60,21 +62,3 @@ export async function onRequestGet(context) {
   });
 }
 
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
-}
-
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-}

@@ -1,6 +1,9 @@
 // Cloudflare Pages Function — proxies Stuller API calls
 // Keeps credentials server-side and solves CORS.
 // Env vars required: STULLER_USER, STULLER_PASS
+
+import { json as jsonResponse, CORS } from './_lib.js';
+
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const sku = url.searchParams.get('sku');
@@ -13,10 +16,6 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const body = await context.request.text();
   return proxyToStuller('https://api.stuller.com/v2/products', 'POST', body, context.env);
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 async function proxyToStuller(url, method, body, env) {
@@ -44,24 +43,10 @@ async function proxyToStuller(url, method, body, env) {
     const text = await resp.text();
     return new Response(text, {
       status: resp.status,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     });
   } catch (err) {
     return jsonResponse({ error: 'Function error: ' + err.message }, 500);
   }
 }
 
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-}

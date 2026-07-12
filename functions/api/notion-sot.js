@@ -5,29 +5,8 @@
 //  Requires env vars: NOTION_TOKEN, NOTION_SOT_DB
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function jsonResp(data, status) {
-  return new Response(JSON.stringify(data), {
-    status: status || 200,
-    headers: Object.assign({ 'Content-Type': 'application/json' }, CORS),
-  });
-}
-
-function notionHdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
+import { json as jsonResp, notionHdrs, NOTION_API } from './_lib.js';
 
 // Accepts a raw ID, a dashed UUID, or a full Notion page/database URL
 // and pulls out the 32-hex-char database ID from wherever it's hiding.
@@ -43,10 +22,6 @@ function weekKey() {
   var mon = new Date(now);
   mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
   return mon.toISOString().slice(0, 10);
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestGet(context) {

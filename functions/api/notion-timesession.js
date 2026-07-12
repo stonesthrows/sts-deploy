@@ -4,22 +4,9 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json as jsonResp, NOTION_API, NOTION_VER } from './_lib.js';
+
 const DB_ID      = 'e59ae574e5ee4d569395e15bd56450e9';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function jsonResp(data, status) {
-  return new Response(JSON.stringify(data), {
-    status: status || 200,
-    headers: Object.assign({ 'Content-Type': 'application/json' }, CORS),
-  });
-}
 
 // Notion caps each rich_text element at 2000 chars but allows up to 100
 // elements — split long values (Items JSON on multi-variant sessions) across
@@ -30,10 +17,6 @@ function rtBlocks(str) {
     out.push({ text: { content: v.slice(i, i + 2000) } });
   }
   return out.length ? out : [{ text: { content: '' } }];
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestPatch(context) {

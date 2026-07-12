@@ -6,29 +6,8 @@
 //  Requires env vars: NOTION_TOKEN, NOTION_INVENTORY_DB_ID
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json, notionHdrs as hdrs, NOTION_API, CORS } from './_lib.js';
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function hdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
 
 export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });

@@ -6,18 +6,7 @@
 //  Requires env var: VISION_API_KEY
 // ════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
+import { json, CORS } from './_lib.js';
 
 // Encode ArrayBuffer to base64 in chunks (avoids stack overflow on large files)
 function toBase64(buffer) {

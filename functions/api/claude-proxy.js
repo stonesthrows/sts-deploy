@@ -5,15 +5,7 @@
 //  API key is sent in the request body (stored in client localStorage).
 // ════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
+import { CORS } from './_lib.js';
 
 export async function onRequestPost(context) {
   try {

@@ -12,8 +12,8 @@
 //  different Square item, so the saved sizes couldn't resolve either.
 // ════════════════════════════════════════════
 
-const NOTION_API    = 'https://api.notion.com/v1';
-const NOTION_VER    = '2022-06-28';
+import { json, notionHdrs as hdrs, NOTION_API, CORS } from './_lib.js';
+
 const DB_ID         = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 const MATCHES_BLOCK = '__rq_matches__';
 // Notion title properties cap each rich_text segment at 2000 chars, but the
@@ -28,27 +28,6 @@ function toTitleChunks(str) {
     chunks.push({ text: { content: str.slice(i, i + 2000) } });
   }
   return chunks.length ? chunks : [{ text: { content: '' } }];
-}
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function hdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
 }
 
 async function findMatchesPage(h) {

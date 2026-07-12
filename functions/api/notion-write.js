@@ -4,30 +4,9 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json as jsonResp, notionHdrs, NOTION_API } from './_lib.js';
+
 const DB_ID      = '3929d8fb-1b0f-8043-9425-d24d2bec3544';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function jsonResp(data, status) {
-  return new Response(JSON.stringify(data), {
-    status: status || 200,
-    headers: Object.assign({ 'Content-Type': 'application/json' }, CORS),
-  });
-}
-
-function notionHdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
 
 function catSum(lineItems, cat) {
   if (!Array.isArray(lineItems)) return 0;
@@ -67,10 +46,6 @@ function orderToProps(o) {
   if (o.date) props['Date']     = { date: { start: o.date } };
   if (o.sup)  props['Supplier'] = { select: { name: o.sup } };
   return props;
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestPost(context) {

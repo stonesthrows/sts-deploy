@@ -8,30 +8,9 @@
 //  Requires env vars: NOTION_TOKEN, NOTION_MATERIALS_DB_ID
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json, notionHdrs as hdrs, NOTION_API, CORS } from './_lib.js';
+
 const API_VERSION = 'materials-api v4 (2026-07-12)';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function hdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
 
 // Accept NOTION_MATERIALS_DB_ID as a raw ID (with or without hyphens) or
 // a full pasted Notion URL — extracts the database ID and re-hyphenates

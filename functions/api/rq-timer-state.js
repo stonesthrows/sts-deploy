@@ -30,23 +30,12 @@
 //  removed now that the legacy blob is drained).
 // ════════════════════════════════════════════
 
+import { json } from './_lib.js';
+
 const KV_PREFIX = 'rq_timer:';
 const TTL_SECS = 2592000; // 30 days — a real restock job can legitimately run
                           // for multiple days; the old 7-day TTL only survived
                           // because every reload accidentally refreshed it.
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
-  });
-}
 
 async function readAllPerKey(kv) {
   const state = {};
@@ -66,10 +55,6 @@ async function readAllPerKey(kv) {
     cursor = page.cursor;
   }
   return state;
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestGet(context) {

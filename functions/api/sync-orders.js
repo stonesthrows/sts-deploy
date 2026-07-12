@@ -7,6 +7,8 @@
 //  any separate "last synced" cursor tracking.
 // ════════════════════════════════════════════
 
+import { json } from './_lib.js';
+
 const LOOKBACK_DAYS = 14;
 
 // Mirrors js/shopify.js's shopifyLineItemsToOrderFields() — keeps the Notion-bound
@@ -25,23 +27,6 @@ function shopifyLineItemsToOrderFields(lineItems) {
     .join('\n');
   const ringSize = items.filter(it => it.ringSize).map(it => it.ringSize).join(', ');
   return { items, desc, ringSize };
-}
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestGet(context) {

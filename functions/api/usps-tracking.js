@@ -2,6 +2,8 @@
 // Requires env vars: USPS_CONSUMER_KEY, USPS_CONSUMER_SECRET
 // GET /api/usps-tracking?trackingNumber=9400... → live scan status for a USPS tracking number
 
+import { json as jsonResponse } from './_lib.js';
+
 const USPS_OAUTH_URL   = 'https://apis.usps.com/oauth2/v3/token';
 const USPS_TRACKING_URL = 'https://apis.usps.com/tracking/v3/tracking/';
 
@@ -62,21 +64,3 @@ export async function onRequestGet(context) {
   });
 }
 
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
-}
-
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-}

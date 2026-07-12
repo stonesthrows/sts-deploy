@@ -16,9 +16,9 @@
 //             events can fire for one order_id; only the first should decrement)
 // ════════════════════════════════════════════
 
+import { NOTION_API, NOTION_VER } from './_lib.js';
+
 const SQUARE_API = 'https://connect.squareup.com';
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
 
 // ── Signature verification ────────────────────────────────────────────────────
 // Square signs: HMAC-SHA256(key=sigKey, msg=webhookUrl + rawBody) → base64

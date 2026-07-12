@@ -5,22 +5,7 @@
 //  Required env vars: SHOPIFY_DOMAIN (myshopify.com domain), SHOPIFY_ADMIN_TOKEN
 // ════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
+import { json } from './_lib.js';
 
 export async function onRequestGet(context) {
   const domain = context.env.SHOPIFY_DOMAIN;

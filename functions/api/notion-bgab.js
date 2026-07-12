@@ -10,30 +10,9 @@
 //  DELETE ?id=      → soft delete (set Archived = true)
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json, notionHdrs as hdrs, NOTION_API, CORS } from './_lib.js';
+
 const DB_ID      = '814e07ea9b0e441bae10e2851e50697a';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-function hdrs(token) {
-  return {
-    'Authorization':  'Bearer ' + token,
-    'Notion-Version': NOTION_VER,
-    'Content-Type':   'application/json',
-  };
-}
 
 // Notion rich_text has a 2000-char limit per block — split into chunks
 function toRichText(str) {

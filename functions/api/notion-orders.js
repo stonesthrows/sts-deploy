@@ -4,37 +4,9 @@
 //  Requires env var: NOTION_TOKEN
 // ════════════════════════════════════════════
 
-const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VER = '2022-06-28';
+import { json, notionHdrs, NOTION_API, isNotionId } from './_lib.js';
+
 const DB_ID      = '3929d8fb-1b0f-8043-9425-d24d2bec3544';
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
-
-// Caller-supplied page IDs are interpolated into Notion API URL paths, so
-// they must be genuine Notion IDs (32 hex, hyphenated or not) — never a
-// value that could steer the request to a different path.
-function isNotionId(id) {
-  return typeof id === 'string' && /^[0-9a-fA-F]{32}$/.test(id.replace(/-/g, ''));
-}
-
-function notionHdrs(token) {
-  return {
-    'Authorization':   'Bearer ' + token,
-    'Notion-Version':  NOTION_VER,
-    'Content-Type':    'application/json',
-  };
-}
 
 function catSum(lineItems, cat) {
   if (!Array.isArray(lineItems)) return 0;
@@ -96,10 +68,6 @@ function pageToOrder(page) {
     lineItems:    lineItems,
     driveFileId:  txt(p['Drive File ID']) || null,
   };
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestGet(context) {

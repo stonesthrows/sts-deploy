@@ -13,8 +13,8 @@
 //  Requires env vars: NOTION_TOKEN, SQUARE_TOKEN
 // ════════════════════════════════════════════
 
-const NOTION_API   = 'https://api.notion.com/v1';
-const NOTION_VER   = '2022-06-28';
+import { json as jsonResp, NOTION_API, NOTION_VER } from './_lib.js';
+
 const DB_ID        = 'e59ae574e5ee4d569395e15bd56450e9';
 const SQUARE_API   = 'https://connect.squareup.com';
 const SQUARE_VER   = '2025-01-23';
@@ -28,23 +28,6 @@ const KNOWN_TEAM_MEMBER_IDS = {
   'Vanessa': 'TMAMWG-ZS9lqZWKm', 'Vanessa Bigley': 'TMAMWG-ZS9lqZWKm',
   'Stevie': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana': 'Q5gZGbDStWUysIE3CKhJ', 'Stevana Schafer': 'Q5gZGbDStWUysIE3CKhJ',
 };
-
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function jsonResp(data, status) {
-  return new Response(JSON.stringify(data), {
-    status: status || 200,
-    headers: Object.assign({ 'Content-Type': 'application/json' }, CORS),
-  });
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: CORS });
-}
 
 export async function onRequestPost(context) {
   const notionToken = context.env.NOTION_TOKEN;
