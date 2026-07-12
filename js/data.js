@@ -3,7 +3,11 @@
 //  Edit this file to update orders, customers, sales data
 // ════════════════════════════════════════════
 
-const TODAY = new Date('2026-05-20');
+// Real current date, midnight-normalized so day diffs are stable.
+// (Was frozen at '2026-05-20', which skewed every deadline badge —
+// docs/code-audit-2026-07-11.md §1.1.)
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 
 const STAGES = [
   { id:'intake-custom',   label:'Custom Intake',                cls:'s-intake-custom'   },

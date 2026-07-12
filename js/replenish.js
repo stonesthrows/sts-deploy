@@ -69,59 +69,12 @@ function _rpLoadOnHand() {
   }));
 }
 
-// ── Waste (same priority chain as designs.js / closeout.js) ──
-function _rpWastePct(m, overridePct) {
-  if (overridePct != null && !isNaN(overridePct)) return overridePct;
-  var s = _rpSettings || {};
-  var mt = (s.wastePctByMetal || {})[m.metalType];
-  if (typeof mt === 'number') return mt;
-  return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
-}
-
-// Per-piece consumption per BOM line for a design
-function _rpPerPiece(d, l, m) {
-  return m.category === 'metal'
-    ? l.qty * (1 + _rpWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
-    : l.qty;
-}
-
 // ── The queue computation ──────────────────────
 // Returns [{d, onHand, par, deficit, batch, buildable, shorts:[{m, need, short, perPiece}]}]
+// Math (waste chain, buildable, shortfalls, ordering) lives in
+// costing-core.js so it's testable under node --test.
 function _rpComputeQueue() {
-  var matById = {};
-  (_rpMaterials || []).forEach(function(m){ matById[m.notionPageId] = m; });
-
-  var rows = [];
-  (_rpDesigns || []).forEach(function(d) {
-    if (d.replenishmentActive === false) return;
-    if (d.parLevel == null || !d.squareItemId) return;
-    var onHand = _rpOnHand[d.squareItemId];
-    if (onHand == null) onHand = 0; // not tracked in Square = treat as out
-    if (onHand > d.parLevel) return;
-
-    var deficit = d.parLevel - onHand;
-    var batch = d.suggestedBatchSize != null && d.suggestedBatchSize > 0 ? d.suggestedBatchSize : Math.max(deficit, 1);
-    var buildable = null, shorts = [];
-    var bom = Array.isArray(d.bom) ? d.bom.filter(function(l){ return l.materialId && l.qty > 0; }) : [];
-    if (bom.length) {
-      buildable = Infinity;
-      bom.forEach(function(l) {
-        var m = matById[l.materialId];
-        if (!m) return;
-        var per = _rpPerPiece(d, l, m);
-        var stock = parseFloat(m.stockLevel) || 0;
-        buildable = Math.min(buildable, Math.floor(stock / per));
-        var need = per * batch;
-        if (need > stock) shorts.push({ m: m, need: need, short: need - stock, perPiece: per });
-      });
-      if (buildable === Infinity) buildable = null;
-      if (buildable != null && buildable < 0) buildable = 0;
-    }
-    rows.push({ d: d, onHand: onHand, par: d.parLevel, deficit: deficit, batch: batch, buildable: buildable, shorts: shorts });
-  });
-
-  rows.sort(function(a, b){ return b.deficit - a.deficit; });
-  return rows;
+  return STSCosting.replenishQueue(_rpDesigns, _rpMaterials, _rpOnHand, _rpSettings);
 }
 
 // ── Render ─────────────────────────────────────
@@ -213,21 +166,8 @@ function _rpRenderParTable() {
 function _rpRenderShoppingList(rows) {
   var el = document.getElementById('rp-shopping');
   if (!el) return;
-  var byMat = {}; // materialId -> {m, qty}
-  rows.forEach(function(r) {
-    r.shorts.forEach(function(s) {
-      var e = byMat[s.m.notionPageId] = byMat[s.m.notionPageId] || { m: s.m, qty: 0 };
-      e.qty += s.short;
-    });
-  });
-  var mats = Object.keys(byMat).map(function(k){ return byMat[k]; });
-  if (!mats.length) { el.innerHTML = ''; return; }
-
-  var bySup = {};
-  mats.forEach(function(e) {
-    var sup = e.m.supplierDefault || 'No default supplier';
-    (bySup[sup] = bySup[sup] || []).push(e);
-  });
+  var bySup = STSCosting.shoppingList(rows); // supplier -> [{m, qty}]
+  if (!Object.keys(bySup).length) { el.innerHTML = ''; return; }
 
   var html = '<div class="rp-shop-title">🛒 Shopping list — material short across the queue'
     + ' <button class="btn btn-outline btn-sm" onclick="rpCopyShoppingList()">📋 Copy</button></div>';

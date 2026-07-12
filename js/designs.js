@@ -613,11 +613,7 @@ function _dsnUnitSuffix(m) {
 // Effective waste % for a metal line (spec §5 hybrid model) — pure form,
 // usable outside the edit form (pricing sheet, cost rollups)
 function _dsnWastePctResolve(m, overridePct) {
-  if (overridePct != null && !isNaN(overridePct)) return overridePct;
-  const s = _shopSettings || {};
-  const mt = (s.wastePctByMetal || {})[m.metalType];
-  if (typeof mt === 'number') return mt;
-  return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
+  return STSCosting.wastePctResolve(m, overridePct, _shopSettings);
 }
 
 // Form-context wrapper: reads the design's waste override from the DOM
@@ -797,25 +793,8 @@ function _dsnLoadLabor(force) {
   return fetch('/api/notion-timesession?all=true')
     .then(r => (r.ok ? r.json() : []))
     .then(ns => {
-      const agg = {};
-      (Array.isArray(ns) ? ns : []).forEach(s => {
-        if (s.netMin == null) return;
-        let items = null;
-        if (s.itemsJson) { try { items = JSON.parse(s.itemsJson); } catch (e) {} }
-        if (!items) items = s.itemName ? [{ name: s.itemName, squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false }] : [];
-        const withPcs = (items || []).filter(it => it.pieces > 0);
-        const totalPcs = withPcs.reduce((t, it) => t + it.pieces, 0);
-        if (!totalPcs) return;
-        withPcs.forEach(it => {
-          const key = (it.squareId && !it.isCustom) ? it.squareId : 'custom:' + (it.name || '');
-          const g = agg[key] = agg[key] || { hrs: 0, pcs: 0 };
-          g.hrs += (s.netMin / 60) * (it.pieces / totalPcs);
-          g.pcs += it.pieces;
-        });
-      });
-      Object.keys(agg).forEach(k => { agg[k].minPerPc = agg[k].pcs ? (agg[k].hrs * 60 / agg[k].pcs) : null; });
-      _dsnLabor = agg;
-      return agg;
+      _dsnLabor = STSCosting.aggregateLaborSessions(ns);
+      return _dsnLabor;
     })
     .catch(() => { if (_dsnLabor === null) _dsnLabor = {}; return _dsnLabor; });
 }
@@ -844,47 +823,14 @@ function _dsnLoadSqPrices(varIds) {
 // ── The rollup (spec §6) ──────────────────────
 // d needs: bom, wasteOverridePct, squareItemId, retailPriceOverride,
 // laborMinPerPieceOverride. Works for form snapshots and index entries.
+// Math lives in costing-core.js so it's testable under node --test.
 function dsnCostRollup(d) {
-  const matById = {};
-  (_designsMaterials || []).forEach(m => { matById[m.notionPageId] = m; });
-
-  const lines = [];
-  let matCost = 0, matMissing = false;
-  (d.bom || []).forEach(l => {
-    const m = matById[l.materialId];
-    if (!m || !(l.qty > 0)) { matMissing = true; return; }
-    const isMetal = m.category === 'metal';
-    const w = isMetal ? _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) : 0;
-    const effQty = l.qty * (1 + w / 100);
-    const unitCost = m.currentCostPerUnit;
-    const cost = unitCost != null ? effQty * unitCost : null;
-    if (cost == null) matMissing = true; else matCost += cost;
-    lines.push({
-      name: m.name, qty: l.qty, unit: m.unit === 'gram' ? 'g' : 'pc',
-      wastePct: isMetal ? w : null, effQty, unitCost, cost,
-    });
+  return STSCosting.costRollup(d, {
+    materials:    _designsMaterials,
+    shopSettings: _shopSettings,
+    laborByKey:   _dsnLabor,
+    sqPrices:     _dsnSqPrices,
   });
-  const hasBom = (d.bom || []).length > 0;
-
-  const s = _shopSettings || {};
-  const key = d.squareItemId || null;
-  const tracked = (key && _dsnLabor && _dsnLabor[key]) ? _dsnLabor[key].minPerPc : null;
-  const laborMin = d.laborMinPerPieceOverride != null ? d.laborMinPerPieceOverride : tracked;
-  const laborSource = d.laborMinPerPieceOverride != null ? 'override' : (tracked != null ? 'tracked' : null);
-  const rate = typeof s.shopHourlyRate === 'number' ? s.shopHourlyRate : null;
-  const laborCost = (laborMin != null && rate != null) ? (laborMin / 60) * rate : null;
-
-  const sqPrice = (key && _dsnSqPrices[key] != null) ? _dsnSqPrices[key] : null;
-  const retail = d.retailPriceOverride != null ? d.retailPriceOverride : sqPrice;
-  const retailSource = d.retailPriceOverride != null ? 'override' : (sqPrice != null ? 'square' : null);
-
-  const pieceCost = (hasBom || laborCost != null) ? matCost + (laborCost || 0) : null;
-  const margin = (retail > 0 && pieceCost != null) ? (retail - pieceCost) / retail : null;
-  const target = typeof s.targetMarginPct === 'number' ? s.targetMarginPct : null;
-  const suggested = (pieceCost != null && target != null && target < 100) ? pieceCost / (1 - target / 100) : null;
-
-  return { lines, matCost, matMissing, hasBom, laborMin, laborSource, laborCost, rate,
-           retail, retailSource, pieceCost, margin, suggested };
 }
 
 // ── Cost breakdown panel on the design form ──

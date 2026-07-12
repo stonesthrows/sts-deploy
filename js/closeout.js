@@ -38,16 +38,6 @@ function _coLoadData() {
   return Promise.all([p1, p2, p3]);
 }
 
-// Waste resolution, same priority as the design form (spec §5):
-// design override → metal-type default → shop default → 0
-function _coWastePct(m, overridePct) {
-  if (overridePct != null && !isNaN(overridePct)) return overridePct;
-  var s = _coSettings || {};
-  var mt = (s.wastePctByMetal || {})[m.metalType];
-  if (typeof mt === 'number') return mt;
-  return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
-}
-
 // Hook: called by rqShowPushPrompt right after the prompt overlay opens.
 function coAttachToPushPrompt(session) {
   _coRows = null;
@@ -67,40 +57,12 @@ function coAttachToPushPrompt(session) {
   });
 }
 
+// Consumption math (waste priority chain, per-piece × pieces, rounding)
+// lives in costing-core.js so it's testable under node --test.
 function _coCompute(session) {
-  var designByVar = {};
-  (_coDesignsIdx || []).forEach(function(d) { if (d.squareItemId) designByVar[d.squareItemId] = d; });
-  var matById = {};
-  (_coMaterials || []).forEach(function(m) { matById[m.notionPageId] = m; });
-
-  var totals = {}, unweighed = [];
-  (session.items || []).forEach(function(it) {
-    if (!(it.pieces > 0)) return;
-    var d = it.squareId ? designByVar[it.squareId] : null;
-    if (!d || !Array.isArray(d.bom) || !d.bom.length) {
-      unweighed.push(it.name || 'item');
-      return;
-    }
-    d.bom.forEach(function(l) {
-      var m = matById[l.materialId];
-      if (!m || !(l.qty > 0)) return;
-      var perPiece = m.category === 'metal'
-        ? l.qty * (1 + _coWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
-        : l.qty;
-      totals[l.materialId] = (totals[l.materialId] || 0) + perPiece * it.pieces;
-    });
-  });
-
-  _coRows = Object.keys(totals).map(function(id) {
-    var m = matById[id];
-    return {
-      materialId: id,
-      name: m.name || 'Material',
-      unit: m.unit === 'gram' ? 'g' : 'pc',
-      qty: Math.round(totals[id] * 100) / 100,
-    };
-  });
-  _coUnweighed = unweighed;
+  var r = STSCosting.closeoutTotals(session, _coDesignsIdx, _coMaterials, _coSettings);
+  _coRows = r.rows;
+  _coUnweighed = r.unweighed;
 }
 
 function _coRender() {

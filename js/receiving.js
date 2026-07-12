@@ -152,8 +152,8 @@ function rcvRenderLines() {
     costEl.addEventListener('input', recomputeTotal);
     // Invoices often show line totals — typing one derives the unit cost
     totEl.addEventListener('input', function() {
-      var q = parseFloat(qtyEl.value), t = parseFloat(totEl.value);
-      if (q > 0 && !isNaN(t)) costEl.value = (t / q).toFixed(4).replace(/\.?0+$/, '');
+      var u = STSCosting.deriveUnitCost(parseFloat(totEl.value), parseFloat(qtyEl.value));
+      if (u != null) costEl.value = u;
       rcvSyncFromDom();
     });
     row.querySelector('.rcv-li-remove').addEventListener('click', function() {
@@ -201,9 +201,7 @@ function rcvSyncFromDom() {
 }
 
 function rcvUpdateTotal() {
-  var total = _rcvLines.reduce(function(s, l) {
-    return s + ((l.qty > 0 && l.unitCost != null) ? l.qty * l.unitCost : 0);
-  }, 0) + _rcvExtras.reduce(function(s, x) { return s + (parseFloat(x.amt) || 0); }, 0);
+  var total = STSCosting.receiptTotal(_rcvLines, _rcvExtras);
   var el = document.getElementById('rcvTotal');
   if (el) el.textContent = 'Total: $' + total.toFixed(2);
 }
@@ -228,7 +226,7 @@ async function rcvSave() {
     return;
   }
 
-  var round2 = function(n){ return Math.round(n * 100) / 100; };
+  var round2 = STSCosting.round2;
   var lineItems = lines.map(function(l) {
     var m = _rcvMat(l.materialId);
     return {
