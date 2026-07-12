@@ -41,6 +41,17 @@ function catSum(lineItems, cat) {
   return lineItems.reduce((s, li) => s + ((li.category === cat && li.amt != null) ? (parseFloat(li.amt) || 0) : 0), 0);
 }
 
+// Split a long string into ≤2000-char rich_text segments — Notion caps each
+// segment at 2000 chars. A single truncating .slice() corrupts line-item JSON
+// once material-linked fields (materialId/qty/unitCost) make it longer.
+function rtChunks(str) {
+  const s = String(str || '');
+  const out = [];
+  for (let i = 0; i < s.length; i += 2000) out.push({ text: { content: s.slice(i, i + 2000) } });
+  if (!out.length) out.push({ text: { content: '' } });
+  return out;
+}
+
 function orderToProps(o) {
   const label = [o.sup, o.orderNum || o.invNum].filter(Boolean).join(' — ') || 'Order';
   const lineItems = o.lineItems || [];
@@ -50,7 +61,7 @@ function orderToProps(o) {
     'Order Number':   { rich_text: [{ text: { content: o.orderNum || '' } }] },
     'Invoice Number': { rich_text: [{ text: { content: o.invNum   || '' } }] },
     'Notes':          { rich_text: [{ text: { content: (o.notes   || '').slice(0, 2000) } }] },
-    'Line Items':     { rich_text: [{ text: { content: JSON.stringify(lineItems).slice(0, 2000) } }] },
+    'Line Items':     { rich_text: rtChunks(JSON.stringify(lineItems)) },
     'Drive File ID':  { rich_text: [{ text: { content: o.driveFileId || '' } }] },
     'Date':           o.date ? { date: { start: o.date } } : { date: null },
     'Supplier':       o.sup  ? { select: { name: o.sup } } : { select: null },
@@ -65,12 +76,14 @@ function orderToProps(o) {
 function pageToOrder(page) {
   const p   = page.properties;
   const txt = (prop) => prop?.rich_text?.[0]?.plain_text || '';
+  // Join ALL segments — chunked writes (see rtChunks) span several
+  const txtAll = (prop) => (prop?.rich_text || []).map(t => t.plain_text || '').join('');
   const sel = (prop) => prop?.select?.name  || '';
   const dt  = (prop) => prop?.date?.start   || '';
   const num = (prop) => (prop?.number != null ? prop.number : null);
   const appId = txt(p['App ID']);
   let lineItems = [];
-  try { lineItems = JSON.parse(txt(p['Line Items']) || '[]'); } catch (e) { lineItems = []; }
+  try { lineItems = JSON.parse(txtAll(p['Line Items']) || '[]'); } catch (e) { lineItems = []; }
   return {
     id:           appId || ('n_' + page.id.replace(/-/g, '')),
     notionPageId: page.id,
