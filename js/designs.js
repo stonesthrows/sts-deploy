@@ -19,7 +19,14 @@ let _designsImgEditMode = false;
 // BOM (Phase 3): material recipe on the design record
 let _designsBom       = [];   // [{materialId, qty}] staged for current edit
 let _designsMaterials = null; // active materials for the picker (null = loading)
-let _shopSettings     = null; // {wasteDefaultPct, wastePctByMetal, …} from /api/shop-settings
+let _shopSettings     = null; // {wasteDefaultPct, wastePctByMetal, shopHourlyRate, …} from /api/shop-settings
+
+// Costing (Phase 4): Square link + labor/retail sources
+let _dsnLabor         = null; // squareVariationId|custom:name -> {hrs, pcs, minPerPc} from work sessions
+let _dsnSqPrices      = {};   // squareVariationId -> retail price (null = fetched, no price)
+let _dsnLinkedSq      = null; // {id, name} staged for current edit
+let _dsnSqSearchTimer = null;
+let _designsPricingOpen = false;
 
 // ── KV API helpers ────────────────────────────
 async function _designsApiFetch(id) {
@@ -119,6 +126,11 @@ function designsShowLibrary() {
   _designsCurrentFull = null;
   _designsImgQueue = [];
   _designsImgEditMode = false;
+  _designsPricingOpen = false;
+  const pricing = document.getElementById('designs-pricing');
+  if (pricing) pricing.style.display = 'none';
+  const priceBtn = document.getElementById('dsn-pricing-btn');
+  if (priceBtn) { priceBtn.style.display = ''; priceBtn.textContent = '💲 Pricing Sheet'; }
   document.getElementById('designs-library').style.display  = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
@@ -135,6 +147,11 @@ async function designsShowForm(id) {
   _designsImgQueue   = [];
   _designsCurrentFull = null;
   _designsImgEditMode = false;
+  _designsPricingOpen = false;
+  const pricing = document.getElementById('designs-pricing');
+  if (pricing) pricing.style.display = 'none';
+  const priceBtn = document.getElementById('dsn-pricing-btn');
+  if (priceBtn) priceBtn.style.display = 'none';
   document.getElementById('designs-library').style.display   = 'none';
   document.getElementById('designs-form-wrap').style.display = '';
   const newBtn = document.getElementById('dsn-new-btn');
@@ -225,6 +242,18 @@ function designsRenderForm() {
     : [];
   const wasteEl = document.getElementById('dsn-waste');
   if (wasteEl) wasteEl.value = (design && design.wasteOverridePct != null) ? design.wasteOverridePct : '';
+
+  _dsnLinkedSq = (design && design.squareItemId)
+    ? { id: design.squareItemId, name: design.squareItemName || design.squareItemId }
+    : null;
+  const retailOv = document.getElementById('dsn-retail-ov');
+  if (retailOv) retailOv.value = (design && design.retailPriceOverride != null) ? design.retailPriceOverride : '';
+  const laborOv = document.getElementById('dsn-labor-ov');
+  if (laborOv) laborOv.value = (design && design.laborMinPerPieceOverride != null) ? design.laborMinPerPieceOverride : '';
+  dsnSqLinkRender();
+  _dsnLoadLabor().then(dsnRollupRender);
+  if (_dsnLinkedSq) _dsnLoadSqPrices([_dsnLinkedSq.id]).then(dsnRollupRender);
+
   _designsBomRender();
 
   _designsImgQueue = design ? [...(design.images || [])] : [];
@@ -309,6 +338,10 @@ async function designsSaveDesign() {
                     .filter(l => l.materialId && l.qty > 0)
                     .map(l => ({ materialId: l.materialId, qty: l.qty })),
     wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
+    squareItemId:   _dsnLinkedSq ? _dsnLinkedSq.id   : null,
+    squareItemName: _dsnLinkedSq ? _dsnLinkedSq.name : null,
+    retailPriceOverride:      _dsnNumOrNull((document.getElementById('dsn-retail-ov') || {}).value),
+    laborMinPerPieceOverride: _dsnNumOrNull((document.getElementById('dsn-labor-ov')  || {}).value),
     images:       [..._designsImgQueue],
     createdAt:    (_designsCurrentFull && _designsCurrentFull.createdAt) ? _designsCurrentFull.createdAt : now,
     updatedAt:    now,
@@ -577,14 +610,20 @@ function _dsnUnitSuffix(m) {
   return m && m.unit === 'gram' ? 'g' : 'pc';
 }
 
-// Effective waste % for a metal line (spec §5 hybrid model)
-function _dsnWastePctFor(m) {
-  const ov = parseFloat((document.getElementById('dsn-waste') || {}).value);
-  if (!isNaN(ov)) return ov;
+// Effective waste % for a metal line (spec §5 hybrid model) — pure form,
+// usable outside the edit form (pricing sheet, cost rollups)
+function _dsnWastePctResolve(m, overridePct) {
+  if (overridePct != null && !isNaN(overridePct)) return overridePct;
   const s = _shopSettings || {};
   const mt = (s.wastePctByMetal || {})[m.metalType];
   if (typeof mt === 'number') return mt;
   return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
+}
+
+// Form-context wrapper: reads the design's waste override from the DOM
+function _dsnWastePctFor(m) {
+  const ov = parseFloat((document.getElementById('dsn-waste') || {}).value);
+  return _dsnWastePctResolve(m, isNaN(ov) ? null : ov);
 }
 
 function _dsnEffectiveLabel(l) {
@@ -656,6 +695,7 @@ function _designsBomRender() {
   });
 
   dsnWasteDefaultsRefreshLabel();
+  dsnRollupRender();
 }
 
 function dsnBomSyncFromDom() {
@@ -675,6 +715,7 @@ function dsnBomRecalcEffective() {
     const eff = row.querySelector('.dsn-bom-eff');
     if (l && eff) eff.textContent = _dsnEffectiveLabel(l);
   });
+  dsnRollupRender();
 }
 
 // ── Shop-wide waste defaults (shared via /api/shop-settings) ──
@@ -731,4 +772,358 @@ async function dsnWasteDefaultsSave() {
   } catch (e) {
     toast('Save failed — ' + (e.message || e), '❌');
   }
+}
+
+// ════════════════════════════════════════════
+//  COST ROLLUP & PRICING (Phase 4)
+//  True per-piece cost: BOM materials (incl. waste) + tracked labor.
+//  Labor minutes/piece derive from the same work-session history the
+//  Production Report reads (keyed by Square item variation); retail
+//  price comes live from Square. Manual overrides cover unlinked or
+//  untracked designs.
+// ════════════════════════════════════════════
+
+function _dsnNumOrNull(v) {
+  if (v === '' || v == null) return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+// ── Labor: aggregate work sessions → minutes/piece per item key ──
+// Same share math as the Production Report's By Design view: a session's
+// net time splits across its items proportionally to pieces made.
+function _dsnLoadLabor(force) {
+  if (_dsnLabor !== null && !force) return Promise.resolve(_dsnLabor);
+  return fetch('/api/notion-timesession?all=true')
+    .then(r => (r.ok ? r.json() : []))
+    .then(ns => {
+      const agg = {};
+      (Array.isArray(ns) ? ns : []).forEach(s => {
+        if (s.netMin == null) return;
+        let items = null;
+        if (s.itemsJson) { try { items = JSON.parse(s.itemsJson); } catch (e) {} }
+        if (!items) items = s.itemName ? [{ name: s.itemName, squareId: s.squareItemId || '', pieces: s.pieces, isCustom: false }] : [];
+        const withPcs = (items || []).filter(it => it.pieces > 0);
+        const totalPcs = withPcs.reduce((t, it) => t + it.pieces, 0);
+        if (!totalPcs) return;
+        withPcs.forEach(it => {
+          const key = (it.squareId && !it.isCustom) ? it.squareId : 'custom:' + (it.name || '');
+          const g = agg[key] = agg[key] || { hrs: 0, pcs: 0 };
+          g.hrs += (s.netMin / 60) * (it.pieces / totalPcs);
+          g.pcs += it.pieces;
+        });
+      });
+      Object.keys(agg).forEach(k => { agg[k].minPerPc = agg[k].pcs ? (agg[k].hrs * 60 / agg[k].pcs) : null; });
+      _dsnLabor = agg;
+      return agg;
+    })
+    .catch(() => { if (_dsnLabor === null) _dsnLabor = {}; return _dsnLabor; });
+}
+
+// ── Retail prices: batch-retrieve linked Square variations ──
+function _dsnLoadSqPrices(varIds) {
+  const need = (varIds || []).filter(id => id && !(id in _dsnSqPrices));
+  if (!need.length) return Promise.resolve(_dsnSqPrices);
+  return fetch('/api/square', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: '/v2/catalog/batch-retrieve', method: 'POST', body: { object_ids: need } }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      need.forEach(id => { if (!(id in _dsnSqPrices)) _dsnSqPrices[id] = null; });
+      (data.objects || []).forEach(obj => {
+        if (obj.type !== 'ITEM_VARIATION') return;
+        const vd = obj.item_variation_data || {};
+        _dsnSqPrices[obj.id] = vd.price_money ? vd.price_money.amount / 100 : null;
+      });
+      return _dsnSqPrices;
+    })
+    .catch(() => _dsnSqPrices);
+}
+
+// ── The rollup (spec §6) ──────────────────────
+// d needs: bom, wasteOverridePct, squareItemId, retailPriceOverride,
+// laborMinPerPieceOverride. Works for form snapshots and index entries.
+function dsnCostRollup(d) {
+  const matById = {};
+  (_designsMaterials || []).forEach(m => { matById[m.notionPageId] = m; });
+
+  const lines = [];
+  let matCost = 0, matMissing = false;
+  (d.bom || []).forEach(l => {
+    const m = matById[l.materialId];
+    if (!m || !(l.qty > 0)) { matMissing = true; return; }
+    const isMetal = m.category === 'metal';
+    const w = isMetal ? _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) : 0;
+    const effQty = l.qty * (1 + w / 100);
+    const unitCost = m.currentCostPerUnit;
+    const cost = unitCost != null ? effQty * unitCost : null;
+    if (cost == null) matMissing = true; else matCost += cost;
+    lines.push({
+      name: m.name, qty: l.qty, unit: m.unit === 'gram' ? 'g' : 'pc',
+      wastePct: isMetal ? w : null, effQty, unitCost, cost,
+    });
+  });
+  const hasBom = (d.bom || []).length > 0;
+
+  const s = _shopSettings || {};
+  const key = d.squareItemId || null;
+  const tracked = (key && _dsnLabor && _dsnLabor[key]) ? _dsnLabor[key].minPerPc : null;
+  const laborMin = d.laborMinPerPieceOverride != null ? d.laborMinPerPieceOverride : tracked;
+  const laborSource = d.laborMinPerPieceOverride != null ? 'override' : (tracked != null ? 'tracked' : null);
+  const rate = typeof s.shopHourlyRate === 'number' ? s.shopHourlyRate : null;
+  const laborCost = (laborMin != null && rate != null) ? (laborMin / 60) * rate : null;
+
+  const sqPrice = (key && _dsnSqPrices[key] != null) ? _dsnSqPrices[key] : null;
+  const retail = d.retailPriceOverride != null ? d.retailPriceOverride : sqPrice;
+  const retailSource = d.retailPriceOverride != null ? 'override' : (sqPrice != null ? 'square' : null);
+
+  const pieceCost = (hasBom || laborCost != null) ? matCost + (laborCost || 0) : null;
+  const margin = (retail > 0 && pieceCost != null) ? (retail - pieceCost) / retail : null;
+  const target = typeof s.targetMarginPct === 'number' ? s.targetMarginPct : null;
+  const suggested = (pieceCost != null && target != null && target < 100) ? pieceCost / (1 - target / 100) : null;
+
+  return { lines, matCost, matMissing, hasBom, laborMin, laborSource, laborCost, rate,
+           retail, retailSource, pieceCost, margin, suggested };
+}
+
+// ── Cost breakdown panel on the design form ──
+function _dsnFormDesignSnapshot() {
+  dsnBomSyncFromDom();
+  const wasteRaw = (document.getElementById('dsn-waste') || {}).value;
+  return {
+    bom: _designsBom.filter(l => l.materialId && l.qty > 0),
+    wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
+    squareItemId: _dsnLinkedSq ? _dsnLinkedSq.id : null,
+    retailPriceOverride:      _dsnNumOrNull((document.getElementById('dsn-retail-ov') || {}).value),
+    laborMinPerPieceOverride: _dsnNumOrNull((document.getElementById('dsn-labor-ov')  || {}).value),
+  };
+}
+
+const _dsnMoney = v => (v != null ? '$' + v.toFixed(2) : '—');
+
+function dsnRollupRender() {
+  const el = document.getElementById('dsn-rollup');
+  if (!el || _designsView !== 'form') return;
+  if (_designsMaterials === null) { el.innerHTML = '<div class="dsn-bom-note">Loading cost data…</div>'; return; }
+
+  const r = dsnCostRollup(_dsnFormDesignSnapshot());
+  if (!r.hasBom && r.laborCost == null) {
+    el.innerHTML = '<div class="dsn-bom-note">⚖ Materials not yet weighed — add BOM lines above to see true piece cost.</div>';
+    return;
+  }
+
+  const matRows = r.lines.map(l => {
+    const wasteTxt = l.wastePct != null && l.wastePct > 0 ? ` <span class="dsn-ru-dim">+${l.wastePct}% waste → ${l.effQty.toFixed(2)}${l.unit}</span>` : '';
+    return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.qty}${l.unit}${wasteTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
+  }).join('');
+
+  const laborNote = r.laborSource === 'tracked' ? ` <span class="dsn-ru-dim">(${r.laborMin.toFixed(1)} min/pc from timers)</span>`
+    : r.laborSource === 'override' ? ` <span class="dsn-ru-dim">(${r.laborMin} min/pc, manual)</span>` : '';
+  const laborVal = r.laborCost != null ? _dsnMoney(r.laborCost)
+    : (r.rate == null ? 'set hourly rate' : 'no time data');
+  const retailNote = r.retailSource === 'square' ? ' <span class="dsn-ru-dim">(Square)</span>'
+    : r.retailSource === 'override' ? ' <span class="dsn-ru-dim">(manual)</span>' : '';
+  const marginTxt = r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—';
+  const floor = (_shopSettings || {}).marginFloorPct;
+  const marginBad = r.margin != null && typeof floor === 'number' && r.margin * 100 < floor;
+
+  el.innerHTML = '<div class="dsn-ru-box">'
+    + matRows
+    + (r.matMissing ? '<div class="dsn-bom-note">⚠ Some lines missing a material price — totals incomplete</div>' : '')
+    + `<div class="dsn-ru-row dsn-ru-sub"><span>Materials</span><span>${_dsnMoney(r.matCost)}</span></div>`
+    + `<div class="dsn-ru-row dsn-ru-sub"><span>Labor${laborNote}</span><span>${laborVal}</span></div>`
+    + `<div class="dsn-ru-row dsn-ru-total"><span>Piece cost</span><span>${_dsnMoney(r.pieceCost)}</span></div>`
+    + `<div class="dsn-ru-row"><span>Retail${retailNote}</span><span>${_dsnMoney(r.retail)}</span></div>`
+    + `<div class="dsn-ru-row ${marginBad ? 'dsn-ru-bad' : ''}"><span>Margin${marginBad ? ' ⚠ below floor' : ''}</span><span>${marginTxt}</span></div>`
+    + (r.suggested != null ? `<div class="dsn-ru-row dsn-ru-dim2"><span>Suggested @ ${(_shopSettings || {}).targetMarginPct}% target</span><span>${_dsnMoney(r.suggested)}</span></div>` : '')
+    + '</div>';
+}
+
+// ── Square item link picker ───────────────────
+function dsnSqLinkRender() {
+  const linked = document.getElementById('dsn-sq-linked');
+  const search = document.getElementById('dsn-sq-search-wrap');
+  if (!linked || !search) return;
+  if (_dsnLinkedSq) {
+    linked.style.display = '';
+    search.style.display = 'none';
+    document.getElementById('dsn-sq-linked-name').textContent = _dsnLinkedSq.name;
+  } else {
+    linked.style.display = 'none';
+    search.style.display = '';
+    const inp = document.getElementById('dsn-sq-search');
+    if (inp) inp.value = '';
+    const res = document.getElementById('dsn-sq-results');
+    if (res) res.style.display = 'none';
+  }
+}
+
+function dsnSqSearchInput(q) {
+  clearTimeout(_dsnSqSearchTimer);
+  const res = document.getElementById('dsn-sq-results');
+  if (!q || q.trim().length < 2) { if (res) res.style.display = 'none'; return; }
+  _dsnSqSearchTimer = setTimeout(() => _dsnSqSearchRun(q.trim()), 350);
+}
+
+function _dsnSqSearchRun(q) {
+  const res = document.getElementById('dsn-sq-results');
+  if (!res) return;
+  res.style.display = '';
+  res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">Searching Square…</div>';
+  fetch('/api/square', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: '/v2/catalog/search-catalog-items', method: 'POST', body: { text_filter: q, limit: 10 } }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      const out = [];
+      (data.items || []).forEach(item => {
+        const nm = (item.item_data && item.item_data.name) || '';
+        ((item.item_data && item.item_data.variations) || []).forEach(v => {
+          const vd = v.item_variation_data || {};
+          const label = nm + (vd.name && vd.name !== 'Regular' ? ' — ' + vd.name : '');
+          const price = vd.price_money ? vd.price_money.amount / 100 : null;
+          out.push({ id: v.id, label, price });
+        });
+      });
+      if (!out.length) { res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">No Square items found</div>'; return; }
+      res.innerHTML = out.map(o =>
+        `<button type="button" class="dsn-sq-result" onclick="dsnSqLink('${o.id}','${escHtml(o.label).replace(/'/g, '&#39;')}',${o.price != null ? o.price : 'null'})">${escHtml(o.label)}${o.price != null ? ' <span class="dsn-ru-dim">$' + o.price.toFixed(2) + '</span>' : ''}</button>`
+      ).join('');
+    })
+    .catch(() => { res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">Square search failed</div>'; });
+}
+
+function dsnSqLink(id, label, price) {
+  _dsnLinkedSq = { id, name: label };
+  if (price != null) _dsnSqPrices[id] = price;
+  dsnSqLinkRender();
+  _dsnLoadSqPrices([id]).then(dsnRollupRender);
+  dsnRollupRender();
+}
+
+function dsnSqUnlink() {
+  _dsnLinkedSq = null;
+  dsnSqLinkRender();
+  dsnRollupRender();
+}
+
+// ── Pricing Sheet view ─────────────────────────
+function dsnPricingToggle() {
+  _designsPricingOpen = !_designsPricingOpen;
+  document.getElementById('designs-library').style.display = _designsPricingOpen ? 'none' : '';
+  document.getElementById('designs-pricing').style.display = _designsPricingOpen ? '' : 'none';
+  const btn = document.getElementById('dsn-pricing-btn');
+  if (btn) btn.textContent = _designsPricingOpen ? '← Library' : '💲 Pricing Sheet';
+  if (_designsPricingOpen) dsnPricingRender();
+  else designsRenderLibrary();
+}
+
+function _dsnEnsureCostingData() {
+  const p1 = (typeof _materialsApiFetch === 'function')
+    ? _materialsApiFetch().then(ms => { _designsMaterials = ms.filter(m => m.active !== false); })
+        .catch(() => { if (_designsMaterials === null) _designsMaterials = []; })
+    : Promise.resolve();
+  const p2 = fetch('/api/shop-settings').then(r => r.json())
+    .then(s => { _shopSettings = (s && !s.error) ? s : {}; })
+    .catch(() => { if (_shopSettings === null) _shopSettings = {}; });
+  return Promise.all([p1, p2]);
+}
+
+async function dsnPricingRender(forceRefresh) {
+  const body = document.getElementById('dsn-ps-body');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="7" class="oh-empty">Computing costs…</td></tr>';
+  if (forceRefresh) { _dsnLabor = null; _dsnSqPrices = {}; }
+  await _dsnEnsureCostingData();
+  await _dsnLoadLabor(forceRefresh);
+  await _dsnLoadSqPrices(_designs.map(d => d.squareItemId).filter(Boolean));
+
+  const s = _shopSettings || {};
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v != null ? v : ''; };
+  setVal('dsn-set-rate',   s.shopHourlyRate);
+  setVal('dsn-set-target', s.targetMarginPct);
+  setVal('dsn-set-floor',  s.marginFloorPct);
+
+  const rows = _designs.map(d => ({ d, r: dsnCostRollup(d) }));
+  const floor = typeof s.marginFloorPct === 'number' ? s.marginFloorPct : null;
+
+  // Margin-erosion alert strip
+  const alerts = rows.filter(x => floor != null && x.r.margin != null && x.r.margin * 100 < floor);
+  const alertEl = document.getElementById('dsn-ps-alerts');
+  if (alertEl) {
+    alertEl.innerHTML = alerts.length
+      ? `<div class="dsn-ps-alert">⚠ Below ${floor}% margin floor: `
+        + alerts.map(x => `<strong>${escHtml(x.d.name || 'Untitled')}</strong> (${(x.r.margin * 100).toFixed(0)}%)`).join(' · ')
+        + '</div>'
+      : '';
+  }
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="oh-empty">No designs yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(x => {
+    const { d, r } = x;
+    const bad = floor != null && r.margin != null && r.margin * 100 < floor;
+    const marginTxt = r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—';
+    const flags = [];
+    if (!r.hasBom) flags.push('⚖ not weighed');
+    if (r.matMissing) flags.push('missing price');
+    if (r.laborCost == null) flags.push('no labor data');
+    return `<tr class="${bad ? 'dsn-ps-bad' : ''}" onclick="designsShowForm('${d.id}')" style="cursor:pointer">`
+      + `<td>${escHtml(d.name || 'Untitled')}</td>`
+      + `<td>${r.hasBom ? _dsnMoney(r.matCost) : '—'}</td>`
+      + `<td>${_dsnMoney(r.laborCost)}</td>`
+      + `<td>${_dsnMoney(r.pieceCost)}</td>`
+      + `<td>${_dsnMoney(r.retail)}</td>`
+      + `<td>${marginTxt}${bad ? ' ⚠' : ''}</td>`
+      + `<td class="dsn-ru-dim">${r.suggested != null ? _dsnMoney(r.suggested) : ''}${flags.length ? (r.suggested != null ? ' · ' : '') + flags.join(' · ') : ''}</td>`
+      + '</tr>';
+  }).join('');
+}
+
+async function dsnPricingSettingsSave() {
+  const s = Object.assign({}, _shopSettings || {});
+  s.shopHourlyRate  = _dsnNumOrNull(document.getElementById('dsn-set-rate').value);
+  s.targetMarginPct = _dsnNumOrNull(document.getElementById('dsn-set-target').value);
+  s.marginFloorPct  = _dsnNumOrNull(document.getElementById('dsn-set-floor').value);
+  try {
+    const r = await fetch('/api/shop-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
+    _shopSettings = s;
+    toast('Pricing settings saved', '✓');
+    dsnPricingRender();
+  } catch (e) {
+    toast('Save failed — ' + (e.message || e), '❌');
+  }
+}
+
+function dsnPricingExport() {
+  const rows = _designs.map(d => ({ d, r: dsnCostRollup(d) }));
+  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const money = v => (v != null ? v.toFixed(2) : '');
+  const csv = [
+    ['Design', 'Category', 'Material Cost', 'Labor Cost', 'Piece Cost', 'Retail', 'Margin %', 'Suggested Price', 'Flags'].map(esc).join(','),
+  ].concat(rows.map(({ d, r }) => [
+    d.name || 'Untitled', d.category || '',
+    r.hasBom ? money(r.matCost) : '', money(r.laborCost), money(r.pieceCost), money(r.retail),
+    r.margin != null ? (r.margin * 100).toFixed(1) : '',
+    money(r.suggested),
+    [!r.hasBom ? 'not weighed' : '', r.matMissing ? 'missing material price' : '', r.laborCost == null ? 'no labor data' : ''].filter(Boolean).join('; '),
+  ].map(esc).join(','))).join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'pricing-sheet-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }

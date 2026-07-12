@@ -71,6 +71,10 @@ export async function onRequestPost(context) {
     preview:   ((design.specs || design.instructions || '').slice(0, 120)),
     bom:       Array.isArray(design.bom) ? design.bom : [],
     wasteOverridePct: design.wasteOverridePct ?? null,
+    squareItemId:     design.squareItemId   || null,
+    squareItemName:   design.squareItemName || null,
+    retailPriceOverride:      design.retailPriceOverride      ?? null,
+    laborMinPerPieceOverride: design.laborMinPerPieceOverride ?? null,
     createdAt: design.createdAt || new Date().toISOString(),
     updatedAt: design.updatedAt || new Date().toISOString(),
   };
