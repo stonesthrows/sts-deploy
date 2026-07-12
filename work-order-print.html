@@ -313,6 +313,47 @@
       display: flex; flex-direction: column; flex: 1.2; min-height: 0;
     }
     .form-content[data-layout="ecom"] .ship-block .sec-body { flex: 1; min-height: 0; }
+
+    /* Ecom item spec blocks — replace the price line-item table when the
+       order carries structured marketplace items (ecomItems param). */
+    .ecom-items {
+      display: none;
+      border: 1px solid #000; border-top: none; border-bottom: none;
+      flex-direction: column; flex: 2; min-height: 0; overflow: hidden;
+    }
+    .form-content[data-layout="ecom"].has-ecom-items .ecom-items { display: flex; }
+    .form-content[data-layout="ecom"].has-ecom-items .li-block   { display: none; }
+    .ei-head-bar {
+      font-weight: bold; font-size: 8px; text-align: center;
+      padding: 1px 4px; background: #d0d0d0; border-bottom: 1px solid #000;
+      flex-shrink: 0;
+    }
+    .ei-item { border-bottom: 1px solid #000; padding: 3px 5px; }
+    .ei-item:last-child { border-bottom: none; }
+    .ei-title-row { display: flex; align-items: baseline; gap: 5px; }
+    .ei-qty {
+      font-weight: bold; font-size: 13px; border: 1.5px solid #000;
+      padding: 0 4px; border-radius: 3px; white-space: nowrap;
+      align-self: center; background: #eee;
+    }
+    .ei-name  { flex: 1; font-size: 15px; font-weight: bold; line-height: 1.25; }
+    .ei-price { font-size: 12px; white-space: nowrap; }
+    .ei-specs { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; }
+    .ei-spec  { font-size: 13px; white-space: nowrap; }
+    .ei-spec b {
+      font-size: 8px; text-transform: uppercase; color: #444;
+      margin-right: 3px; letter-spacing: 0.3px;
+    }
+    .ei-pers {
+      margin-top: 3px; border: 1.5px solid #000; background: #f4f4f4;
+      padding: 2px 5px; font-size: 13px; white-space: pre-wrap;
+    }
+    .ei-pers b { font-size: 8px; text-transform: uppercase; margin-right: 4px; }
+    .ei-alias-btn {
+      border: 1px solid #aaa; background: #fff; border-radius: 3px;
+      font-size: 10px; cursor: pointer; padding: 0 3px; align-self: center;
+    }
+    .ei-alias-btn:hover { background: #fffbe6; }
   </style>
 </head>
 <body>
@@ -420,6 +461,10 @@
   </div>
 
 
+  <div class="ecom-items" id="ecom-items">
+    <div class="ei-head-bar">Items — As Ordered</div>
+  </div>
+
   <div class="sec-block ship-block" id="ship-block">
     <div class="sec-head">📦 SHIP TO</div>
     <div class="sec-body" id="ship-to" contenteditable="true" style="font-size:15px; line-height:1.4;"></div>
@@ -476,6 +521,9 @@
   const srcName   = p.get('srcName')   || '';
   const orderNo   = p.get('orderNo')   || '';
   const country   = p.get('country')   || '';
+  let ecomItems = [];
+  try { ecomItems = JSON.parse(p.get('ecomItems') || '[]'); } catch (e) { ecomItems = []; }
+  if (!Array.isArray(ecomItems)) ecomItems = [];
 
   // ── Apply layout settings ──
   const fc = document.querySelector('.form-content');
@@ -559,6 +607,84 @@
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 
+  // ── Ecom item spec blocks ──
+  // Titles print through an editable alias map (localStorage) — the ✏️
+  // button in the screen preview saves a short bag name for a listing,
+  // keyed by its raw marketplace title, and it applies on every future
+  // print of that listing.
+  const ALIAS_KEY = 'stsTitleAliases';
+  function loadAliases() {
+    try { return JSON.parse(localStorage.getItem(ALIAS_KEY) || '{}'); } catch (e) { return {}; }
+  }
+  function aliasKeyFor(it) { return String(it.raw || it.name || '').trim().toLowerCase(); }
+  function displayNameFor(it) { return loadAliases()[aliasKeyFor(it)] || it.name || ''; }
+
+  function mkEl(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function renderEcomItems() {
+    const wrap = document.getElementById('ecom-items');
+    wrap.querySelectorAll('.ei-item').forEach(el => el.remove());
+    ecomItems.forEach(it => {
+      const item = mkEl('div', 'ei-item');
+      const row = mkEl('div', 'ei-title-row');
+      if (it.qty > 1) row.appendChild(mkEl('span', 'ei-qty', '×' + it.qty));
+      row.appendChild(mkEl('span', 'ei-name', displayNameFor(it)));
+      const btn = mkEl('button', 'ei-alias-btn no-print', '✏️');
+      btn.title = 'Set the short name this listing prints as (saved for future bags)';
+      btn.onclick = () => {
+        const v = prompt('Short bag name for:\n' + (it.raw || it.name), displayNameFor(it));
+        if (v === null) return;
+        const map = loadAliases();
+        if (v.trim()) map[aliasKeyFor(it)] = v.trim();
+        else delete map[aliasKeyFor(it)];
+        localStorage.setItem(ALIAS_KEY, JSON.stringify(map));
+        renderEcomItems();
+        syncEcomDesc();
+      };
+      row.appendChild(btn);
+      const priceNum = parseFloat(it.price) || 0;
+      if (priceNum) row.appendChild(mkEl('span', 'ei-price', fmtMoney(priceNum * (it.qty > 1 ? it.qty : 1))));
+      item.appendChild(row);
+
+      const specs = [
+        ['Metal',  it.metal],
+        ['Size',   it.size],
+        ['Width',  it.width],
+        ['Finish', it.finish],
+        ['',       it.other],
+      ].filter(s => s[1]);
+      if (specs.length) {
+        const sp = mkEl('div', 'ei-specs');
+        specs.forEach(s => {
+          const cell = mkEl('span', 'ei-spec');
+          if (s[0]) cell.appendChild(mkEl('b', '', s[0]));
+          cell.appendChild(document.createTextNode(s[1]));
+          sp.appendChild(cell);
+        });
+        item.appendChild(sp);
+      }
+      if (it.pers) {
+        const pe = mkEl('div', 'ei-pers');
+        pe.appendChild(mkEl('b', '', '✎ Personalization'));
+        pe.appendChild(document.createTextNode(it.pers));
+        item.appendChild(pe);
+      }
+      wrap.appendChild(item);
+    });
+  }
+
+  // Job Description mirrors the (aliased) item names — short, no specs.
+  function syncEcomDesc() {
+    const names = ecomItems.map(it => (it.qty > 1 ? it.qty + '× ' : '') + displayNameFor(it));
+    document.getElementById('j-desc').textContent =
+      names.length > 1 ? names.map((n, i) => 'Item ' + (i + 1) + ' - ' + n).join('\n') : (names[0] || desc);
+  }
+
   // Per-layout content: Source row + Ship To block (ecom), relabels (repair/resize)
   if (fc.dataset.layout === 'ecom') {
     document.getElementById('src-name').textContent =
@@ -567,6 +693,16 @@
     const cityLine = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
     document.getElementById('ship-to').textContent =
       [name, address, cityLine, country].filter(Boolean).join('\n');
+    if (ecomItems.length) {
+      fc.classList.add('has-ecom-items');
+      renderEcomItems();
+      syncEcomDesc();
+      if (!ringSize) {
+        const sizes = ecomItems.filter(it => it.size).map(it => 'Size ' + it.size);
+        if (sizes.length) document.getElementById('j-size').textContent = sizes.join(', ');
+      }
+      document.querySelector('.sec-block.grow .sec-head').textContent = 'Notes / Buyer Message';
+    }
   }
   if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
     document.querySelector('.jd-panel .sec-head').textContent = 'Item Taken In / Job';

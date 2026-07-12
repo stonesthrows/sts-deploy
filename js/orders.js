@@ -1716,6 +1716,12 @@ function printOrder(id) {
     p.set('orderNo', pp.orderNo);
     p.set('country', pp.country);
     if (pp.source) p.set('srcName', pp.source);
+    // Structured per-item bag specs (metal / size / width / finish /
+    // personalization) for the ecom layout — see order-normalize.js.
+    if (pp.layout === 'ecom' && typeof ecomPrintItems === 'function') {
+      const ei = ecomPrintItems(o);
+      if (ei.length) p.set('ecomItems', JSON.stringify(ei));
+    }
   }
   // Append print layout settings from localStorage
   try {

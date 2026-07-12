@@ -9,19 +9,25 @@
 
 const LOOKBACK_DAYS = 14;
 
-// Mirrors js/shopify.js's shopifyLineItemsToOrderFields() — keeps the Notion-bound
-// Order Description / Ring Size in sync with the structured Shopify line items even
-// on the server-side auto-sync path (which talks to notion-pipeline, not local ORDERS).
-function shopifyLineItemsToOrderFields(lineItems) {
+// Server-side counterpart of order-normalize.js's item mapping. Items keep
+// the raw title + full variant + personalization so the app can re-parse
+// them into bag specs at print time (ecomPrintItems) — the SEO-title
+// cleanup and spec parsing live client-side, not here.
+function marketplaceLineItemsToOrderFields(lineItems) {
   const items = (lineItems || []).map(li => ({
     type:     'manual',
     name:     li.title,
+    rawTitle: li.title,
     price:    li.price || 0,
     quantity: li.quantity || 1,
     ringSize: li.size || '',
+    variant:  li.variant || '',
+    variations: Array.isArray(li.variations) && li.variations.length ? li.variations : undefined,
+    personalization: li.personalization || '',
   }));
   const desc = items
-    .map(it => `${it.quantity}× ${it.name}${it.ringSize ? ' — Size ' + it.ringSize : ''}`)
+    .map(it => `${it.quantity}× ${it.name}${it.variant ? ' — ' + it.variant : (it.ringSize ? ' — Size ' + it.ringSize : '')}`
+             + (it.personalization ? `\n   ✎ ${it.personalization}` : ''))
     .join('\n');
   const ringSize = items.filter(it => it.ringSize).map(it => it.ringSize).join(', ');
   return { items, desc, ringSize };
@@ -61,7 +67,7 @@ export async function onRequestGet(context) {
       // Skip orders Shopify already marks fulfilled — same guard as the manual
       // Sync Shopify button, to avoid re-importing old completed orders.
       for (const so of data.filter(so => so.fulfillmentStatus !== 'FULFILLED')) {
-        const { items, desc, ringSize } = shopifyLineItemsToOrderFields(so.lineItems);
+        const { items, desc, ringSize } = marketplaceLineItemsToOrderFields(so.lineItems);
         const order = {
           id:            'shopify-' + so.shopifyOrderId,
           name:          so.name,
@@ -96,12 +102,15 @@ export async function onRequestGet(context) {
     } else {
       result.etsyChecked = data.length;
       for (const eo of data) {
+        const { items, desc, ringSize } = marketplaceLineItemsToOrderFields(eo.lineItems);
         const order = {
           id:            'etsy-' + eo.etsyReceiptId,
           name:          eo.name,
           email:         eo.email,
           price:         eo.price,
-          desc:          eo.desc,
+          desc:          desc || eo.desc,
+          items,
+          ringSize,
           notes:         eo.notes,
           stage:         'etsy-bench',
           orderType:     'order',
