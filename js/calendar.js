@@ -57,19 +57,17 @@ function calScheduleRefresh(expiresInSeconds) {
 async function calSilentRefresh() {
   const refreshToken = calGetRefreshToken();
   const clientId     = localStorage.getItem('sts-google-client-id');
-  const clientSecret = localStorage.getItem('sts-google-client-secret');
-  if (!refreshToken || !clientId || !clientSecret) return;
+  if (!refreshToken || !clientId) return;
 
   try {
-    const r = await fetch('https://oauth2.googleapis.com/token', {
+    const r = await fetch('/api/google-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type:    'refresh_token',
         refresh_token: refreshToken,
-        client_id:     clientId,
-        client_secret: clientSecret,
-        grant_type:    'refresh_token'
-      }).toString()
+        client_id:     clientId
+      })
     });
     const data = await r.json();
     if (data.access_token) {
@@ -116,11 +114,6 @@ async function calTriggerOAuth() {
     toast('Set your Google Client ID in Integrations first', 'ℹ');
     return;
   }
-  if (!localStorage.getItem('sts-google-client-secret')) {
-    openIntegrationsModal();
-    toast('Add your OAuth Client Secret in Integrations for persistent login', 'ℹ');
-    return;
-  }
 
   const verifier   = calPKCEVerifier();
   const challenge  = await calPKCEChallenge(verifier);
@@ -151,29 +144,27 @@ async function calTriggerOAuth() {
 }
 
 async function calHandleCode(code) {
-  const verifier    = localStorage.getItem(CAL_VERIFIER_KEY);
-  const clientId    = localStorage.getItem('sts-google-client-id');
-  const clientSecret = localStorage.getItem('sts-google-client-secret');
+  const verifier     = localStorage.getItem(CAL_VERIFIER_KEY);
+  const clientId     = localStorage.getItem('sts-google-client-id');
   const redirectUri  = window.location.origin + '/calendar-oauth.html';
 
-  if (!verifier || !clientId || !clientSecret) {
+  if (!verifier || !clientId) {
     toast('OAuth setup incomplete — check Integrations', '⚠');
     return;
   }
   localStorage.removeItem(CAL_VERIFIER_KEY);
 
   try {
-    const r = await fetch('https://oauth2.googleapis.com/token', {
+    const r = await fetch('/api/google-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type:    'authorization_code',
         code,
         client_id:     clientId,
-        client_secret: clientSecret,
         redirect_uri:  redirectUri,
-        code_verifier: verifier,
-        grant_type:    'authorization_code'
-      }).toString()
+        code_verifier: verifier
+      })
     });
     const data = await r.json();
     if (!data.access_token) {

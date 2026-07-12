@@ -135,17 +135,9 @@ async function runDriveCheck(btn, token) {
       return;
     }
 
-    // 4. Check Anthropic key before downloading
-    const anthropicKey = localStorage.getItem('sts-anthropic-key') || '';
-    if (!anthropicKey) {
-      openIntegrationsModal();
-      toast('Enter your Anthropic API key in Integrations to read scan images', 'ℹ');
-      return;
-    }
-
     showDriveOverlay('Reading ' + newFiles.length + ' image' + (newFiles.length > 1 ? 's' : '') + ' with Claude Vision…');
 
-    // 5. Download + Vision each file
+    // 4. Download + Vision each file
     const results = [];
     for (let i = 0; i < newFiles.length; i++) {
       const file = newFiles[i];
@@ -157,7 +149,7 @@ async function runDriveCheck(btn, token) {
         );
         const blob   = await imgResp.blob();
         const base64 = await blobToBase64(blob);
-        const data   = await runClaudeVisionOnImage(base64, file.mimeType, anthropicKey);
+        const data   = await runClaudeVisionOnImage(base64, file.mimeType);
         if (data) results.push(Object.assign({}, data, { drive_file_id: file.id, drive_file_name: file.name }));
       } catch (err) {
         console.warn('Error processing file ' + file.name + ':', err);
@@ -193,7 +185,7 @@ function blobToBase64(blob) {
   });
 }
 
-async function runClaudeVisionOnImage(base64, mimeType, key) {
+async function runClaudeVisionOnImage(base64, mimeType) {
   const systemPrompt = `You are an order intake assistant for Stones Throw Studio, a custom jewelry shop.
 The user will show you a photo of a handwritten work order bag or intake sheet.
 
@@ -253,14 +245,9 @@ Extract all visible information and return ONLY a valid JSON object with these e
 For dates, infer the year as the current year (${new Date().getFullYear()}) if only month/day is shown.
 Return ONLY the JSON object, no other text.`;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetch('/api/claude-proxy', {
     method: 'POST',
-    headers: {
-      'x-api-key':                                  key,
-      'anthropic-version':                          '2023-06-01',
-      'anthropic-dangerous-direct-browser-access':  'true',
-      'content-type':                               'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
@@ -274,11 +261,7 @@ Return ONLY the JSON object, no other text.`;
 
   if (!resp.ok) {
     const err = await resp.json().catch(function () { return {}; });
-    if (resp.status === 401) {
-      localStorage.removeItem('sts-anthropic-key');
-      toast('Invalid Anthropic API key — update it in Integrations ⚙', '⚠');
-    }
-    throw new Error((err.error && err.error.message) || 'Anthropic API error ' + resp.status);
+    throw new Error((err.error && err.error.message) || 'Claude Vision error ' + resp.status);
   }
 
   const body = await resp.json();
@@ -479,8 +462,6 @@ function getField(id)      { const el = document.getElementById(id); return el ?
 function openIntegrationsModal() {
   setField('int-api-key',              localStorage.getItem('sts-api-key')              || '');
   setField('int-google-client-id',     localStorage.getItem('sts-google-client-id')     || '');
-  setField('int-google-client-secret', localStorage.getItem('sts-google-client-secret') || '');
-  setField('int-anthropic-key',        localStorage.getItem('sts-anthropic-key')        || '');
   setField('int-square-token',    localStorage.getItem('sts-square-token')    || '');
   setField('int-square-location', localStorage.getItem('sts-square-location') || '');
   document.getElementById('integrationsModalBg').classList.add('open');
@@ -494,15 +475,11 @@ function saveIntegrations() {
   const prev            = localStorage.getItem('sts-google-client-id');
   const apiKey          = getField('int-api-key');
   const googleClientId  = getField('int-google-client-id');
-  const googleClientSec = getField('int-google-client-secret');
-  const anthropicKey    = getField('int-anthropic-key');
   const squareToken    = getField('int-square-token');
   const squareLocation = getField('int-square-location');
 
   apiKey          ? localStorage.setItem('sts-api-key',              apiKey)          : localStorage.removeItem('sts-api-key');
   googleClientId  ? localStorage.setItem('sts-google-client-id',     googleClientId)  : localStorage.removeItem('sts-google-client-id');
-  googleClientSec ? localStorage.setItem('sts-google-client-secret', googleClientSec) : localStorage.removeItem('sts-google-client-secret');
-  anthropicKey    ? localStorage.setItem('sts-anthropic-key',        anthropicKey)    : localStorage.removeItem('sts-anthropic-key');
   squareToken     ? localStorage.setItem('sts-square-token',         squareToken)     : localStorage.removeItem('sts-square-token');
   squareLocation  ? localStorage.setItem('sts-square-location',      squareLocation)  : localStorage.removeItem('sts-square-location');
 

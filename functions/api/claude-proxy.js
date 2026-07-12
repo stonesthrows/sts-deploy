@@ -1,8 +1,9 @@
 // ════════════════════════════════════════════
 //  Claude API Proxy  —  /api/claude-proxy
 //  Cloudflare Pages Function
-//  Forwards requests to Anthropic API to avoid browser CORS restrictions.
-//  API key is sent in the request body (stored in client localStorage).
+//  Forwards requests to the Anthropic API. The API key lives here as a
+//  server env var and never reaches the browser.
+//  Required env: ANTHROPIC_API_KEY
 // ════════════════════════════════════════════
 
 const CORS = {
@@ -17,15 +18,17 @@ export async function onRequestOptions() {
 
 export async function onRequestPost(context) {
   try {
-    const body = await context.request.json();
-    const { apiKey, ...claudeBody } = body;
-
+    const apiKey = context.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: { message: 'Missing apiKey in request body' } }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...CORS } }
+        JSON.stringify({ error: { message: 'ANTHROPIC_API_KEY is not configured on the server' } }),
+        { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } }
       );
     }
+
+    // Legacy clients may still send an `apiKey` field — ignore it, the
+    // server-side key is always authoritative.
+    const { apiKey: _ignored, ...claudeBody } = await context.request.json();
 
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

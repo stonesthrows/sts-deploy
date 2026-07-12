@@ -7982,8 +7982,6 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
              color var(--dur-fast) var(--ease-smooth);
 }
 .dsn-upload-btn:hover { background:var(--accent-bg); border-color:var(--accent-border); color:var(--text); }
-.dsn-key-save { flex-shrink:0; padding:6px 14px; background:var(--accent); color:#fff; border-color:var(--accent); }
-.dsn-key-save:hover { background:var(--accent-mid); border-color:var(--accent-mid); color:#fff; }
 .dsn-pdf-status { font-size:12px; color:var(--accent); font-weight:600; margin-bottom:12px; min-height:18px; transition:color var(--dur-fast); }
 .dsn-pdf-status.err { color:#c0392b; }
 .dsn-pdf-status.ok  { color:var(--text); }
@@ -8035,8 +8033,7 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
    too dark to read on the midnight card surfaces. Scope under this tab. */
 body.theme-midnight #tab-designs .btn-outline { background: var(--card-bg); }
 body.theme-midnight #tab-designs .dsn-filter-btn.active,
-body.theme-midnight #tab-designs .dsn-gear-item.active,
-body.theme-midnight #tab-designs .dsn-key-save { color:#1A1A1C; }
+body.theme-midnight #tab-designs .dsn-gear-item.active { color:#1A1A1C; }
 body.theme-midnight #tab-designs .dsn-gear-item.danger { color:#E08A80; }
 body.theme-midnight #tab-designs .dsn-req { color:#E08A80; }
 body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
@@ -8119,28 +8116,12 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
           <button class="dsn-gear-item" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
           <div class="dsn-gear-sep"></div>
           <button class="dsn-gear-item danger" id="dsn-delete-btn" style="display:none" onclick="designsDeleteDesign()">🗑 Delete Design</button>
-          <div class="dsn-gear-sep"></div>
-          <button class="dsn-gear-item" onclick="designsToggleApiKeyPanel()">🔑 API Key Settings</button>
         </div>
       </div>
     </div>
 
     <!-- PDF import status (always visible when active) -->
     <div id="dsn-pdf-status" class="dsn-pdf-status"></div>
-
-    <!-- API key panel (toggled by ⚙ gear button) -->
-    <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
-      <div id="dsn-api-key-row">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
-          <button onclick="designsSaveApiKey()" class="dsn-upload-btn dsn-key-save">Save</button>
-        </div>
-      </div>
-      <div id="dsn-api-key-saved" style="display:none;font-size:11px;color:var(--text3);">
-        🔑 API key saved &mdash; <a href="#" style="color:var(--accent);text-decoration:none" onclick="event.preventDefault();document.getElementById('dsn-api-key-saved').style.display='none';document.getElementById('dsn-api-key-row').style.display='';">Change</a> &nbsp;|&nbsp; <a href="#" style="color:var(--text3);text-decoration:none" onclick="event.preventDefault();designsClearApiKey()">Remove</a>
-      </div>
-    </div>
 
     <div class="dsn-form-layout">
       <!-- LEFT: form fields -->
@@ -9789,16 +9770,21 @@ body.theme-midnight .recon-under { color: #E08A80; }
       <div class="int-section-title">Google</div>
       <label for="int-google-client-id">OAuth Client ID</label>
       <input type="text" id="int-google-client-id" placeholder="123456789.apps.googleusercontent.com">
-      <label for="int-google-client-secret" style="margin-top:8px">OAuth Client Secret</label>
-      <input type="password" id="int-google-client-secret" placeholder="GOCSPX-…">
-      <p class="int-hint">Client ID + Secret are used for Google Drive, Contacts, and Calendar. The secret enables long-lived Calendar sessions (no more reconnecting). Get both at console.cloud.google.com → APIs &amp; Services → Credentials.</p>
+      <p class="int-hint">Client ID is used for Google Drive, Contacts, and Calendar. Get it at console.cloud.google.com → APIs &amp; Services → Credentials.</p>
+      <p class="int-hint" style="margin-top:8px;">The OAuth <strong>Client Secret</strong> is stored as a <strong>server-side environment variable</strong> in Cloudflare Pages — not in your browser. It enables long-lived Calendar sessions (no more reconnecting).</p>
+      <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;margin-top:6px;">
+        ↗ Open Cloudflare Pages Dashboard
+      </a>
+      <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>GOOGLE_CLIENT_SECRET</code> to the value from the same Google Cloud credential as the Client ID above.</p>
     </div>
 
     <div class="int-section">
       <div class="int-section-title">Anthropic</div>
-      <label for="int-anthropic-key">API Key</label>
-      <input type="password" id="int-anthropic-key" placeholder="sk-ant-…">
-      <p class="int-hint">Used for AI-assisted order scanning and estimates.</p>
+      <p class="int-hint" style="margin-bottom:10px;">Used for AI-assisted order scanning and estimates. The API key is stored as a <strong>server-side environment variable</strong> in Cloudflare Pages — not in your browser.</p>
+      <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+        ↗ Open Cloudflare Pages Dashboard
+      </a>
+      <p class="int-hint" style="margin-top:8px;">Go to your Pages project → Settings → Environment Variables → set <code>ANTHROPIC_API_KEY</code>. Get it at console.anthropic.com/settings/api-keys.</p>
     </div>
 
     <div class="int-section">
@@ -9881,9 +9867,7 @@ body.theme-midnight .recon-under { color: #E08A80; }
           <div class="dm-group">
             <div class="dm-group-label">API Keys</div>
             <div class="dm-row"><span class="dm-key">sts-api-key</span><span class="dm-desc">App API key (X-STS-Key)</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-anthropic-key</span><span class="dm-desc">Claude API key</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-google-client-id</span><span class="dm-desc">Google OAuth ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
-            <div class="dm-row"><span class="dm-key">sts-google-client-secret</span><span class="dm-desc">Google OAuth secret</span><span class="dm-tag dm-tag-cred">CRED</span></div>
+            <div class="dm-row"><span class="dm-key">sts-google-client-id</span><span class="dm-desc">Google OAuth ID (not secret)</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-square-token</span><span class="dm-desc">Square API token</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-square-location</span><span class="dm-desc">Square location ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts_notionToken</span><span class="dm-desc">Notion token (timer)</span><span class="dm-tag dm-tag-cred">CRED</span></div>

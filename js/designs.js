@@ -264,7 +264,6 @@ function designsRenderForm() {
 
   const st = document.getElementById('dsn-pdf-status');
   if (st && !st.textContent.startsWith('❌')) st.textContent = '';
-  designsRefreshApiKeyUI();
 
   setTimeout(dsnAutoResizeAll, 0);
 }
@@ -432,16 +431,6 @@ async function designsHandlePDF(file) {
     return;
   }
   const status = document.getElementById('dsn-pdf-status');
-  const apiKey = localStorage.getItem('sts-anthropic-key');
-  if (!apiKey) {
-    _dsnStatusTone(status, 'err');
-    status.textContent = '⚠ Enter your Anthropic API key — click ⚙ to add it';
-    const panel = document.getElementById('dsn-api-key-panel');
-    if (panel) { panel.style.display = ''; designsRefreshApiKeyUI(); }
-    setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
-    return;
-  }
-
   _dsnStatusTone(status, '');
   status.textContent = '⏳ Rendering PDF pages…';
 
@@ -480,7 +469,6 @@ async function designsHandlePDF(file) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiKey,
         model: 'claude-opus-4-8',
         max_tokens: 1500,
         messages: [{ role: 'user', content }],
@@ -513,31 +501,6 @@ async function designsHandlePDF(file) {
   }
 }
 
-// ── API key management ────────────────────────
-function designsSaveApiKey() {
-  const val = (document.getElementById('dsn-api-key-input').value || '').trim();
-  if (!val) { toast('Please enter an API key', '⚠'); return; }
-  localStorage.setItem('sts-anthropic-key', val);
-  document.getElementById('dsn-api-key-input').value = '';
-  const panel = document.getElementById('dsn-api-key-panel');
-  if (panel) panel.style.display = 'none';
-  toast('API key saved', '✓');
-}
-
-function designsClearApiKey() {
-  localStorage.removeItem('sts-anthropic-key');
-  designsRefreshApiKeyUI();
-}
-
-function designsRefreshApiKeyUI() {
-  const key   = localStorage.getItem('sts-anthropic-key');
-  const row   = document.getElementById('dsn-api-key-row');
-  const saved = document.getElementById('dsn-api-key-saved');
-  if (!row || !saved) return;
-  if (key) { row.style.display = 'none'; saved.style.display = ''; }
-  else     { row.style.display = '';     saved.style.display = 'none'; }
-}
-
 function designsToggleGearMenu() {
   const menu = document.getElementById('dsn-gear-menu');
   if (!menu) return;
@@ -557,18 +520,6 @@ function designsToggleGearMenu() {
 function designsCloseGearMenu() {
   const menu = document.getElementById('dsn-gear-menu');
   if (menu) menu.style.display = 'none';
-}
-
-function designsToggleApiKeyPanel() {
-  const panel = document.getElementById('dsn-api-key-panel');
-  if (!panel) return;
-  const opening = panel.style.display === 'none';
-  panel.style.display = opening ? '' : 'none';
-  if (opening) {
-    designsRefreshApiKeyUI();
-    const key = localStorage.getItem('sts-anthropic-key');
-    if (!key) setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
-  }
 }
 
 // ── Status tone (presentational only) ─────────

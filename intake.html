@@ -735,8 +735,6 @@
     <div class="flex-1"></div>
     <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
             class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
-    <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
-            class="rounded-lg px-2.5 py-2 text-base text-[#63788A]">⚙</button>
     <div class="relative">
       <button type="button" id="intake-unsynced" class="sync-chip" onclick="intakeSyncPopToggle()"></button>
       <div id="sync-pop">
@@ -1408,6 +1406,7 @@
 
 <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
 <input type="file" id="rp-file" accept="image/*" multiple style="display:none;" onchange="rpFilesChosen(this)">
+<script src="js/api-auth.js?v=1"></script>
 <script src="js/sketchpad.js?v=4"></script>
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>

@@ -636,13 +636,11 @@ function hwClear() {
   if (st) st.textContent = '';
 }
 
-// Send the handwriting strip to Claude vision (same /api/claude-proxy +
-// localStorage key the Designs tab uses) and fill ONLY empty form fields.
+// Send the handwriting strip to Claude vision (via /api/claude-proxy) and
+// fill ONLY empty form fields.
 async function hwConvert(btn) {
   if (!HW) return;
   if (!HW.hasInk) { toast('Nothing written on the lines yet', '⚠'); return; }
-  const apiKey = localStorage.getItem('sts-anthropic-key');
-  if (!apiKey) { toast('Anthropic API key not set — save it in the Designs tab first', '⚠'); return; }
   const status = document.getElementById('hw-status');
   if (btn) btn.disabled = true;
   if (status) status.textContent = '⏳ Reading handwriting…';
@@ -653,7 +651,6 @@ async function hwConvert(btn) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiKey,
         model: 'claude-opus-4-8',
         max_tokens: 300,
         messages: [{ role: 'user', content: [

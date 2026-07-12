@@ -47,48 +47,6 @@
       transform: translateY(12px);
     }
 
-    /* ── Setup screen ──────────────────────────── */
-    #screen-setup {
-      gap: 18px;
-      text-align: center;
-    }
-    .setup-logo {
-      font-size: 48px; margin-bottom: 4px;
-    }
-    .setup-title {
-      font-size: 22px; font-weight: 800; color: var(--text);
-      letter-spacing: -0.3px;
-    }
-    .setup-sub {
-      font-size: 14px; color: var(--text2); line-height: 1.5;
-      max-width: 300px;
-    }
-    .setup-key-wrap {
-      width: 100%; max-width: 340px;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .setup-key-label {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.5px; color: var(--text2); text-align: left;
-    }
-    .setup-key-input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1.5px solid var(--bdr);
-      border-radius: 12px;
-      color: var(--text);
-      font-size: 14px;
-      font-family: monospace;
-      padding: 14px 16px;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .setup-key-input:focus { border-color: var(--blue); }
-    .setup-key-hint {
-      font-size: 11.5px; color: var(--text3); text-align: left;
-    }
-    .setup-key-hint a { color: var(--blue); text-decoration: none; }
-
     /* ── Camera screen ─────────────────────────── */
     #screen-camera {
       gap: 0; padding: 0; justify-content: flex-end;
@@ -155,14 +113,6 @@
       font-size: 16px; font-weight: 700; color: #fff;
       letter-spacing: -0.2px;
     }
-    .cam-key-btn {
-      font-size: 12px; color: rgba(255,255,255,0.6);
-      background: rgba(255,255,255,0.1);
-      border: none; border-radius: 20px;
-      padding: 5px 12px; cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-
     /* File input fallback (for non-camera browsers) */
     #fileInput { display: none; }
 
@@ -300,32 +250,14 @@
 </head>
 <body>
 
-<!-- ═══════ SETUP SCREEN ═══════ -->
-<div class="screen" id="screen-setup">
-  <div class="setup-logo">💍</div>
-  <div class="setup-title">Work Order Scanner</div>
-  <div class="setup-sub">Enter your Anthropic API key once — it's saved to this device and never needed again.</div>
-  <div class="setup-key-wrap">
-    <div class="setup-key-label">Anthropic API Key</div>
-    <input class="setup-key-input" id="keyInput" type="password"
-           placeholder="sk-ant-api03-…"
-           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <div class="setup-key-hint">
-      Get yours at <a href="https://console.anthropic.com/settings/api-keys" target="_blank">console.anthropic.com</a>
-    </div>
-  </div>
-  <button class="btn btn-gold" style="max-width:340px;" onclick="saveKeyAndStart()">Save &amp; Start Scanning</button>
-</div>
-
 <!-- ═══════ CAMERA SCREEN ═══════ -->
-<div class="screen hidden" id="screen-camera" style="padding:0;">
+<div class="screen" id="screen-camera" style="padding:0;">
   <video id="videoEl" autoplay playsinline muted></video>
   <canvas id="canvasEl" style="display:none;"></canvas>
   <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFileCapture(this)">
 
   <div class="cam-top-bar">
     <div class="cam-title">📷 Scan Work Order Bag</div>
-    <button class="cam-key-btn" onclick="showScreen('screen-setup')">🔑 Key</button>
   </div>
 
   <div class="cam-overlay">
@@ -378,6 +310,7 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<script src="js/api-auth.js"></script>
 <script>
 // ════════════════════════════════════════════
 //  STATE
@@ -391,12 +324,7 @@ let parsedOrder = null;
 //  INIT
 // ════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  const key = localStorage.getItem('sts-anthropic-key');
-  if (key) {
-    startCamera();
-  } else {
-    showScreen('screen-setup');
-  }
+  startCamera();
 });
 
 // ════════════════════════════════════════════
@@ -415,20 +343,6 @@ function showScreen(id) {
   if (id === 'screen-camera') {
     startCamera();
   }
-}
-
-// ════════════════════════════════════════════
-//  API KEY SETUP
-// ════════════════════════════════════════════
-function saveKeyAndStart() {
-  const key = document.getElementById('keyInput').value.trim();
-  if (!key.startsWith('sk-ant-')) {
-    toast('Key should start with sk-ant-');
-    return;
-  }
-  localStorage.setItem('sts-anthropic-key', key);
-  document.getElementById('keyInput').value = '';
-  startCamera();
 }
 
 // ════════════════════════════════════════════
@@ -492,9 +406,6 @@ function handleFileCapture(input) {
 //  CLAUDE VISION SCAN
 // ════════════════════════════════════════════
 async function runScan(dataUrl) {
-  const key = localStorage.getItem('sts-anthropic-key');
-  if (!key) { showScreen('screen-setup'); return; }
-
   // Show scanning screen with preview
   document.getElementById('scanPreviewImg').src = dataUrl;
   showScreen('screen-scanning');
@@ -525,14 +436,9 @@ For dates, infer the year as the current year (${new Date().getFullYear()}) if o
 Return ONLY the JSON object, no other text.`;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('/api/claude-proxy', {
       method: 'POST',
-      headers: {
-        'x-api-key':                                  key,
-        'anthropic-version':                          '2023-06-01',
-        'anthropic-dangerous-direct-browser-access':  'true',
-        'content-type':                               'application/json',
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
         max_tokens: 512,
@@ -549,14 +455,8 @@ Return ONLY the JSON object, no other text.`;
 
     if (!resp.ok) {
       const errBody = await resp.json().catch(() => ({}));
-      if (resp.status === 401) {
-        localStorage.removeItem('sts-anthropic-key');
-        showScreen('screen-setup');
-        toast('Invalid API key — please re-enter it');
-      } else {
-        showScreen('screen-camera');
-        toast('API error: ' + (errBody.error?.message || resp.statusText));
-      }
+      showScreen('screen-camera');
+      toast('API error: ' + (errBody.error?.message || resp.statusText));
       return;
     }
 

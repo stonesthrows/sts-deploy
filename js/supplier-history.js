@@ -221,28 +221,27 @@ async function ohPushAllToNotion() {
 
 // ── Auto-categorize uncategorized orders (manual button) ──────────────────
 // Tier 1: orders with a saved receipt image get re-scanned via Claude Vision
-// for real line items. Tier 2 (fallback, and used when Google/Anthropic keys
-// aren't configured): free keyword guess from the order's notes.
+// for real line items. Tier 2 (fallback, and used when Google isn't
+// connected): free keyword guess from the order's notes.
 function ohCategorizeAll(btn) {
-  var clientId      = localStorage.getItem('sts-google-client-id');
-  var anthropicKey  = localStorage.getItem('sts-anthropic-key');
-  if (clientId && anthropicKey) {
+  var clientId = localStorage.getItem('sts-google-client-id');
+  if (clientId) {
     var token = getGoogleToken();
     if (!token) {
-      triggerGoogleOAuth(clientId, function(){ ohRunCategorizeAll(btn, getGoogleToken(), anthropicKey); });
+      triggerGoogleOAuth(clientId, function(){ ohRunCategorizeAll(btn, getGoogleToken()); });
       return;
     }
-    ohRunCategorizeAll(btn, token, anthropicKey);
+    ohRunCategorizeAll(btn, token);
   } else {
-    ohRunCategorizeAll(btn, null, null);
+    ohRunCategorizeAll(btn, null);
   }
 }
 
-async function ohRunCategorizeAll(btn, token, anthropicKey) {
+async function ohRunCategorizeAll(btn, token) {
   var candidates = ohOrders.filter(function(o){ return !(o.lineItems && o.lineItems.length); });
   if (!candidates.length) { toast('All orders already categorized', 'ℹ'); return; }
 
-  var useVision = !!(token && anthropicKey);
+  var useVision = !!token;
   if (btn) { btn.disabled = true; }
 
   var changed = [];
@@ -251,7 +250,7 @@ async function ohRunCategorizeAll(btn, token, anthropicKey) {
     if (btn) btn.textContent = '🏷 ' + (i + 1) + '/' + candidates.length + '…';
     var didCategorize = false;
     if (useVision && o.driveFileId) {
-      didCategorize = await ohCategorizeViaVision(o, token, anthropicKey);
+      didCategorize = await ohCategorizeViaVision(o, token);
     }
     if (!didCategorize) {
       var guess = ohGuessLineItems(o.notes, o.amt);
@@ -282,7 +281,7 @@ async function ohRunCategorizeAll(btn, token, anthropicKey) {
 
 // Re-scans a saved receipt image via Claude Vision and fills in line items.
 // Leaves the order's existing `amt` (total) untouched — only adds the breakdown.
-async function ohCategorizeViaVision(o, token, anthropicKey) {
+async function ohCategorizeViaVision(o, token) {
   try {
     var metaR = await fetch('https://www.googleapis.com/drive/v3/files/' + o.driveFileId + '?fields=mimeType',
       { headers: { 'Authorization': 'Bearer ' + token } });
@@ -295,7 +294,7 @@ async function ohCategorizeViaVision(o, token, anthropicKey) {
     if (!imgR.ok) return false;
     var blob   = await imgR.blob();
     var base64 = await ohBlobToBase64(blob);
-    var data   = await ohReceiptVision(base64, mimeType, anthropicKey);
+    var data   = await ohReceiptVision(base64, mimeType);
     if (!data || !Array.isArray(data.line_items)) return false;
 
     var lineItems = data.line_items.map(function(li) {
@@ -934,18 +933,16 @@ function ohWireCsvImport() {
 function ohCheckReceipts(btn, silent) {
   var clientId = localStorage.getItem('sts-google-client-id');
   if (!clientId) { if (!silent) { openIntegrationsModal(); toast('Set up your Google Client ID in Integrations first', 'ℹ'); } return; }
-  var anthropicKey = localStorage.getItem('sts-anthropic-key');
-  if (!anthropicKey) { if (!silent) { openIntegrationsModal(); toast('Enter your Anthropic API key in Integrations to read receipts', 'ℹ'); } return; }
   var token = getGoogleToken();
   if (!token) {
     if (silent) return; // don't pop OAuth on auto-check
     triggerGoogleOAuth(clientId, function(){ ohCheckReceipts(btn, false); });
     return;
   }
-  ohRunReceiptsCheck(btn, token, anthropicKey, silent);
+  ohRunReceiptsCheck(btn, token, silent);
 }
 
-async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
+async function ohRunReceiptsCheck(btn, token, silent) {
   if (btn) { btn.disabled = true; btn.textContent = '📷 Checking…'; }
   try {
     // Find STS Receipts folder
@@ -982,7 +979,7 @@ async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
           { headers: { 'Authorization': 'Bearer ' + token } });
         var blob   = await imgR.blob();
         var base64 = await ohBlobToBase64(blob);
-        var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
+        var data   = await ohReceiptVision(base64, file.mimeType);
         if (data) {
           var lineItems = Array.isArray(data.line_items) ? data.line_items.map(function(li) {
             return {
@@ -1043,15 +1040,13 @@ async function ohRunReceiptsCheck(btn, token, anthropicKey, silent) {
 function ohRelinkReceipts(btn) {
   var clientId = localStorage.getItem('sts-google-client-id');
   if (!clientId) { openIntegrationsModal(); toast('Set up your Google Client ID in Integrations first', 'ℹ'); return; }
-  var anthropicKey = localStorage.getItem('sts-anthropic-key');
-  if (!anthropicKey) { openIntegrationsModal(); toast('Enter your Anthropic API key in Integrations to read receipts', 'ℹ'); return; }
   if (!confirm('This re-scans every receipt in the STS Receipts Drive folder with Claude Vision to reattach lost receipt links. It may take a while for large folders. Continue?')) return;
   var token = getGoogleToken();
   if (!token) { triggerGoogleOAuth(clientId, function(){ ohRelinkReceipts(btn); }); return; }
-  ohRunRelinkReceipts(btn, token, anthropicKey);
+  ohRunRelinkReceipts(btn, token);
 }
 
-async function ohRunRelinkReceipts(btn, token, anthropicKey) {
+async function ohRunRelinkReceipts(btn, token) {
   if (btn) { btn.disabled = true; btn.textContent = '🔗 Scanning…'; }
   try {
     var q = "name='" + OH_RECEIPTS_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
@@ -1087,7 +1082,7 @@ async function ohRunRelinkReceipts(btn, token, anthropicKey) {
           { headers: { 'Authorization': 'Bearer ' + token } });
         var blob   = await imgR.blob();
         var base64 = await ohBlobToBase64(blob);
-        var data   = await ohReceiptVision(base64, file.mimeType, anthropicKey);
+        var data   = await ohReceiptVision(base64, file.mimeType);
         if (data) {
           var amt  = data.amount != null ? parseFloat(data.amount) : null;
           var date = data.date || '';
@@ -1158,21 +1153,16 @@ async function ohRunRelinkReceipts(btn, token, anthropicKey) {
   }
 }
 
-async function ohReceiptVision(base64, mimeType, key) {
+async function ohReceiptVision(base64, mimeType) {
   var isPdf = mimeType === 'application/pdf';
   var source = isPdf
     ? { type: 'base64', media_type: 'application/pdf', data: base64 }
     : { type: 'base64', media_type: mimeType, data: base64 };
   var contentType = isPdf ? 'document' : 'image';
 
-  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+  var resp = await fetch('/api/claude-proxy', {
     method: 'POST',
-    headers: {
-      'x-api-key':                                 key,
-      'anthropic-version':                         '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'content-type':                              'application/json',
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,

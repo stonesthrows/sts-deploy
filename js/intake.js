@@ -594,17 +594,6 @@ function intakeNew() {
   intakeReset();
 }
 
-// ── Anthropic key for the handwriting converter — the standalone PWA has
-//    its own localStorage silo, so the key saved in the main app's Designs
-//    tab doesn't reach here automatically ──
-function intakeSetKey() {
-  const current = localStorage.getItem('sts-anthropic-key') || '';
-  const key = prompt('Anthropic API key for handwriting-to-type\n(stored only on this device):', current);
-  if (key === null) return;
-  if (key.trim()) { localStorage.setItem('sts-anthropic-key', key.trim()); toast('API key saved ✓', '✓'); }
-  else { localStorage.removeItem('sts-anthropic-key'); toast('API key cleared', '✓'); }
-}
-
 // ════════════════════════════════════════════
 //  PHASE 1 UX — sticky total, material presets, deposit presets,
 //  sensitivities, 3-state sync chip. All intake-only: shared
