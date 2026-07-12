@@ -16,6 +16,11 @@ let _designsCatFilter = 'all';
 let _designsImgQueue = [];      // base64 strings staged for current edit session
 let _designsImgEditMode = false;
 
+// BOM (Phase 3): material recipe on the design record
+let _designsBom       = [];   // [{materialId, qty}] staged for current edit
+let _designsMaterials = null; // active materials for the picker (null = loading)
+let _shopSettings     = null; // {wasteDefaultPct, wastePctByMetal, …} from /api/shop-settings
+
 // ── KV API helpers ────────────────────────────
 async function _designsApiFetch(id) {
   const url = id ? `/api/designs?id=${encodeURIComponent(id)}` : '/api/designs';
@@ -58,6 +63,22 @@ async function designsInit() {
   await designsLoad();
   await _designsMigrateLocalStorage();
   designsShowLibrary();
+  _designsLoadCosting();
+}
+
+// Background load of the materials picker + waste settings (BOM editor).
+// Runs on every tab visit so new library entries appear without a reload;
+// never blocks the library view — re-renders the BOM section when it lands.
+function _designsLoadCosting() {
+  if (typeof _materialsApiFetch === 'function') {
+    _materialsApiFetch()
+      .then(ms => { _designsMaterials = ms.filter(m => m.active !== false); _designsBomRender(); })
+      .catch(() => { if (_designsMaterials === null) _designsMaterials = []; _designsBomRender(); });
+  }
+  fetch('/api/shop-settings')
+    .then(r => r.json())
+    .then(s => { _shopSettings = (s && !s.error) ? s : {}; dsnWasteDefaultsRefreshLabel(); dsnBomRecalcEffective(); })
+    .catch(() => { if (_shopSettings === null) _shopSettings = {}; dsnWasteDefaultsRefreshLabel(); });
 }
 
 function _designsShowLoadingPlaceholder() {
@@ -165,11 +186,15 @@ function designsRenderLibrary() {
     const imgBadge = imgCount > 1 ? `<span class="dsn-img-badge">+${imgCount - 1}</span>` : '';
     const cat     = d.category || 'Uncategorized';
     const preview = (d.preview || '').slice(0, 90).replace(/\n/g, ' ') || 'No details';
+    const bomN    = Array.isArray(d.bom) ? d.bom.length : 0;
+    const bomChip = bomN
+      ? `<div class="dsn-cat-chip dsn-bom-chip weighed">⚖ ${bomN} material${bomN !== 1 ? 's' : ''}</div>`
+      : `<div class="dsn-cat-chip dsn-bom-chip">⚖ Not weighed</div>`;
     return `
       <div class="dsn-card" onclick="designsShowForm('${d.id}')">
         <div class="dsn-card-thumb-wrap">${thumb}${imgBadge}</div>
         <div class="dsn-card-body">
-          <div class="dsn-cat-chip">${cat}</div>
+          <div class="dsn-cat-chip">${cat}</div>${bomChip}
           <div class="dsn-card-name">${escHtml(d.name || 'Untitled')}</div>
           <div class="dsn-card-preview">${escHtml(preview)}${preview.length >= 90 ? '…' : ''}</div>
         </div>
@@ -194,6 +219,13 @@ function designsRenderForm() {
   document.getElementById('dsn-cat').value           = design ? (design.category     || '') : '';
   document.getElementById('dsn-specs').value         = design ? (design.specs        || '') : '';
   document.getElementById('dsn-instructions').value  = design ? (design.instructions || '') : '';
+
+  _designsBom = (design && Array.isArray(design.bom))
+    ? design.bom.map(l => ({ materialId: l.materialId, qty: l.qty }))
+    : [];
+  const wasteEl = document.getElementById('dsn-waste');
+  if (wasteEl) wasteEl.value = (design && design.wasteOverridePct != null) ? design.wasteOverridePct : '';
+  _designsBomRender();
 
   _designsImgQueue = design ? [...(design.images || [])] : [];
   designsRenderImagePreviews();
@@ -264,6 +296,8 @@ async function designsSaveDesign() {
   const now = new Date().toISOString();
   const id  = _designsEditId || ('dsn-' + Date.now());
 
+  dsnBomSyncFromDom();
+  const wasteRaw = (document.getElementById('dsn-waste') || {}).value;
   const design = {
     ...((_designsEditId && _designsCurrentFull) ? _designsCurrentFull : {}),
     id,
@@ -271,6 +305,10 @@ async function designsSaveDesign() {
     category:     document.getElementById('dsn-cat').value,
     specs:        document.getElementById('dsn-specs').value.trim(),
     instructions: document.getElementById('dsn-instructions').value.trim(),
+    bom:          _designsBom
+                    .filter(l => l.materialId && l.qty > 0)
+                    .map(l => ({ materialId: l.materialId, qty: l.qty })),
+    wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
     images:       [..._designsImgQueue],
     createdAt:    (_designsCurrentFull && _designsCurrentFull.createdAt) ? _designsCurrentFull.createdAt : now,
     updatedAt:    now,
@@ -522,4 +560,175 @@ function dsnAutoResizeAll() {
 // ── Utility ───────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ════════════════════════════════════════════
+//  BOM EDITOR (Phase 3)
+//  Material recipe lines on the design record. Metal lines carry a
+//  waste factor: design override → metal-type default → shop default.
+//  Component lines never carry waste.
+// ════════════════════════════════════════════
+
+function _dsnBomMat(id) {
+  return (_designsMaterials || []).find(m => m.notionPageId === id);
+}
+
+function _dsnUnitSuffix(m) {
+  return m && m.unit === 'gram' ? 'g' : 'pc';
+}
+
+// Effective waste % for a metal line (spec §5 hybrid model)
+function _dsnWastePctFor(m) {
+  const ov = parseFloat((document.getElementById('dsn-waste') || {}).value);
+  if (!isNaN(ov)) return ov;
+  const s = _shopSettings || {};
+  const mt = (s.wastePctByMetal || {})[m.metalType];
+  if (typeof mt === 'number') return mt;
+  return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
+}
+
+function _dsnEffectiveLabel(l) {
+  const m = _dsnBomMat(l.materialId);
+  if (!m || !(l.qty > 0)) return '';
+  const unit = _dsnUnitSuffix(m);
+  if (m.category !== 'metal') return l.qty + ' ' + unit;
+  const w = _dsnWastePctFor(m);
+  return '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
+}
+
+function _dsnBomOptions(selectedId) {
+  function opts(list) {
+    return list.map(m =>
+      `<option value="${m.notionPageId}"${m.notionPageId === selectedId ? ' selected' : ''}>${escHtml(m.name || 'Untitled')} (${_dsnUnitSuffix(m)})</option>`
+    ).join('');
+  }
+  const metals = _designsMaterials.filter(m => m.category === 'metal');
+  const comps  = _designsMaterials.filter(m => m.category !== 'metal');
+  return '<option value="">Pick material…</option>'
+    + (metals.length ? '<optgroup label="Metals">'     + opts(metals) + '</optgroup>' : '')
+    + (comps.length  ? '<optgroup label="Components">' + opts(comps)  + '</optgroup>' : '');
+}
+
+function dsnBomAdd() {
+  dsnBomSyncFromDom();
+  _designsBom.push({ materialId: '', qty: null });
+  _designsBomRender();
+}
+
+function _designsBomRender() {
+  const wrap = document.getElementById('dsn-bom-rows');
+  if (!wrap || _designsView !== 'form') return;
+  if (_designsMaterials === null) {
+    wrap.innerHTML = '<div class="dsn-bom-note">Loading materials…</div>';
+    return;
+  }
+  if (!_designsMaterials.length) {
+    wrap.innerHTML = '<div class="dsn-bom-note">No materials in the library yet — seed <strong>Supplies → Materials Library</strong> first.</div>';
+    return;
+  }
+
+  wrap.innerHTML = _designsBom.map((l, i) => {
+    const m = _dsnBomMat(l.materialId);
+    return `<div class="dsn-bom-row" data-idx="${i}">
+      <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
+      <input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">
+      <span class="dsn-bom-eff">${escHtml(_dsnEffectiveLabel(l))}</span>
+      <button type="button" class="dsn-bom-remove" title="Remove line">✕</button>
+    </div>`;
+  }).join('') || '<div class="dsn-bom-note">No materials weighed yet — the recipe powers cost rollups and the replenishment engine.</div>';
+
+  wrap.querySelectorAll('.dsn-bom-row').forEach(row => {
+    const idx   = parseInt(row.dataset.idx, 10);
+    const sel   = row.querySelector('.dsn-bom-mat');
+    const qtyEl = row.querySelector('.dsn-bom-qty');
+    sel.addEventListener('change', () => {
+      const m = _dsnBomMat(sel.value);
+      if (m) qtyEl.placeholder = 'Qty (' + _dsnUnitSuffix(m) + ')';
+      dsnBomSyncFromDom();
+      dsnBomRecalcEffective();
+    });
+    qtyEl.addEventListener('input', () => { dsnBomSyncFromDom(); dsnBomRecalcEffective(); });
+    row.querySelector('.dsn-bom-remove').addEventListener('click', () => {
+      dsnBomSyncFromDom();
+      _designsBom.splice(idx, 1);
+      _designsBomRender();
+    });
+  });
+
+  dsnWasteDefaultsRefreshLabel();
+}
+
+function dsnBomSyncFromDom() {
+  document.querySelectorAll('#dsn-bom-rows .dsn-bom-row').forEach(row => {
+    const l = _designsBom[parseInt(row.dataset.idx, 10)];
+    if (!l) return;
+    l.materialId = row.querySelector('.dsn-bom-mat').value;
+    const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
+    l.qty = isNaN(q) ? null : q;
+  });
+}
+
+// Refresh only the per-row effective-consumption labels (waste % changed)
+function dsnBomRecalcEffective() {
+  document.querySelectorAll('#dsn-bom-rows .dsn-bom-row').forEach(row => {
+    const l = _designsBom[parseInt(row.dataset.idx, 10)];
+    const eff = row.querySelector('.dsn-bom-eff');
+    if (l && eff) eff.textContent = _dsnEffectiveLabel(l);
+  });
+}
+
+// ── Shop-wide waste defaults (shared via /api/shop-settings) ──
+function dsnWasteDefaultsRefreshLabel() {
+  const el = document.getElementById('dsnWasteDefaultsLbl');
+  if (!el) return;
+  if (_shopSettings === null) { el.textContent = 'Waste defaults: loading…'; return; }
+  const pm  = _shopSettings.wastePctByMetal || {};
+  const fmt = v => (typeof v === 'number' ? v + '%' : '—');
+  el.textContent = 'Waste defaults — shop: ' + fmt(_shopSettings.wasteDefaultPct)
+    + ' · sterling: ' + fmt(pm.sterling)
+    + ' · gold-fill: ' + fmt(pm.gold_fill);
+}
+
+function dsnWasteDefaultsToggle() {
+  const p = document.getElementById('dsnWasteDefaultsPanel');
+  if (!p) return;
+  const opening = p.style.display === 'none';
+  if (opening) {
+    const s  = _shopSettings || {};
+    const pm = s.wastePctByMetal || {};
+    document.getElementById('dsnWdShop').value     = s.wasteDefaultPct ?? '';
+    document.getElementById('dsnWdSterling').value = pm.sterling  ?? '';
+    document.getElementById('dsnWdGf').value       = pm.gold_fill ?? '';
+  }
+  p.style.display = opening ? '' : 'none';
+}
+
+async function dsnWasteDefaultsSave() {
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  // Preserve Phase 4 fields (hourly rate, margins) already in the blob
+  const s = Object.assign({}, _shopSettings || {});
+  s.wasteDefaultPct = num(document.getElementById('dsnWdShop').value);
+  s.wastePctByMetal = {};
+  const st = num(document.getElementById('dsnWdSterling').value);
+  const gf = num(document.getElementById('dsnWdGf').value);
+  if (st != null) s.wastePctByMetal.sterling  = st;
+  if (gf != null) s.wastePctByMetal.gold_fill = gf;
+  try {
+    const r = await fetch('/api/shop-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
+    _shopSettings = s;
+    toast('Waste defaults saved', '✓');
+    dsnWasteDefaultsToggle();
+    dsnWasteDefaultsRefreshLabel();
+    dsnBomRecalcEffective();
+  } catch (e) {
+    toast('Save failed — ' + (e.message || e), '❌');
+  }
 }
