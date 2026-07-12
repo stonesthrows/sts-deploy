@@ -155,7 +155,7 @@ const DIRECT_TABS = new Set(['gmail','triplog','notes','home','designs','bgab'])
 const NAV_GROUPS = {
   'custom-orders': ['dashboard','production','customers','print-bag'],
   'inventory':     ['to-restock','inv-adjust','prod-report'],
-  'supplies':      ['supplier','order-history'],
+  'supplies':      ['supplier','order-history','materials'],
   'more':          ['sales','calendar','pj-calc','pj-ref'],
 };
 
@@ -180,6 +180,7 @@ const TAB_HOOKS = {
   gmail:      function() { if (typeof loadScheduledBrief === 'function') loadScheduledBrief(); },
   supplier:   function() { ohInitSupplier(); },
   'order-history': function() { ohInitHistory(); },
+  materials:  function() { if (typeof materialsInit === 'function') materialsInit(); },
   triplog:    function() { if (typeof tlInit === 'function') tlInit(); },
   designs:    function() { if (typeof designsInit === 'function') designsInit(); },
   calendar:   function() { if (typeof calInit === 'function') calInit(); },
