@@ -607,8 +607,7 @@ function _dsnBomMat(id) {
 }
 
 function _dsnUnitSuffix(m) {
-  if (!m) return 'pc';
-  return m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc';
+  return m ? matUnitAbbr(m.unit) : 'pc';
 }
 
 // Effective waste % for a metal line (spec §5 hybrid model) — pure form,
@@ -643,9 +642,11 @@ function _dsnBomOptions(selectedId) {
     ).join('');
   }
   const metals = _designsMaterials.filter(m => m.category === 'metal');
-  const comps  = _designsMaterials.filter(m => m.category !== 'metal');
+  const chains = _designsMaterials.filter(m => m.category === 'chain');
+  const comps  = _designsMaterials.filter(m => m.category !== 'metal' && m.category !== 'chain');
   return '<option value="">Pick material…</option>'
     + (metals.length ? '<optgroup label="Metals">'     + opts(metals) + '</optgroup>' : '')
+    + (chains.length ? '<optgroup label="Chains">'     + opts(chains) + '</optgroup>' : '')
     + (comps.length  ? '<optgroup label="Components">' + opts(comps)  + '</optgroup>' : '');
 }
 

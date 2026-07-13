@@ -79,8 +79,7 @@ function _rcvMat(id) {
 }
 
 function _rcvUnitSuffix(m) {
-  if (!m) return 'pc';
-  return m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc';
+  return m ? matUnitAbbr(m.unit) : 'pc';
 }
 
 function _rcvMatOptions(selectedId) {
@@ -94,9 +93,11 @@ function _rcvMatOptions(selectedId) {
     }).join('');
   }
   var metals = _rcvMaterials.filter(function(m){ return m.category === 'metal'; });
-  var comps  = _rcvMaterials.filter(function(m){ return m.category !== 'metal'; });
+  var chains = _rcvMaterials.filter(function(m){ return m.category === 'chain'; });
+  var comps  = _rcvMaterials.filter(function(m){ return m.category !== 'metal' && m.category !== 'chain'; });
   return '<option value="">Pick material…</option>'
     + (metals.length ? '<optgroup label="Metals">'     + opts(metals) + '</optgroup>' : '')
+    + (chains.length ? '<optgroup label="Chains">'     + opts(chains) + '</optgroup>' : '')
     + (comps.length  ? '<optgroup label="Components">' + opts(comps)  + '</optgroup>' : '');
 }
 

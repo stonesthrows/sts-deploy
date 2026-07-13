@@ -96,7 +96,7 @@ function _coCompute(session) {
     return {
       materialId: id,
       name: m.name || 'Material',
-      unit: m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc',
+      unit: matUnitAbbr(m.unit),
       qty: Math.round(totals[id] * 100) / 100,
     };
   });

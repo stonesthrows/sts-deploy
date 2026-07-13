@@ -9,6 +9,13 @@ let _materialsCatFilter = 'all';
 let _materialsEditId = null; // null = new, notionPageId = editing existing
 let _materialsPurchases = null; // materialId -> [{date, cost}] asc, from Order History
 
+// Unit → display abbreviation. Shared by every module that renders
+// material quantities (designs, receiving, replenish, closeout) —
+// materials.js loads before all of them.
+function matUnitAbbr(unit) {
+  return unit === 'gram' ? 'g' : unit === 'ozt' ? 'ozt' : unit === 'foot' ? 'ft' : 'pc';
+}
+
 // ── API helpers ────────────────────────────────
 async function _materialsApiFetch() {
   const resp = await fetch('/api/materials');
@@ -94,7 +101,7 @@ function materialsSparkline(m) {
   const coords = pts.map((v, i) => [pad + i * step, h - pad - ((v - min) / span) * (h - 2 * pad)]);
   const poly = coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
   const last = coords[coords.length - 1];
-  const unit = m.unit === 'gram' ? '/g' : m.unit === 'ozt' ? '/ozt' : '/pc';
+  const unit = '/' + matUnitAbbr(m.unit);
   const title = pts.length + ' purchases: $' + pts[0].toFixed(2) + ' → $' + pts[pts.length - 1].toFixed(2) + unit;
   return '<svg class="mat-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + escHtml(title) + '">'
     + '<title>' + escHtml(title) + '</title>'
@@ -131,6 +138,7 @@ function materialsRender() {
 
   document.getElementById('materials-stat-total').textContent    = _materials.length;
   document.getElementById('materials-stat-metals').textContent   = _materials.filter(m => m.category === 'metal').length;
+  document.getElementById('materials-stat-chains').textContent   = _materials.filter(m => m.category === 'chain').length;
   document.getElementById('materials-stat-components').textContent = _materials.filter(m => m.category === 'component').length;
   document.getElementById('materials-stat-unweighed').textContent = _materials.filter(m => m.stockConfidence === 'estimated').length;
 
@@ -144,7 +152,7 @@ function materialsRender() {
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
       : '—';
     const cost = m.currentCostPerUnit != null ? `$${Number(m.currentCostPerUnit).toFixed(2)}` : '—';
-    const stock = m.stockLevel != null ? `${m.stockLevel} ${m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc'}` : '—';
+    const stock = m.stockLevel != null ? `${m.stockLevel} ${matUnitAbbr(m.unit)}` : '—';
     const confClass = m.stockConfidence ? `mat-conf mat-conf-${m.stockConfidence}` : 'mat-conf';
     return `
       <tr class="${m.active === false ? 'mat-inactive' : ''}" onclick="materialsOpenEdit('${m.notionPageId}')">
