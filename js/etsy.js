@@ -16,7 +16,10 @@ async function etsySync() {
   toast('Syncing Etsy orders…', '🛍');
 
   try {
-    const since = localStorage.getItem(ETSY_SYNC_KEY) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    // Fixed 30-day window (not just since the last sync): already-imported
+    // orders are revisited so fields added by newer proxy versions — the
+    // ship-by deadline, spec'd items — can be backfilled onto them.
+    const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const r     = await fetch(ETSY_PROXY + '?since=' + encodeURIComponent(since));
 
     if (r.status === 401) {
@@ -35,28 +38,35 @@ async function etsySync() {
       return;
     }
 
-    const existingIds = new Set(ORDERS.map(o => o.id));
-    const toImport    = etsyOrders.filter(eo => !existingIds.has(etsyAppId(eo.etsyReceiptId)));
-
-    if (!toImport.length) {
-      toast('No new Etsy orders', '✓');
-      localStorage.setItem(ETSY_SYNC_KEY, new Date().toISOString().slice(0, 10));
-      return;
-    }
-
-    let imported = 0;
-    for (const eo of toImport) {
-      const order = etsyToOrder(eo);
-      ORDERS.push(order);
-      const notionId = await notionCreateOrder(order);
-      if (notionId) order.notionId = notionId;
-      imported++;
+    const byId = new Map(ORDERS.map(o => [o.id, o]));
+    let imported = 0, backfilled = 0;
+    for (const eo of etsyOrders) {
+      const existing = byId.get(etsyAppId(eo.etsyReceiptId));
+      const fresh    = etsyToOrder(eo);
+      if (!existing) {
+        ORDERS.push(fresh);
+        const notionId = await notionCreateOrder(fresh);
+        if (notionId) fresh.notionId = notionId;
+        imported++;
+      } else if (typeof backfillEcomOrder === 'function' && backfillEcomOrder(existing, fresh)) {
+        if (existing.notionId && typeof notionUpdateOrder === 'function') {
+          try { await notionUpdateOrder(existing); } catch (e) { console.warn('etsy backfill notion sync', e); }
+        }
+        backfilled++;
+      }
     }
 
     localStorage.setItem(ETSY_SYNC_KEY, new Date().toISOString().slice(0, 10));
+    if (!imported && !backfilled) {
+      toast('No new Etsy orders', '✓');
+      return;
+    }
     saveToStorage();
     renderKanban();
-    toast(`Imported ${imported} Etsy order${imported !== 1 ? 's' : ''}`, '🛍');
+    const bits = [];
+    if (imported)   bits.push(`Imported ${imported} Etsy order${imported !== 1 ? 's' : ''}`);
+    if (backfilled) bits.push(`updated ${backfilled} existing`);
+    toast(bits.join(' · '), '🛍');
 
   } catch (e) {
     console.error('Etsy sync error', e);

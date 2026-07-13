@@ -188,8 +188,11 @@ function cleanProductTitle(title, opts) {
     if (dashIdx !== -1) tail = last.slice(dashIdx + 1).trim();
     t = segs[0];
   }
-  const tidy = s => s.replace(/\s*[,·]\s*(?=[,·])/g, '').replace(/\s{2,}/g, ' ')
-                     .replace(/^[\s,·—-]+|[\s,·—-]+$/g, '').trim();
+  // Also drop "Yellow/"-style fragments left when the word after a slash
+  // was a stripped spec ("Yellow/Rose Gold Fill," → "Yellow/ ,").
+  const tidy = s => s.replace(/(^|\s)([A-Za-z][\w-]*)\/(?=\s+(?:[,·—]|$)|\s*$)/g, '$1')
+                     .replace(/\s*[,·]\s*(?=[,·])/g, '').replace(/\s{2,}/g, ' ')
+                     .replace(/^[\s,·—-]+|[\s,·—-]+$/g, '').replace(/[\s,·—-]+$/g, '').trim();
   t = tidy(t.replace(TITLE_AUDIENCE_RX, ' ').replace(TITLE_FILLER_RX, ' '));
   if (spec) {
     let stripped = t;
@@ -408,6 +411,26 @@ function etsyToOrder(eo) {
 
 function printLayoutFor(kind) {
   return ORDER_KIND_TO_LAYOUT[kind] || 'custom';
+}
+
+// Re-sync backfill for ecom orders imported before newer proxy fields
+// existed (spec'd items, Etsy's ship-by deadline). Fills only what's
+// missing or machine-vintage — never overwrites human-edited data.
+// Returns true when anything changed.
+function backfillEcomOrder(o, fresh) {
+  let changed = false;
+  if (!o.deadline && fresh.deadline) { o.deadline = fresh.deadline; changed = true; }
+  const specless = it => it && it.metal === undefined && it.width === undefined &&
+                         it.finish === undefined && !it.ringSize;
+  const items = Array.isArray(o.items) ? o.items : [];
+  if (Array.isArray(fresh.items) && fresh.items.length &&
+      (!items.length || items.every(specless))) {
+    o.items    = fresh.items;
+    o.desc     = fresh.desc     || o.desc;
+    o.ringSize = fresh.ringSize || o.ringSize;
+    changed = true;
+  }
+  return changed;
 }
 
 // Print-ready structured items for the ecom bag layout. Handles three
