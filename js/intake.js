@@ -156,6 +156,10 @@ function intakeApplyTypeLayout(type) {
   const oiSection = document.getElementById('oi-section');
   if (oiSection) oiSection.style.display = (isSingle && type !== 'square-item') ? '' : 'none';
 
+  // Repair has no Order Description — the Repair Instructions field covers it.
+  const descFg = document.getElementById('orderdesc-fg');
+  if (descFg) descFg.style.display = (type === 'repair') ? 'none' : '';
+
   // Total/Deposit/Balance Due/Paid By show for every order type — deposits
   // are taken at the counter during intake, Custom Design included (its
   // Total is still fed by the Estimate Builder's "Use Estimate").
@@ -388,7 +392,7 @@ function _intakeValidate() {
     if (el) { el.style.borderColor = '#E05050'; el.addEventListener('input', () => el.style.borderColor = '', { once: true }); }
   };
   if (!getFullName()) { toast('Please fill in the customer name', '⚠'); flag('f-firstname'); intakeStep(1); return false; }
-  if (!desc) { toast('Please add an Order Description', '⚠'); flag('f-description'); intakeStep(1); return false; }
+  if (!desc && typeVal !== 'repair') { toast('Please add an Order Description', '⚠'); flag('f-description'); intakeStep(1); return false; }
   return true;
 }
 
@@ -408,6 +412,9 @@ async function intakeSubmit() {
   let   desc      = g('f-description').value.trim();
   // Square Item: fall back to the picked catalog item names if no description typed.
   if (isSquare && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
+  // Repair hides the Order Description field — drop any value typed before
+  // the type was switched so it doesn't submit invisibly.
+  if (typeVal === 'repair') desc = '';
 
   if (!_intakeValidate()) return;
   if (btn) btn.disabled = true;
