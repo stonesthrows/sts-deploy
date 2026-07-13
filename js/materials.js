@@ -203,7 +203,13 @@ function materialsOpenEdit(id) {
   document.getElementById('matCost').value = m.currentCostPerUnit ?? '';
   document.getElementById('matStock').value = m.stockLevel ?? '';
   document.getElementById('matConfidence').value = m.stockConfidence || 'estimated';
-  document.getElementById('matSupplier').value = m.supplierDefault || '';
+  // Imported/Notion-side suppliers may not be in the fixed option list —
+  // add them so the select can show (and re-save) the stored value.
+  const supSel = document.getElementById('matSupplier');
+  if (m.supplierDefault && ![...supSel.options].some(o => o.value === m.supplierDefault)) {
+    supSel.add(new Option(m.supplierDefault, m.supplierDefault));
+  }
+  supSel.value = m.supplierDefault || '';
   document.getElementById('matActive').checked = m.active !== false;
   document.getElementById('materialsModalDelete').style.display = '';
   materialsToggleMetalFields();
@@ -254,6 +260,198 @@ async function materialsSave() {
   } catch (e) {
     toast('Save failed — ' + (e.message || e), '❌');
   }
+}
+
+// ── Import from Order History ───────────────────
+// Scans supplier Order History line items in the Materials tax category,
+// groups repeat purchases of the same description, and offers them as
+// review-and-confirm candidates. Historical lines only carry a line TOTAL
+// (no qty / per-unit cost), so cost is left for the user to type and stock
+// starts unknown ('estimated'); the first Receive Shipment fills both.
+let _matImpCands = [];
+
+const _MAT_IMP_UNIT_BY_CAT = { metal: 'ozt', chain: 'foot', component: 'piece' };
+
+function _matImpGuessCat(desc) {
+  const l = (desc || '').toLowerCase();
+  if (/chain/.test(l)) return 'chain';
+  if (/wire|sheet|ingot|casting|grain|shot|granule|solder/.test(l)) return 'metal';
+  return 'component';
+}
+
+// Metal-only spec fields, guessed from the (possibly user-edited) name at
+// import time. Editable afterwards in the normal edit modal.
+function _matImpMetalSpec(name) {
+  const l = (name || '').toLowerCase();
+  const ga = l.match(/(\d{1,2})\s*-?\s*ga/);
+  return {
+    metalType: /argentium|sterling|\bsilver\b/.test(l) ? 'argentium'
+      : /gold[\s-]?fill|14\/20/.test(l) ? 'gold_fill' : '',
+    form: /sheet/.test(l) ? 'sheet' : /wire/.test(l) ? 'wire' : '',
+    gauge: ga ? ga[1] + 'ga' : '',
+  };
+}
+
+function _matImpNorm(s) {
+  return (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function materialsImportOpen() {
+  _matImpCands = [];
+  document.getElementById('matImpList').innerHTML = '';
+  document.getElementById('matImpStatus').textContent = 'Scanning order history…';
+  const saveBtn = document.getElementById('matImpSaveBtn');
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Import Selected';
+  document.getElementById('materialsImportModalBg').classList.add('open');
+
+  let orders = null;
+  try { orders = await fetch('/api/notion-orders').then(r => r.json()); } catch (e) { /* fall back to cache */ }
+  if (!Array.isArray(orders)) {
+    try { orders = JSON.parse(localStorage.getItem(typeof OH_KEY !== 'undefined' ? OH_KEY : 'sot_history_v1')); } catch (e) { /* no cache */ }
+  }
+  if (!Array.isArray(orders) || !orders.length) {
+    document.getElementById('matImpStatus').textContent = 'No order history found — add supplier orders (or run Receive Shipment) first.';
+    return;
+  }
+  if (!_materials.length) {
+    try { _materials = await _materialsApiFetch(); } catch (e) { /* name-dedupe just won't apply */ }
+  }
+  const existing = new Set(_materials.map(m => _matImpNorm(m.name)));
+
+  const byKey = {};
+  orders.forEach(o => {
+    (o.lineItems || []).forEach(li => {
+      if (li.category !== 'Materials') return;
+      if (li.materialId) return; // already linked to a library material
+      const key = _matImpNorm(li.desc);
+      if (!key || existing.has(key)) return;
+      const c = byKey[key] = byKey[key] || { name: (li.desc || '').trim(), sup: '', count: 0, lastDate: '', lastAmt: null };
+      c.count++;
+      if ((o.date || '') >= c.lastDate) {
+        c.lastDate = o.date || '';
+        c.sup = o.sup || '';
+        c.lastAmt = li.amt != null ? parseFloat(li.amt) : c.lastAmt;
+      }
+    });
+  });
+
+  _matImpCands = Object.values(byKey).sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
+  if (!_matImpCands.length) {
+    document.getElementById('matImpStatus').textContent = 'Nothing to import — every Materials line item is already in the library or linked to it.';
+    return;
+  }
+  _matImpRender();
+}
+
+// Rows are built via DOM APIs (not innerHTML value="…") because receipt
+// descriptions routinely contain double quotes (6" Sheet).
+function _matImpRender() {
+  const status = document.getElementById('matImpStatus');
+  status.innerHTML = '';
+  status.append(`${_matImpCands.length} item${_matImpCands.length === 1 ? '' : 's'} found in Materials line items — un-check what you don't want, fix names/categories, add cost per unit if known. `);
+  const all = document.createElement('a');
+  all.href = '#'; all.textContent = 'Select all';
+  all.onclick = () => { materialsImportToggleAll(true); return false; };
+  const none = document.createElement('a');
+  none.href = '#'; none.textContent = 'none';
+  none.onclick = () => { materialsImportToggleAll(false); return false; };
+  status.append(all, ' · ', none);
+
+  const list = document.getElementById('matImpList');
+  list.innerHTML = '';
+  _matImpCands.forEach((c, i) => {
+    const cat = _matImpGuessCat(c.name);
+    const row = document.createElement('div');
+    row.className = 'mat-imp-row';
+    row.dataset.i = i;
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid rgba(128,128,128,.2);';
+
+    const sel = document.createElement('input');
+    sel.type = 'checkbox'; sel.checked = true; sel.className = 'mi-sel';
+    sel.style.cssText = 'width:auto;margin:0;';
+
+    const name = document.createElement('input');
+    name.type = 'text'; name.className = 'mi-name'; name.value = c.name;
+    name.style.cssText = 'flex:2;min-width:220px;';
+
+    const catSel = document.createElement('select');
+    catSel.className = 'mi-cat';
+    [['metal', 'Metal'], ['chain', 'Chain'], ['component', 'Component']].forEach(([v, l]) => catSel.add(new Option(l, v)));
+    catSel.value = cat;
+
+    const unitSel = document.createElement('select');
+    unitSel.className = 'mi-unit';
+    [['gram', 'Gram'], ['ozt', 'Troy Oz'], ['foot', 'Foot'], ['piece', 'Piece']].forEach(([v, l]) => unitSel.add(new Option(l, v)));
+    unitSel.value = _MAT_IMP_UNIT_BY_CAT[cat];
+    catSel.onchange = () => { unitSel.value = _MAT_IMP_UNIT_BY_CAT[catSel.value]; };
+
+    const cost = document.createElement('input');
+    cost.type = 'number'; cost.className = 'mi-cost';
+    cost.step = '0.01'; cost.min = '0'; cost.placeholder = '$/unit';
+    cost.style.cssText = 'width:84px;';
+
+    const meta = document.createElement('div');
+    meta.className = 'mi-meta';
+    meta.style.cssText = 'flex-basis:100%;font-size:11px;color:var(--text-dim);padding-left:24px;';
+    meta.textContent = [
+      c.sup || 'Unknown supplier',
+      `${c.count} purchase${c.count === 1 ? '' : 's'}`,
+      c.lastAmt != null ? `last line total $${c.lastAmt.toFixed(2)}${c.lastDate ? ' on ' + c.lastDate : ''}` : '',
+    ].filter(Boolean).join(' · ');
+
+    row.append(sel, name, catSel, unitSel, cost, meta);
+    list.appendChild(row);
+  });
+}
+
+function materialsImportToggleAll(on) {
+  document.querySelectorAll('#matImpList .mi-sel').forEach(cb => { cb.checked = on; });
+}
+
+function materialsImportClose(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('materialsImportModalBg').classList.remove('open');
+}
+
+async function materialsImportSave() {
+  const picked = [];
+  document.querySelectorAll('#matImpList .mat-imp-row').forEach(row => {
+    if (!row.querySelector('.mi-sel').checked) return;
+    const name = row.querySelector('.mi-name').value.trim();
+    if (!name) return;
+    const category = row.querySelector('.mi-cat').value;
+    const costVal = row.querySelector('.mi-cost').value;
+    picked.push({
+      name,
+      category,
+      ...(category === 'metal' ? _matImpMetalSpec(name) : { metalType: '', form: '', gauge: '' }),
+      unit: row.querySelector('.mi-unit').value,
+      currentCostPerUnit: costVal === '' ? null : Number(costVal),
+      stockLevel: null,
+      stockConfidence: 'estimated',
+      supplierDefault: _matImpCands[row.dataset.i].sup || '',
+      active: true,
+    });
+  });
+  if (!picked.length) { toast('Nothing selected to import', '⚠'); return; }
+
+  const btn = document.getElementById('matImpSaveBtn');
+  btn.disabled = true;
+  let ok = 0, failed = 0;
+  for (const m of picked) {
+    btn.textContent = `Importing ${ok + failed + 1}/${picked.length}…`;
+    try { await _materialsApiSave(m); ok++; } catch (e) { failed++; }
+  }
+  btn.disabled = false;
+  btn.textContent = 'Import Selected';
+  if (failed) {
+    toast(`${ok} imported, ${failed} failed — re-open to retry the rest`, '⚠');
+  } else {
+    toast(`${ok} material${ok === 1 ? '' : 's'} imported`, '✓');
+  }
+  document.getElementById('materialsImportModalBg').classList.remove('open');
+  await materialsInit();
 }
 
 async function materialsDelete() {

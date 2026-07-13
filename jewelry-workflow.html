@@ -7048,6 +7048,7 @@
   <div class="oh-head-row">
     <div class="oh-title">Materials Library</div>
     <div class="oh-head-actions">
+      <button class="btn btn-outline btn-sm" onclick="materialsImportOpen()">⬇ Import from Order History</button>
       <button class="btn btn-gold btn-sm" onclick="materialsOpenNew()">＋ Add Material</button>
     </div>
   </div>
@@ -7196,6 +7197,19 @@
         <button type="button" class="btn btn-outline btn-sm" onclick="materialsModalClose()">Cancel</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="materialsSave()">Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import Materials from Order History Modal -->
+<div id="materialsImportModalBg" class="sot-modal-bg" onclick="materialsImportClose(event)">
+  <div class="sot-modal" style="max-width:760px;width:95%;">
+    <h3>Import from Order History</h3>
+    <div id="matImpStatus" style="font-size:12px;color:var(--text-dim);margin:4px 0 10px;">Scanning order history…</div>
+    <div id="matImpList" style="max-height:55vh;overflow-y:auto;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="materialsImportClose()">Cancel</button>
+      <button id="matImpSaveBtn" type="button" class="btn btn-gold btn-sm" onclick="materialsImportSave()">Import Selected</button>
     </div>
   </div>
 </div>
@@ -10673,7 +10687,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/restock.js?v=10"></script>
 <script src="js/restock-sessions.js?v=4"></script>
 <script src="js/supplier-history.js"></script>
-<script src="js/materials.js?v=3"></script>
+<script src="js/materials.js?v=4"></script>
 <script src="js/receiving.js?v=2"></script>
 <script src="js/closeout.js?v=2"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
