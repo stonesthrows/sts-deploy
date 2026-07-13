@@ -1705,7 +1705,12 @@ function printOrder(id) {
     stage:     o.stage       || '',
     fullyPaid: o.fullyPaid   || '',
     workedBy:  o.assignee || ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' })[o.stage] || '',
-    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
+    // desc/amount feed the manual layouts' line-item table; the structured
+    // fields (qty/base/material/size/pers) feed the ecom layout's item table.
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => {
+      const row = { desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) };
+      return (typeof printItemStructured === 'function') ? Object.assign(row, printItemStructured(it)) : row;
+    })),
   });
   // Per-kind layout params (order-normalize.js): drive which print variant
   // the template renders — ecom orders get Source row + Ship To block.

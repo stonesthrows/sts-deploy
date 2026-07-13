@@ -129,6 +129,12 @@ export async function onRequestGet(context) {
       quantity: t.quantity || 1,
       price:    t.price ? t.price.amount / t.price.divisor : 0,
       variant:  (t.variations || []).map(v => v.formatted_value).filter(Boolean).join(', '),
+      // Structured variations so the app can tell metal / size / personalization
+      // apart instead of re-parsing the joined variant string.
+      variations: (t.variations || []).map(v => ({
+        name:  v.formatted_name  || '',
+        value: v.formatted_value || '',
+      })).filter(v => v.value),
     }));
 
     return {

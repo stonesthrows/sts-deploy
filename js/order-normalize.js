@@ -198,19 +198,43 @@ function shopifyToOrder(so) {
 // Etsy proxy row → normalized app order.
 function etsyToOrder(eo) {
   const items = (eo.lineItems || []).map(li => {
-    const varParts = (li.variant || '').split(',').map(s => s.trim()).filter(Boolean);
-    const sizeSeg = varParts.find(p => /size/i.test(p)) ||
-                    varParts.find(p => /^\d+(\.\d+)?\s*US$/i.test(p));
-    const ringSize = sizeSeg ? sizeSeg.replace(/^size[:\s]*/i, '').trim() : '';
+    // Prefer the structured variations the proxy now sends; fall back to
+    // parsing the joined variant string for rows fetched before they existed.
+    let material = '', personalization = '', ringSize = '';
+    const structured = Array.isArray(li.variations) && li.variations.length > 0;
+    if (structured) {
+      const mats = [];
+      li.variations.forEach(v => {
+        const n   = String(v.name || '').toLowerCase();
+        const val = String(v.value || '').trim();
+        if (!val) return;
+        if (/personali[sz]/.test(n))  personalization = val;
+        else if (/size/.test(n))      ringSize = val.replace(/^size[:\s]*/i, '').trim();
+        else                          mats.push(val);
+      });
+      material = mats.join(', ');
+    }
+    if (!ringSize) {
+      const varParts = (li.variant || '').split(',').map(s => s.trim()).filter(Boolean);
+      const sizeSeg = varParts.find(p => /size/i.test(p)) ||
+                      varParts.find(p => /^\d+(\.\d+)?\s*US$/i.test(p));
+      ringSize = sizeSeg ? sizeSeg.replace(/^size[:\s]*/i, '').trim() : '';
+      if (!structured) material = varParts.filter(p => p !== sizeSeg).join(', ');
+    }
+    // Personalization stays out of the display name — it gets its own
+    // verbatim callout on the printed bag.
+    const tail = [material, ringSize].filter(Boolean).join(', ');
     return {
-      type:         'manual',
-      name:         cleanProductTitle(li.title, { variant: li.variant }),
-      rawTitle:     li.title || '',
-      price:        li.price || 0,
-      quantity:     li.quantity || 1,
-      ringSize:     ringSize,
-      isRing:       !!ringSize,
-      noSquareSize: !!ringSize,
+      type:            'manual',
+      name:            cleanProductTitle(li.title, { variant: structured ? tail : li.variant }),
+      rawTitle:        li.title || '',
+      price:           li.price || 0,
+      quantity:        li.quantity || 1,
+      ringSize:        ringSize,
+      material:        material,
+      personalization: personalization,
+      isRing:          !!ringSize,
+      noSquareSize:    !!ringSize,
     };
   });
   const desc = items.length
@@ -246,6 +270,29 @@ function etsyToOrder(eo) {
 
 function printLayoutFor(kind) {
   return ORDER_KIND_TO_LAYOUT[kind] || 'custom';
+}
+
+// Structured per-item fields for the printed bag's item table (ecom layout):
+// { qty, base, material, size, pers }. Prefers fields stored at import time;
+// for orders imported before those existed, teases material out of the
+// display name's "— variant" tail (everything that isn't the size).
+function printItemStructured(it) {
+  const qty  = parseInt(it.quantity, 10) || 1;
+  const name = String(it.name || '');
+  const dash = name.indexOf('—');
+  const base = (dash === -1 ? name : name.slice(0, dash)).trim();
+  const size = String(it.ringSize || '').trim();
+  const pers = String(it.personalization || '').trim();
+  let material = String(it.material || '').trim();
+  if (!material && dash !== -1) {
+    const sizeLc = size.toLowerCase();
+    material = name.slice(dash + 1).split(',')
+      .map(s => s.trim())
+      .filter(s => s && !/^size\b/i.test(s) &&
+                   (!sizeLc || s.toLowerCase().indexOf(sizeLc) === -1))
+      .join(', ');
+  }
+  return { qty: qty, base: base, material: material, size: size, pers: pers };
 }
 
 // Extra query params printOrder() merges into the work-order-print.html URL.

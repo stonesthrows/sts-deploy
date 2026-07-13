@@ -302,17 +302,67 @@
     .form-content[data-layout="resize"] #j-size::before  { content: 'From '; font-size: 8px; font-weight: bold; color: #555; }
     .form-content[data-layout="resize"] #j-size2::before { content: 'To ';   font-size: 8px; font-weight: bold; color: #555; }
 
-    /* E-commerce (Shopify/Etsy): paid online — drop order-type / totals /
-       payment chrome; show the order source and a large Ship To block. */
-    .form-content[data-layout="ecom"] .chk-row  { display: none; }
-    .form-content[data-layout="ecom"] .src-row  { display: flex; border-top: 1px solid #000; }
-    .form-content[data-layout="ecom"] .li-row.tot,
-    .form-content[data-layout="ecom"] .li-row.tot-sep { display: none; }
-    .form-content[data-layout="ecom"] .paid-row { display: none; }
-    .form-content[data-layout="ecom"] .ship-block {
-      display: flex; flex-direction: column; flex: 1.2; min-height: 0;
+    /* ── Structured item table + buyer note (ecom layout only) ──
+       One row per line item with dedicated QTY / ITEM / METAL / SIZE cells so
+       variations can never be attributed to the wrong item; personalization
+       prints verbatim in its own sub-row directly under its item. */
+    .item-block {
+      display: none; flex-direction: column;
+      border: 1px solid #000; border-top: none; flex-shrink: 0;
     }
-    .form-content[data-layout="ecom"] .ship-block .sec-body { flex: 1; min-height: 0; }
+    .it-head { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; flex-shrink: 0; }
+    .it-head span { font-weight: bold; font-size: 8px; padding: 1px 3px; }
+    .it-item + .it-item { border-top: 1px solid #000; }
+    .it-row { display: flex; align-items: stretch; }
+    .it-qty  { width: 0.5in;  border-right: 1px solid #000; text-align: center; flex-shrink: 0; }
+    .it-name { flex: 1;       border-right: 1px solid #000; min-width: 0; }
+    .it-mat  { width: 1.35in; border-right: 1px solid #000; text-align: center; flex-shrink: 0; }
+    .it-size { width: 0.7in;  text-align: center; flex-shrink: 0; }
+    .it-row .it-qty  { font-size: 22px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+    .it-row .it-name { font-size: 13px; font-weight: bold; padding: 4px 5px; display: flex; align-items: center; min-height: 34px; }
+    .it-row .it-mat  { font-size: 12px; padding: 4px 4px; display: flex; align-items: center; justify-content: center; }
+    .it-row .it-size { font-size: 17px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+    .it-pers { border-top: 1px dashed #666; padding: 3px 6px; font-size: 12.5px; line-height: 1.3; }
+    .it-pers-lbl {
+      font-size: 7.5px; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 0.4px; color: #333; margin-right: 5px;
+    }
+
+    .buyer-block { display: none; }
+
+    /* E-commerce (Shopify/Etsy): paid online and always shipped — the bag is
+       a pick/pack ticket. Drop payment, pickup, contact and price chrome;
+       show source, the structured item table, the buyer's message verbatim,
+       and a compact Ship To for verification at pack-out. */
+    .form-content[data-layout="ecom"] .chk-row,
+    .form-content[data-layout="ecom"] .chk-items,
+    .form-content[data-layout="ecom"] .cust-grid,
+    .form-content[data-layout="ecom"] .jd-size-row,
+    .form-content[data-layout="ecom"] .li-block,
+    .form-content[data-layout="ecom"] .paid-row { display: none; }
+    .form-content[data-layout="ecom"] .src-row { display: flex; border-top: 1px solid #000; }
+    /* The dates→customer-grid gap has nothing to separate here — the grid is
+       hidden and the item table should sit flush under the Due row. */
+    .form-content[data-layout="ecom"] .date-row:last-of-type { margin-bottom: 0; }
+    .form-content[data-layout="ecom"] #src-name {
+      font-weight: bold; font-size: 14px; text-transform: uppercase;
+      letter-spacing: 0.5px; border: none; background: transparent; padding: 0;
+      min-width: 0; text-align: left;
+    }
+    .form-content[data-layout="ecom"] .item-block { display: flex; }
+    .form-content[data-layout="ecom"] .buyer-block.has-note {
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .form-content[data-layout="ecom"] .buyer-block .sec-body {
+      font-size: 12.5px; line-height: 1.35; min-height: 24px;
+    }
+    .form-content[data-layout="ecom"] .ship-block {
+      display: flex; flex-direction: column; flex: none;
+      border-bottom: 1px solid #000;
+    }
+    .form-content[data-layout="ecom"] .ship-block .sec-body {
+      font-size: 11.5px !important; line-height: 1.3 !important; min-height: 0;
+    }
   </style>
 </head>
 <body>
@@ -389,6 +439,20 @@
       <span id="c-state" contenteditable="true" style="width:44px; border:1px solid #aaa; padding:1px 4px; text-align:center; font-size:14px; white-space:nowrap;"></span>
       <span id="c-zip"   contenteditable="true" style="flex:1; min-width:66px; border:1px solid #aaa; padding:1px 4px; font-size:14px; white-space:nowrap; overflow:hidden;"></span>
     </div>
+  </div>
+
+  <div class="item-block" id="item-block">
+    <div class="it-head">
+      <span class="it-qty">Qty</span>
+      <span class="it-name">Item</span>
+      <span class="it-mat">Metal / Variation</span>
+      <span class="it-size">Size</span>
+    </div>
+  </div>
+
+  <div class="sec-block buyer-block" id="buyer-block">
+    <div class="sec-head">Buyer Message — verbatim</div>
+    <div class="sec-body" id="buyer-note" contenteditable="true"></div>
   </div>
 
   <div class="jd-size-row" id="jd-size-row">
@@ -559,14 +623,61 @@
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 
-  // Per-layout content: Source row + Ship To block (ecom), relabels (repair/resize)
+  // Per-layout content: Source row + item table + Ship To block (ecom),
+  // relabels (repair/resize)
   if (fc.dataset.layout === 'ecom') {
+    // An online order was placed, not taken in over the counter.
+    document.querySelector('.date-row:not(.src-row) .date-row-label').textContent = 'Ordered';
     document.getElementById('src-name').textContent =
       srcName || (stage === 'etsy-bench' ? 'Etsy' : stage === 'intake-website' ? 'Shopify' : '');
     document.getElementById('src-orderno').textContent = orderNo;
     const cityLine = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
     document.getElementById('ship-to').textContent =
       [name, address, cityLine, country].filter(Boolean).join('\n');
+
+    // Structured item table — one row per line item. Falls back to splitting
+    // the desc text for pre-structured-fields print URLs.
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+    const itemBlock = document.getElementById('item-block');
+    const itemRows = lineItems.length
+      ? lineItems
+      : desc.split('\n').map(s => s.trim()).filter(Boolean).map(d => ({ desc: d }));
+    itemRows.forEach(it => {
+      let nm   = it.base || it.desc || '';
+      let qty  = it.qty || '';
+      let size = it.size || '';
+      if (!qty) {
+        const qm = /^(\d+)\s*[×x]\s*(.*)$/.exec(nm);
+        if (qm) { qty = qm[1]; nm = qm[2]; } else qty = 1;
+      }
+      if (!it.base && !size) {
+        const sm = /\s*[-–—]\s*Size[:\s]*([^,]+)\s*$/i.exec(nm);
+        if (sm) { size = sm[1].trim(); nm = nm.slice(0, sm.index); }
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'it-item';
+      wrap.innerHTML =
+        `<div class="it-row">
+          <span class="it-qty"  contenteditable="true">${esc(qty)}</span>
+          <span class="it-name" contenteditable="true">${esc(nm)}</span>
+          <span class="it-mat"  contenteditable="true">${esc(it.material || '—')}</span>
+          <span class="it-size" contenteditable="true">${esc(size || '—')}</span>
+        </div>` +
+        (it.pers
+          ? `<div class="it-pers"><span class="it-pers-lbl">✎ Personalization</span><span contenteditable="true">&ldquo;${esc(it.pers)}&rdquo;</span></div>`
+          : '');
+      itemBlock.appendChild(wrap);
+    });
+    if (!itemRows.length) itemBlock.style.display = 'none';
+
+    // Buyer message prints verbatim in its own block; the Notes box is left
+    // blank as bench handwriting space (any materials text still shows there).
+    const buyerMsg = (notes || '').trim();
+    if (buyerMsg) {
+      document.getElementById('buyer-note').textContent = buyerMsg;
+      document.getElementById('buyer-block').classList.add('has-note');
+    }
+    document.getElementById('n-notes').textContent = materials ? 'Materials: ' + materials : '';
   }
   if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
     document.querySelector('.jd-panel .sec-head').textContent = 'Item Taken In / Job';
