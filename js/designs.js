@@ -642,10 +642,15 @@ function _dsnBomOptions(selectedId) {
     ).join('');
   }
   const metals = _designsMaterials.filter(m => m.category === 'metal');
+  const wire   = metals.filter(m => m.form === 'wire');
+  const sheet  = metals.filter(m => m.form === 'sheet');
+  const others = metals.filter(m => m.form !== 'wire' && m.form !== 'sheet');
   const chains = _designsMaterials.filter(m => m.category === 'chain');
   const comps  = _designsMaterials.filter(m => m.category !== 'metal' && m.category !== 'chain');
   return '<option value="">Pick material…</option>'
-    + (metals.length ? '<optgroup label="Metals">'     + opts(metals) + '</optgroup>' : '')
+    + (wire.length   ? '<optgroup label="Wire">'       + opts(wire)   + '</optgroup>' : '')
+    + (sheet.length  ? '<optgroup label="Sheet">'      + opts(sheet)  + '</optgroup>' : '')
+    + (others.length ? '<optgroup label="Metals">'     + opts(others) + '</optgroup>' : '')
     + (chains.length ? '<optgroup label="Chains">'     + opts(chains) + '</optgroup>' : '')
     + (comps.length  ? '<optgroup label="Components">' + opts(comps)  + '</optgroup>' : '');
 }
