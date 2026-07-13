@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Custom Work Order (Sketch Layout) — PROTOTYPE</title>
+  <!--
+    ══════════════════════════════════════════════════════════════
+    PROTOTYPE — not wired into the app. Nothing links here yet and
+    work-order-print.html is untouched; printOrder() still opens the
+    existing custom layout. Review candidate for the custom-order bag:
+    a sketch-canvas layout ("Proto C") where the intake app's sketch
+    (order.sketchImg) prints in the middle of the bag.
+
+    Data contract (what an eventual printOrder() integration passes):
+      · Same query params as work-order-print.html:
+        name, email, phone, address, city, state, zip, takeIn, deadline,
+        pickup, desc, notes, materials, ringSize, deposit, shipping,
+        fullyPaid, items (JSON [{desc, amount}])
+      · New params: jobTitle, pieceType, stones, finish, chain, wrist,
+        neck, giftFor, giftDate, giftSurprise=1
+      · Sketch: base64 PNGs are too big for a URL — the app stores it at
+        localStorage['sts-print-sketch'] right before window.open, and
+        this page reads + clears that key.
+
+    Demo modes for review (no app needed):
+      ?demo=1  sparse walk-in order — empty dot-grid canvas
+      ?demo=2  maxed-out order — sketch, gift strip, stones, finish,
+               items, shipping, ship-to address
+    Prints like the other bag templates: 5.5"×8.5" rotated 90° CW onto
+    the top half of an 8.5"×11" letter sheet.
+    ══════════════════════════════════════════════════════════════
+  -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body { font-family: Calibri, Arial, sans-serif; color: #111; background: #fff; }
+
+    .form-content {
+      width: 5.5in; height: 8.5in;
+      padding: 0.17in 0.19in 0.15in;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    @media screen {
+      body { background: #666; padding: 24px; }
+      .screen-note { font-family: Arial, sans-serif; font-size: 12px; color: #fff;
+                     text-align: center; margin-bottom: 10px; }
+      .form-content { background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.5); margin: 0 auto; }
+      .print-bar { text-align: center; margin-bottom: 10px; }
+      .print-btn { background: #7A5C3A; color: #fff; border: none; padding: 8px 22px;
+                   font-size: 13px; border-radius: 5px; cursor: pointer; font-family: inherit; }
+      .print-btn:hover { background: #5e4428; }
+    }
+
+    @media print {
+      body { margin: 0; padding: 0; background: #fff; }
+      .no-print { display: none !important; }
+      @page { size: 8.5in 11in portrait; margin: 0; }
+      .form-content {
+        position: absolute; top: -1.5in; left: 1.5in;
+        transform: rotate(90deg); transform-origin: center;
+      }
+    }
+
+    /* ── Shared bits ── */
+    .lbl { font-size: 7.5px; font-weight: bold; letter-spacing: 1.8px;
+           text-transform: uppercase; color: #555; }
+    .bx { display: inline-block; width: 11px; height: 11px; border: 1.2px solid #333;
+          vertical-align: -2px; }
+    .ck { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; }
+    [contenteditable] { outline: none; cursor: text; }
+    [contenteditable]:hover, [contenteditable]:focus { background: #fffbe6; }
+    @media print { [contenteditable]:hover, [contenteditable]:focus { background: transparent !important; } }
+
+    /* ── Header ── */
+    .top { display: flex; justify-content: space-between; align-items: baseline;
+           padding-bottom: 7px; border-bottom: 1px solid #111; }
+    .top b { font-size: 15px; }
+    .grid3 { display: flex; border-bottom: 1px solid #111; }
+    .g { flex: 1; padding: 6px 10px 7px 0; min-width: 0; }
+    .g + .g { border-left: 1px solid #ccc; padding-left: 10px; }
+    .g .v { display: block; font-size: 13px; font-weight: bold; margin-top: 1px; }
+    .g .sub { font-size: 10.5px; color: #333; margin-top: 1px; line-height: 1.3; }
+    .g.cust { flex: 1.35; }
+
+    /* ── Gift strip (conditional) ── */
+    .gift { display: none; border: 1.5px solid #111; margin-top: 7px;
+            padding: 4px 10px; font-size: 11.5px; align-items: center; gap: 8px; }
+    .gift.show { display: flex; }
+    .gift b { font-size: 11.5px; }
+    .gift .sup { margin-left: auto; font-weight: bold; white-space: nowrap; }
+
+    /* ── Job block ── */
+    .jobline { padding: 8px 0 2px; }
+    .jobline .pt { margin-bottom: 1px; }
+    .jobline .t { font-size: 14px; font-weight: bold; }
+    .jobline .d { font-size: 12px; line-height: 1.35; margin-top: 2px; }
+    .jobline .kvline { font-size: 11px; margin-top: 3px; display: none; }
+    .jobline .kvline.show { display: block; }
+    .jobline .kvline .lbl { margin-right: 5px; }
+
+    /* ── Sketch canvas ── */
+    .canvas { flex: 1; margin-top: 6px; border: 1px solid #999; position: relative;
+              min-height: 1.6in; overflow: hidden;
+              background-image: radial-gradient(circle, #c9c9c9 1px, transparent 1px);
+              background-size: 24px 24px; background-position: 12px 12px;
+              -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .canvas.has-img { background: #fff; }
+    .canvas img { position: absolute; inset: 0; width: 100%; height: 100%;
+                  object-fit: contain; }
+    .canvas .tag { position: absolute; top: 6px; left: 8px; background: #fff; padding: 0 4px; z-index: 1; }
+    .canvas .szbox { position: absolute; right: 8px; top: 6px; background: #fff;
+                     border: 1px solid #999; padding: 4px 9px; font-size: 11px; z-index: 1;
+                     display: none; }
+    .canvas .szbox.show { display: block; }
+    .canvas .szbox b { font-size: 14px; }
+    .canvas .szbox .lbl { margin-right: 3px; }
+    .canvas .szbox span + span { margin-left: 8px; }
+
+    /* ── Bench notes ── */
+    .notes { margin-top: 8px; }
+    .notes .mat { font-size: 11.5px; margin-top: 2px; }
+    .notes .rule { border-bottom: 1px solid #bbb; height: 24px; }
+
+    /* ── Items + money strip ── */
+    .items { margin-top: 8px; display: none; }
+    .items.show { display: block; }
+    .items .ir { display: flex; justify-content: space-between; font-size: 11.5px;
+                 padding: 2px 2px; border-bottom: 1px solid #e2e2e2; }
+    .moneystrip { display: flex; margin-top: 8px; border: 1px solid #111; }
+    .m { flex: 1; text-align: center; padding: 5px 4px 6px; font-size: 12.5px; min-width: 0; }
+    .m + .m { border-left: 1px solid #ccc; }
+    .m small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 1.4px;
+               text-transform: uppercase; color: #555; margin-bottom: 2px; }
+    .m.b { font-weight: bold; }
+    .m.hide { display: none; }
+
+    /* ── Footer ── */
+    .foot { display: flex; gap: 18px; align-items: center; margin-top: 8px; }
+    .foot .url { margin-left: auto; }
+  </style>
+</head>
+<body>
+
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
+</div>
+<p class="screen-note no-print">
+  PROTOTYPE — sketch-canvas custom bag. Try <a style="color:#ffd" href="?demo=1">?demo=1</a> (sparse)
+  and <a style="color:#ffd" href="?demo=2">?demo=2</a> (maxed out).
+  Prints rotated 90° CW in the top half of a letter sheet, same as the current bag.
+</p>
+
+<div class="form-content">
+
+  <div class="top">
+    <b>Stones Throw Studio</b>
+    <span class="lbl" id="kind-lbl">Custom Order</span>
+  </div>
+
+  <div class="grid3">
+    <div class="g cust">
+      <span class="lbl">Customer</span>
+      <span class="v" id="c-name" contenteditable="true"></span>
+      <div class="sub" id="c-contact" contenteditable="true"></div>
+      <div class="sub" id="c-addr" contenteditable="true" style="display:none;"></div>
+    </div>
+    <div class="g">
+      <span class="lbl">Taken In</span>
+      <span class="v" id="d-takein" contenteditable="true"></span>
+    </div>
+    <div class="g">
+      <span class="lbl">Due</span>
+      <span class="v" id="d-due" contenteditable="true"></span>
+      <div class="sub" id="d-pickup" contenteditable="true"></div>
+    </div>
+  </div>
+
+  <div class="gift" id="gift">
+    <span>🎁</span><b id="gift-for" contenteditable="true"></b>
+    <span id="gift-date" contenteditable="true"></span>
+    <span class="sup" id="gift-surprise" style="display:none;">🤫 SURPRISE — discretion at pickup</span>
+  </div>
+
+  <div class="jobline">
+    <div class="lbl pt" id="j-piece"></div>
+    <div class="t" id="j-title" contenteditable="true"></div>
+    <div class="d" id="j-desc" contenteditable="true"></div>
+    <div class="kvline" id="j-stones-row"><span class="lbl">Stones</span><span id="j-stones" contenteditable="true"></span></div>
+    <div class="kvline" id="j-finish-row"><span class="lbl">Finish</span><span id="j-finish" contenteditable="true"></span></div>
+    <div class="kvline" id="j-cnotes-row"><span class="lbl">Customer Notes</span><span id="j-cnotes" contenteditable="true"></span></div>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <span class="tag lbl">Design Sketch</span>
+    <span class="szbox" id="szbox"></span>
+  </div>
+
+  <div class="notes">
+    <span class="lbl">Bench Notes / Materials</span>
+    <div class="mat" id="n-materials" contenteditable="true" style="display:none;"></div>
+    <div class="rule"></div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="items" id="items"></div>
+
+  <div class="moneystrip">
+    <div class="m"><small>Subtotal</small><span id="m-sub" contenteditable="true"></span></div>
+    <div class="m"><small>Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
+    <div class="m hide" id="m-ship-cell"><small>Shipping</small><span id="m-ship" contenteditable="true"></span></div>
+    <div class="m b"><small>Total</small><span id="m-total"></span></div>
+    <div class="m"><small>Deposit</small><span id="m-dep" contenteditable="true"></span></div>
+    <div class="m b"><small>Balance</small><span id="m-bal"></span></div>
+  </div>
+
+  <div class="foot">
+    <span class="lbl">Paid By</span>
+    <span class="ck"><span class="bx" id="pb-cash"></span>Cash</span>
+    <span class="ck"><span class="bx" id="pb-credit"></span>Credit</span>
+    <span class="ck"><span class="bx" id="pb-check"></span>Check</span>
+    <span class="lbl url">stonesthrowjewelry.com</span>
+  </div>
+
+</div>
+
+<script>
+  function fmt(d) {
+    if (!d) return '';
+    const p = String(d).split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : d;
+  }
+  function money(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : '$' + n.toFixed(2);
+  }
+
+  const q = new URLSearchParams(window.location.search);
+  const demo = q.get('demo');
+
+  // ── Demo orders for review ──
+  const DEMOS = {
+    '1': {
+      name: 'Walk-in Wanda', phone: '(512) 555-1234', email: 'wanda@example.com',
+      takeIn: '2026-07-10', deadline: '2026-08-01', pickup: 'Studio',
+      pieceType: 'Pendant', jobTitle: 'Custom Opal Pendant',
+      desc: 'Oval Australian opal (customer supplied), bezel set in 14k yellow gold, on 18” cable chain.',
+      notes: 'Prefers yellow gold.',
+      ringSize: '6', chain: '18”',
+      items: [{ desc: 'Opal pendant — labor & setting', amount: 240 }],
+      deposit: 100,
+    },
+    '2': {
+      name: 'Katherine Miller', phone: '(512) 555-8890', email: 'kat.m@example.com',
+      address: '123 Cedar Ln, Apt 4B', city: 'Austin', state: 'TX', zip: '78704',
+      takeIn: '2026-07-10', deadline: '2026-08-01', pickup: 'To be Shipped',
+      pieceType: 'Ring', jobTitle: 'Two-Stone Anniversary Ring',
+      desc: 'East-west oval sapphire + round moissanite in a shared-prong 14k rose gold band, comfort fit.',
+      stones: '1.2ct oval blue sapphire (customer supplied) · 0.5ct round moissanite',
+      finish: 'Polished · Hammered band edges',
+      notes: 'Match the profile of her wedding band — photo in Drive.',
+      ringSize: '6.5', wrist: '6.5',
+      giftFor: 'Gift for Emma', giftDate: 'needed by 08/04', giftSurprise: '1',
+      materials: '14k rose gold, 1.5mm shared prongs, sizing stock from bench drawer B',
+      items: [
+        { desc: 'Two-stone ring — labor & setting', amount: 480 },
+        { desc: 'Moissanite, 0.5ct round',          amount: 145 },
+      ],
+      deposit: 250, shipping: 12,
+      drawSketch: true,
+    },
+  };
+
+  // Assemble the effective order: demo data, else URL params.
+  const src = demo && DEMOS[demo] ? DEMOS[demo] : {
+    name: q.get('name') || '', phone: q.get('phone') || '', email: q.get('email') || '',
+    address: q.get('address') || '', city: q.get('city') || '', state: q.get('state') || '',
+    zip: q.get('zip') || '',
+    takeIn: q.get('takeIn') || '', deadline: q.get('deadline') || '',
+    pickup: q.get('pickup') || '',
+    pieceType: q.get('pieceType') || '', jobTitle: q.get('jobTitle') || '',
+    desc: q.get('desc') || '', stones: q.get('stones') || '', finish: q.get('finish') || '',
+    notes: q.get('notes') || '', materials: q.get('materials') || '',
+    ringSize: q.get('ringSize') || '', chain: q.get('chain') || '',
+    wrist: q.get('wrist') || '', neck: q.get('neck') || '',
+    giftFor: q.get('giftFor') || '', giftDate: q.get('giftDate') || '',
+    giftSurprise: q.get('giftSurprise') || '',
+    deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
+    fullyPaid: q.get('fullyPaid') || '',
+    items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
+  };
+
+  // ── Header ──
+  document.getElementById('c-name').textContent = src.name;
+  document.getElementById('c-contact').textContent =
+    [src.phone, src.email].filter(Boolean).join(' · ');
+  const addrLine = [src.address, [src.city, src.state].filter(Boolean).join(', '), src.zip]
+    .filter(Boolean).join(' · ');
+  if (addrLine) {
+    const a = document.getElementById('c-addr');
+    a.textContent = addrLine; a.style.display = 'block';
+  }
+  document.getElementById('d-takein').textContent = fmt(src.takeIn) || fmt(new Date().toISOString().slice(0,10));
+  document.getElementById('d-due').textContent = fmt(src.deadline);
+  const pk = src.pickup || '';
+  document.getElementById('d-pickup').textContent =
+    pk ? 'Pickup: ' + (/ship/i.test(pk) ? '📦 Ship' : pk.replace(/\s*(Market|Farmer's Market|Crossing Market)$/i, '')) : '';
+
+  // ── Gift strip ──
+  if (src.giftFor || src.giftSurprise) {
+    document.getElementById('gift').classList.add('show');
+    document.getElementById('gift-for').textContent = src.giftFor || 'Gift';
+    document.getElementById('gift-date').textContent = src.giftDate || '';
+    if (src.giftSurprise) document.getElementById('gift-surprise').style.display = 'inline';
+  }
+
+  // ── Job block ──
+  document.getElementById('j-piece').textContent = src.pieceType || '';
+  document.getElementById('j-title').textContent = src.jobTitle || '';
+  document.getElementById('j-desc').textContent = src.desc || '';
+  [['j-stones-row', 'j-stones', src.stones],
+   ['j-finish-row', 'j-finish', src.finish],
+   ['j-cnotes-row', 'j-cnotes', src.notes]].forEach(([row, cell, val]) => {
+    if (val) {
+      document.getElementById(cell).textContent = val;
+      document.getElementById(row).classList.add('show');
+    }
+  });
+
+  // ── Measurements box ──
+  const meas = [['Ring', src.ringSize], ['Chain', src.chain], ['Wrist', src.wrist], ['Neck', src.neck]]
+    .filter(m => m[1]);
+  if (meas.length) {
+    const box = document.getElementById('szbox');
+    box.innerHTML = meas.map(m =>
+      `<span><span class="lbl">${m[0]}</span><b contenteditable="true"></b></span>`).join(' · ');
+    box.querySelectorAll('b').forEach((b, i) => b.textContent = meas[i][1]);
+    box.classList.add('show');
+  }
+
+  // ── Sketch: app hands it off via localStorage (too big for a URL) ──
+  const canvasEl = document.getElementById('canvas');
+  function showSketch(dataUrl) {
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    canvasEl.appendChild(img);
+    canvasEl.classList.add('has-img');
+  }
+  const stored = localStorage.getItem('sts-print-sketch');
+  if (stored && !demo) { showSketch(stored); localStorage.removeItem('sts-print-sketch'); }
+
+  // Demo 2 draws a rough ring sketch so reviewers see the printed-sketch state.
+  if (demo && DEMOS[demo] && DEMOS[demo].drawSketch) {
+    const c = document.createElement('canvas'); c.width = 900; c.height = 560;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 560);
+    x.strokeStyle = '#3a3a3a'; x.lineWidth = 3.5; x.lineCap = 'round';
+    // band
+    x.beginPath(); x.ellipse(450, 330, 190, 150, 0, 0.55, Math.PI * 2 + 0.4); x.stroke();
+    x.beginPath(); x.ellipse(450, 330, 158, 122, 0, 0.62, Math.PI * 2 + 0.32); x.stroke();
+    // oval sapphire, east-west
+    x.save(); x.translate(392, 152); x.rotate(-0.12);
+    x.beginPath(); x.ellipse(0, 0, 88, 56, 0, 0, Math.PI * 2); x.stroke();
+    x.beginPath(); x.ellipse(0, 0, 60, 36, 0, 0, Math.PI * 2); x.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2;
+      x.beginPath(); x.moveTo(Math.cos(a) * 60, Math.sin(a) * 36);
+      x.lineTo(Math.cos(a) * 88, Math.sin(a) * 56); x.stroke();
+    }
+    x.restore();
+    // round moissanite
+    x.beginPath(); x.arc(568, 168, 46, 0, Math.PI * 2); x.stroke();
+    x.beginPath(); x.arc(568, 168, 28, 0, Math.PI * 2); x.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2;
+      x.beginPath(); x.moveTo(568 + Math.cos(a) * 28, 168 + Math.sin(a) * 28);
+      x.lineTo(568 + Math.cos(a) * 46, 168 + Math.sin(a) * 46); x.stroke();
+    }
+    // shared prongs
+    x.lineWidth = 3;
+    [[468, 190], [492, 152], [512, 196]].forEach(p => {
+      x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(p[0] + 6, p[1] + 34); x.stroke();
+    });
+    // annotation
+    x.font = '24px Calibri, Arial'; x.fillStyle = '#3a3a3a';
+    x.fillText('shared prong', 640, 230);
+    x.beginPath(); x.moveTo(636, 222); x.lineTo(530, 192); x.stroke();
+    x.fillText('hammered edges', 118, 470);
+    x.beginPath(); x.moveTo(215, 445); x.lineTo(295, 408); x.stroke();
+    showSketch(c.toDataURL('image/png'));
+  }
+
+  // ── Materials → bench notes ──
+  if (src.materials) {
+    const m = document.getElementById('n-materials');
+    m.textContent = src.materials; m.style.display = 'block';
+  }
+
+  // ── Items + money ──
+  const items = (src.items || []).filter(it => it && it.desc);
+  if (items.length) {
+    const el = document.getElementById('items');
+    items.forEach(it => {
+      const r = document.createElement('div');
+      r.className = 'ir';
+      const d = document.createElement('span'); d.contentEditable = 'true'; d.textContent = it.desc;
+      const a = document.createElement('span'); a.contentEditable = 'true'; a.textContent = money(it.amount);
+      r.appendChild(d); r.appendChild(a); el.appendChild(r);
+    });
+    el.classList.add('show');
+  }
+  const sub  = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+  const tax  = sub * 0.08;
+  const ship = parseFloat(src.shipping) || 0;
+  const dep  = parseFloat(src.deposit) || 0;
+  const tot  = sub + tax + ship;
+  document.getElementById('m-sub').textContent = sub ? money(sub) : '';
+  document.getElementById('m-tax').textContent = sub ? money(tax) : '';
+  if (ship) {
+    document.getElementById('m-ship-cell').classList.remove('hide');
+    document.getElementById('m-ship').textContent = money(ship);
+  }
+  document.getElementById('m-total').textContent = tot ? money(tot) : '';
+  document.getElementById('m-dep').textContent = dep ? '−' + money(dep) : '';
+  document.getElementById('m-bal').textContent =
+    src.fullyPaid ? money(0) : (tot ? money(tot - dep) : '');
+
+  // Paid-by boxes: click to toggle, one at a time
+  const pbs = ['pb-cash', 'pb-credit', 'pb-check'];
+  pbs.forEach(id => document.getElementById(id).addEventListener('click', () => {
+    pbs.forEach(o => { if (o !== id) document.getElementById(o).style.background = ''; });
+    const el = document.getElementById(id);
+    el.style.background = el.style.background ? '' : '#333';
+  }));
+</script>
+</body>
+</html>
