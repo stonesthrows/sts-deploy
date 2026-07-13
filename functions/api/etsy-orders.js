@@ -104,11 +104,29 @@ export async function onRequestGet(context) {
   }
 
   const orders = receipts.map(r => {
-    const linesSummary = (r.transactions || [])
-      .map(t => {
-        const vars = (t.variations || []).map(v => v.formatted_value).filter(Boolean).join(', ');
-        return `${t.quantity}× ${t.title}${vars ? ' — ' + vars : ''}`;
-      })
+    // Keep the variation labels ("Ring size", "Metal", "Width") — the app's
+    // spec parser (order-normalize.js) uses them to map size / metal / width
+    // onto the printed bag deterministically. Personalization is split out
+    // into its own field so it can print in a dedicated box.
+    const lineItems = (r.transactions || []).map(t => {
+      const allVars = (t.variations || [])
+        .map(v => ({ name: v.formatted_name || '', value: v.formatted_value || '' }))
+        .filter(v => v.value);
+      const isPers = v => /personali[sz]ation|engrav/i.test(v.name);
+      const variations = allVars.filter(v => !isPers(v));
+      return {
+        title:      t.title || '',
+        quantity:   t.quantity || 1,
+        price:      t.price ? t.price.amount / t.price.divisor : 0,
+        variations,
+        variant:    variations.map(v => v.name ? `${v.name}: ${v.value}` : v.value).join('; '),
+        personalization: allVars.filter(isPers).map(v => v.value).join('; '),
+      };
+    });
+
+    const linesSummary = lineItems
+      .map(li => `${li.quantity}× ${li.title}${li.variant ? ' — ' + li.variant : ''}`
+               + (li.personalization ? `\n   ✎ ${li.personalization}` : ''))
       .join('\n');
 
     const shipping = [r.first_line, r.second_line, r.city, r.state, r.zip, r.country_iso]
@@ -123,19 +141,6 @@ export async function onRequestGet(context) {
       shipping          ? `Ship to: ${shipping}`              : '',
       r.message_from_buyer ? `Buyer note: ${r.message_from_buyer}` : '',
     ].filter(Boolean).join('\n');
-
-    const lineItems = (r.transactions || []).map(t => ({
-      title:    t.title || '',
-      quantity: t.quantity || 1,
-      price:    t.price ? t.price.amount / t.price.divisor : 0,
-      variant:  (t.variations || []).map(v => v.formatted_value).filter(Boolean).join(', '),
-      // Structured variations so the app can tell metal / size / personalization
-      // apart instead of re-parsing the joined variant string.
-      variations: (t.variations || []).map(v => ({
-        name:  v.formatted_name  || '',
-        value: v.formatted_value || '',
-      })).filter(v => v.value),
-    }));
 
     return {
       etsyReceiptId: r.receipt_id,

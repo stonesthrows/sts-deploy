@@ -45,6 +45,7 @@ export async function onRequestGet(context) {
               title
               quantity
               variantTitle
+              customAttributes { key value }
               originalUnitPriceSet { shopMoney { amount } }
             }
           }
@@ -79,15 +80,26 @@ export async function onRequestGet(context) {
     // "Size 7.5 / 4mm / Lined, High Polish") — no separate "Size" option is
     // exposed without the read_products scope, so pull the size segment out
     // of this text instead and strip the literal "Size" word from it.
+    // The full variantTitle is also passed through as `variant` so the app
+    // can parse metal / width / finish out of it (order-normalize.js).
     const lineItems = o.lineItems.nodes.map(li => {
       const sizeSeg = (li.variantTitle || '').split('/')
         .map(s => s.trim())
         .find(seg => /size/i.test(seg));
+      // Line-item properties are where personalization apps write engraving
+      // text; keys starting with "_" are hidden/internal by convention.
+      const persParts = (li.customAttributes || [])
+        .filter(a => a.key && a.value && a.key.indexOf('_') !== 0)
+        .map(a => /^(personali[sz]ation|engraving|custom text|note)$/i.test(a.key.trim())
+          ? a.value
+          : `${a.key}: ${a.value}`);
       return {
         title:    li.title,
         quantity: li.quantity,
         price:    parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || 0),
         size:     sizeSeg ? sizeSeg.replace(/^size\s*/i, '').trim() : '',
+        variant:  li.variantTitle || '',
+        personalization: persParts.join('; '),
       };
     });
 

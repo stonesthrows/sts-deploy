@@ -1718,12 +1718,9 @@ function printOrder(id) {
     stage:     o.stage       || '',
     fullyPaid: o.fullyPaid   || '',
     workedBy:  o.assignee || ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' })[o.stage] || '',
-    // desc/amount feed the manual layouts' line-item table; the structured
-    // fields (qty/base/material/size/pers) feed the ecom layout's item table.
-    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => {
-      const row = { desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) };
-      return (typeof printItemStructured === 'function') ? Object.assign(row, printItemStructured(it)) : row;
-    })),
+    // desc/amount feed the manual layouts' line-item table; the ecom layout
+    // gets structured specs separately via the ecomItems param below.
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
   });
   // Per-kind layout params (order-normalize.js): drive which print variant
   // the template renders — ecom orders get Source row + Ship To block.
@@ -1734,6 +1731,12 @@ function printOrder(id) {
     p.set('orderNo', pp.orderNo);
     p.set('country', pp.country);
     if (pp.source) p.set('srcName', pp.source);
+    // Structured per-item bag specs (metal / size / width / finish /
+    // personalization) for the ecom layout — see order-normalize.js.
+    if (pp.layout === 'ecom' && typeof ecomPrintItems === 'function') {
+      const ei = ecomPrintItems(o);
+      if (ei.length) p.set('ecomItems', JSON.stringify(ei));
+    }
   }
   // Append print layout settings from localStorage
   try {
