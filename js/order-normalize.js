@@ -400,6 +400,7 @@ function etsyToOrder(eo) {
     orderType:         'order',
     contactSource:     'Etsy Message',
     takeIn:            eo.createdAt ? eo.createdAt.slice(0, 10) : '',
+    deadline:          eo.shipByDate ? eo.shipByDate.slice(0, 10) : '',
     pickup:            'Ship',
     fullyPaid:         true,
   });

@@ -116,6 +116,7 @@ export async function onRequestGet(context) {
           orderType:     'order',
           contactSource: 'Etsy Message',
           takeIn:        eo.createdAt ? eo.createdAt.slice(0, 10) : '',
+          deadline:      eo.shipByDate ? eo.shipByDate.slice(0, 10) : '',
           addrStreet:    eo.addrStreet  || '',
           addrStreet2:   eo.addrStreet2 || '',
           addrCity:      eo.addrCity    || '',

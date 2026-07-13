@@ -303,16 +303,16 @@
     .form-content[data-layout="resize"] #j-size2::before { content: 'To ';   font-size: 8px; font-weight: bold; color: #555; }
 
     /* ── Ecom header band ──
-       Black band: SOURCE · order # · SHIP BY date, with an ordered-date /
-       piece-count meta line under it. Replaces the shared source/date rows. */
+       Thick-bordered strip: SOURCE · order # · SHIP BY date, with an
+       ordered-date / piece-count meta line under it. Replaces the shared
+       source/date rows. */
     .ecom-head { display: none; }
     .eh-band {
-      background: #000; color: #fff; display: flex; align-items: center;
-      gap: 14px; padding: 7px 12px;
-      /* White-on-black carries the order number — force the fill to print
-         even when the browser's "background graphics" option is off. */
-      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      border: 3px solid #000; display: flex; align-items: center;
+      gap: 14px; padding: 6px 12px;
     }
+    /* Blank SHIP BY prints as a write-in line */
+    .eh-due b.blank { border-bottom: 1px solid #555; min-width: 70px; min-height: 14px; }
     .eh-src { font-size: 17px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
     .eh-no  { font-size: 14px; flex: 1; }
     .eh-due { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; }
@@ -692,7 +692,9 @@
     document.getElementById('eh-src').textContent = srcText;
     document.getElementById('eh-no').textContent =
       orderNo ? (orderNo.charAt(0) === '#' ? orderNo : '#' + orderNo) : '';
-    document.getElementById('eh-due').textContent = fmt(deadline);
+    const dueEl = document.getElementById('eh-due');
+    dueEl.textContent = fmt(deadline);
+    if (!fmt(deadline)) dueEl.classList.add('blank');
     document.getElementById('eh-ordered').textContent =
       takeIn ? 'Ordered ' + fmt(takeIn) : '';
 

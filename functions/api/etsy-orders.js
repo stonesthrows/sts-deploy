@@ -136,6 +136,11 @@ export async function onRequestGet(context) {
       ? r.grandtotal.amount / r.grandtotal.divisor
       : 0;
 
+    // Etsy's promised ship-by date lives on the transactions — the latest
+    // one governs the order. Feeds the bag's SHIP BY field via deadline.
+    const shipTs = (r.transactions || [])
+      .reduce((m, t) => Math.max(m, t.expected_ship_date || 0), 0);
+
     const notes = [
       `Etsy Order #${r.receipt_id}`,
       shipping          ? `Ship to: ${shipping}`              : '',
@@ -152,6 +157,7 @@ export async function onRequestGet(context) {
       notes,
       buyerNote:     r.message_from_buyer || '',
       createdAt:     new Date((r.created_timestamp || r.create_timestamp) * 1000).toISOString(),
+      shipByDate:    shipTs ? new Date(shipTs * 1000).toISOString() : '',
       addrStreet:    r.first_line   || '',
       addrStreet2:   r.second_line  || '',
       addrCity:      r.city         || '',
