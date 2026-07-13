@@ -515,6 +515,10 @@ function ohWireAddBtn() {
     ohModalLineItems.push({ desc: '', category: 'Materials', amt: null });
     ohRenderLineItems();
   });
+  // The 📦 add-to-library buttons only show for Rio Grande — refresh
+  // them when the supplier field changes.
+  var supField = document.getElementById('ohMSup');
+  if (supField) supField.addEventListener('input', ohRenderLineItems);
   var receiptBg = document.getElementById('ohReceiptModalBg');
   if (receiptBg) receiptBg.addEventListener('click', function(e){ if (e.target === receiptBg) ohCloseReceiptModal(); });
   var receiptCloseBtn = document.getElementById('ohReceiptCloseBtn');
@@ -543,6 +547,8 @@ function ohCloseReceiptModal() {
 function ohRenderLineItems() {
   var wrap = document.getElementById('ohLineItems');
   if (!wrap) return;
+  var supField = document.getElementById('ohMSup');
+  var isRio = ohNormalizeSup((supField && supField.value) || '') === 'Rio Grande';
   wrap.innerHTML = ohModalLineItems.map(function(li, i) {
     return '<div class="oh-li-row" data-idx="' + i + '">'
       + '<input type="text" class="oh-li-desc" placeholder="Description" value="' + ohEsc(li.desc || '') + '">'
@@ -550,6 +556,12 @@ function ohRenderLineItems() {
           return '<option value="' + c + '"' + (li.category === c ? ' selected' : '') + '>' + c + '</option>';
         }).join('') + '</select>'
       + '<input type="number" step="0.01" min="0" class="oh-li-amt" placeholder="0.00" value="' + (li.amt != null ? li.amt : '') + '">'
+      + (isRio && li.category === 'Materials'
+          ? '<button type="button" class="oh-li-tolib"' + (li.materialId
+              ? ' disabled title="In Materials Library">✓'
+              : ' title="Add to Materials Library">📦')
+            + '</button>'
+          : '')
       + '<button type="button" class="oh-li-remove" title="Remove line item">✕</button>'
       + '</div>';
   }).join('') || '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">No line items — Amount below is used as-is.</div>';
@@ -566,7 +578,58 @@ function ohRenderLineItems() {
     el.addEventListener('input', ohSyncLineItemsFromDom);
     el.addEventListener('change', ohSyncLineItemsFromDom);
   });
+  // Category flips add/remove the 📦 button — re-render after the sync
+  // listener above has committed the change.
+  wrap.querySelectorAll('.oh-li-cat').forEach(function(el) {
+    el.addEventListener('change', ohRenderLineItems);
+  });
+  wrap.querySelectorAll('.oh-li-tolib').forEach(function(btn) {
+    btn.addEventListener('click', function(){ ohLineItemToLibrary(btn); });
+  });
   ohRecomputeLineItemTotal();
+}
+
+// Per-line "add to Materials Library" (Rio Grande orders only). The
+// materials POST API always CREATES when no notionPageId is given, so
+// look the library up by name first and link instead of duplicating.
+// Guess helpers (_matImpGuessCat & co.) live in materials.js, which
+// loads after this file but before any click can happen.
+function ohLineItemToLibrary(btn) {
+  var row = btn.closest('.oh-li-row');
+  var idx = parseInt(row.dataset.idx, 10);
+  ohSyncLineItemsFromDom();
+  var li = ohModalLineItems[idx];
+  var name = ((li && li.desc) || '').trim();
+  if (!name) { toast('Add a description first', '⚠'); return; }
+  btn.disabled = true;
+  btn.textContent = '…';
+  var norm = _matImpNorm(name);
+  _materialsApiFetch().then(function(mats) {
+    var existing = mats.filter(function(m){ return _matImpNorm(m.name) === norm; })[0];
+    if (existing) return { notionPageId: existing.notionPageId, existed: true };
+    var category = _matImpGuessCat(name);
+    var spec = category === 'metal' ? _matImpMetalSpec(name) : { metalType: '', form: '', gauge: '' };
+    return _materialsApiSave({
+      name: name,
+      category: category,
+      metalType: spec.metalType, form: spec.form, gauge: spec.gauge,
+      unit: _MAT_IMP_UNIT_BY_CAT[category],
+      currentCostPerUnit: null,
+      stockLevel: null,
+      stockConfidence: 'estimated',
+      supplierDefault: 'Rio Grande',
+      active: true,
+    });
+  }).then(function(res) {
+    if (res && res.notionPageId) li.materialId = res.notionPageId; // persisted when the order is saved
+    btn.textContent = '✓';
+    btn.title = 'In Materials Library';
+    toast(res && res.existed ? 'Linked to existing library material' : 'Added to Materials Library — set cost & stock there', '✓');
+  }).catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '📦';
+    toast('Could not add — ' + (e.message || String(e)), '❌');
+  });
 }
 
 function ohSyncLineItemsFromDom() {
