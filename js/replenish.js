@@ -167,7 +167,7 @@ async function rpRender(reload) {
     var shortTxt = !hasBom ? '—'
       : (r.shorts.length
           ? r.shorts.map(function(s) {
-              var unit = s.m.unit === 'gram' ? 'g' : 'pc';
+              var unit = s.m.unit === 'gram' ? 'g' : s.m.unit === 'ozt' ? 'ozt' : 'pc';
               return 'short ' + (Math.round(s.short * 10) / 10) + unit + ' ' + _rpEsc(s.m.name);
             }).join(' · ')
           : '<span class="rp-ok">material for ' + r.batch + ' ✓</span>');
@@ -234,14 +234,14 @@ function _rpRenderShoppingList(rows) {
   Object.keys(bySup).sort().forEach(function(sup) {
     html += '<div class="rp-shop-sup">' + _rpEsc(sup) + '</div>'
       + bySup[sup].map(function(e) {
-          var unit = e.m.unit === 'gram' ? 'g' : 'pc';
+          var unit = e.m.unit === 'gram' ? 'g' : e.m.unit === 'ozt' ? 'ozt' : 'pc';
           return '<div class="rp-shop-item">' + _rpEsc(e.m.name) + ' — ' + (Math.round(e.qty * 10) / 10) + unit + '</div>';
         }).join('');
   });
   el.innerHTML = html;
   el.dataset.plain = Object.keys(bySup).sort().map(function(sup) {
     return sup + ':\n' + bySup[sup].map(function(e) {
-      var unit = e.m.unit === 'gram' ? 'g' : 'pc';
+      var unit = e.m.unit === 'gram' ? 'g' : e.m.unit === 'ozt' ? 'ozt' : 'pc';
       return '  ' + e.m.name + ' — ' + (Math.round(e.qty * 10) / 10) + unit;
     }).join('\n');
   }).join('\n');

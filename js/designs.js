@@ -607,7 +607,8 @@ function _dsnBomMat(id) {
 }
 
 function _dsnUnitSuffix(m) {
-  return m && m.unit === 'gram' ? 'g' : 'pc';
+  if (!m) return 'pc';
+  return m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc';
 }
 
 // Effective waste % for a metal line (spec §5 hybrid model) — pure form,
@@ -726,7 +727,7 @@ function dsnWasteDefaultsRefreshLabel() {
   const pm  = _shopSettings.wastePctByMetal || {};
   const fmt = v => (typeof v === 'number' ? v + '%' : '—');
   el.textContent = 'Waste defaults — shop: ' + fmt(_shopSettings.wasteDefaultPct)
-    + ' · sterling: ' + fmt(pm.sterling)
+    + ' · argentium: ' + fmt(pm.argentium)
     + ' · gold-fill: ' + fmt(pm.gold_fill);
 }
 
@@ -737,9 +738,9 @@ function dsnWasteDefaultsToggle() {
   if (opening) {
     const s  = _shopSettings || {};
     const pm = s.wastePctByMetal || {};
-    document.getElementById('dsnWdShop').value     = s.wasteDefaultPct ?? '';
-    document.getElementById('dsnWdSterling').value = pm.sterling  ?? '';
-    document.getElementById('dsnWdGf').value       = pm.gold_fill ?? '';
+    document.getElementById('dsnWdShop').value      = s.wasteDefaultPct ?? '';
+    document.getElementById('dsnWdArgentium').value = pm.argentium ?? '';
+    document.getElementById('dsnWdGf').value        = pm.gold_fill ?? '';
   }
   p.style.display = opening ? '' : 'none';
 }
@@ -750,9 +751,9 @@ async function dsnWasteDefaultsSave() {
   const s = Object.assign({}, _shopSettings || {});
   s.wasteDefaultPct = num(document.getElementById('dsnWdShop').value);
   s.wastePctByMetal = {};
-  const st = num(document.getElementById('dsnWdSterling').value);
+  const ag = num(document.getElementById('dsnWdArgentium').value);
   const gf = num(document.getElementById('dsnWdGf').value);
-  if (st != null) s.wastePctByMetal.sterling  = st;
+  if (ag != null) s.wastePctByMetal.argentium = ag;
   if (gf != null) s.wastePctByMetal.gold_fill = gf;
   try {
     const r = await fetch('/api/shop-settings', {
@@ -860,7 +861,7 @@ function dsnCostRollup(d) {
     const cost = unitCost != null ? effQty * unitCost : null;
     if (cost == null) matMissing = true; else matCost += cost;
     lines.push({
-      name: m.name, qty: l.qty, unit: m.unit === 'gram' ? 'g' : 'pc',
+      name: m.name, qty: l.qty, unit: _dsnUnitSuffix(m),
       wastePct: isMetal ? w : null, effQty, unitCost, cost,
     });
   });

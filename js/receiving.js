@@ -79,7 +79,8 @@ function _rcvMat(id) {
 }
 
 function _rcvUnitSuffix(m) {
-  return m && m.unit === 'gram' ? 'g' : 'pc';
+  if (!m) return 'pc';
+  return m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc';
 }
 
 function _rcvMatOptions(selectedId) {

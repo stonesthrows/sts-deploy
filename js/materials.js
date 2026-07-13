@@ -94,7 +94,7 @@ function materialsSparkline(m) {
   const coords = pts.map((v, i) => [pad + i * step, h - pad - ((v - min) / span) * (h - 2 * pad)]);
   const poly = coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
   const last = coords[coords.length - 1];
-  const unit = m.unit === 'gram' ? '/g' : '/pc';
+  const unit = m.unit === 'gram' ? '/g' : m.unit === 'ozt' ? '/ozt' : '/pc';
   const title = pts.length + ' purchases: $' + pts[0].toFixed(2) + ' → $' + pts[pts.length - 1].toFixed(2) + unit;
   return '<svg class="mat-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + escHtml(title) + '">'
     + '<title>' + escHtml(title) + '</title>'
@@ -144,7 +144,7 @@ function materialsRender() {
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
       : '—';
     const cost = m.currentCostPerUnit != null ? `$${Number(m.currentCostPerUnit).toFixed(2)}` : '—';
-    const stock = m.stockLevel != null ? `${m.stockLevel} ${m.unit === 'gram' ? 'g' : 'pc'}` : '—';
+    const stock = m.stockLevel != null ? `${m.stockLevel} ${m.unit === 'gram' ? 'g' : m.unit === 'ozt' ? 'ozt' : 'pc'}` : '—';
     const confClass = m.stockConfidence ? `mat-conf mat-conf-${m.stockConfidence}` : 'mat-conf';
     return `
       <tr class="${m.active === false ? 'mat-inactive' : ''}" onclick="materialsOpenEdit('${m.notionPageId}')">

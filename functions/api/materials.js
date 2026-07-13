@@ -10,7 +10,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const API_VERSION = 'materials-api v4 (2026-07-12)';
+const API_VERSION = 'materials-api v5 (2026-07-13)';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -109,11 +109,15 @@ function pageToMaterial(page) {
   const txt = prop => prop?.rich_text?.[0]?.plain_text || '';
   const ttl = prop => prop?.title?.[0]?.plain_text     || '';
   const sel = prop => prop?.select?.name || '';
+  // Legacy: the silver metal type was 'sterling' before the Argentium
+  // rename — surface it as 'argentium' so old pages keep matching the
+  // dropdown and waste-by-metal lookups (any edit-save migrates the page).
+  const metalTypeRaw = sel(p['Metal Type']);
   return {
     notionPageId:       page.id,
     name:                ttl(p['Name']),
     category:            sel(p['Category']),
-    metalType:           sel(p['Metal Type']),
+    metalType:           metalTypeRaw === 'sterling' ? 'argentium' : metalTypeRaw,
     form:                sel(p['Form']),
     gauge:               txt(p['Gauge']),
     unit:                sel(p['Unit']),

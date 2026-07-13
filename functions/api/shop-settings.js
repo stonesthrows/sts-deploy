@@ -7,7 +7,7 @@
 //  per-browser).
 //  Shape: {
 //    wasteDefaultPct:  number|null   — shop-wide metal waste % (e.g. 12)
-//    wastePctByMetal:  { sterling?: number, gold_fill?: number }
+//    wastePctByMetal:  { argentium?: number, gold_fill?: number }
 //    shopHourlyRate:   number|null   — Phase 4
 //    targetMarginPct:  number|null   — Phase 4
 //    marginFloorPct:   number|null   — Phase 4 margin-erosion alert
@@ -75,7 +75,14 @@ export async function onRequest({ request, env }) {
     const page = await findMetaPage(h);
     if (!page) return json({});
     const raw = (page.properties['Note']?.title || []).map(t => t.plain_text || '').join('') || '{}';
-    try { return json(JSON.parse(raw)); }
+    try {
+      const s = JSON.parse(raw);
+      // Legacy: the silver waste default was keyed 'sterling' before the
+      // Argentium rename — surface it under the new key until re-saved.
+      const pm = s.wastePctByMetal;
+      if (pm && pm.argentium == null && typeof pm.sterling === 'number') pm.argentium = pm.sterling;
+      return json(s);
+    }
     catch (e) { return json({}); }
   }
 
@@ -86,7 +93,7 @@ export async function onRequest({ request, env }) {
     const content = JSON.stringify({
       wasteDefaultPct: numOrNull(body.wasteDefaultPct),
       wastePctByMetal: {
-        ...(numOrNull(byMetal.sterling)  != null ? { sterling:  byMetal.sterling }  : {}),
+        ...(numOrNull(byMetal.argentium) != null ? { argentium: byMetal.argentium } : {}),
         ...(numOrNull(byMetal.gold_fill) != null ? { gold_fill: byMetal.gold_fill } : {}),
       },
       shopHourlyRate:  numOrNull(body.shopHourlyRate),
