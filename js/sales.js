@@ -80,10 +80,11 @@ async function _fetchWeekendItems(satDate) {
     (json.orders || []).forEach(function(order) {
       (order.line_items || []).forEach(function(li) {
         var name = li.name || 'Unnamed item';
-        if (li.variation_name && li.variation_name !== 'Regular') name += ' — ' + li.variation_name;
-        if (!itemMap[name]) itemMap[name] = { name: name, qty: 0, total: 0 };
-        itemMap[name].qty   += parseFloat(li.quantity || '1') || 0;
-        itemMap[name].total += (li.total_money && li.total_money.amount) ? li.total_money.amount / 100 : 0;
+        var vari = (li.variation_name && li.variation_name !== 'Regular') ? li.variation_name : '';
+        var key  = name + '||' + vari;
+        if (!itemMap[key]) itemMap[key] = { name: name, variation: vari, qty: 0, total: 0 };
+        itemMap[key].qty   += parseFloat(li.quantity || '1') || 0;
+        itemMap[key].total += (li.total_money && li.total_money.amount) ? li.total_money.amount / 100 : 0;
       });
     });
     cursor = json.cursor || null;
@@ -92,6 +93,31 @@ async function _fetchWeekendItems(satDate) {
   return Object.values(itemMap)
     .map(function(it){ it.total = Math.round(it.total * 100) / 100; return it; })
     .sort(function(a,b){ return b.total - a.total; });
+}
+
+// Groups stored line items by base item, variations nested underneath.
+// Handles both shapes: { name, variation } (current) and legacy
+// "Name — Variation" strings from earlier syncs.
+function _groupWeekendItems(items) {
+  var groups = {};
+  items.forEach(function(it) {
+    var base = it.name, vari = it.variation;
+    if (vari === undefined) {
+      var idx = it.name.indexOf(' — ');
+      if (idx >= 0) { base = it.name.slice(0, idx); vari = it.name.slice(idx + 3); }
+      else { vari = ''; }
+    }
+    if (!groups[base]) groups[base] = { name: base, qty: 0, total: 0, variations: [] };
+    var g = groups[base];
+    g.qty   += it.qty   || 0;
+    g.total += it.total || 0;
+    if (vari) g.variations.push({ name: vari, qty: it.qty || 0, total: it.total || 0 });
+  });
+  return Object.values(groups).map(function(g) {
+    g.total = Math.round(g.total * 100) / 100;
+    g.variations.sort(function(a,b){ return b.total - a.total; });
+    return g;
+  }).sort(function(a,b){ return b.total - a.total; });
 }
 
 // Finds the most recent Saturday relative to today
@@ -294,18 +320,26 @@ function renderSales() {
   if (!itemWeekend) {
     html += '<div class="sales-empty">No item data yet — hit ↻ Sync from Square to pull this weekend\'s items</div>';
   } else {
-    var items = itemWeekend.items;
-    var itemsTotal = items.reduce(function(s,it){ return s + (it.total||0); }, 0);
-    var itemsQty   = items.reduce(function(s,it){ return s + (it.qty||0); }, 0);
-    var maxItem    = Math.max.apply(null, items.map(function(it){ return it.total||0; }).concat([1]));
+    var groups = _groupWeekendItems(itemWeekend.items);
+    var itemsTotal = groups.reduce(function(s,g){ return s + (g.total||0); }, 0);
+    var itemsQty   = groups.reduce(function(s,g){ return s + (g.qty||0); }, 0);
+    var maxItem    = Math.max.apply(null, groups.map(function(g){ return g.total||0; }).concat([1]));
     html += '<div class="sales-items-summary">' + Math.round(itemsQty) + ' items sold · $' + Math.round(itemsTotal).toLocaleString() + ' total</div>';
     html += '<div class="sales-bar-wrap sales-items-list">';
-    items.forEach(function(it) {
-      var pct = Math.round(((it.total||0) / maxItem) * 100);
+    groups.forEach(function(g) {
+      var pct = Math.round(((g.total||0) / maxItem) * 100);
       html += '<div class="sales-bar-row">';
-      html += '<div class="sales-bar-lbl"><span>' + esc(it.name) + ' <span class="sales-td-muted">×' + it.qty + '</span></span>';
-      html += '<span class="sales-bar-amt">$' + it.total.toLocaleString() + '</span></div>';
+      html += '<div class="sales-bar-lbl"><span>' + esc(g.name) + ' <span class="sales-td-muted">×' + g.qty + '</span></span>';
+      html += '<span class="sales-bar-amt">$' + g.total.toLocaleString() + '</span></div>';
       html += '<div class="sales-bar-track"><div class="sales-bar-fill sf-blue" style="width:' + pct + '%"></div></div>';
+      if (g.variations.length) {
+        html += '<div class="sales-item-vars">';
+        g.variations.forEach(function(v) {
+          html += '<div class="sales-item-var"><span>↳ ' + esc(v.name) + ' <span class="sales-td-muted">×' + v.qty + '</span></span>';
+          html += '<span>$' + v.total.toLocaleString() + '</span></div>';
+        });
+        html += '</div>';
+      }
       html += '</div>';
     });
     html += '</div>';
