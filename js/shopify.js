@@ -20,12 +20,12 @@ async function shopifySync() {
   toast('Syncing Shopify orders…', '🛍️');
 
   try {
-    // Cap the lookback at 30 days even if the last-sync marker is missing or
-    // stale — prevents a first run (or a cleared marker) from re-pulling
-    // years of already-fulfilled orders in as fresh intakes.
-    const maxLookback = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    const stored = localStorage.getItem(SHOPIFY_SYNC_KEY);
-    const since = stored && stored > maxLookback ? stored : maxLookback;
+    // Fixed 30-day window (not just since the last sync): already-imported
+    // orders are revisited so fields added by newer proxy versions — spec'd
+    // items from the full variantTitle, personalization — can be backfilled
+    // onto them. The FULFILLED filter below still keeps old/completed
+    // orders from importing as fresh intakes.
+    const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const r = await fetch(SHOPIFY_PROXY + '?since=' + encodeURIComponent(since));
 
     if (!r.ok) {
@@ -40,35 +40,39 @@ async function shopifySync() {
       return;
     }
 
-    // Build set of already-imported Shopify IDs
-    const existingIds = new Set(ORDERS.map(o => o.id));
-
-    // Skip orders Shopify already marks fulfilled — a legitimate new intake
-    // shouldn't already be shipped, so this catches old/completed orders
-    // that would otherwise slip in even within the lookback window.
-    const toImport = shopifyOrders.filter(
-      so => !existingIds.has(shopifyAppId(so.shopifyOrderId)) && so.fulfillmentStatus !== 'FULFILLED'
-    );
-
-    if (!toImport.length) {
-      toast('No new Shopify orders', '✓');
-      localStorage.setItem(SHOPIFY_SYNC_KEY, new Date().toISOString().slice(0, 10));
-      return;
-    }
-
-    let imported = 0;
-    for (const so of toImport) {
-      const order = shopifyToOrder(so);
-      ORDERS.push(order);
-      const notionId = await notionCreateOrder(order);
-      if (notionId) order.notionId = notionId;
-      imported++;
+    const byId = new Map(ORDERS.map(o => [o.id, o]));
+    let imported = 0, backfilled = 0;
+    for (const so of shopifyOrders) {
+      const existing = byId.get(shopifyAppId(so.shopifyOrderId));
+      if (!existing) {
+        // Skip orders Shopify already marks fulfilled — a legitimate new
+        // intake shouldn't already be shipped, so this catches old/completed
+        // orders that would otherwise slip in within the lookback window.
+        if (so.fulfillmentStatus === 'FULFILLED') continue;
+        const order = shopifyToOrder(so);
+        ORDERS.push(order);
+        const notionId = await notionCreateOrder(order);
+        if (notionId) order.notionId = notionId;
+        imported++;
+      } else if (typeof backfillEcomOrder === 'function' && backfillEcomOrder(existing, shopifyToOrder(so))) {
+        if (existing.notionId && typeof notionUpdateOrder === 'function') {
+          try { await notionUpdateOrder(existing); } catch (e) { console.warn('shopify backfill notion sync', e); }
+        }
+        backfilled++;
+      }
     }
 
     localStorage.setItem(SHOPIFY_SYNC_KEY, new Date().toISOString().slice(0, 10));
+    if (!imported && !backfilled) {
+      toast('No new Shopify orders', '✓');
+      return;
+    }
     saveToStorage();
     renderKanban();
-    toast(`Imported ${imported} Shopify order${imported !== 1 ? 's' : ''}`, '🛍️');
+    const bits = [];
+    if (imported)   bits.push(`Imported ${imported} Shopify order${imported !== 1 ? 's' : ''}`);
+    if (backfilled) bits.push(`updated ${backfilled} existing`);
+    toast(bits.join(' · '), '🛍️');
 
   } catch (e) {
     console.error('Shopify sync error', e);

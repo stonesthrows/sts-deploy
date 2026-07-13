@@ -67,7 +67,7 @@ const SPEC_METAL_RX = new RegExp('\\b(' + [
   'copper', 'brass', 'bronze', 'niobium', 'silver', 'gold',
 ].join('|') + ')\\b', 'i');
 
-const SPEC_FINISH_RX = /\b(hammered|high[ -]?polish(?:ed)?|polished|matte|brushed|satin|oxidi[sz]ed|antiqued?|lined|unlined|smooth|textured|florentine|sandblasted|comfort[ -]?fit|half[ -]?round|domed)\b/i;
+const SPEC_FINISH_RX = /\b(hammered|high[ -]?polish(?:ed)?|polished|matte|brushed|satin|oxidi[sz]ed|antiqued?|lined|unlined|smooth|textured?|florentine|sandblasted|comfort[ -]?fit|half[ -]?round|domed)\b/i;
 
 const SPEC_WIDTH_RX = /\b(\d+(?:[.,]\d+)?\s*mm)\b/i;
 
