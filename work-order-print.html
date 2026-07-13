@@ -356,6 +356,16 @@
     .form-content[data-layout="ecom"] .buyer-block .sec-body {
       font-size: 12.5px; line-height: 1.35; min-height: 24px;
     }
+    /* Ecom orders print before assignment — no Worked By on the bag.
+       (!important: the wrap carries an inline display:flex) */
+    .form-content[data-layout="ecom"] #workedby-wrap { display: none !important; }
+    /* Bench notes: a fixed ruled strip instead of swallowing all free space. */
+    .form-content[data-layout="ecom"] .sec-block.grow { flex: none; }
+    .form-content[data-layout="ecom"] .sec-block.grow .sec-body {
+      flex: none; height: 1in; min-height: 0;
+      background: repeating-linear-gradient(to bottom,
+        transparent, transparent 22px, #bbb 22px, #bbb 23px);
+    }
     .form-content[data-layout="ecom"] .ship-block {
       display: flex; flex-direction: column; flex: none;
       border-bottom: 1px solid #000;
@@ -404,7 +414,7 @@
   <div class="date-row">
     <div class="date-row-label">Taken In</div>
     <div class="date-val-wrap"><span class="date-val" id="hdr-date" contenteditable="true"></span></div>
-    <div style="border-left: 1px solid #000; display:flex; align-items:center; gap:6px; padding:2px 6px; font-size:8px; font-weight:bold; flex:1;">
+    <div id="workedby-wrap" style="border-left: 1px solid #000; display:flex; align-items:center; gap:6px; padding:2px 6px; font-size:8px; font-weight:bold; flex:1;">
       Worked By
       <span class="date-val" id="hdr-workedby" contenteditable="true" style="font-weight:normal; flex:1;"></span>
     </div>
