@@ -311,8 +311,6 @@
       border: 3px solid #000; display: flex; align-items: center;
       gap: 14px; padding: 6px 12px;
     }
-    /* Blank SHIP BY prints as a write-in line */
-    .eh-due b.blank { border-bottom: 1px solid #555; min-width: 70px; min-height: 14px; }
     .eh-src { font-size: 17px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
     .eh-no  { font-size: 14px; flex: 1; }
     .eh-due { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; }
@@ -347,7 +345,7 @@
     }
     .it-alias-btn:hover { background: #fffbe6; }
     .it-sz { text-align: center; min-width: 62px; flex-shrink: 0; }
-    .it-sz small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 2px; }
+    .it-sz small { display: block; font-size: 9.5px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; }
     .it-sz b { font-size: 30px; line-height: 1; }
     .it-pers {
       background: #eee; border-top: 1px dashed #666;
@@ -692,9 +690,11 @@
     document.getElementById('eh-src').textContent = srcText;
     document.getElementById('eh-no').textContent =
       orderNo ? (orderNo.charAt(0) === '#' ? orderNo : '#' + orderNo) : '';
+    // No promised date (typical for Shopify) — drop the field entirely
+    // rather than printing an empty label.
     const dueEl = document.getElementById('eh-due');
-    dueEl.textContent = fmt(deadline);
-    if (!fmt(deadline)) dueEl.classList.add('blank');
+    if (fmt(deadline)) dueEl.textContent = fmt(deadline);
+    else dueEl.parentElement.style.display = 'none';
     document.getElementById('eh-ordered').textContent =
       takeIn ? 'Ordered ' + fmt(takeIn) : '';
 
@@ -771,12 +771,16 @@
           });
           mid.appendChild(chips);
         }
-        const sz = mkEl('div', 'it-sz');
-        sz.appendChild(mkEl('small', '', 'Size'));
-        const szv = mkEl('b', '', r.size || '—'); szv.contentEditable = 'true';
-        if ((r.size || '').length > 4) { szv.style.fontSize = '16px'; szv.style.lineHeight = '1.9'; }
-        sz.appendChild(szv);
-        row.appendChild(q); row.appendChild(mid); row.appendChild(sz);
+        row.appendChild(q); row.appendChild(mid);
+        // Not a ring / no size — omit the Size cell rather than print "—".
+        if (r.size) {
+          const sz = mkEl('div', 'it-sz');
+          sz.appendChild(mkEl('small', '', 'Size'));
+          const szv = mkEl('b', '', r.size); szv.contentEditable = 'true';
+          if (r.size.length > 4) { szv.style.fontSize = '16px'; szv.style.lineHeight = '1.9'; }
+          sz.appendChild(szv);
+          row.appendChild(sz);
+        }
         wrap.appendChild(row);
         if (r.pers) {
           const pe = mkEl('div', 'it-pers');
