@@ -134,10 +134,13 @@ function materialsRender() {
 
   const filtered = _materialsCatFilter === 'all'
     ? _materials
-    : _materials.filter(m => m.category === _materialsCatFilter);
+    : (_materialsCatFilter === 'wire' || _materialsCatFilter === 'sheet')
+      ? _materials.filter(m => m.category === 'metal' && m.form === _materialsCatFilter)
+      : _materials.filter(m => m.category === _materialsCatFilter);
 
   document.getElementById('materials-stat-total').textContent    = _materials.length;
-  document.getElementById('materials-stat-metals').textContent   = _materials.filter(m => m.category === 'metal').length;
+  document.getElementById('materials-stat-wire').textContent     = _materials.filter(m => m.category === 'metal' && m.form === 'wire').length;
+  document.getElementById('materials-stat-sheet').textContent    = _materials.filter(m => m.category === 'metal' && m.form === 'sheet').length;
   document.getElementById('materials-stat-chains').textContent   = _materials.filter(m => m.category === 'chain').length;
   document.getElementById('materials-stat-components').textContent = _materials.filter(m => m.category === 'component').length;
   document.getElementById('materials-stat-unweighed').textContent = _materials.filter(m => m.stockConfidence === 'estimated').length;
