@@ -44,6 +44,56 @@ async function _fetchDayTotal(dateObj) {
   return { total: Math.round(total * 100) / 100, num_transactions: txCount };
 }
 
+async function _fetchWeekendItems(satDate) {
+  // Returns [{ name, qty, total }] sold Sat 00:00 → Mon 00:00, aggregated by item
+  var start = new Date(satDate);
+  start.setHours(0, 0, 0, 0);
+  var end = new Date(start);
+  end.setDate(end.getDate() + 2);
+
+  var token = localStorage.getItem('sts-square-token') || '';
+  var itemMap = {};
+  var cursor = null;
+
+  do {
+    var body = {
+      location_ids: ['D7EZ98V48F79A'],
+      query: {
+        filter: {
+          date_time_filter: { created_at: { start_at: start.toISOString(), end_at: end.toISOString() } },
+          state_filter: { states: ['COMPLETED'] },
+        },
+        sort: { sort_field: 'CREATED_AT', sort_order: 'ASC' },
+      },
+      limit: 500,
+    };
+    if (cursor) body.cursor = cursor;
+
+    var res = await fetch('/api/square', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/v2/orders/search', method: 'POST', body: body, token: token }),
+    });
+    var json = await res.json();
+    if (!res.ok) throw new Error((json.errors && json.errors[0] && json.errors[0].detail) || JSON.stringify(json));
+
+    (json.orders || []).forEach(function(order) {
+      (order.line_items || []).forEach(function(li) {
+        var name = li.name || 'Unnamed item';
+        if (li.variation_name && li.variation_name !== 'Regular') name += ' — ' + li.variation_name;
+        if (!itemMap[name]) itemMap[name] = { name: name, qty: 0, total: 0 };
+        itemMap[name].qty   += parseFloat(li.quantity || '1') || 0;
+        itemMap[name].total += (li.total_money && li.total_money.amount) ? li.total_money.amount / 100 : 0;
+      });
+    });
+    cursor = json.cursor || null;
+  } while (cursor);
+
+  return Object.values(itemMap)
+    .map(function(it){ it.total = Math.round(it.total * 100) / 100; return it; })
+    .sort(function(a,b){ return b.total - a.total; });
+}
+
 // Finds the most recent Saturday relative to today
 function _lastSaturday() {
   var d = new Date();
@@ -114,6 +164,15 @@ async function syncSquareSales() {
     var satResult = await _fetchDayTotal(sat);
     var sunResult = await _fetchDayTotal(sun);
 
+    var items = [];
+    try { items = await _fetchWeekendItems(sat); }
+    catch(e) {
+      console.warn('Item sales fetch failed:', e.message);
+      // Keep any previously synced items rather than wiping them
+      var prior = _loadSyncedWeekends().find(function(w){ return w.weekend === weekendKey; });
+      if (prior && prior.items) items = prior.items;
+    }
+
     var entry = {
       weekend:          weekendKey,
       label:            _weekendLabel(sat),
@@ -121,6 +180,7 @@ async function syncSquareSales() {
       sunday:           sunResult.total,
       total:            Math.round((satResult.total + sunResult.total) * 100) / 100,
       num_transactions: satResult.num_transactions + sunResult.num_transactions,
+      items:            items,
     };
 
     _saveSyncedWeekend(entry);
@@ -222,38 +282,35 @@ function renderSales() {
   });
   html += '</div></div></div>';
 
-  // Order pipeline by stage
+  // Weekend item sales (line items from Square, stored during sync)
+  var itemWeekend = null;
+  for (var wi = allData.length - 1; wi >= 0; wi--) {
+    if (allData[wi].items && allData[wi].items.length) { itemWeekend = allData[wi]; break; }
+  }
+
   html += '<div class="sales-card">';
-  html += '<div class="sales-card-head">Active Orders by Stage</div>';
+  html += '<div class="sales-card-head">Item Sales' + (itemWeekend ? ' — ' + itemWeekend.label : '') + '</div>';
   html += '<div class="sales-card-body">';
-  html += '<div class="sales-bar-wrap">';
-  var stageMap = {};
-  ORDERS.forEach(function(o) {
-    if (['delivered'].includes(o.stage)) return;
-    if (!stageMap[o.stage]) stageMap[o.stage] = { count:0, value:0 };
-    stageMap[o.stage].count++;
-    stageMap[o.stage].value += (o.price||0);
-  });
-  var stageOrder = ['inquiry','sketch','needs-est','quote','wait-cust','est-appr','deposit-wait','deposit-paid','order-mat','materials','wait-cust-ship','build','ready-pick','complete'];
-  var stageLabels = {
-    'inquiry':'Inquiry','sketch':'Sketch','needs-est':'Needs Estimate','quote':'Estimate Sent',
-    'wait-cust':'Waiting on Customer','est-appr':'Estimate Approved',
-    'deposit-wait':'Waiting on Deposit','deposit-paid':'Deposit Paid',
-    'order-mat':'Order Materials',
-    'materials':'Waiting on Materials','wait-cust-ship':'Waiting on Customer Shipment','build':'At the Bench','ready-pick':'Ready for Pickup','complete':'Completed'
-  };
-  var maxVal = 1;
-  stageOrder.forEach(function(s){ if (stageMap[s]) maxVal = Math.max(maxVal, stageMap[s].value); });
-  stageOrder.forEach(function(s) {
-    if (!stageMap[s]) return;
-    var d = stageMap[s];
-    var pct = Math.round((d.value / maxVal) * 100);
-    html += '<div class="sales-bar-row">';
-    html += '<div class="sales-bar-lbl"><span>' + stageLabels[s] + ' (' + d.count + ')</span><span class="sales-bar-amt">$' + d.value.toLocaleString() + '</span></div>';
-    html += '<div class="sales-bar-track"><div class="sales-bar-fill sf-blue" style="width:' + pct + '%"></div></div>';
+  if (!itemWeekend) {
+    html += '<div class="sales-empty">No item data yet — hit ↻ Sync from Square to pull this weekend\'s items</div>';
+  } else {
+    var items = itemWeekend.items;
+    var itemsTotal = items.reduce(function(s,it){ return s + (it.total||0); }, 0);
+    var itemsQty   = items.reduce(function(s,it){ return s + (it.qty||0); }, 0);
+    var maxItem    = Math.max.apply(null, items.map(function(it){ return it.total||0; }).concat([1]));
+    html += '<div class="sales-items-summary">' + Math.round(itemsQty) + ' items sold · $' + Math.round(itemsTotal).toLocaleString() + ' total</div>';
+    html += '<div class="sales-bar-wrap sales-items-list">';
+    items.forEach(function(it) {
+      var pct = Math.round(((it.total||0) / maxItem) * 100);
+      html += '<div class="sales-bar-row">';
+      html += '<div class="sales-bar-lbl"><span>' + esc(it.name) + ' <span class="sales-td-muted">×' + it.qty + '</span></span>';
+      html += '<span class="sales-bar-amt">$' + it.total.toLocaleString() + '</span></div>';
+      html += '<div class="sales-bar-track"><div class="sales-bar-fill sf-blue" style="width:' + pct + '%"></div></div>';
+      html += '</div>';
+    });
     html += '</div>';
-  });
-  html += '</div></div></div>';
+  }
+  html += '</div></div>';
   html += '</div>'; // sales-row
 
   // ── Weekly table ──────────────────────────
