@@ -1676,6 +1676,19 @@ async function retrySyncOrder(id) {
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
+  // Print Setup can flip custom orders to the sketch-canvas prototype
+  // (customLayout: 'sketch'). Only orders that print with the 'custom' bag
+  // layout are affected — repair/resize/estimate/ecom keep their templates.
+  try {
+    const psAll = Object.assign({ customLayout: 'classic' },
+      JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}'));
+    const layout = (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
+      ? printLayoutFor(inferOrderKind(o)) : 'custom';
+    if (psAll.customLayout === 'sketch' && layout === 'custom') {
+      printOrderSketchBag(o);
+      return;
+    }
+  } catch (e) {}
   // Flat addr* fields are the address of record; shippingAddress{} is the
   // mirror kept for older orders (see order-normalize.js).
   const sa = o.shippingAddress || {};
@@ -1735,6 +1748,65 @@ function printOrder(id) {
     p.set('sizeRow', ps.showSizeRow ? '1' : '0');
   } catch(e) {}
   window.open('work-order-print.html?' + p.toString(), '_blank');
+}
+
+// Sketch-canvas custom bag (custom-sketch-print.html, prototype). Maps the
+// intake fields onto that page's params and hands the sketch off through
+// localStorage — a base64 PNG doesn't fit in a URL.
+function printOrderSketchBag(o) {
+  const fmtMD = d => {
+    const p = String(d || '').split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] : '';
+  };
+  const sa = o.shippingAddress || {};
+  const addrLine = [o.addrStreet || sa.street || o.address || '',
+                    o.addrStreet2 || sa.street2 || ''].filter(Boolean).join(', ');
+  const p = new URLSearchParams({
+    name:      o.name  || '',
+    phone:     o.phone || '',
+    email:     o.email || '',
+    address:   addrLine,
+    city:      o.addrCity  || sa.city  || '',
+    state:     o.addrState || sa.state || '',
+    zip:       o.addrZip   || sa.zip   || '',
+    takeIn:    o.takeIn    || '',
+    deadline:  o.deadline  || '',
+    pickup:    o.pickup    || '',
+    pieceType: o.pieceType || '',
+    jobTitle:  o.jobDesc   || '',
+    desc:      o.desc      || '',
+    stones:    o.gemstones || '',
+    finish:    Array.isArray(o.finish) ? o.finish.join(' · ') : (o.finish || ''),
+    notes:     o.notes     || '',
+    materials: o.materials || '',
+    ringSize:  o.ringSize  || '',
+    wrist:     o.wrist     || '',
+    neck:      o.neck      || '',
+    deposit:   o.deposit   || '',
+    shipping:  o.shipping  || '',
+    fullyPaid: o.fullyPaid || '',
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({
+      desc:   oiPrintLabel(it),
+      amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
+    }))),
+  });
+  const gift = o.gift || {};
+  if (gift.recipient || gift.occasion || gift.surprise) {
+    p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
+    p.set('giftDate', [gift.occasion,
+      gift.occasionDate ? 'needed by ' + fmtMD(gift.occasionDate) : '']
+      .filter(Boolean).join(' · '));
+    if (gift.surprise) p.set('giftSurprise', '1');
+  }
+  // Ink-only export is made for the printed bag (no photo underlay); fall
+  // back to the composite. Always clear the key when this order has no
+  // sketch so a previous print's drawing can't leak onto the wrong bag.
+  try {
+    const sk = o.sketchInkImg || o.sketchImg;
+    if (sk) localStorage.setItem('sts-print-sketch', sk);
+    else localStorage.removeItem('sts-print-sketch');
+  } catch (e) { /* storage full — print proceeds with a blank canvas */ }
+  window.open('custom-sketch-print.html?' + p.toString(), '_blank');
 }
 
 // ════════════════════════════════════════════

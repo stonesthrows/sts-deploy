@@ -8833,7 +8833,10 @@ const PS_DEFAULTS = {
   notesSize:   'medium',
   liRows:      4,
   fontSize:    'medium',
-  showSizeRow: true
+  showSizeRow: true,
+  // 'classic' = work-order-print.html; 'sketch' = custom-sketch-print.html
+  // prototype. Only affects orders that print with the custom bag layout.
+  customLayout: 'classic'
 };
 
 function psLoadSettings() {
@@ -8857,6 +8860,9 @@ function openPrintSetup() {
   });
   document.getElementById('ps-lirows').value = s.liRows;
   document.getElementById('ps-sizerow').checked = s.showSizeRow;
+  document.querySelectorAll('#ps-customlayout .ps-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === (s.customLayout || 'classic'));
+  });
   document.getElementById('printSetupBg').classList.add('open');
 }
 
@@ -8874,7 +8880,8 @@ function savePrintSetup() {
     notesSize:   active('ps-notes')   || PS_DEFAULTS.notesSize,
     liRows:      parseInt(document.getElementById('ps-lirows').value) || PS_DEFAULTS.liRows,
     fontSize:    active('ps-font')    || PS_DEFAULTS.fontSize,
-    showSizeRow: document.getElementById('ps-sizerow').checked
+    showSizeRow: document.getElementById('ps-sizerow').checked,
+    customLayout: active('ps-customlayout') || PS_DEFAULTS.customLayout
   };
   localStorage.setItem(PS_KEY, JSON.stringify(s));
   closePrintSetup();
@@ -9619,6 +9626,14 @@ body.theme-midnight .recon-under { color: #E08A80; }
           <input type="checkbox" id="ps-sizerow" checked>
           Show "Size / Details" row
         </label>
+      </div>
+
+      <div class="ps-row">
+        <label>Custom Order Bag</label>
+        <div class="ps-opts" id="ps-customlayout">
+          <button class="ps-opt" data-val="classic" onclick="psSelect('ps-customlayout',this)">Classic Form</button>
+          <button class="ps-opt" data-val="sketch" onclick="psSelect('ps-customlayout',this)">Sketch Canvas (beta)</button>
+        </div>
       </div>
 
     </div>
