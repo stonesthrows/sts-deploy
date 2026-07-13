@@ -576,6 +576,18 @@ function _rqMatCostFor(key) {
   return (typeof v === 'number' && !isNaN(v)) ? v : null;
 }
 
+// Minutes of chain-making per pendant. Chains are made ahead of time in
+// batches by a different employee, so this is logged on pendant sessions as
+// info (see rqStopTimer) rather than added to the maker's timed minutes —
+// the chain batch gets its own timer session and adding it here too would
+// double-count labor. Default from the measured batch: 25 pcs in 1h07m.
+var RQ_CHAIN_MIN_DEFAULT = 2.68;
+
+function _rqChainMinPerPc() {
+  var v = parseFloat(localStorage.getItem('sts-chain-min-per-pc'));
+  return (!isNaN(v) && v >= 0) ? v : RQ_CHAIN_MIN_DEFAULT;
+}
+
 function _rqSyncProdSettings() {
   if (_rqSettingsSynced) return;
   _rqSettingsSynced = true; // fetch once per page load; every Save re-PUTs
@@ -587,6 +599,9 @@ function _rqSyncProdSettings() {
       if (cfg.materialCosts && typeof cfg.materialCosts === 'object') {
         localStorage.setItem('sts-material-costs', JSON.stringify(cfg.materialCosts));
       }
+      if (typeof cfg.chainMinPerPc === 'number' && cfg.chainMinPerPc >= 0) {
+        localStorage.setItem('sts-chain-min-per-pc', String(cfg.chainMinPerPc));
+      }
       if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
     })
     .catch(function() {});
@@ -595,7 +610,7 @@ function _rqSyncProdSettings() {
 function _rqPushProdSettings() {
   fetch('/api/prod-settings', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rates: _rqLoadRates(), materialCosts: _rqLoadMatCosts() }),
+    body: JSON.stringify({ rates: _rqLoadRates(), materialCosts: _rqLoadMatCosts(), chainMinPerPc: _rqChainMinPerPc() }),
   }).then(function(r) {
     if (!r.ok) toast('Settings sync failed — saved on this device only', '⚠');
   }).catch(function() {
@@ -632,6 +647,10 @@ function _rqRenderRatesPanel() {
         return '<div class="rq-edit-field"><label style="width:60px;">' + name + '</label>'
           + '<input class="rq-edit-input" type="number" min="0" step="0.5" id="rq-rate-' + name + '" placeholder="$/hr" value="' + (rates[name] != null ? rates[name] : '') + '"></div>';
       }).join('')
+    + '<div class="rq-edit-field" title="Minutes to make one chain — chains are batch-made ahead of time, so this is logged on pendant sessions as info, not added to the timer">'
+    + '<label style="width:60px;">⛓ Chain</label>'
+    + '<input class="rq-edit-input" type="number" min="0" step="0.1" id="rq-chain-min" placeholder="min/pendant" value="' + _rqChainMinPerPc() + '">'
+    + '<span style="font-size:11px;color:var(--text3);">min/pendant</span></div>'
     + '<div style="display:flex;gap:8px;margin-top:2px;">'
     + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveRatesPanel()">Save</button>'
     + '<button class="rq-sbar-act-btn" onclick="rqToggleRatesPanel()">Cancel</button>'
@@ -651,6 +670,11 @@ function rqSaveRatesPanel() {
     rates[name] = (v != null && !isNaN(v)) ? v : 0;
   });
   _rqSaveRatesObj(rates);
+  var chainInp = document.getElementById('rq-chain-min');
+  var chainVal = chainInp && chainInp.value.trim() !== '' ? parseFloat(chainInp.value.trim()) : null;
+  if (chainVal != null && !isNaN(chainVal) && chainVal >= 0) {
+    localStorage.setItem('sts-chain-min-per-pc', String(chainVal));
+  }
   _rqPushProdSettings();
   _rqRatesPanelOpen = false;
   _rqRenderRatesPanel();

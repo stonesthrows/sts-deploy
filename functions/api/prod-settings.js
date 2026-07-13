@@ -6,7 +6,9 @@
 //  which is per-browser — timers stopped on a device where rates were
 //  never typed in snapshotted wrong labor costs. This makes every device
 //  read/write the same numbers.
-//  Shape: { rates: { [firstName]: $/hr }, materialCosts: { [squareId|custom:name]: $/pc } }
+//  Shape: { rates: { [firstName]: $/hr }, materialCosts: { [squareId|custom:name]: $/pc },
+//           chainMinPerPc: minutes of chain-making per pendant (chains are
+//           batch-made ahead of time; see restock.js chain-time logging) }
 // ════════════════════════════════════════════
 
 const NOTION_API = 'https://api.notion.com/v1';
@@ -79,6 +81,8 @@ export async function onRequest({ request, env }) {
     const content = JSON.stringify({
       rates:         body.rates && typeof body.rates === 'object' ? body.rates : {},
       materialCosts: body.materialCosts && typeof body.materialCosts === 'object' ? body.materialCosts : {},
+      chainMinPerPc: (typeof body.chainMinPerPc === 'number' && isFinite(body.chainMinPerPc) && body.chainMinPerPc >= 0)
+        ? body.chainMinPerPc : null,
     });
     const page = await findMetaPage(h);
 

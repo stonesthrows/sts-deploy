@@ -390,6 +390,7 @@ function rqSetInlineVariantQty(pid, variantId, value) {
   if (usingRichMatch) {
     timer.richMatch = Object.assign({}, match, { selectedVariants: selectedVariants });
     _rqPersistTimer(pid);
+    _rqUpdateChainLine(pid);
   } else {
     _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: selectedVariants });
     _rqAmSave();
@@ -1475,6 +1476,7 @@ function restockQueueRender() {
         + '</div>'
         + _rqTimerSizesHtml(safePid, timer.richMatch || match)
         + _rqTimerPiecesInputsHtml(safePid, timer)
+        + _rqChainLineHtml(safePid, timer)
         + '<div style="display:flex;align-items:center;gap:14px;margin-top:2px;">'
         + '<button class="rq-timer-notes-toggle" onclick="rqToggleTimerNotes(\'' + safePid + '\')">▾ notes</button>'
         + '<button class="rq-adjust-link" onclick="rqToggleAdjustStart(\'' + safePid + '\')">✎ adjust start</button>'
@@ -1572,6 +1574,78 @@ function rqStartTimer(pid, itemText, assigneeName) {
   }
 }
 
+// ── Chain time for pendants ──────────────────────────────────────────────────
+// Every pendant needs a chain, made ahead of time in batches by a different
+// employee. The per-piece minutes live in the shared prod settings
+// (_rqChainMinPerPc, restock-sessions.js — editable next to labor rates).
+// The computed chain time is shown live in the running-timer panel and logged
+// into the session's notes at stop; it is deliberately NOT added to the
+// timer's net minutes, because the chain batch is timed as its own session
+// and counting it here too would double-count labor.
+
+function _rqIsPendantItem(it) {
+  if (!it || typeof it !== 'object') return false;
+  return /pendant/i.test((it.category || '') + ' ' + (it.name || ''));
+}
+
+function _rqTimerHasPendant(t) {
+  if (!t) return false;
+  if (t.richMatch && _rqIsPendantItem(t.richMatch)) return true;
+  return (t.items || []).some(_rqIsPendantItem);
+}
+
+// Live pendant piece count — reads the same sources rqStopTimer's rows do
+// (richMatch.selectedVariants while running, else the items' pieces), so the
+// note written at stop always matches the counts that get saved.
+function _rqChainPendantPcs(t) {
+  if (!t) return 0;
+  var total = 0;
+  if (t.richMatch && t.richMatch.isParent) {
+    if (!_rqIsPendantItem(t.richMatch)) return 0;
+    (t.richMatch.selectedVariants || []).forEach(function(v) { if (v.qty > 0) total += v.qty; });
+    return total;
+  }
+  (t.items || []).forEach(function(it) {
+    if (!_rqIsPendantItem(it)) return;
+    if (it.isParent && it.selectedVariants && it.selectedVariants.length) {
+      it.selectedVariants.forEach(function(v) { if (v.qty > 0) total += v.qty; });
+    } else if (it.pieces > 0) {
+      total += it.pieces;
+    }
+  });
+  return total;
+}
+
+function _rqChainInfoFor(t) {
+  var rate = (typeof _rqChainMinPerPc === 'function') ? _rqChainMinPerPc() : 0;
+  var pcs  = _rqChainPendantPcs(t);
+  if (!(rate > 0) || !(pcs > 0)) return null;
+  return { pcs: pcs, rate: rate, min: Math.round(pcs * rate * 10) / 10 };
+}
+
+function _rqChainNoteText(info) {
+  return '⛓ Chain: ' + info.min + ' min (' + info.pcs + ' pc × ' + info.rate + ' min/pc, batch-made separately)';
+}
+
+function _rqChainLineHtml(pid, t) {
+  if (!_rqTimerHasPendant(t)) return '';
+  var info = _rqChainInfoFor(t);
+  var txt = info ? _rqChainNoteText(info)
+                 : '⛓ Chain time logs at stop (' + ((typeof _rqChainMinPerPc === 'function') ? _rqChainMinPerPc() : 0) + ' min/pendant)';
+  return '<div class="rq-timer-chain" id="rq-chain-' + pid + '">' + txt + '</div>';
+}
+
+// Refresh the running-timer chain line after a mid-run qty/pieces edit.
+function _rqUpdateChainLine(pid) {
+  var el = document.getElementById('rq-chain-' + pid);
+  if (!el) return;
+  var t = _rqTimers[pid];
+  if (!t) return;
+  var info = _rqChainInfoFor(t);
+  el.textContent = info ? _rqChainNoteText(info)
+                        : '⛓ Chain time logs at stop (' + ((typeof _rqChainMinPerPc === 'function') ? _rqChainMinPerPc() : 0) + ' min/pendant)';
+}
+
 // Strip transient/private keys (_priceIsEstimate etc.) so the Notion
 // "Items JSON" snapshot stays small and canonical.
 function _rqItemsForJson(items) {
@@ -1609,6 +1683,10 @@ function rqStopTimer(pid) {
   // was last edited — not a snapshot taken when the timer started.
   var notesEl  = document.getElementById('rq-notes-' + pid);
   var notes    = notesEl ? notesEl.value.trim() : (t.notes || '');
+  // Pendants: auto-log the chain-making time for the pieces made. Info-only —
+  // the chain batch is its own timed session (see _rqChainInfoFor).
+  var chainInfo = _rqChainInfoFor(t);
+  if (chainInfo) notes = notes ? notes + '\n' + _rqChainNoteText(chainInfo) : _rqChainNoteText(chainInfo);
   var rows     = _rqLiveTimerRows(t);
   var expandedItems = rows.map(function(row) {
     return { name: row.label, squareId: row.squareId, pieces: row.pieces, isCustom: row.isCustom };
@@ -2120,6 +2198,7 @@ function _rqSetTimerItemPieces(pid, idx, raw) {
   var v = (raw || '').trim() === '' ? null : parseInt(raw, 10);
   t.items[idx].pieces = isNaN(v) ? null : v;
   _rqPersistTimer(pid);
+  _rqUpdateChainLine(pid);
   var input = document.getElementById('rq-pieces-' + pid + '-' + idx);
   var wrap  = input && input.closest('.rq-timer-pieces');
   if (wrap) wrap.classList.toggle('rq-pieces-missing', t.items[idx].pieces == null);
