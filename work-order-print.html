@@ -302,77 +302,108 @@
     .form-content[data-layout="resize"] #j-size::before  { content: 'From '; font-size: 8px; font-weight: bold; color: #555; }
     .form-content[data-layout="resize"] #j-size2::before { content: 'To ';   font-size: 8px; font-weight: bold; color: #555; }
 
-    /* ── Structured item table + buyer note (ecom layout only) ──
-       One row per line item with dedicated QTY / ITEM / METAL / SIZE cells so
-       variations can never be attributed to the wrong item; personalization
-       prints verbatim in its own sub-row directly under its item. */
-    .item-block {
-      display: none; flex-direction: column;
-      border: 1px solid #000; border-top: none; flex-shrink: 0;
+    /* ── Ecom header band ──
+       Black band: SOURCE · order # · SHIP BY date, with an ordered-date /
+       piece-count meta line under it. Replaces the shared source/date rows. */
+    .ecom-head { display: none; }
+    .eh-band {
+      background: #000; color: #fff; display: flex; align-items: center;
+      gap: 14px; padding: 7px 12px;
+      /* White-on-black carries the order number — force the fill to print
+         even when the browser's "background graphics" option is off. */
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
-    .it-head { display: flex; background: #d0d0d0; border-bottom: 1px solid #000; flex-shrink: 0; }
-    .it-head span { font-weight: bold; font-size: 8px; padding: 1px 3px; }
-    .it-item + .it-item { border-top: 1px solid #000; }
-    .it-row { display: flex; align-items: stretch; }
-    .it-qty  { width: 0.5in;  border-right: 1px solid #000; text-align: center; flex-shrink: 0; }
-    .it-name { flex: 1;       border-right: 1px solid #000; min-width: 0; }
-    .it-mat  { width: 1.35in; border-right: 1px solid #000; text-align: center; flex-shrink: 0; }
-    .it-size { width: 0.7in;  text-align: center; flex-shrink: 0; }
-    .it-row .it-qty  { font-size: 22px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-    .it-row .it-name { font-size: 13px; font-weight: bold; padding: 4px 5px; display: flex; align-items: center; min-height: 34px; }
-    .it-row .it-mat  { font-size: 12px; padding: 4px 4px; display: flex; align-items: center; justify-content: center; }
-    .it-row .it-size { font-size: 17px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-    .it-pers { border-top: 1px dashed #666; padding: 3px 6px; font-size: 12.5px; line-height: 1.3; }
-    .it-pers-lbl {
-      font-size: 7.5px; font-weight: bold; text-transform: uppercase;
-      letter-spacing: 0.4px; color: #333; margin-right: 5px;
+    .eh-src { font-size: 17px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+    .eh-no  { font-size: 14px; flex: 1; }
+    .eh-due { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; }
+    .eh-due b { display: block; font-size: 15px; letter-spacing: 0; }
+    .eh-meta {
+      display: flex; justify-content: space-between;
+      font-size: 9px; color: #444; padding: 4px 2px 6px;
+    }
+
+    /* ── Item rows (ecom layout only) ──
+       Spec-sheet treatment: giant quantity, uppercase item name with the
+       metal as an outlined chip, and the size as an oversized numeral —
+       readable at arm's length, impossible to attribute to the wrong item.
+       Personalization prints verbatim in monospace on a shaded strip
+       directly under its item. */
+    .item-block { display: none; flex-direction: column; flex-shrink: 0; border-top: 3px solid #000; }
+    .it-item { border-bottom: 2px solid #000; }
+    .it-row { display: flex; align-items: center; gap: 12px; padding: 10px 2px; }
+    .it-q { font-size: 34px; font-weight: 900; min-width: 50px; text-align: center; line-height: 1; flex-shrink: 0; }
+    .it-mid { flex: 1; min-width: 0; }
+    .it-nm { font-size: 14px; font-weight: 800; text-transform: uppercase; line-height: 1.2; }
+    .it-chip {
+      display: inline-block; border: 1.5px solid #000;
+      font-size: 9.5px; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 1px; padding: 2px 8px; margin-top: 5px;
+    }
+    .it-sz { text-align: center; min-width: 62px; flex-shrink: 0; }
+    .it-sz small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 2px; }
+    .it-sz b { font-size: 30px; line-height: 1; }
+    .it-pers {
+      background: #eee; border-top: 1px dashed #666;
+      font-family: 'Liberation Mono', 'Courier New', monospace;
+      font-size: 12.5px; line-height: 1.3; padding: 5px 9px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .it-pers small {
+      display: block; font-family: Calibri, Arial, sans-serif;
+      font-size: 7px; font-weight: bold; letter-spacing: 2px; margin-bottom: 2px;
     }
 
     .buyer-block { display: none; }
 
     /* E-commerce (Shopify/Etsy): paid online and always shipped — the bag is
-       a pick/pack ticket. Drop payment, pickup, contact and price chrome;
-       show source, the structured item table, the buyer's message verbatim,
-       and a compact Ship To for verification at pack-out. */
+       a pick/pack ticket. Drop payment, pickup, contact and price chrome and
+       the shared source/date rows (the header band replaces them); sections
+       switch to open letterspaced labels to match the item rows. */
     .form-content[data-layout="ecom"] .chk-row,
-    .form-content[data-layout="ecom"] .chk-items,
+    .form-content[data-layout="ecom"] .date-row,
     .form-content[data-layout="ecom"] .cust-grid,
     .form-content[data-layout="ecom"] .jd-size-row,
     .form-content[data-layout="ecom"] .li-block,
     .form-content[data-layout="ecom"] .paid-row { display: none; }
-    .form-content[data-layout="ecom"] .src-row { display: flex; border-top: 1px solid #000; }
-    /* The dates→customer-grid gap has nothing to separate here — the grid is
-       hidden and the item table should sit flush under the Due row. */
-    .form-content[data-layout="ecom"] .date-row:last-of-type { margin-bottom: 0; }
-    .form-content[data-layout="ecom"] #src-name {
-      font-weight: bold; font-size: 14px; text-transform: uppercase;
-      letter-spacing: 0.5px; border: none; background: transparent; padding: 0;
-      min-width: 0; text-align: left;
-    }
+    .form-content[data-layout="ecom"] .ecom-head { display: block; }
     .form-content[data-layout="ecom"] .item-block { display: flex; }
     .form-content[data-layout="ecom"] .buyer-block.has-note {
       display: flex; flex-direction: column; flex-shrink: 0;
     }
+    /* Open section chrome: no boxes, small heavy letterspaced headers */
+    .form-content[data-layout="ecom"] .buyer-block,
+    .form-content[data-layout="ecom"] .sec-block.grow,
+    .form-content[data-layout="ecom"] .ship-block { border: none; }
+    .form-content[data-layout="ecom"] .buyer-block .sec-head,
+    .form-content[data-layout="ecom"] .sec-block.grow .sec-head,
+    .form-content[data-layout="ecom"] .ship-block .sec-head {
+      background: none; border-bottom: none; text-align: left; padding: 0;
+      font-size: 8px; font-weight: bold; letter-spacing: 2px;
+      text-transform: uppercase; color: #000; margin: 12px 0 4px;
+    }
     .form-content[data-layout="ecom"] .buyer-block .sec-body {
-      font-size: 12.5px; line-height: 1.35; min-height: 24px;
+      font-size: 12.5px; line-height: 1.35; min-height: 0; padding: 0 0 0 9px;
+      border-left: 4px solid #000;
+    }
+    /* Bench notes: a fixed ruled strip instead of swallowing all free space. */
+    .form-content[data-layout="ecom"] .sec-block.grow { flex: none; }
+    .form-content[data-layout="ecom"] .sec-block.grow .sec-body {
+      flex: none; height: 1in; min-height: 0; padding: 0;
+      background: repeating-linear-gradient(to bottom,
+        transparent, transparent 26px, #aaa 26px, #aaa 27px);
+    }
+    .form-content[data-layout="ecom"] .ship-block {
+      display: flex; flex-direction: column; flex: none;
+      border: 1px solid #000; margin-top: 12px;
+    }
+    .form-content[data-layout="ecom"] .ship-block .sec-head { margin: 5px 9px 0; }
+    .form-content[data-layout="ecom"] .ship-block .sec-body {
+      font-size: 12px !important; line-height: 1.35 !important;
+      min-height: 0; padding: 1px 9px 7px;
     }
     /* Ecom orders print before assignment — no Worked By on the bag.
        (!important: the wrap carries an inline display:flex) */
     .form-content[data-layout="ecom"] #workedby-wrap { display: none !important; }
-    /* Bench notes: a fixed ruled strip instead of swallowing all free space. */
-    .form-content[data-layout="ecom"] .sec-block.grow { flex: none; }
-    .form-content[data-layout="ecom"] .sec-block.grow .sec-body {
-      flex: none; height: 1in; min-height: 0;
-      background: repeating-linear-gradient(to bottom,
-        transparent, transparent 22px, #bbb 22px, #bbb 23px);
-    }
-    .form-content[data-layout="ecom"] .ship-block {
-      display: flex; flex-direction: column; flex: none;
-      border-bottom: 1px solid #000;
-    }
-    .form-content[data-layout="ecom"] .ship-block .sec-body {
-      font-size: 11.5px !important; line-height: 1.3 !important; min-height: 0;
-    }
   </style>
 </head>
 <body>
@@ -451,17 +482,19 @@
     </div>
   </div>
 
-  <div class="item-block" id="item-block">
-    <div class="it-head">
-      <span class="it-qty">Qty</span>
-      <span class="it-name">Item</span>
-      <span class="it-mat">Metal / Variation</span>
-      <span class="it-size">Size</span>
+  <div class="ecom-head" id="ecom-head">
+    <div class="eh-band">
+      <span class="eh-src" id="eh-src"></span>
+      <span class="eh-no" id="eh-no" contenteditable="true"></span>
+      <span class="eh-due">Ship by<b id="eh-due" contenteditable="true"></b></span>
     </div>
+    <div class="eh-meta"><span id="eh-ordered"></span><span id="eh-count"></span></div>
   </div>
 
+  <div class="item-block" id="item-block"></div>
+
   <div class="sec-block buyer-block" id="buyer-block">
-    <div class="sec-head">Buyer Message — verbatim</div>
+    <div class="sec-head">Buyer Message</div>
     <div class="sec-body" id="buyer-note" contenteditable="true"></div>
   </div>
 
@@ -633,25 +666,32 @@
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 
-  // Per-layout content: Source row + item table + Ship To block (ecom),
+  // Per-layout content: header band + item rows + Ship To block (ecom),
   // relabels (repair/resize)
   if (fc.dataset.layout === 'ecom') {
-    // An online order was placed, not taken in over the counter.
-    document.querySelector('.date-row:not(.src-row) .date-row-label').textContent = 'Ordered';
-    document.getElementById('src-name').textContent =
-      srcName || (stage === 'etsy-bench' ? 'Etsy' : stage === 'intake-website' ? 'Shopify' : '');
-    document.getElementById('src-orderno').textContent = orderNo;
+    document.querySelector('.sec-block.grow .sec-head').textContent = 'Bench Notes';
     const cityLine = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
     document.getElementById('ship-to').textContent =
       [name, address, cityLine, country].filter(Boolean).join('\n');
 
-    // Structured item table — one row per line item. Falls back to splitting
-    // the desc text for pre-structured-fields print URLs.
+    // Header band: SOURCE · #order · SHIP BY, plus ordered/piece-count meta.
+    const srcText = srcName ||
+      (stage === 'etsy-bench' ? 'Etsy' : stage === 'intake-website' ? 'Shopify' : 'Online');
+    document.getElementById('eh-src').textContent = srcText;
+    document.getElementById('eh-no').textContent =
+      orderNo ? (orderNo.charAt(0) === '#' ? orderNo : '#' + orderNo) : '';
+    document.getElementById('eh-due').textContent = fmt(deadline);
+    document.getElementById('eh-ordered').textContent =
+      takeIn ? 'Ordered ' + fmt(takeIn) : '';
+
+    // Item rows — one spec row per line item. Falls back to splitting the
+    // desc text for pre-structured-fields print URLs.
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
     const itemBlock = document.getElementById('item-block');
     const itemRows = lineItems.length
       ? lineItems
       : desc.split('\n').map(s => s.trim()).filter(Boolean).map(d => ({ desc: d }));
+    let pieceCount = 0;
     itemRows.forEach(it => {
       let nm   = it.base || it.desc || '';
       let qty  = it.qty || '';
@@ -664,21 +704,33 @@
         const sm = /\s*[-–—]\s*Size[:\s]*([^,]+)\s*$/i.exec(nm);
         if (sm) { size = sm[1].trim(); nm = nm.slice(0, sm.index); }
       }
+      pieceCount += parseInt(qty, 10) || 1;
+      // "9 US" → big numeral 9 under a SIZE US label; long sizes shrink.
+      let szLabel = 'Size', szVal = size || '—';
+      const um = /^(.+?)\s+US$/i.exec(szVal);
+      if (um) { szVal = um[1]; szLabel = 'Size US'; }
+      const szStyle = szVal.length > 4 ? ' style="font-size:16px;line-height:1.9;"' : '';
       const wrap = document.createElement('div');
       wrap.className = 'it-item';
       wrap.innerHTML =
         `<div class="it-row">
-          <span class="it-qty"  contenteditable="true">${esc(qty)}</span>
-          <span class="it-name" contenteditable="true">${esc(nm)}</span>
-          <span class="it-mat"  contenteditable="true">${esc(it.material || '—')}</span>
-          <span class="it-size" contenteditable="true">${esc(size || '—')}</span>
+          <div class="it-q" contenteditable="true">${esc(qty)}</div>
+          <div class="it-mid">
+            <div class="it-nm" contenteditable="true">${esc(nm)}</div>
+            ${it.material ? `<span class="it-chip" contenteditable="true">${esc(it.material)}</span>` : ''}
+          </div>
+          <div class="it-sz"><small>${szLabel}</small><b contenteditable="true"${szStyle}>${esc(szVal)}</b></div>
         </div>` +
         (it.pers
-          ? `<div class="it-pers"><span class="it-pers-lbl">✎ Personalization</span><span contenteditable="true">&ldquo;${esc(it.pers)}&rdquo;</span></div>`
+          ? `<div class="it-pers"><small>✎ Personalization — exact</small><span contenteditable="true">&ldquo;${esc(it.pers)}&rdquo;</span></div>`
           : '');
       itemBlock.appendChild(wrap);
     });
     if (!itemRows.length) itemBlock.style.display = 'none';
+    document.getElementById('eh-count').textContent = itemRows.length
+      ? itemRows.length + (itemRows.length === 1 ? ' item · ' : ' items · ')
+        + pieceCount + (pieceCount === 1 ? ' piece' : ' pieces')
+      : '';
 
     // Buyer message prints verbatim in its own block; the Notes box is left
     // blank as bench handwriting space (any materials text still shows there).
