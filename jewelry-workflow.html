@@ -7108,6 +7108,9 @@
   <div class="oh-controls" id="materialsFilterBar">
     <button class="oh-fbtn active" data-cat="all" onclick="materialsSetCatFilter('all')">All</button>
     <button class="oh-fbtn" data-cat="wire" onclick="materialsSetCatFilter('wire')">Wire</button>
+    <button class="oh-fbtn" data-cat="wire-silver" onclick="materialsSetCatFilter('wire-silver')">Silver Wire</button>
+    <button class="oh-fbtn" data-cat="wire-gf" onclick="materialsSetCatFilter('wire-gf')">Gold Fill Wire</button>
+    <button class="oh-fbtn" data-cat="wire-14k" onclick="materialsSetCatFilter('wire-14k')">14k Wire</button>
     <button class="oh-fbtn" data-cat="sheet" onclick="materialsSetCatFilter('sheet')">Sheet</button>
     <button class="oh-fbtn" data-cat="chain" onclick="materialsSetCatFilter('chain')">Chains</button>
     <button class="oh-fbtn" data-cat="component" onclick="materialsSetCatFilter('component')">Components</button>
@@ -7171,6 +7174,7 @@
           <option value="">—</option>
           <option value="argentium">Argentium</option>
           <option value="gold_fill">Gold Fill</option>
+          <option value="14k">14k Gold</option>
         </select>
       </div>
       <div style="flex:1">
@@ -8091,6 +8095,104 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
   .dsn-grid { grid-template-columns:1fr 1fr; }
   .dsn-card-thumb-wrap { height:90px; }
 }
+/* ── Designs: guide view (read-only) ─────── */
+.dsn-guide-page {
+  max-width: 780px; margin: 0 auto;
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: var(--rad-lg); box-shadow: var(--shadow-sm);
+  padding: 36px 44px 28px;
+}
+.dsn-gd-head { display: flex; gap: 24px; align-items: flex-start; justify-content: space-between; }
+.dsn-gd-headtext { min-width: 0; }
+.dsn-gd-title { font-size: 24px; font-weight: 800; color: var(--text); line-height: 1.2; margin: 6px 0; }
+.dsn-gd-meta { font-size: 11px; color: var(--text3); letter-spacing: .4px; text-transform: uppercase; }
+.dsn-gd-hero {
+  width: 200px; aspect-ratio: 1/1; object-fit: cover; flex: none;
+  border-radius: var(--rad-md); border: 1px solid var(--bdr); cursor: zoom-in;
+}
+.dsn-gd-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.dsn-gd-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bdr); cursor: zoom-in; }
+.dsn-gd-sec { margin-top: 24px; }
+.dsn-gd-h2 {
+  font-size: 12.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text2); border-bottom: 2px solid var(--bdr); padding-bottom: 6px; margin: 0 0 12px;
+}
+.dsn-gd-subhead { font-size: 13.5px; font-weight: 800; color: var(--text); margin: 14px 0 6px; }
+.dsn-gd-p { font-size: 14px; line-height: 1.65; color: var(--text); margin: 0 0 10px; }
+.dsn-gd-bullets { margin: 0 0 10px 20px; padding: 0; }
+.dsn-gd-bullets li { font-size: 14px; line-height: 1.6; color: var(--text); margin-bottom: 4px; }
+.dsn-gd-steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.dsn-gd-step { display: flex; gap: 12px; align-items: flex-start; }
+.dsn-gd-stepnum {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--accent); color: var(--accent);
+  font-size: 12.5px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.dsn-gd-steptext { font-size: 14px; line-height: 1.6; color: var(--text); padding-top: 3px; min-width: 0; }
+.dsn-gd-matlist { list-style: none; margin: 0; padding: 0; }
+.dsn-gd-matlist li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 2px; border-bottom: 1px dashed var(--bdr); font-size: 13.5px; }
+.dsn-gd-matlist li:last-child { border-bottom: none; }
+.dsn-gd-matname { font-weight: 600; color: var(--text); }
+.dsn-gd-matqty { color: var(--text2); text-align: right; white-space: nowrap; }
+.dsn-guide-cost-bar {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 28px;
+  background: var(--card-head-bg); border: 1px solid var(--bdr); border-radius: 8px;
+  padding: 9px 13px; font-size: 12.5px; font-weight: 600; color: var(--text2);
+  font-family: inherit; cursor: pointer; text-align: left;
+  transition: background var(--dur-fast) var(--ease-smooth);
+}
+.dsn-guide-cost-bar:not(.static):hover { background: var(--accent-bg); }
+.dsn-guide-cost-bar.static { cursor: default; }
+.dsn-guide-cost-bar.open { border-radius: 8px 8px 0 0; }
+.dsn-guide-cost-bar .dsn-gd-chev { margin-left: auto; color: var(--text3); }
+.dsn-guide-cost-detail {
+  border: 1px solid var(--bdr); border-top: none; border-radius: 0 0 8px 8px;
+  padding: 10px 14px; background: var(--card-head-bg);
+}
+@media (max-width: 640px) {
+  .dsn-guide-page { padding: 22px 18px; }
+  .dsn-gd-head { flex-direction: column-reverse; }
+  .dsn-gd-hero { width: 100%; max-width: 280px; }
+}
+
+/* ── Designs: guide print (8.5×11 letter) ──
+   body.dsn-printing is set by beforeprint only while the guide is open,
+   so other print flows in this document are untouched. Everything except
+   the guide page and its ancestors is removed; ancestors are flattened
+   so multi-page flow isn't clipped by app scroll containers. */
+@media print {
+  @page { size: letter; margin: 0.6in; }
+  body.dsn-printing *:not(:has(#dsn-guide-page)):not(#dsn-guide-page):not(#dsn-guide-page *) { display: none !important; }
+  body.dsn-printing, body.dsn-printing :has(#dsn-guide-page) {
+    display: block !important; position: static !important;
+    height: auto !important; min-height: 0 !important; max-height: none !important;
+    overflow: visible !important; padding: 0 !important; margin: 0 !important;
+    width: auto !important; max-width: none !important;
+    background: #fff !important; border: none !important; box-shadow: none !important;
+  }
+  body.dsn-printing .dsn-no-print { display: none !important; }
+  body.dsn-printing #dsn-guide-page {
+    max-width: none; margin: 0; padding: 0;
+    background: #fff; border: none; border-radius: 0; box-shadow: none;
+  }
+  /* force ink-friendly colors regardless of theme */
+  body.dsn-printing #dsn-guide-page, body.dsn-printing #dsn-guide-page * {
+    color: #111 !important; background: transparent !important; border-color: #999 !important;
+  }
+  body.dsn-printing .dsn-gd-meta, body.dsn-printing .dsn-gd-h2 { color: #555 !important; }
+  body.dsn-printing .dsn-cat-chip { border: 1px solid #999 !important; }
+  body.dsn-printing .dsn-gd-stepnum { border-color: #111 !important; }
+  body.dsn-printing .dsn-gd-hero { width: 3in; cursor: default; }
+  body.dsn-printing .dsn-gd-thumb { width: 0.9in; height: 0.9in; cursor: default; }
+  /* clean breaks */
+  body.dsn-printing .dsn-gd-step,
+  body.dsn-printing .dsn-gd-matlist li,
+  body.dsn-printing .dsn-gd-hero,
+  body.dsn-printing .dsn-gd-thumbs { break-inside: avoid; }
+  body.dsn-printing .dsn-gd-h2, body.dsn-printing .dsn-gd-subhead { break-after: avoid; }
+}
+
 /* ── Designs: midnight theme ──
    Shared .btn-outline hardcodes a white background (same scoped fix the
    Calendar + Inventory passes used), and the hardcoded #c0392b reds are
@@ -8163,6 +8265,17 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
     </div>
     <div class="dsn-grid" id="designs-list"></div>
+  </div>
+
+  <!-- Guide view (read-only, printable) -->
+  <div id="designs-guide-wrap" style="display:none">
+    <div class="dsn-form-header">
+      <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="dsnGuidePrint()">🖨 Print</button>
+      <button class="btn btn-gold btn-sm" onclick="designsShowForm(_designsEditId)">✎ Edit</button>
+    </div>
+    <div id="dsn-guide-page" class="dsn-guide-page"></div>
   </div>
 
   <!-- Form view (new or edit) -->

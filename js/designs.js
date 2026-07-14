@@ -79,18 +79,19 @@ async function designsInit() {
 function _designsLoadCosting() {
   if (typeof _materialsApiFetch === 'function') {
     _materialsApiFetch()
-      .then(ms => { _designsMaterials = ms.filter(m => m.active !== false); _designsBomRender(); })
-      .catch(() => { if (_designsMaterials === null) _designsMaterials = []; _designsBomRender(); });
+      .then(ms => { _designsMaterials = ms.filter(m => m.active !== false); _designsBomRender(); _dsnGuideRefresh(); })
+      .catch(() => { if (_designsMaterials === null) _designsMaterials = []; _designsBomRender(); _dsnGuideRefresh(); });
   }
   fetch('/api/shop-settings')
     .then(r => r.json())
-    .then(s => { _shopSettings = (s && !s.error) ? s : {}; dsnWasteDefaultsRefreshLabel(); dsnBomRecalcEffective(); })
+    .then(s => { _shopSettings = (s && !s.error) ? s : {}; dsnWasteDefaultsRefreshLabel(); dsnBomRecalcEffective(); _dsnGuideRefresh(); })
     .catch(() => { if (_shopSettings === null) _shopSettings = {}; dsnWasteDefaultsRefreshLabel(); });
 }
 
 function _designsShowLoadingPlaceholder() {
   document.getElementById('designs-library').style.display = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
+  document.getElementById('designs-guide-wrap').style.display = 'none';
   const list = document.getElementById('designs-list');
   if (list) list.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">Loading designs…</div>';
 }
@@ -133,6 +134,7 @@ function designsShowLibrary() {
   if (priceBtn) { priceBtn.style.display = ''; priceBtn.textContent = '💲 Pricing Sheet'; }
   document.getElementById('designs-library').style.display  = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
+  document.getElementById('designs-guide-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = '';
   designsCloseGearMenu();
@@ -154,6 +156,7 @@ async function designsShowForm(id) {
   if (priceBtn) priceBtn.style.display = 'none';
   document.getElementById('designs-library').style.display   = 'none';
   document.getElementById('designs-form-wrap').style.display = '';
+  document.getElementById('designs-guide-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = 'none';
 
@@ -208,7 +211,7 @@ function designsRenderLibrary() {
       ? `<div class="dsn-cat-chip dsn-bom-chip weighed">⚖ ${bomN} material${bomN !== 1 ? 's' : ''}</div>`
       : `<div class="dsn-cat-chip dsn-bom-chip">⚖ Not weighed</div>`;
     return `
-      <div class="dsn-card" onclick="designsShowForm('${d.id}')">
+      <div class="dsn-card" onclick="designsShowGuide('${d.id}')">
         <div class="dsn-card-thumb-wrap">${thumb}${imgBadge}</div>
         <div class="dsn-card-body">
           <div class="dsn-cat-chip">${cat}</div>${bomChip}
@@ -226,6 +229,214 @@ function designsSetCatFilter(cat) {
   });
   designsRenderLibrary();
 }
+
+// ════════════════════════════════════════════
+//  GUIDE VIEW — read-only formatted Design Guide
+//  Library card click lands here; ✎ Edit opens the form.
+//  Prints to 8.5×11 letter via window.print() — BOM and
+//  costing carry .dsn-no-print and never reach paper.
+// ════════════════════════════════════════════
+
+let _dsnGuideCostOpen = false;
+
+async function designsShowGuide(id) {
+  if (!id) return;
+  _designsView   = 'guide';
+  _designsEditId = id;
+  _designsCurrentFull = null;
+  _dsnGuideCostOpen   = false;
+  _designsPricingOpen = false;
+  const pricing = document.getElementById('designs-pricing');
+  if (pricing) pricing.style.display = 'none';
+  const priceBtn = document.getElementById('dsn-pricing-btn');
+  if (priceBtn) priceBtn.style.display = 'none';
+  const newBtn = document.getElementById('dsn-new-btn');
+  if (newBtn) newBtn.style.display = 'none';
+  document.getElementById('designs-library').style.display    = 'none';
+  document.getElementById('designs-form-wrap').style.display  = 'none';
+  document.getElementById('designs-guide-wrap').style.display = '';
+
+  const page = document.getElementById('dsn-guide-page');
+  if (page) page.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">Loading design…</div>';
+
+  try {
+    _designsCurrentFull = await _designsApiFetch(id);
+  } catch(e) {
+    if (page) page.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">❌ Could not load design — ${escHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  if (_designsView !== 'guide' || _designsEditId !== id) return; // navigated away mid-fetch
+  designsRenderGuide();
+  _dsnLoadLabor().then(_dsnGuideCostRender);
+  if (_designsCurrentFull.squareItemId) _dsnLoadSqPrices([_designsCurrentFull.squareItemId]).then(_dsnGuideCostRender);
+}
+
+function designsRenderGuide() {
+  const page = document.getElementById('dsn-guide-page');
+  if (!page) return;
+  const d = _designsCurrentFull;
+  if (!d) {
+    page.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">Could not load this design.</div>';
+    return;
+  }
+  const imgs = d.images || [];
+  const hero = imgs.length
+    ? `<img class="dsn-gd-hero" src="${imgs[0]}" alt="${escHtml(d.name || 'Design')}" onclick="dsnGuideViewImage(0)">`
+    : '';
+  const thumbs = imgs.length > 1
+    ? `<div class="dsn-gd-thumbs">${imgs.slice(1).map((s, i) =>
+        `<img src="${s}" class="dsn-gd-thumb" alt="Reference ${i + 2}" onclick="dsnGuideViewImage(${i + 1})">`).join('')}</div>`
+    : '';
+  const upd = d.updatedAt
+    ? new Date(d.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : '';
+
+  page.innerHTML = `
+    <header class="dsn-gd-head">
+      <div class="dsn-gd-headtext">
+        ${d.category ? `<div class="dsn-cat-chip">${escHtml(d.category)}</div>` : ''}
+        <h1 class="dsn-gd-title">${escHtml(d.name || 'Untitled')}</h1>
+        <div class="dsn-gd-meta">Stones Throw Studio · Design Guide${upd ? ' · Updated ' + upd : ''}</div>
+      </div>
+      ${hero}
+    </header>
+    ${thumbs}
+    ${d.specs ? `<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Specifications</h2>${_dsnGuideParseText(d.specs)}</section>` : ''}
+    <section class="dsn-gd-sec dsn-no-print" id="dsn-guide-bom-sec" style="display:none">
+      <h2 class="dsn-gd-h2">Materials per piece</h2>
+      <div id="dsn-guide-bom-body"></div>
+    </section>
+    ${d.instructions
+      ? `<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2>${_dsnGuideParseText(d.instructions)}</section>`
+      : '<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2><p class="dsn-gd-p" style="color:var(--text3)">No instructions yet — open ✎ Edit to add them.</p></section>'}
+    <div id="dsn-guide-cost" class="dsn-no-print"></div>`;
+
+  _dsnGuideBomRender();
+  _dsnGuideCostRender();
+}
+
+// Light formatter: numbered lines ("1." / "Step 1:") become badged steps,
+// dash/star lines become bullets, short ALL-CAPS or colon-ended lines become
+// subheads, everything else a paragraph. Misparses degrade to plain text.
+function _dsnGuideParseText(text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let list = null; // { type:'steps'|'bullets', items:[] }
+  const flush = () => {
+    if (!list) return;
+    if (list.type === 'steps') {
+      out.push('<div class="dsn-gd-steps">' + list.items.map(it =>
+        `<div class="dsn-gd-step"><span class="dsn-gd-stepnum">${it.n}</span><div class="dsn-gd-steptext">${it.html}</div></div>`).join('') + '</div>');
+    } else {
+      out.push('<ul class="dsn-gd-bullets">' + list.items.map(it => `<li>${it.html}</li>`).join('') + '</ul>');
+    }
+    list = null;
+  };
+  lines.forEach(raw => {
+    const line = raw.trim();
+    if (!line) { flush(); return; }
+    let m = line.match(/^(?:step\s*)?(\d{1,3})[.):]\s+(.*)/i);
+    if (m) {
+      if (!list || list.type !== 'steps') { flush(); list = { type: 'steps', items: [] }; }
+      list.items.push({ n: m[1], html: escHtml(m[2]) });
+      return;
+    }
+    m = line.match(/^[-•*·]\s+(.*)/);
+    if (m) {
+      if (!list || list.type !== 'bullets') { flush(); list = { type: 'bullets', items: [] }; }
+      list.items.push({ html: escHtml(m[1]) });
+      return;
+    }
+    flush();
+    const isHead = line.length <= 42
+      && (/:$/.test(line) || (line === line.toUpperCase() && /[A-Z]/.test(line)));
+    out.push(isHead
+      ? `<h3 class="dsn-gd-subhead">${escHtml(line.replace(/:$/, ''))}</h3>`
+      : `<p class="dsn-gd-p">${escHtml(line)}</p>`);
+  });
+  flush();
+  return out.join('');
+}
+
+// "What you need" list — quantities + waste-inclusive cut lengths, no prices
+// (prices live in the costing strip). Hidden entirely when the BOM is empty.
+function _dsnGuideBomRender() {
+  const sec  = document.getElementById('dsn-guide-bom-sec');
+  const body = document.getElementById('dsn-guide-bom-body');
+  if (!sec || !body || _designsView !== 'guide' || !_designsCurrentFull) return;
+  const d   = _designsCurrentFull;
+  const bom = d.bom || [];
+  if (!bom.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  if (_designsMaterials === null) {
+    body.innerHTML = '<div class="dsn-bom-note">Loading materials…</div>';
+    return;
+  }
+  body.innerHTML = '<ul class="dsn-gd-matlist">' + bom.map(l => {
+    const m = _dsnBomMat(l.materialId);
+    if (!m) return '<li><span class="dsn-gd-matname" style="color:var(--text3)">Unknown material</span></li>';
+    const unit = _dsnUnitSuffix(m);
+    let qty = `${l.qty} ${unit}`;
+    if (m.category === 'metal') {
+      const w = _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null);
+      if (w > 0) qty += ` <span class="dsn-ru-dim">cut ${(l.qty * (1 + w / 100)).toFixed(2)} ${unit} incl. ${w}% waste</span>`;
+    }
+    return `<li><span class="dsn-gd-matname">${escHtml(m.name || 'Untitled')}</span><span class="dsn-gd-matqty">${qty}</span></li>`;
+  }).join('') + '</ul>';
+}
+
+// Collapsed one-line costing strip at the foot of the guide
+function dsnGuideCostToggle() {
+  _dsnGuideCostOpen = !_dsnGuideCostOpen;
+  _dsnGuideCostRender();
+}
+
+function _dsnGuideCostRender() {
+  const el = document.getElementById('dsn-guide-cost');
+  if (!el || _designsView !== 'guide' || !_designsCurrentFull) return;
+  if (_designsMaterials === null) {
+    el.innerHTML = '<div class="dsn-guide-cost-bar static"><span>💲 Costing</span><span class="dsn-ru-dim">loading…</span></div>';
+    return;
+  }
+  const r = dsnCostRollup(_designsCurrentFull);
+  const empty = !r.hasBom && r.laborCost == null;
+  const summary = empty
+    ? '<span class="dsn-ru-dim">not yet weighed — add materials in ✎ Edit</span>'
+    : `Cost ${_dsnMoney(r.pieceCost)} · Retail ${_dsnMoney(r.retail)} · Margin ${r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—'}`;
+  if (empty) {
+    el.innerHTML = `<div class="dsn-guide-cost-bar static"><span>💲 Costing</span><span>${summary}</span></div>`;
+    return;
+  }
+  el.innerHTML =
+    `<button type="button" class="dsn-guide-cost-bar${_dsnGuideCostOpen ? ' open' : ''}" onclick="dsnGuideCostToggle()">
+      <span>💲 Costing</span><span>${summary}</span><span class="dsn-gd-chev">${_dsnGuideCostOpen ? '▾' : '▸'}</span>
+    </button>`
+    + (_dsnGuideCostOpen ? `<div class="dsn-guide-cost-detail">${_dsnRollupBoxHtml(r)}</div>` : '');
+}
+
+// Re-render guide modules when background costing data lands (no-op elsewhere)
+function _dsnGuideRefresh() {
+  if (_designsView !== 'guide') return;
+  _dsnGuideBomRender();
+  _dsnGuideCostRender();
+}
+
+// Lightbox over the guide's own image set
+function dsnGuideViewImage(idx) {
+  const src = ((_designsCurrentFull && _designsCurrentFull.images) || [])[idx];
+  if (!src) return;
+  document.getElementById('dsn-img-overlay-img').src = src;
+  document.getElementById('dsn-img-overlay').style.display = 'flex';
+}
+
+function dsnGuidePrint() { window.print(); }
+
+// Scope print styling to the guide — Ctrl+P works too, and other tabs
+// printing this document are untouched because the class never lands.
+window.addEventListener('beforeprint', () => {
+  if (_designsView === 'guide') document.body.classList.add('dsn-printing');
+});
+window.addEventListener('afterprint', () => document.body.classList.remove('dsn-printing'));
 
 // ── Form ──────────────────────────────────────
 function designsRenderForm() {
@@ -920,6 +1131,11 @@ function dsnRollupRender() {
     return;
   }
 
+  el.innerHTML = _dsnRollupBoxHtml(r);
+}
+
+// Shared breakdown box — form cost panel + guide costing strip detail
+function _dsnRollupBoxHtml(r) {
   const matRows = r.lines.map(l => {
     const wasteTxt = l.wastePct != null && l.wastePct > 0 ? ` <span class="dsn-ru-dim">+${l.wastePct}% waste → ${l.effQty.toFixed(2)}${l.unit}</span>` : '';
     return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.qty}${l.unit}${wasteTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
@@ -935,7 +1151,7 @@ function dsnRollupRender() {
   const floor = (_shopSettings || {}).marginFloorPct;
   const marginBad = r.margin != null && typeof floor === 'number' && r.margin * 100 < floor;
 
-  el.innerHTML = '<div class="dsn-ru-box">'
+  return '<div class="dsn-ru-box">'
     + matRows
     + (r.matMissing ? '<div class="dsn-bom-note">⚠ Some lines missing a material price — totals incomplete</div>' : '')
     + `<div class="dsn-ru-row dsn-ru-sub"><span>Materials</span><span>${_dsnMoney(r.matCost)}</span></div>`

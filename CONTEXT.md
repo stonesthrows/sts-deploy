@@ -114,6 +114,28 @@ Brought − Sold for a variation. Computed in the UI; never stored.
 
 ---
 
+## Design Library
+
+**Design**
+A reusable production recipe for a jewelry piece: name, category, specifications, step-by-step instructions, reference images, a Materials list (BOM), and Costing data. Stored via the designs API; browsed in the Designs tab.
+
+**Design Library**
+The card-grid index of all Designs, filterable by category.
+
+**Design Guide**
+The read-only, formatted view of a Design — the primary view opened by clicking a Design card. Reads as a how-to guide for making the piece. Editing happens in the separate edit form, reached via an Edit action from the Guide.
+
+**Materials (BOM)**
+The per-piece bill of materials on a Design: material lines with quantities and waste percentages, drawing from the shared Materials list.
+
+**Costing**
+The Design's cost rollup: material cost + labor (from timers or override) vs. retail (from the linked Square item or override). On the Design Guide it appears only as a collapsed summary; it never appears in print.
+
+**Guide Printout**
+The Design Guide printed to 8.5×11 letter. Carries the same formatting as the on-screen Guide but excludes the Materials (BOM) and Costing modules — the free-text Specifications section is the only materials information on paper, so a printout must be self-sufficient at the bench. Long designs flow to a second sheet rather than shrinking type.
+
+---
+
 ## Trips
 
 **TripLog**
