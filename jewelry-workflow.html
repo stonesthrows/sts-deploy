@@ -4476,6 +4476,28 @@
     .rp-shop-sup   { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 8px; }
     .rp-shop-item  { font-size: 12.5px; color: var(--text2); padding: 2px 0 2px 12px; }
     .rp-par-head { font-size: 13px; font-weight: 800; color: var(--text); margin: 18px 0 8px; }
+    .rp-top {
+      background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-lg);
+      padding: 12px 16px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+    }
+    .rp-top:empty { display: none; }
+    .rp-top-row { display: flex; align-items: baseline; gap: 12px; padding: 3px 0; font-size: 12.5px; }
+    .rp-top-name { flex: 1; min-width: 0; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rp-top-proj { color: var(--text2); white-space: nowrap; }
+    .rp-top-note { font-size: 11.5px; color: #B3392C; margin-top: 8px; }
+    body.theme-midnight .rp-top-note { color: #e08070; }
+    .rp-vel { color: var(--text2); font-size: 12px; white-space: nowrap; }
+    .rp-unlinked {
+      font-size: 10.5px; font-weight: 700; color: #B3392C;
+      border: 1px solid currentColor; border-radius: 5px; padding: 1px 5px; margin-left: 4px;
+    }
+    body.theme-midnight .rp-unlinked { color: #e08070; }
+    .rp-sug {
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      background: var(--accent-bg); border: 1px solid var(--accent-border);
+      border-radius: 6px; padding: 3px 7px; margin-left: 5px; cursor: pointer;
+    }
+    .rp-sug:hover { background: var(--accent); color: #fff; }
 
     /* ── Theme Switcher UI ──────────────────── */
     .theme-wrap { position: relative; margin-right: 4px; }
@@ -7274,10 +7296,11 @@
     <div class="oh-title">🔄 Replenishment</div>
     <div class="oh-head-actions">
       <div class="oh-refresh-lbl" id="rp-note"></div>
-      <button class="btn btn-outline btn-sm" onclick="rpRender(true)" title="Re-check Square stock and material levels">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="rpRender(true)" title="Re-check weekend sales, Square stock, and material levels">↻ Refresh</button>
     </div>
   </div>
 
+  <div id="rp-top" class="rp-top"></div>
   <div id="rp-shopping" class="rp-shopping"></div>
 
   <div class="oh-table-wrap">
@@ -7286,6 +7309,7 @@
         <tr>
           <th>Design</th>
           <th>On Hand</th>
+          <th>Sells</th>
           <th>Par</th>
           <th>Batch</th>
           <th>Buildable</th>
@@ -7294,7 +7318,7 @@
         </tr>
       </thead>
       <tbody id="rp-body">
-        <tr><td colspan="7" class="oh-empty">Loading…</td></tr>
+        <tr><td colspan="8" class="oh-empty">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -7306,13 +7330,15 @@
         <tr>
           <th>Design</th>
           <th>On Hand</th>
+          <th>Sells</th>
           <th>Par Level</th>
+          <th>Suggested</th>
           <th>Batch Size</th>
           <th>Active</th>
         </tr>
       </thead>
       <tbody id="rp-par-body">
-        <tr><td colspan="5" class="oh-empty">Loading…</td></tr>
+        <tr><td colspan="7" class="oh-empty">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -10776,7 +10802,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
-<script src="js/replenish.js?v=2"></script>
+<script src="js/replenish.js?v=3"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() { /* timer now lives inline in the restock queue */ }
