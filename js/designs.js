@@ -392,34 +392,43 @@ function designsRenderGuide() {
 
 // Light formatter: numbered lines ("1." / "Step 1:") become badged steps,
 // dash/star lines become bullets, short ALL-CAPS or colon-ended lines become
-// subheads, everything else a paragraph. Misparses degrade to plain text.
+// subheads, everything else a paragraph. A dash line INDENTED with spaces
+// attaches to the step or bullet above it as an indented dash sub-line.
+// Misparses degrade to plain text.
 function _dsnGuideParseText(text) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let list = null; // { type:'steps'|'bullets', items:[] }
+  const subHtml = subs => subs.map(s =>
+    `<div class="dsn-gd-substep"><span class="dsn-gd-dash">–</span><span>${s}</span></div>`).join('');
   const flush = () => {
     if (!list) return;
     if (list.type === 'steps') {
       out.push('<div class="dsn-gd-steps">' + list.items.map(it =>
-        `<div class="dsn-gd-step"><span class="dsn-gd-stepnum">${it.n}</span><div class="dsn-gd-steptext">${it.html}</div></div>`).join('') + '</div>');
+        `<div class="dsn-gd-step"><span class="dsn-gd-stepnum">${it.n}</span><div class="dsn-gd-steptext">${it.html}${subHtml(it.subs)}</div></div>`).join('') + '</div>');
     } else {
-      out.push('<ul class="dsn-gd-bullets">' + list.items.map(it => `<li>${it.html}</li>`).join('') + '</ul>');
+      out.push('<ul class="dsn-gd-bullets">' + list.items.map(it => `<li>${it.html}${subHtml(it.subs)}</li>`).join('') + '</ul>');
     }
     list = null;
   };
   lines.forEach(raw => {
     const line = raw.trim();
     if (!line) { flush(); return; }
+    // Indented dash line right after a step/bullet → sub-item of that item
+    if (/^[ \t]/.test(raw) && list && list.items.length) {
+      const sm = line.match(/^[-•*·—–]\s+(.*)/);
+      if (sm) { list.items[list.items.length - 1].subs.push(escHtml(sm[1])); return; }
+    }
     let m = line.match(/^(?:step\s*)?(\d{1,3})[.):]\s+(.*)/i);
     if (m) {
       if (!list || list.type !== 'steps') { flush(); list = { type: 'steps', items: [] }; }
-      list.items.push({ n: m[1], html: escHtml(m[2]) });
+      list.items.push({ n: m[1], html: escHtml(m[2]), subs: [] });
       return;
     }
     m = line.match(/^[-•*·]\s+(.*)/);
     if (m) {
       if (!list || list.type !== 'bullets') { flush(); list = { type: 'bullets', items: [] }; }
-      list.items.push({ html: escHtml(m[1]) });
+      list.items.push({ html: escHtml(m[1]), subs: [] });
       return;
     }
     flush();
