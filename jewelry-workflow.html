@@ -3451,6 +3451,16 @@
     }
     .rq-stop-btn:hover { background: rgba(160,64,42,0.08); }
     .rq-stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .rq-pause-btn {
+      background: transparent; border: 1px solid #8A6A2A; color: #8A6A2A;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 4px 11px; border-radius: 6px; cursor: pointer; transition: background 0.15s;
+      flex-shrink: 0; margin-left: auto;
+    }
+    .rq-pause-btn:hover { background: rgba(138,106,42,0.08); }
+    /* Pause renders before Stop and takes over the push-right auto margin */
+    .rq-pause-btn + .rq-stop-btn { margin-left: 0; }
+    .rq-timer-dot.rq-dot-paused { background: #B08A3A; animation: none; }
     .rq-timer-notes-row { display: flex; align-items: center; gap: 8px; }
     .rq-timer-notes-toggle {
       font-size: 10px; color: var(--text3); cursor: pointer; letter-spacing: 0.08em;
@@ -10749,7 +10759,8 @@ body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A
 }
 #tab-to-restock .rq-timer-dot { box-shadow: 0 0 0 3px rgba(58,122,74,0.15); }
 #tab-to-restock .rq-timer-emp { font-weight: 600; color: var(--text2); }
-#tab-to-restock .rq-stop-btn {
+#tab-to-restock .rq-stop-btn,
+#tab-to-restock .rq-pause-btn {
   border-radius: var(--rad-sm);
   transition: background var(--dur-fast) var(--ease-smooth),
               box-shadow var(--dur-fast) var(--ease-smooth);
@@ -10788,6 +10799,7 @@ body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A
 #tab-to-restock .rq-start-btn:focus-visible,
 #tab-to-restock .rq-arrow:focus-visible,
 #tab-to-restock .rq-stop-btn:focus-visible,
+#tab-to-restock .rq-pause-btn:focus-visible,
 #tab-to-restock .rq-edit-btn:focus-visible,
 #tab-to-restock .rq-edit-done-btn:focus-visible,
 #tab-to-restock .rq-setup-cancel-btn:focus-visible,
@@ -10814,6 +10826,9 @@ body.theme-midnight #tab-to-restock .rq-assignee.rq-kyle    { background: #1C2E2
 /* Dark-legible reds/greens for stop / confirm / missing-pieces states */
 body.theme-midnight #tab-to-restock .rq-stop-btn { border-color: #8A4A3A; color: #E08A80; }
 body.theme-midnight #tab-to-restock .rq-stop-btn:hover { background: rgba(224,138,128,0.08); }
+body.theme-midnight #tab-to-restock .rq-pause-btn { border-color: #7A6A3A; color: #E0C888; }
+body.theme-midnight #tab-to-restock .rq-pause-btn:hover { background: rgba(224,200,136,0.08); }
+body.theme-midnight #tab-to-restock .rq-timer-dot.rq-dot-paused { background: #C8A050; }
 body.theme-midnight #tab-to-restock .rq-start-confirm-btn:disabled { background: #26362C; color: #5A7A64; }
 body.theme-midnight #tab-to-restock .rq-timer-pieces.rq-pieces-missing .rq-piece-input { border-color: #E08A80; }
 body.theme-midnight #tab-to-restock .rq-timer-pieces.rq-pieces-missing label { color: #E08A80; }
@@ -10851,7 +10866,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/sales.js?v=20260711a"></script>
 <script src="js/production.js?v=20260711a"></script>
 <script src="js/notes.js?v=37"></script>
-<script src="js/restock.js?v=10"></script>
+<script src="js/restock.js?v=11"></script>
 <script src="js/restock-sessions.js?v=4"></script>
 <script src="js/supplier-history.js?v=2"></script>
 <script src="js/materials.js?v=5"></script>

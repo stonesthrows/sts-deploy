@@ -16,7 +16,7 @@ var _rqNotesPending = {};    // { [pid]: text|null } queued for the debounced pe
 var _rqLastLoadTs = 0;       // when the shared stores were last fetched — drives the staleness re-fetch
 var _rqLoadingAll = false;   // in-flight guard so re-entrant renders don't fire duplicate load batches
 var _rqPrefetch   = null;    // { meta, sizes, notes, matches } from /api/restock-all — consumed by the individual loaders in place of their own fetch
-var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, tickInterval } }
+var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, pausedAt, pausedMs, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
@@ -1147,6 +1147,7 @@ function _rqTimerPayload(pid) {
     startTime: t.startTime, employee: t.employee, sessionNotionPageId: t.sessionNotionPageId,
     itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null,
     deviceId: t.deviceId || null,
+    pausedAt: t.pausedAt || null, pausedMs: t.pausedMs || 0,
   };
 }
 
@@ -1186,7 +1187,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return;
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch (e) {}
@@ -1255,7 +1256,7 @@ function _rqReconcileTimers() {
       Object.keys(serverState).forEach(function(pid) {
         if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
         var s = serverState[pid];
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, notes: '', tickInterval: null };
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, notes: '', tickInterval: null };
         _rqStartTick(pid);
         changed = true;
       });
@@ -1269,12 +1270,17 @@ function _rqReconcileTimers() {
         var nextItems = JSON.stringify(s.items || null);
         var nextRich  = JSON.stringify(s.richMatch || null);
         if (nextItems !== JSON.stringify(t.items || null) || nextRich !== JSON.stringify(t.richMatch || null)
-            || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText) {
+            || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText
+            || s.startTime !== t.startTime
+            || (s.pausedAt || null) !== (t.pausedAt || null) || (s.pausedMs || 0) !== (t.pausedMs || 0)) {
           t.items = s.items || null;
           t.richMatch = s.richMatch || null;
           t.sessionNotionPageId = s.sessionNotionPageId;
           t.itemText = s.itemText;
           t.employee = s.employee;
+          t.startTime = s.startTime;
+          t.pausedAt = s.pausedAt || null;
+          t.pausedMs = s.pausedMs || 0;
           changed = true;
         }
       });
@@ -1294,13 +1300,20 @@ function _rqStartReconcilePoll() {
   _rqReconcilePoll = setInterval(_rqReconcileTimers, 25000);
 }
 
+// Working time for a timer: wall clock minus every completed pause span, and
+// frozen at pausedAt while a pause is open. Clamped ≥ 0 so an adjust-start
+// pushed past the pause moment can't render a negative elapsed.
+function _rqElapsedMs(t) {
+  return Math.max(0, (t.pausedAt || Date.now()) - t.startTime - (t.pausedMs || 0));
+}
+
 function _rqStartTick(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
   clearInterval(t.tickInterval);
   t.tickInterval = setInterval(function() {
     var el = document.getElementById('rq-elapsed-' + pid);
-    if (el) el.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+    if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
   }, 30000);
 }
 
@@ -1309,10 +1322,10 @@ function _rqRestartTicks() {
     var t = _rqTimers[pid];
     clearInterval(t.tickInterval);
     var el = document.getElementById('rq-elapsed-' + pid);
-    if (el) el.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+    if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
     t.tickInterval = setInterval(function() {
       var elInner = document.getElementById('rq-elapsed-' + pid);
-      if (elInner) elInner.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+      if (elInner) elInner.textContent = _rqFmtElapsed(_rqElapsedMs(t));
     }, 30000);
   });
 }
@@ -1462,16 +1475,18 @@ function restockQueueRender() {
 
     var timerPanel = '';
     if (isRunning) {
-      var elapsed = _rqFmtElapsed(Date.now() - timer.startTime);
+      var isPaused = !!timer.pausedAt;
+      var elapsed = _rqFmtElapsed(_rqElapsedMs(timer));
       var startLbl = _rqFmtTime(timer.startTime);
       var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
       timerPanel = '<div class="rq-timer-panel">'
         + '<div class="rq-timer-running-row">'
-        + '<span class="rq-timer-dot"></span>'
+        + '<span class="rq-timer-dot' + (isPaused ? ' rq-dot-paused' : '') + '" id="rq-dot-' + safePid + '"></span>'
         + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
         + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
         + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+        + '<button class="rq-pause-btn" onclick="rqTogglePauseTimer(\'' + safePid + '\')" id="rq-pause-' + safePid + '">' + (isPaused ? 'Resume' : 'Pause') + '</button>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
         + _rqTimerSizesHtml(safePid, timer.richMatch || match)
@@ -1655,6 +1670,28 @@ function _rqItemsForJson(items) {
   });
 }
 
+// Pause freezes the elapsed clock (open span recorded in pausedAt); resume
+// folds that span into pausedMs. Updates the DOM directly instead of
+// re-rendering — a full render would rebuild the notes textarea and lose
+// anything typed but not yet saved (render never restores its value).
+function rqTogglePauseTimer(pid) {
+  var t = _rqTimers[pid];
+  if (!t) return;
+  if (t.pausedAt) {
+    t.pausedMs = (t.pausedMs || 0) + (Date.now() - t.pausedAt);
+    t.pausedAt = null;
+  } else {
+    t.pausedAt = Date.now();
+  }
+  _rqPersistTimer(pid);
+  var btn = document.getElementById('rq-pause-' + pid);
+  if (btn) btn.textContent = t.pausedAt ? 'Resume' : 'Pause';
+  var dot = document.getElementById('rq-dot-' + pid);
+  if (dot) dot.classList.toggle('rq-dot-paused', !!t.pausedAt);
+  var el = document.getElementById('rq-elapsed-' + pid);
+  if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
+}
+
 function rqStopTimer(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
@@ -1675,7 +1712,7 @@ function rqStopTimer(pid) {
   // instead of reverting to whatever was set when the timer started.
   if (t.richMatch) { _rqAmSet(pid, t.richMatch); _rqSaveSizesFor(pid, t.richMatch.selectedVariants || []); }
   var stopTime = new Date().toISOString();
-  var totalMs  = Date.now() - t.startTime;
+  var totalMs  = _rqElapsedMs(t); // paused spans don't count as work time
   var totalMin = parseFloat((totalMs / 60000).toFixed(2));
   var netMin   = Math.max(0, totalMin - 15);
   // Capture notes from the live DOM before clearing state; piece counts
@@ -1850,7 +1887,7 @@ function rqApplyAdjustStart(pid) {
   var startEl = document.getElementById('rq-startlbl-' + pid);
   if (startEl) startEl.textContent = _rqFmtTime(t.startTime);
   var elapsedEl = document.getElementById('rq-elapsed-' + pid);
-  if (elapsedEl) elapsedEl.textContent = _rqFmtElapsed(Date.now() - t.startTime);
+  if (elapsedEl) elapsedEl.textContent = _rqFmtElapsed(_rqElapsedMs(t));
   toast('Start time updated', '✓');
 }
 
@@ -2232,6 +2269,8 @@ function rqStartTimerConfirm(pid) {
     items: items,
     richMatch: richMatch,
     deviceId: _rqDeviceId(),
+    pausedAt: null,
+    pausedMs: 0,
     notes: '',
     tickInterval: null,
   };
