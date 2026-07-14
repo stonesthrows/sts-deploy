@@ -13,6 +13,7 @@ let _designsCurrentFull = null; // full design currently loaded for editing
 let _designsEditId   = null;    // null = new, string = editing existing
 let _designsView     = 'library';
 let _designsCatFilter = 'all';
+let _designsFamilyOpen = null;  // design-family drill-in (null = top level)
 let _designsImgQueue = [];      // base64 strings staged for current edit session
 let _designsImgEditMode = false;
 
@@ -180,46 +181,120 @@ async function designsShowForm(id) {
 }
 
 // ── Library ───────────────────────────────────
+function _dsnFamilyOf(d) { return (d.family || '').trim(); }
+
+function _dsnDesignCardHtml(d) {
+  const thumb = d.thumb
+    ? `<div class="dsn-card-thumb" style="background-image:url('${d.thumb}')"></div>`
+    : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">💎</span></div>`;
+  const imgCount = d.imgCount || 0;
+  const imgBadge = imgCount > 1 ? `<span class="dsn-img-badge">+${imgCount - 1}</span>` : '';
+  const cat     = d.category || 'Uncategorized';
+  const preview = (d.preview || '').slice(0, 90).replace(/\n/g, ' ') || 'No details';
+  const bomN    = Array.isArray(d.bom) ? d.bom.length : 0;
+  const bomChip = bomN
+    ? `<div class="dsn-cat-chip dsn-bom-chip weighed">⚖ ${bomN} material${bomN !== 1 ? 's' : ''}</div>`
+    : `<div class="dsn-cat-chip dsn-bom-chip">⚖ Not weighed</div>`;
+  return `
+    <div class="dsn-card" onclick="designsShowGuide('${d.id}')">
+      <div class="dsn-card-thumb-wrap">${thumb}${imgBadge}</div>
+      <div class="dsn-card-body">
+        <div class="dsn-cat-chip">${cat}</div>${bomChip}
+        <div class="dsn-card-name">${escHtml(d.name || 'Untitled')}</div>
+        <div class="dsn-card-preview">${escHtml(preview)}${preview.length >= 90 ? '…' : ''}</div>
+      </div>
+    </div>`;
+}
+
+function _dsnFamilyCardHtml(fam, members) {
+  const thumbs = members.filter(m => m.thumb).slice(0, 4).map(m => m.thumb);
+  const collage = thumbs.length
+    ? `<div class="dsn-family-collage${thumbs.length === 1 ? ' cols-1' : ''}">${thumbs.map(t => `<div style="background-image:url('${t}')"></div>`).join('')}</div>`
+    : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">📁</span></div>`;
+  const names = members.map(m => m.name || 'Untitled').join(' · ');
+  return `
+    <div class="dsn-card" data-fam="${escHtml(fam)}" onclick="designsOpenFamily(this.dataset.fam)">
+      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} designs</span></div>
+      <div class="dsn-card-body">
+        <div class="dsn-cat-chip">📁 Design Family</div>
+        <div class="dsn-card-name">${escHtml(fam)} Designs</div>
+        <div class="dsn-card-preview">${escHtml(names.slice(0, 90))}${names.length > 90 ? '…' : ''}</div>
+      </div>
+    </div>`;
+}
+
 function designsRenderLibrary() {
   const list = document.getElementById('designs-list');
   if (!list) return;
 
-  const filtered = _designsCatFilter === 'all'
+  // Drop the drill-in if the family no longer exists (rename / delete)
+  if (_designsFamilyOpen && !_designs.some(d => _dsnFamilyOf(d) === _designsFamilyOpen)) {
+    _designsFamilyOpen = null;
+  }
+  const famBar   = document.getElementById('dsn-family-bar');
+  const famTitle = document.getElementById('dsn-family-title');
+  if (famBar)   famBar.style.display = _designsFamilyOpen ? 'flex' : 'none';
+  if (famTitle) famTitle.textContent = _designsFamilyOpen ? `${_designsFamilyOpen} Designs` : '';
+
+  let filtered = _designsCatFilter === 'all'
     ? _designs
     : _designs.filter(d => d.category === _designsCatFilter);
+  if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamilyOf(d) === _designsFamilyOpen);
 
   if (filtered.length === 0) {
-    list.innerHTML = `
+    list.innerHTML = _designs.length === 0
+      ? `
       <div style="text-align:center;padding:52px 32px;color:var(--text3)">
         <div style="font-size:36px;margin-bottom:12px">📋</div>
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No designs yet</div>
         <div style="font-size:12px">Click <strong>+ New Design</strong> to add your first one,<br>or upload a PDF to get started.</div>
-      </div>`;
+      </div>`
+      : `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3);font-size:13px">No designs match this view.</div>`;
     return;
   }
 
-  list.innerHTML = filtered.map(d => {
-    const thumb = d.thumb
-      ? `<div class="dsn-card-thumb" style="background-image:url('${d.thumb}')"></div>`
-      : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">💎</span></div>`;
-    const imgCount = d.imgCount || 0;
-    const imgBadge = imgCount > 1 ? `<span class="dsn-img-badge">+${imgCount - 1}</span>` : '';
-    const cat     = d.category || 'Uncategorized';
-    const preview = (d.preview || '').slice(0, 90).replace(/\n/g, ' ') || 'No details';
-    const bomN    = Array.isArray(d.bom) ? d.bom.length : 0;
-    const bomChip = bomN
-      ? `<div class="dsn-cat-chip dsn-bom-chip weighed">⚖ ${bomN} material${bomN !== 1 ? 's' : ''}</div>`
-      : `<div class="dsn-cat-chip dsn-bom-chip">⚖ Not weighed</div>`;
-    return `
-      <div class="dsn-card" onclick="designsShowGuide('${d.id}')">
-        <div class="dsn-card-thumb-wrap">${thumb}${imgBadge}</div>
-        <div class="dsn-card-body">
-          <div class="dsn-cat-chip">${cat}</div>${bomChip}
-          <div class="dsn-card-name">${escHtml(d.name || 'Untitled')}</div>
-          <div class="dsn-card-preview">${escHtml(preview)}${preview.length >= 90 ? '…' : ''}</div>
-        </div>
-      </div>`;
-  }).join('');
+  // Top-level "All" view: bundle families of 2+ designs into one card each.
+  // A category filter shows the flat matching designs, so type filtering
+  // still reaches pieces that live inside a family.
+  if (!_designsFamilyOpen && _designsCatFilter === 'all') {
+    const famMembers = new Map();
+    for (const d of _designs) {
+      const f = _dsnFamilyOf(d);
+      if (f) famMembers.set(f, (famMembers.get(f) || []).concat(d));
+    }
+    const rendered = new Set();
+    list.innerHTML = filtered.map(d => {
+      const f = _dsnFamilyOf(d);
+      if (f && famMembers.get(f).length > 1) {
+        if (rendered.has(f)) return '';
+        rendered.add(f);
+        return _dsnFamilyCardHtml(f, famMembers.get(f));
+      }
+      return _dsnDesignCardHtml(d);
+    }).join('');
+    return;
+  }
+
+  list.innerHTML = filtered.map(_dsnDesignCardHtml).join('');
+}
+
+function designsOpenFamily(fam) {
+  _designsFamilyOpen = fam || null;
+  designsRenderLibrary();
+}
+
+function designsCloseFamily() {
+  _designsFamilyOpen = null;
+  designsRenderLibrary();
+}
+
+// Existing family names → datalist so the form autocompletes and
+// spelling stays consistent across a family's members.
+function _dsnFamilyDatalistRefresh() {
+  const dl = document.getElementById('dsn-family-list');
+  if (!dl) return;
+  const fams = [...new Set(_designs.map(_dsnFamilyOf).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  dl.innerHTML = fams.map(f => `<option value="${escHtml(f)}"></option>`).join('');
 }
 
 function designsSetCatFilter(cat) {
@@ -294,7 +369,7 @@ function designsRenderGuide() {
   page.innerHTML = `
     <header class="dsn-gd-head">
       <div class="dsn-gd-headtext">
-        ${d.category ? `<div class="dsn-cat-chip">${escHtml(d.category)}</div>` : ''}
+        ${d.category ? `<div class="dsn-cat-chip">${escHtml(d.category)}</div>` : ''}${d.family ? ` <div class="dsn-cat-chip">📁 ${escHtml(d.family)}</div>` : ''}
         <h1 class="dsn-gd-title">${escHtml(d.name || 'Untitled')}</h1>
         <div class="dsn-gd-meta">Stones Throw Studio · Design Guide${upd ? ' · Updated ' + upd : ''}</div>
       </div>
@@ -445,6 +520,10 @@ function designsRenderForm() {
 
   document.getElementById('dsn-name').value         = design ? (design.name         || '') : '';
   document.getElementById('dsn-cat').value           = design ? (design.category     || '') : '';
+  // New designs started from inside a family drill-in inherit that family
+  const famEl = document.getElementById('dsn-family');
+  if (famEl) famEl.value = design ? (design.family || '') : (_designsFamilyOpen || '');
+  _dsnFamilyDatalistRefresh();
   document.getElementById('dsn-specs').value         = design ? (design.specs        || '') : '';
   document.getElementById('dsn-instructions').value  = design ? (design.instructions || '') : '';
 
@@ -543,6 +622,7 @@ async function designsSaveDesign() {
     id,
     name,
     category:     document.getElementById('dsn-cat').value,
+    family:       ((document.getElementById('dsn-family') || {}).value || '').trim(),
     specs:        document.getElementById('dsn-specs').value.trim(),
     instructions: document.getElementById('dsn-instructions').value.trim(),
     bom:          _designsBom
@@ -636,17 +716,17 @@ function designsHandleImages(files) {
   });
 }
 
-// ── PDF upload → Claude vision ────────────────
+// ── PDF upload → Google Cloud Vision OCR ──────
 async function designsHandlePDF(file) {
   if (!file || file.type !== 'application/pdf') {
     toast('Please upload a PDF file', '⚠');
     return;
   }
   const status = document.getElementById('dsn-pdf-status');
-  const apiKey = localStorage.getItem('sts-anthropic-key');
+  const apiKey = localStorage.getItem('sts-gcv-key');
   if (!apiKey) {
     _dsnStatusTone(status, 'err');
-    status.textContent = '⚠ Enter your Anthropic API key — click ⚙ to add it';
+    status.textContent = '⚠ Enter your Google Cloud Vision API key — click ⚙ to add it';
     const panel = document.getElementById('dsn-api-key-panel');
     if (panel) { panel.style.display = ''; designsRefreshApiKeyUI(); }
     setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
@@ -674,27 +754,17 @@ async function designsHandlePDF(file) {
       pageImages.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
     }
 
-    status.textContent = '⏳ Asking Claude to read the form…';
+    status.textContent = '⏳ Reading the form with Google Vision…';
 
-    const content = [
-      ...pageImages.map(img => ({
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/jpeg', data: img },
-      })),
-      {
-        type: 'text',
-        text: 'This is a scanned jewelry design instruction form. Extract exactly three fields:\n1. Jewelry Design Name (the value written after the "Jewelry Design Name:" label)\n2. Specifications & Materials (everything in the SPECIFICATIONS section — wire gauges, sizes, tools, quantities, wire colors)\n3. Step-by-step Instructions (all numbered or bulleted steps, notes, and directions in order)\n\nReturn ONLY valid JSON with no other text:\n{"name": "...", "specs": "...", "instructions": "..."}',
-      },
-    ];
-
-    const resp = await fetch('/api/claude-proxy', {
+    const resp = await fetch('/api/vision-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         apiKey,
-        model: 'claude-opus-4-8',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content }],
+        requests: pageImages.map(img => ({
+          image: { content: img },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+        })),
       }),
     });
 
@@ -703,10 +773,16 @@ async function designsHandlePDF(file) {
       throw new Error(err.error?.message || `API error ${resp.status}`);
     }
 
-    const data    = await resp.json();
-    const raw     = (data.content?.[0]?.text || '').trim();
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    const parsed  = JSON.parse(cleaned);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || 'Vision API error');
+
+    const fullText = (data.responses || []).map(r => {
+      if (r.error) throw new Error(r.error.message || 'Vision API error');
+      return r.fullTextAnnotation?.text || '';
+    }).join('\n').trim();
+    if (!fullText) throw new Error('No text found in the PDF');
+
+    const parsed = designsParseScanText(fullText);
 
     const nameEl = document.getElementById('dsn-name');
     const specsEl = document.getElementById('dsn-specs');
@@ -717,18 +793,69 @@ async function designsHandlePDF(file) {
 
     setTimeout(dsnAutoResizeAll, 0);
     _dsnStatusTone(status, 'ok');
-    status.textContent = '✓ Fields filled by Claude — review and edit below';
+    status.textContent = parsed.usedFallback
+      ? '✓ Text scanned — sections not detected, full text placed in Instructions for review'
+      : '✓ Fields filled from scan — review and edit below';
   } catch(err) {
     _dsnStatusTone(status, 'err');
     status.textContent = '❌ ' + (err.message || err);
   }
 }
 
+// ── Parse OCR text into the three form fields ─
+// The instruction forms have a "Jewelry Design Name:" label, a
+// SPECIFICATIONS section, and a numbered instructions section.
+// Google Vision returns plain text only, so the split happens here.
+function designsParseScanText(text) {
+  const lines = text.split('\n');
+  const isSectionHead = l => /^(specifications|instructions|steps|directions)\b/i.test(l);
+
+  let name = '', nameIdx = -1, specIdx = -1, instrIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (nameIdx < 0) {
+      const m = l.match(/jewelry\s*design\s*name\s*[:\-]?\s*(.*)/i);
+      if (m) { nameIdx = i; name = m[1].trim(); continue; }
+    }
+    if (specIdx < 0 && /^specifications\b/i.test(l)) { specIdx = i; continue; }
+    if (instrIdx < 0 && specIdx >= 0 && /^(instructions|steps|directions)\b/i.test(l)) { instrIdx = i; }
+  }
+
+  // Name written on the line below its label
+  if (nameIdx >= 0 && !name) {
+    for (let i = nameIdx + 1; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (!l) continue;
+      if (!isSectionHead(l)) name = l;
+      break;
+    }
+  }
+
+  // No INSTRUCTIONS heading — fall back to the first numbered step after SPECIFICATIONS
+  let instrFrom = -1;
+  if (instrIdx >= 0) instrFrom = instrIdx + 1;
+  else if (specIdx >= 0) {
+    for (let i = specIdx + 1; i < lines.length; i++) {
+      if (/^\s*\d+\s*[.)]\s+/.test(lines[i])) { instrFrom = i; break; }
+    }
+  }
+
+  if (specIdx < 0 && instrFrom < 0) {
+    const rest = lines.filter((_, i) => i !== nameIdx).join('\n').trim();
+    return { name, specs: '', instructions: rest, usedFallback: true };
+  }
+
+  const specEnd = instrFrom >= 0 ? (instrIdx >= 0 ? instrIdx : instrFrom) : lines.length;
+  const specs = specIdx >= 0 ? lines.slice(specIdx + 1, specEnd).join('\n').trim() : '';
+  const instructions = instrFrom >= 0 ? lines.slice(instrFrom).join('\n').trim() : '';
+  return { name, specs, instructions, usedFallback: false };
+}
+
 // ── API key management ────────────────────────
 function designsSaveApiKey() {
   const val = (document.getElementById('dsn-api-key-input').value || '').trim();
   if (!val) { toast('Please enter an API key', '⚠'); return; }
-  localStorage.setItem('sts-anthropic-key', val);
+  localStorage.setItem('sts-gcv-key', val);
   document.getElementById('dsn-api-key-input').value = '';
   const panel = document.getElementById('dsn-api-key-panel');
   if (panel) panel.style.display = 'none';
@@ -736,12 +863,12 @@ function designsSaveApiKey() {
 }
 
 function designsClearApiKey() {
-  localStorage.removeItem('sts-anthropic-key');
+  localStorage.removeItem('sts-gcv-key');
   designsRefreshApiKeyUI();
 }
 
 function designsRefreshApiKeyUI() {
-  const key   = localStorage.getItem('sts-anthropic-key');
+  const key   = localStorage.getItem('sts-gcv-key');
   const row   = document.getElementById('dsn-api-key-row');
   const saved = document.getElementById('dsn-api-key-saved');
   if (!row || !saved) return;
@@ -777,7 +904,7 @@ function designsToggleApiKeyPanel() {
   panel.style.display = opening ? '' : 'none';
   if (opening) {
     designsRefreshApiKeyUI();
-    const key = localStorage.getItem('sts-anthropic-key');
+    const key = localStorage.getItem('sts-gcv-key');
     if (!key) setTimeout(() => document.getElementById('dsn-api-key-input')?.focus(), 50);
   }
 }

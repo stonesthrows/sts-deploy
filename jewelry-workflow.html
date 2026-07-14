@@ -8026,6 +8026,12 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-cat-chip { display:inline-block; background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent-border); border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.2px; padding:2px 8px; margin-bottom:5px; }
 .dsn-card-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; }
 .dsn-card-preview { font-size:11.5px; color:var(--text3); line-height:1.4; }
+.dsn-family-bar { display:flex; align-items:center; gap:10px; margin-bottom:var(--sp-3); }
+.dsn-family-title { font-size:15px; font-weight:800; color:var(--text); }
+.dsn-family-collage { display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:2px; height:100%; }
+.dsn-family-collage.cols-1 { grid-template-columns:1fr; }
+.dsn-family-collage > div { background-size:cover; background-position:center; }
+.dsn-family-collage > div:nth-child(3):last-child { grid-column:span 2; }
 /* Form */
 .dsn-form-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .dsn-form-title { font-size:16px; font-weight:800; color:var(--text); flex:1; }
@@ -8264,6 +8270,10 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
       <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
     </div>
+    <div id="dsn-family-bar" class="dsn-family-bar" style="display:none">
+      <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← All Designs</button>
+      <div class="dsn-family-title">📁 <span id="dsn-family-title"></span></div>
+    </div>
     <div class="dsn-grid" id="designs-list"></div>
   </div>
 
@@ -8306,9 +8316,9 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
     <!-- API key panel (toggled by ⚙ gear button) -->
     <div id="dsn-api-key-panel" style="display:none;margin-bottom:12px;background:var(--card-head-bg);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;">
       <div id="dsn-api-key-row">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Anthropic API key (saved locally, never leaves your device):</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Google Cloud Vision API key (saved locally in this browser):</div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <input type="password" id="dsn-api-key-input" placeholder="sk-ant-…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
+          <input type="password" id="dsn-api-key-input" placeholder="AIza…" style="flex:1;padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--text);" onkeydown="if(event.key==='Enter')designsSaveApiKey()">
           <button onclick="designsSaveApiKey()" class="dsn-upload-btn dsn-key-save">Save</button>
         </div>
       </div>
@@ -8321,10 +8331,15 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <!-- LEFT: form fields -->
       <div class="dsn-form-left">
         <!-- Name + Category inline -->
-        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:end">
           <div>
             <label class="dsn-field-label">Design Name <span class="dsn-req">*</span></label>
             <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
+          </div>
+          <div>
+            <label class="dsn-field-label">Design Family</label>
+            <input id="dsn-family" class="dsn-input" type="text" list="dsn-family-list" placeholder="e.g. Feather" style="width:140px">
+            <datalist id="dsn-family-list"></datalist>
           </div>
           <div>
             <label class="dsn-field-label">Category</label>
@@ -10072,6 +10087,7 @@ body.theme-midnight .recon-under { color: #E08A80; }
             <div class="dm-group-label">API Keys</div>
             <div class="dm-row"><span class="dm-key">sts-api-key</span><span class="dm-desc">App API key (X-STS-Key)</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-anthropic-key</span><span class="dm-desc">Claude API key</span><span class="dm-tag dm-tag-cred">CRED</span></div>
+            <div class="dm-row"><span class="dm-key">sts-gcv-key</span><span class="dm-desc">Google Cloud Vision API key</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-google-client-id</span><span class="dm-desc">Google OAuth ID</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-google-client-secret</span><span class="dm-desc">Google OAuth secret</span><span class="dm-tag dm-tag-cred">CRED</span></div>
             <div class="dm-row"><span class="dm-key">sts-square-token</span><span class="dm-desc">Square API token</span><span class="dm-tag dm-tag-cred">CRED</span></div>
@@ -10157,7 +10173,8 @@ body.theme-midnight .recon-under { color: #E08A80; }
           <div class="dm-ext-card"><div class="dm-ext-icon">📧</div><div class="dm-ext-name">Gmail</div><div class="dm-ext-detail">kyle@stonesthrow — threads read + cached</div></div>
           <div class="dm-ext-card"><div class="dm-ext-icon">📁</div><div class="dm-ext-name">Google Drive</div><div class="dm-ext-detail">"STS Order Bag Visual Reads" folder</div></div>
           <div class="dm-ext-card"><div class="dm-ext-icon">📅</div><div class="dm-ext-name">Google Calendar</div><div class="dm-ext-detail">Events &amp; calendar view</div></div>
-          <div class="dm-ext-card"><div class="dm-ext-icon">🤖</div><div class="dm-ext-name">Anthropic</div><div class="dm-ext-detail">PDF OCR &amp; bag scan vision (claude-opus-4-8)</div></div>
+          <div class="dm-ext-card"><div class="dm-ext-icon">🤖</div><div class="dm-ext-name">Anthropic</div><div class="dm-ext-detail">Bag scan vision (claude-opus-4-8)</div></div>
+          <div class="dm-ext-card"><div class="dm-ext-icon">👁️</div><div class="dm-ext-name">Google Cloud Vision</div><div class="dm-ext-detail">Design Library PDF OCR</div></div>
           <div class="dm-ext-card"><div class="dm-ext-icon">🚢</div><div class="dm-ext-name">ShipStation</div><div class="dm-ext-detail">Tracking number lookup by order #</div></div>
         </div>
       </div>

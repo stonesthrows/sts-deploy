@@ -132,11 +132,14 @@ function materialsRender() {
   const body = document.getElementById('materialsTableBody');
   if (!body) return;
 
+  const wireByMetal = { 'wire-silver': ['argentium', 'sterling'], 'wire-gf': ['gold_fill'], 'wire-14k': ['14k'] };
   const filtered = _materialsCatFilter === 'all'
     ? _materials
-    : (_materialsCatFilter === 'wire' || _materialsCatFilter === 'sheet')
-      ? _materials.filter(m => m.category === 'metal' && m.form === _materialsCatFilter)
-      : _materials.filter(m => m.category === _materialsCatFilter);
+    : wireByMetal[_materialsCatFilter]
+      ? _materials.filter(m => m.category === 'metal' && m.form === 'wire' && wireByMetal[_materialsCatFilter].includes(m.metalType))
+      : (_materialsCatFilter === 'wire' || _materialsCatFilter === 'sheet')
+        ? _materials.filter(m => m.category === 'metal' && m.form === _materialsCatFilter)
+        : _materials.filter(m => m.category === _materialsCatFilter);
 
   document.getElementById('materials-stat-total').textContent    = _materials.length;
   document.getElementById('materials-stat-wire').textContent     = _materials.filter(m => m.category === 'metal' && m.form === 'wire').length;
@@ -289,7 +292,8 @@ function _matImpMetalSpec(name) {
   const ga = l.match(/(\d{1,2})\s*-?\s*ga/);
   return {
     metalType: /argentium|sterling|\bsilver\b/.test(l) ? 'argentium'
-      : /gold[\s-]?fill|14\/20/.test(l) ? 'gold_fill' : '',
+      : /gold[\s-]?fill|14\/20/.test(l) ? 'gold_fill'
+      : /14\s*kt?\b/.test(l) ? '14k' : '',
     form: /sheet/.test(l) ? 'sheet' : /wire/.test(l) ? 'wire' : '',
     gauge: ga ? ga[1] + 'ga' : '',
   };
