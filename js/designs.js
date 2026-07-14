@@ -551,6 +551,8 @@ function designsRenderForm() {
 
   const delBtn = document.getElementById('dsn-delete-btn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
+  const copyBtn = document.getElementById('dsn-copy-btn');
+  if (copyBtn) copyBtn.style.display = isEdit ? '' : 'none';
 
   const st = document.getElementById('dsn-pdf-status');
   if (st && !st.textContent.startsWith('❌')) st.textContent = '';
@@ -648,6 +650,29 @@ async function designsSaveDesign() {
     designsShowLibrary();
   } catch(e) {
     toast('Save failed — ' + (e.message || e), '❌');
+  }
+}
+
+async function designsCopyDesign() {
+  if (!_designsEditId) return;
+  designsCloseGearMenu();
+  try {
+    // Copy the saved version from KV so images, BOM, and overrides all carry over
+    const src = _designsCurrentFull || await _designsApiFetch(_designsEditId);
+    const now = new Date().toISOString();
+    const copy = {
+      ...src,
+      id: 'dsn-' + Date.now(),
+      name: (src.name || 'Untitled') + ' (Copy)',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await _designsApiSave(copy);
+    toast('Design copied', '✓');
+    await designsLoad();
+    await designsShowForm(copy.id);
+  } catch(e) {
+    toast('Copy failed — ' + (e.message || e), '❌');
   }
 }
 
