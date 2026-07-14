@@ -22,6 +22,7 @@
     */
 
     .form-content {
+      position: relative; /* anchor for the #bag-qr deep-link code */
       width: 5.5in;
       height: 8.5in;
       padding: 0.18in 0.18in;
@@ -30,6 +31,17 @@
       gap: 0;
       overflow: hidden;
     }
+
+    /* Deep-link QR — scanning the bag opens this order in the workflow app.
+       Sits in the top-right dead space beside the shop name / Order Type
+       rows (~62px tall), so it adds no height to the form. */
+    #bag-qr {
+      position: absolute;
+      top: 0.10in; right: 0.14in;
+      width: 0.60in; height: 0.60in;
+      display: none;
+    }
+    #bag-qr svg { width: 100%; height: 100%; display: block; }
 
     /* ── Screen preview (portrait, no rotation) ── */
     @media screen {
@@ -423,6 +435,8 @@
 
 <div class="form-content">
 
+  <div id="bag-qr" title="Scan to open this order in the workflow app"></div>
+
   <div style="margin-bottom:3px">
     <div class="shop-name">Stones Throw Studio</div>
     <div class="shop-sub">Custom Jewelry</div>
@@ -547,6 +561,7 @@
 
 </div>
 
+<script src="js/qr.js"></script>
 <script>
   function fmt(d) {
     if (!d) return '';
@@ -593,6 +608,19 @@
   const srcName   = p.get('srcName')   || '';
   const orderNo   = p.get('orderNo')   || '';
   const country   = p.get('country')   || '';
+
+  // ── Deep-link QR ──
+  // Encodes the workflow app URL for this order; scanning the printed bag
+  // with a phone camera opens the order card directly (js/deeplink.js).
+  // Hidden when no oid (e.g. the blank template preview in the app iframe).
+  const oid = p.get('oid') || '';
+  if (oid && typeof qrSvg === 'function') {
+    try {
+      const qrBox = document.getElementById('bag-qr');
+      qrBox.innerHTML = qrSvg(location.origin + '/jewelry-workflow#order=' + encodeURIComponent(oid), 58);
+      qrBox.style.display = 'block';
+    } catch (e) { /* QR failure must never block bag printing */ }
+  }
 
   // ── Apply layout settings ──
   const fc = document.querySelector('.form-content');

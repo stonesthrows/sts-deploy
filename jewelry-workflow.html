@@ -122,6 +122,26 @@
     }
     .header-spacer { flex: 1; }
 
+    /* ── Global search button (opens the Ctrl+K palette, js/palette.js) ── */
+    .cp-search-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(201,152,58,0.18); color: var(--accent-light);
+      border: 1px solid rgba(201,152,58,0.45);
+      border-radius: 20px; padding: 5px 13px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background .15s;
+      white-space: nowrap;
+    }
+    .cp-search-btn:hover { background: rgba(201,152,58,0.28); }
+    .cp-search-btn kbd {
+      font-family: inherit; font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 5px; padding: 1px 5px;
+    }
+    @media (max-width: 768px) {
+      .cp-search-btn .cp-btn-label, .cp-search-btn kbd { display: none; }
+    }
+
     /* ── Trip Verify Pill ── */
     .tv-wrap { position: relative; }
     .tv-pill {
@@ -5664,6 +5684,13 @@
   <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
   <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
   <div class="topbar-spacer"></div>
+  <button class="cp-search-btn" onclick="paletteOpen()" title="Search everything (Ctrl+K)" aria-label="Search">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <span class="cp-btn-label">Search</span>
+    <kbd>Ctrl K</kbd>
+  </button>
   <button class="theme-btn rq-mobile-edit-toggle" id="rqMobileEditToggle" onclick="rqToggleMobileEditMode()" title="Edit Restock Queue items">✎ Edit</button>
   <button class="theme-btn" onclick="openIntegrationsModal()" title="Configure API keys and integrations" style="font-size:15px;">🔌</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">🗺️</button>
@@ -10855,7 +10882,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/app.js?v=20260711a"></script>
 <script src="js/sketchpad.js?v=4"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
-<script src="js/orders.js?v=20260713a"></script>
+<script src="js/orders.js?v=20260714a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260713a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
@@ -10872,6 +10899,8 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/materials.js?v=5"></script>
 <script src="js/receiving.js?v=2"></script>
 <script src="js/closeout.js?v=2"></script>
+<script src="js/palette.js?v=20260714a"></script>
+<script src="js/deeplink.js?v=20260714a"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
   <div class="sot-modal" style="width:400px;">

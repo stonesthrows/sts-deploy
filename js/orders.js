@@ -1695,6 +1695,9 @@ function printOrder(id) {
   const addrLine = [o.addrStreet || sa.street || o.address || '',
                     o.addrStreet2 || sa.street2 || ''].filter(Boolean).join('\n');
   const p = new URLSearchParams({
+    // Order id feeds the bag's QR code — scanning it deep-links back to
+    // this order's card (see js/deeplink.js + work-order-print.html).
+    oid:       o.id          || '',
     name:      o.name        || '',
     email:     o.email       || '',
     phone:     o.phone       || '',
