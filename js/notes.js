@@ -4,6 +4,7 @@
 // ════════════════════════════════════════════
 
 var NOTES_DATA = [];   // flat array of { notionPageId, text, block, done }
+var _notesLoaded = false;  // true once the first /api/notion-notes fetch settles
 var _notesPoller = null;
 var _dragNote = null;  // { pageId, fromKey } set on dragstart
 
@@ -27,22 +28,33 @@ function loadNotes() {
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
     .then(function(res) {
       if (spinner) spinner.style.display = 'none';
+      _notesLoaded = true;
       if (!res.ok) {
         toast('Notion error ' + res.status + ': ' + (res.data.error || 'unknown'), '⚠');
+        _notesRerenderQueue();
         return;
       }
       NOTES_DATA = res.data || [];
       ['studio','todo','toorder','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
+      _notesRerenderQueue();
     })
     .catch(function(err) {
       if (spinner) spinner.style.display = 'none';
+      _notesLoaded = true;
       toast('Could not reach /api/notion-notes — ' + (err || ''), '⚠');
+      _notesRerenderQueue();
     });
   if (!_notesPoller) {
     _notesPoller = setInterval(refreshNotes, 30000);
   }
+}
+
+// Re-render the Restock Queue if its tab is showing (its items live in NOTES_DATA)
+function _notesRerenderQueue() {
+  var queuePanel = document.getElementById('tab-to-restock');
+  if (queuePanel && queuePanel.classList.contains('active') && typeof restockQueueRender === 'function') restockQueueRender();
 }
 
 function refreshNotes() {
@@ -50,6 +62,7 @@ function refreshNotes() {
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
     .then(function(res) {
       if (!res.ok) return;
+      _notesLoaded = true;
       NOTES_DATA = res.data || [];
       ['studio','todo','toorder','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));

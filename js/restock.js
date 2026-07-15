@@ -1381,6 +1381,17 @@ function restockQueueRender() {
     _rqLoadAll(restockQueueRender);
   }
 
+  // Queue items live in NOTES_DATA (loaded by loadNotes via /api/notion-notes,
+  // a separate fetch from _rqLoadAll). Until it settles an empty list just
+  // means "not loaded yet" — keep showing Loading… instead of the empty
+  // message; loadNotes re-renders when it finishes.
+  if (typeof _notesLoaded !== 'undefined' && !_notesLoaded) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+    list.style.display = 'flex';
+    if (empty) empty.style.display = 'none';
+    return;
+  }
+
   var items = _rqSortedItems();
   if (items.length === 0) {
     list.style.display = 'none';
