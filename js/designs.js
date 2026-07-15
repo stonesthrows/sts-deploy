@@ -218,7 +218,7 @@ function _dsnFamilyCardHtml(fam, members) {
       <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} designs</span></div>
       <div class="dsn-card-body">
         <div class="dsn-cat-chip">📁 Design Family</div>
-        <div class="dsn-card-name">${escHtml(fam)} Designs</div>
+        <div class="dsn-card-name">${escHtml(fam)}</div>
         <div class="dsn-card-preview">${escHtml(names.slice(0, 90))}${names.length > 90 ? '…' : ''}</div>
       </div>
     </div>`;
@@ -235,7 +235,7 @@ function designsRenderLibrary() {
   const famBar   = document.getElementById('dsn-family-bar');
   const famTitle = document.getElementById('dsn-family-title');
   if (famBar)   famBar.style.display = _designsFamilyOpen ? 'flex' : 'none';
-  if (famTitle) famTitle.textContent = _designsFamilyOpen ? `${_designsFamilyOpen} Designs` : '';
+  if (famTitle) famTitle.textContent = _designsFamilyOpen || '';
 
   let filtered = _designsCatFilter === 'all'
     ? _designs
