@@ -20,15 +20,8 @@ const pipelineSrc = readSource('functions/api/notion-pipeline.js');
 const mapMatch = /const STAGE_TO_NOTION = (\{[\s\S]*?\});/.exec(pipelineSrc);
 const STAGE_TO_NOTION = new Function('return ' + mapMatch[1])();
 
-// Stages the app defines but the Notion sync intentionally(?) does not map.
-// ⚠ 'est-wait-appr' ("Waiting on Approval") looks like a REAL GAP, not an
-// intentional omission: it sits on the live board (Estimating column) but
-// has no Notion mapping, so dragging a card there round-trips it back to
-// Custom Intake. When it gets mapped in notion-pipeline.js (and the option
-// added to the Notion Stage select), delete it from this list and this
-// test starts guarding it too.
+// Stages the app defines but the Notion sync intentionally does not map.
 const KNOWN_UNMAPPED = new Set([
-  'est-wait-appr',
   'repair',      // legacy standalone Repairs stage — not on the board (no column)
   'inquiry',     // marked legacy in data.js
   'wait-cust',   // marked legacy in data.js

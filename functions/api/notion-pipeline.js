@@ -25,6 +25,7 @@ const STAGE_TO_NOTION = {
   'sketch-wait':    'Waiting on Sketch Approval',
   'sketch':         'Sketch Approved',
   'quote':          'Estimate Sent',
+  'est-wait-appr':  'Waiting on Approval',
   'est-appr':       'Estimate Approved',
   'deposit-wait':   'Waiting on Deposit',
   'deposit-paid':   'Deposit Paid',
