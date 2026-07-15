@@ -23,7 +23,8 @@ let _designsMaterials = null; // active materials for the picker (null = loading
 let _shopSettings     = null; // {wasteDefaultPct, wastePctByMetal, shopHourlyRate, …} from /api/shop-settings
 
 // Costing (Phase 4): Square link + labor/retail sources
-let _dsnLabor         = null; // squareVariationId|custom:name -> {hrs, pcs, minPerPc} from work sessions
+let _dsnLabor         = null; // parent squareItemId|custom:name -> {hrs, pcs, minPerPc} from work sessions
+let _dsnVarToItem     = {};   // squareVariationId -> parent ITEM id (labor pools across sizes)
 let _dsnSqPrices      = {};   // squareVariationId -> retail price (null = fetched, no price)
 let _dsnLinkedSq      = null; // {id, name} staged for current edit
 let _dsnSqSearchTimer = null;
@@ -1157,7 +1158,8 @@ async function dsnWasteDefaultsSave() {
 //  COST ROLLUP & PRICING (Phase 4)
 //  True per-piece cost: BOM materials (incl. waste) + tracked labor.
 //  Labor minutes/piece derive from the same work-session history the
-//  Production Report reads (keyed by Square item variation); retail
+//  Production Report reads (pooled by parent Square ITEM, so sessions
+//  logged against any size variation count for the design); retail
 //  price comes live from Square. Manual overrides cover unlinked or
 //  untracked designs.
 // ════════════════════════════════════════════
@@ -1171,12 +1173,15 @@ function _dsnNumOrNull(v) {
 // ── Labor: aggregate work sessions → minutes/piece per item key ──
 // Same share math as the Production Report's By Design view: a session's
 // net time splits across its items proportionally to pieces made.
+// Sessions log per size variation; labor pools under the parent ITEM id
+// so a design linked to any size sees all of that item's sessions.
 function _dsnLoadLabor(force) {
   if (_dsnLabor !== null && !force) return Promise.resolve(_dsnLabor);
   return fetch('/api/notion-timesession?all=true')
     .then(r => (r.ok ? r.json() : []))
     .then(ns => {
-      const agg = {};
+      const sessions = [];
+      const varIds = [];
       (Array.isArray(ns) ? ns : []).forEach(s => {
         if (s.netMin == null) return;
         let items = null;
@@ -1185,23 +1190,56 @@ function _dsnLoadLabor(force) {
         const withPcs = (items || []).filter(it => it.pieces > 0);
         const totalPcs = withPcs.reduce((t, it) => t + it.pieces, 0);
         if (!totalPcs) return;
-        withPcs.forEach(it => {
-          const key = (it.squareId && !it.isCustom) ? it.squareId : 'custom:' + (it.name || '');
-          const g = agg[key] = agg[key] || { hrs: 0, pcs: 0 };
-          g.hrs += (s.netMin / 60) * (it.pieces / totalPcs);
-          g.pcs += it.pieces;
-        });
+        withPcs.forEach(it => { if (it.squareId && !it.isCustom) varIds.push(it.squareId); });
+        sessions.push({ netMin: s.netMin, withPcs, totalPcs });
       });
-      Object.keys(agg).forEach(k => { agg[k].minPerPc = agg[k].pcs ? (agg[k].hrs * 60 / agg[k].pcs) : null; });
-      _dsnLabor = agg;
-      return agg;
+      return _dsnLoadVarToItem(varIds).then(() => {
+        const agg = {};
+        sessions.forEach(s => {
+          s.withPcs.forEach(it => {
+            const key = (it.squareId && !it.isCustom)
+              ? (_dsnVarToItem[it.squareId] || it.squareId)
+              : 'custom:' + (it.name || '');
+            const g = agg[key] = agg[key] || { hrs: 0, pcs: 0 };
+            g.hrs += (s.netMin / 60) * (it.pieces / s.totalPcs);
+            g.pcs += it.pieces;
+          });
+        });
+        Object.keys(agg).forEach(k => { agg[k].minPerPc = agg[k].pcs ? (agg[k].hrs * 60 / agg[k].pcs) : null; });
+        _dsnLabor = agg;
+        return agg;
+      });
     })
     .catch(() => { if (_dsnLabor === null) _dsnLabor = {}; return _dsnLabor; });
 }
 
+// ── Variation → parent item: batch-retrieve unknown variation ids ──
+// Falls back silently on API failure; unmapped ids key labor by the
+// variation itself (the old behavior).
+function _dsnLoadVarToItem(varIds) {
+  const need = [...new Set((varIds || []).filter(id => id && !(id in _dsnVarToItem)))];
+  if (!need.length) return Promise.resolve(_dsnVarToItem);
+  return fetch('/api/square', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: '/v2/catalog/batch-retrieve', method: 'POST', body: { object_ids: need } }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      (data.objects || []).forEach(obj => {
+        if (obj.type !== 'ITEM_VARIATION') return;
+        const vd = obj.item_variation_data || {};
+        if (vd.item_id) _dsnVarToItem[obj.id] = vd.item_id;
+      });
+      return _dsnVarToItem;
+    })
+    .catch(() => _dsnVarToItem);
+}
+
 // ── Retail prices: batch-retrieve linked Square variations ──
 function _dsnLoadSqPrices(varIds) {
-  const need = (varIds || []).filter(id => id && !(id in _dsnSqPrices));
+  // Also fetches when only the var→item mapping is missing (e.g. a price
+  // cached from search results by dsnSqLink never hit batch-retrieve).
+  const need = (varIds || []).filter(id => id && (!(id in _dsnSqPrices) || !(id in _dsnVarToItem)));
   if (!need.length) return Promise.resolve(_dsnSqPrices);
   return fetch('/api/square', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1214,6 +1252,7 @@ function _dsnLoadSqPrices(varIds) {
         if (obj.type !== 'ITEM_VARIATION') return;
         const vd = obj.item_variation_data || {};
         _dsnSqPrices[obj.id] = vd.price_money ? vd.price_money.amount / 100 : null;
+        if (vd.item_id) _dsnVarToItem[obj.id] = vd.item_id;
       });
       return _dsnSqPrices;
     })
@@ -1246,14 +1285,15 @@ function dsnCostRollup(d) {
   const hasBom = (d.bom || []).length > 0;
 
   const s = _shopSettings || {};
-  const key = d.squareItemId || null;
+  const vkey = d.squareItemId || null;                       // linked variation: retail price
+  const key = vkey ? (_dsnVarToItem[vkey] || vkey) : null;   // parent item: pooled labor
   const tracked = (key && _dsnLabor && _dsnLabor[key]) ? _dsnLabor[key].minPerPc : null;
   const laborMin = d.laborMinPerPieceOverride != null ? d.laborMinPerPieceOverride : tracked;
   const laborSource = d.laborMinPerPieceOverride != null ? 'override' : (tracked != null ? 'tracked' : null);
   const rate = typeof s.shopHourlyRate === 'number' ? s.shopHourlyRate : null;
   const laborCost = (laborMin != null && rate != null) ? (laborMin / 60) * rate : null;
 
-  const sqPrice = (key && _dsnSqPrices[key] != null) ? _dsnSqPrices[key] : null;
+  const sqPrice = (vkey && _dsnSqPrices[vkey] != null) ? _dsnSqPrices[vkey] : null;
   const retail = d.retailPriceOverride != null ? d.retailPriceOverride : sqPrice;
   const retailSource = d.retailPriceOverride != null ? 'override' : (sqPrice != null ? 'square' : null);
 
