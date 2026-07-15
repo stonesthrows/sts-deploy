@@ -394,7 +394,8 @@ function designsRenderGuide() {
 // Light formatter: numbered lines ("1." / "Step 1:") become badged steps,
 // dash/star lines become bullets, short ALL-CAPS or colon-ended lines become
 // subheads, everything else a paragraph. A dash line INDENTED with spaces
-// attaches to the step or bullet above it as an indented dash sub-line.
+// attaches to the step or bullet above it as an indented dash sub-line, or
+// stands alone as a dash line when there is no step/bullet above it.
 // Misparses degrade to plain text.
 function _dsnGuideParseText(text) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
@@ -415,10 +416,19 @@ function _dsnGuideParseText(text) {
   lines.forEach(raw => {
     const line = raw.trim();
     if (!line) { flush(); return; }
-    // Indented dash line right after a step/bullet → sub-item of that item
-    if (/^[ \t]/.test(raw) && list && list.items.length) {
+    // Indented dash line → sub-item of the step/bullet above it, or a
+    // standalone dash line when there's nothing to attach to
+    if (/^[ \t]/.test(raw)) {
       const sm = line.match(/^[-•*·—–]\s+(.*)/);
-      if (sm) { list.items[list.items.length - 1].subs.push(escHtml(sm[1])); return; }
+      if (sm) {
+        if (list && list.items.length) {
+          list.items[list.items.length - 1].subs.push(escHtml(sm[1]));
+        } else {
+          flush();
+          out.push(subHtml([escHtml(sm[1])]));
+        }
+        return;
+      }
     }
     let m = line.match(/^(?:step\s*)?(\d{1,3})[.):]\s+(.*)/i);
     if (m) {
