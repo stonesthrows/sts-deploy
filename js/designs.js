@@ -1104,10 +1104,17 @@ function _dsnEffectiveLabel(l, split) {
   const m = _dsnBomMat(l.materialId);
   if (!m || !(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
-  const base = (split && _dsnIsWeightUnit(m)) ? '= ' + l.qty + ' ' + unit : '';
-  if (m.category !== 'metal') return base || (l.qty + ' ' + unit);
+  // Troy-oz equivalent of the entered qty on gram-based lines
+  const oztEq = (m.unit === 'gram')
+    ? '(' + (Math.round(l.qty / _DSN_G_PER_OZT * 1000) / 1000) + ' ozt)'
+    : '';
+  const base = (split && _dsnIsWeightUnit(m))
+    ? '= ' + l.qty + ' ' + unit + (oztEq ? ' ' + oztEq : '')
+    : '';
+  if (m.category !== 'metal') return base || (l.qty + ' ' + unit + (oztEq ? ' ' + oztEq : ''));
   const w = _dsnWastePctFor(m);
-  return (base ? base + ' ' : '') + '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
+  const head = base ? base + ' ' : (oztEq ? oztEq + ' ' : '');
+  return head + '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
 }
 
 function _dsnBomOptions(selectedId) {
@@ -1224,10 +1231,14 @@ function dsnWasteDefaultsRefreshLabel() {
   if (!el) return;
   if (_shopSettings === null) { el.textContent = 'Waste defaults: loading…'; return; }
   const pm  = _shopSettings.wastePctByMetal || {};
+  const mp  = _shopSettings.metalPricePerOzt || {};
   const fmt = v => (typeof v === 'number' ? v + '%' : '—');
+  const fm$ = v => (typeof v === 'number' ? '$' + v.toFixed(2) : '—');
   el.textContent = 'Waste defaults — shop: ' + fmt(_shopSettings.wasteDefaultPct)
     + ' · argentium: ' + fmt(pm.argentium)
-    + ' · gold-fill: ' + fmt(pm.gold_fill);
+    + ' · gold-fill: ' + fmt(pm.gold_fill)
+    + '  |  Metal $/ozt — argentium: ' + fm$(mp.argentium)
+    + ' · gold-fill: ' + fm$(mp.gold_fill);
 }
 
 function dsnWasteDefaultsToggle() {
@@ -1237,9 +1248,12 @@ function dsnWasteDefaultsToggle() {
   if (opening) {
     const s  = _shopSettings || {};
     const pm = s.wastePctByMetal || {};
+    const mp = s.metalPricePerOzt || {};
     document.getElementById('dsnWdShop').value      = s.wasteDefaultPct ?? '';
     document.getElementById('dsnWdArgentium').value = pm.argentium ?? '';
     document.getElementById('dsnWdGf').value        = pm.gold_fill ?? '';
+    document.getElementById('dsnWdAgPrice').value   = mp.argentium ?? '';
+    document.getElementById('dsnWdGfPrice').value   = mp.gold_fill ?? '';
   }
   p.style.display = opening ? '' : 'none';
 }
@@ -1254,6 +1268,11 @@ async function dsnWasteDefaultsSave() {
   const gf = num(document.getElementById('dsnWdGf').value);
   if (ag != null) s.wastePctByMetal.argentium = ag;
   if (gf != null) s.wastePctByMetal.gold_fill = gf;
+  s.metalPricePerOzt = {};
+  const agP = num(document.getElementById('dsnWdAgPrice').value);
+  const gfP = num(document.getElementById('dsnWdGfPrice').value);
+  if (agP != null) s.metalPricePerOzt.argentium = agP;
+  if (gfP != null) s.metalPricePerOzt.gold_fill = gfP;
   try {
     const r = await fetch('/api/shop-settings', {
       method: 'PUT',
@@ -1385,6 +1404,8 @@ function _dsnLoadSqPrices(varIds) {
 function dsnCostRollup(d) {
   const matById = {};
   (_designsMaterials || []).forEach(m => { matById[m.notionPageId] = m; });
+  const s = _shopSettings || {};
+  const shopPrices = s.metalPricePerOzt || {};
 
   const lines = [];
   let matCost = 0, matMissing = false;
@@ -1394,17 +1415,20 @@ function dsnCostRollup(d) {
     const isMetal = m.category === 'metal';
     const w = isMetal ? _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) : 0;
     const effQty = l.qty * (1 + w / 100);
-    const unitCost = m.currentCostPerUnit;
+    // Per-material cost wins; metals with no cost fall back to the
+    // shop-wide $/ozt price for their metal type (argentium / gold_fill).
+    const shopPrice = isMetal && typeof shopPrices[m.metalType] === 'number' ? shopPrices[m.metalType] : null;
+    const unitCost = m.currentCostPerUnit != null ? m.currentCostPerUnit : shopPrice;
     const cost = unitCost != null ? effQty * unitCost : null;
     if (cost == null) matMissing = true; else matCost += cost;
     lines.push({
       name: m.name, qty: l.qty, unit: _dsnUnitSuffix(m),
       wastePct: isMetal ? w : null, effQty, unitCost, cost,
+      shopPriced: m.currentCostPerUnit == null && unitCost != null,
     });
   });
   const hasBom = (d.bom || []).length > 0;
 
-  const s = _shopSettings || {};
   const vkey = d.squareItemId || null;                       // linked variation: retail price
   const key = vkey ? (_dsnVarToItem[vkey] || vkey) : null;   // parent item: pooled labor
   const tracked = (key && _dsnLabor && _dsnLabor[key]) ? _dsnLabor[key].minPerPc : null;
@@ -1459,7 +1483,8 @@ function dsnRollupRender() {
 function _dsnRollupBoxHtml(r) {
   const matRows = r.lines.map(l => {
     const wasteTxt = l.wastePct != null && l.wastePct > 0 ? ` <span class="dsn-ru-dim">+${l.wastePct}% waste → ${l.effQty.toFixed(2)}${l.unit}</span>` : '';
-    return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.qty}${l.unit}${wasteTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
+    const shopTxt = l.shopPriced ? ` <span class="dsn-ru-dim">@ shop $${l.unitCost.toFixed(2)}/${l.unit}</span>` : '';
+    return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.qty}${l.unit}${wasteTxt}${shopTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
   }).join('');
 
   const laborNote = r.laborSource === 'tracked' ? ` <span class="dsn-ru-dim">(${r.laborMin.toFixed(1)} min/pc from timers)</span>`

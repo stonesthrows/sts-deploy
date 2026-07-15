@@ -8,6 +8,9 @@
 //  Shape: {
 //    wasteDefaultPct:  number|null   — shop-wide metal waste % (e.g. 12)
 //    wastePctByMetal:  { argentium?: number, gold_fill?: number }
+//    metalPricePerOzt: { argentium?: number, gold_fill?: number }
+//                      — universal $/ozt used when a metal material has no
+//                        Current Cost Per Unit of its own
 //    shopHourlyRate:   number|null   — Phase 4
 //    targetMarginPct:  number|null   — Phase 4
 //    marginFloorPct:   number|null   — Phase 4 margin-erosion alert
@@ -90,11 +93,16 @@ export async function onRequest({ request, env }) {
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') return json({ error: 'JSON object body required' }, 400);
     const byMetal = body.wastePctByMetal && typeof body.wastePctByMetal === 'object' ? body.wastePctByMetal : {};
+    const priceByMetal = body.metalPricePerOzt && typeof body.metalPricePerOzt === 'object' ? body.metalPricePerOzt : {};
     const content = JSON.stringify({
       wasteDefaultPct: numOrNull(body.wasteDefaultPct),
       wastePctByMetal: {
         ...(numOrNull(byMetal.argentium) != null ? { argentium: byMetal.argentium } : {}),
         ...(numOrNull(byMetal.gold_fill) != null ? { gold_fill: byMetal.gold_fill } : {}),
+      },
+      metalPricePerOzt: {
+        ...(numOrNull(priceByMetal.argentium) != null ? { argentium: priceByMetal.argentium } : {}),
+        ...(numOrNull(priceByMetal.gold_fill) != null ? { gold_fill: priceByMetal.gold_fill } : {}),
       },
       shopHourlyRate:  numOrNull(body.shopHourlyRate),
       targetMarginPct: numOrNull(body.targetMarginPct),

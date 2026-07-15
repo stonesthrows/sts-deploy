@@ -8487,7 +8487,12 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
                 <input id="dsnWdArgentium" type="number" step="0.1" min="0" placeholder="inherit shop">
                 <label>Gold-fill %</label>
                 <input id="dsnWdGf" type="number" step="0.1" min="0" placeholder="inherit shop">
+                <label>Argentium $/ozt</label>
+                <input id="dsnWdAgPrice" type="number" step="0.01" min="0" placeholder="no default">
+                <label>Gold-fill $/ozt</label>
+                <input id="dsnWdGfPrice" type="number" step="0.01" min="0" placeholder="no default">
               </div>
+              <div class="dsn-bom-note" style="margin:4px 0 6px">$/ozt prices apply to any metal line whose material has no cost of its own.</div>
               <button type="button" class="btn btn-gold btn-sm" onclick="dsnWasteDefaultsSave()">Save Defaults</button>
             </div>
           </div>
@@ -11032,7 +11037,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=8"></script>
+<script src="js/designs.js?v=9"></script>
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
