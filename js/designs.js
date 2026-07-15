@@ -550,12 +550,15 @@ function designsRenderForm() {
   _designsBom = (design && Array.isArray(design.bom))
     ? design.bom.map(l => ({ materialId: l.materialId, qty: l.qty, pct: l.pct != null ? l.pct : null }))
     : [];
-  const splitOn = !!(design && design.bomTotalWeightG != null);
+  const splitOn = !!(design && (design.bomTotalWeightOzt != null || design.bomTotalWeightG != null));
   const splitEl = document.getElementById('dsn-bom-split');
   const totalEl = document.getElementById('dsn-bom-total');
   const totWrap = document.getElementById('dsn-bom-total-wrap');
   if (splitEl) splitEl.checked = splitOn;
-  if (totalEl) totalEl.value = splitOn ? design.bomTotalWeightG : '';
+  if (totalEl) totalEl.value = !splitOn ? ''
+    : (design.bomTotalWeightOzt != null
+        ? design.bomTotalWeightOzt
+        : Math.round(design.bomTotalWeightG / _DSN_G_PER_OZT * 1000) / 1000); // legacy grams total
   if (totWrap) totWrap.style.display = splitOn ? '' : 'none';
   const wasteEl = document.getElementById('dsn-waste');
   if (wasteEl) wasteEl.value = (design && design.wasteOverridePct != null) ? design.wasteOverridePct : '';
@@ -664,7 +667,8 @@ async function designsSaveDesign() {
                     .map(l => (splitOn && l.pct > 0)
                       ? { materialId: l.materialId, qty: l.qty, pct: l.pct }
                       : { materialId: l.materialId, qty: l.qty }),
-    bomTotalWeightG: splitOn ? splitTotalG : null,
+    bomTotalWeightOzt: splitOn ? _dsnBomTotalOzt() : null,
+    bomTotalWeightG:   splitOn ? splitTotalG : null,
     wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
     squareItemId:   _dsnLinkedSq ? _dsnLinkedSq.id   : null,
     squareItemName: _dsnLinkedSq ? _dsnLinkedSq.name : null,
@@ -1017,7 +1021,9 @@ const _DSN_G_PER_OZT = 31.1035;
 
 function _dsnIsWeightUnit(m) { return !!m && (m.unit === 'gram' || m.unit === 'ozt'); }
 function _dsnBomSplitOn()    { const el = document.getElementById('dsn-bom-split'); return !!(el && el.checked); }
-function _dsnBomTotalG()     { const v = parseFloat((document.getElementById('dsn-bom-total') || {}).value); return isNaN(v) ? null : v; }
+// The total-weight field is entered in troy ounces; line math runs in grams
+function _dsnBomTotalOzt()   { const v = parseFloat((document.getElementById('dsn-bom-total') || {}).value); return isNaN(v) ? null : v; }
+function _dsnBomTotalG()     { const v = _dsnBomTotalOzt(); return v == null ? null : v * _DSN_G_PER_OZT; }
 
 // qty in the material's own unit from total grams × pct
 function _dsnSplitQty(m, totalG, pct) {
@@ -1041,7 +1047,7 @@ function dsnBomSplitToggle() {
         if (_dsnIsWeightUnit(m) && l.qty > 0) totG += l.qty * (m.unit === 'ozt' ? _DSN_G_PER_OZT : 1);
       });
       if (totG > 0) {
-        totalEl.value = Math.round(totG * 1000) / 1000;
+        totalEl.value = Math.round(totG / _DSN_G_PER_OZT * 1000) / 1000;
         _designsBom.forEach(l => {
           const m = _dsnBomMat(l.materialId);
           if (_dsnIsWeightUnit(m) && l.qty > 0) {
