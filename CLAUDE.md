@@ -36,6 +36,12 @@ Tab switching logic lives in `js/app.js`: `switchParent()`, `switchTab()`, `swit
 ## Key Rule
 **NEVER alter any tab's code while working on a different tab. Only touch the tab explicitly being worked on.**
 
+## Testing
+- Runner: Vitest (dev-only — the app itself still has no build step). `npm install` once, then `npm test`.
+- Tests live in `test/*.test.mjs`. Covered so far: `functions/api/_middleware.js` (auth gate + CORS), `functions/api/square-webhook.js` (HMAC + inventory decrement + dedupe), `js/order-normalize.js` (pure order-schema logic), and a stage-map consistency check between `js/data.js` and `functions/api/notion-pipeline.js`.
+- Browser-global scripts (`js/*.js` have no exports) load into tests via `test/helpers/load-script.mjs` — production files stay untouched.
+- `package.json` / `test/` are not served and do not affect the Cloudflare Pages deploy (no build command is configured).
+
 ## Deployment
 - Platform: Cloudflare Pages (NOT Netlify — account hit its limit)
 - Live URL: https://sts-deploy.pages.dev/jewelry-workflow

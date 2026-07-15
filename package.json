@@ -1,0 +1,12 @@
+{
+  "name": "sts-deploy",
+  "private": true,
+  "description": "Dev-only tooling for STS Workflow. The app itself has no build step — this exists solely to run the test suite (npm test). Cloudflare Pages ignores it (no build command configured).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
