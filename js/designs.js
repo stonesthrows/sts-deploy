@@ -538,8 +538,15 @@ function designsRenderForm() {
   document.getElementById('dsn-instructions').value  = design ? (design.instructions || '') : '';
 
   _designsBom = (design && Array.isArray(design.bom))
-    ? design.bom.map(l => ({ materialId: l.materialId, qty: l.qty }))
+    ? design.bom.map(l => ({ materialId: l.materialId, qty: l.qty, pct: l.pct != null ? l.pct : null }))
     : [];
+  const splitOn = !!(design && design.bomTotalWeightG != null);
+  const splitEl = document.getElementById('dsn-bom-split');
+  const totalEl = document.getElementById('dsn-bom-total');
+  const totWrap = document.getElementById('dsn-bom-total-wrap');
+  if (splitEl) splitEl.checked = splitOn;
+  if (totalEl) totalEl.value = splitOn ? design.bomTotalWeightG : '';
+  if (totWrap) totWrap.style.display = splitOn ? '' : 'none';
   const wasteEl = document.getElementById('dsn-waste');
   if (wasteEl) wasteEl.value = (design && design.wasteOverridePct != null) ? design.wasteOverridePct : '';
 
@@ -628,6 +635,11 @@ async function designsSaveDesign() {
   const id  = _designsEditId || ('dsn-' + Date.now());
 
   dsnBomSyncFromDom();
+  const splitOn     = _dsnBomSplitOn();
+  const splitTotalG = _dsnBomTotalG();
+  if (splitOn && splitTotalG == null && _designsBom.some(l => l.materialId && l.pct > 0)) {
+    toast('Enter the total piece weight for the % split', '⚠'); return;
+  }
   const wasteRaw = (document.getElementById('dsn-waste') || {}).value;
   const design = {
     ...((_designsEditId && _designsCurrentFull) ? _designsCurrentFull : {}),
@@ -639,7 +651,10 @@ async function designsSaveDesign() {
     instructions: document.getElementById('dsn-instructions').value.trim(),
     bom:          _designsBom
                     .filter(l => l.materialId && l.qty > 0)
-                    .map(l => ({ materialId: l.materialId, qty: l.qty })),
+                    .map(l => (splitOn && l.pct > 0)
+                      ? { materialId: l.materialId, qty: l.qty, pct: l.pct }
+                      : { materialId: l.materialId, qty: l.qty }),
+    bomTotalWeightG: splitOn ? splitTotalG : null,
     wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
     squareItemId:   _dsnLinkedSq ? _dsnLinkedSq.id   : null,
     squareItemName: _dsnLinkedSq ? _dsnLinkedSq.name : null,
@@ -983,6 +998,76 @@ function _dsnUnitSuffix(m) {
   return m ? matUnitAbbr(m.unit) : 'pc';
 }
 
+// ── Total-weight % split (multi-material pieces) ──
+//  When on, weight-based lines (gram/ozt) take a % of the piece's total
+//  weight instead of an absolute qty; piece/foot lines keep absolute qty.
+//  qty is always computed and stored, so cost rollups, the pricing sheet
+//  and the replenishment engine are untouched.
+const _DSN_G_PER_OZT = 31.1035;
+
+function _dsnIsWeightUnit(m) { return !!m && (m.unit === 'gram' || m.unit === 'ozt'); }
+function _dsnBomSplitOn()    { const el = document.getElementById('dsn-bom-split'); return !!(el && el.checked); }
+function _dsnBomTotalG()     { const v = parseFloat((document.getElementById('dsn-bom-total') || {}).value); return isNaN(v) ? null : v; }
+
+// qty in the material's own unit from total grams × pct
+function _dsnSplitQty(m, totalG, pct) {
+  if (!m || totalG == null || pct == null || !(pct > 0)) return null;
+  const q = totalG * pct / 100 / (m.unit === 'ozt' ? _DSN_G_PER_OZT : 1);
+  return Math.round(q * 1000) / 1000;
+}
+
+function dsnBomSplitToggle() {
+  const on = _dsnBomSplitOn();
+  const wrap = document.getElementById('dsn-bom-total-wrap');
+  if (wrap) wrap.style.display = on ? '' : 'none';
+  dsnBomSyncFromDom();
+  if (on) {
+    // Seed total + % from any absolute weights already entered
+    const totalEl = document.getElementById('dsn-bom-total');
+    if (totalEl && totalEl.value === '') {
+      let totG = 0;
+      _designsBom.forEach(l => {
+        const m = _dsnBomMat(l.materialId);
+        if (_dsnIsWeightUnit(m) && l.qty > 0) totG += l.qty * (m.unit === 'ozt' ? _DSN_G_PER_OZT : 1);
+      });
+      if (totG > 0) {
+        totalEl.value = Math.round(totG * 1000) / 1000;
+        _designsBom.forEach(l => {
+          const m = _dsnBomMat(l.materialId);
+          if (_dsnIsWeightUnit(m) && l.qty > 0) {
+            l.pct = Math.round(l.qty * (m.unit === 'ozt' ? _DSN_G_PER_OZT : 1) / totG * 1000) / 10;
+          }
+        });
+      }
+    }
+  }
+  _designsBomRender();
+}
+
+function dsnBomTotalInput() {
+  dsnBomSyncFromDom();
+  dsnBomRecalcEffective();
+  _dsnBomPctSumRender();
+}
+
+function _dsnBomPctSumRender() {
+  const el = document.getElementById('dsn-bom-pct-sum');
+  if (!el) return;
+  if (!_dsnBomSplitOn()) { el.textContent = ''; return; }
+  let sum = 0, any = false;
+  _designsBom.forEach(l => {
+    if (_dsnIsWeightUnit(_dsnBomMat(l.materialId)) && l.pct > 0) { sum += l.pct; any = true; }
+  });
+  sum = Math.round(sum * 10) / 10;
+  if (_dsnBomTotalG() == null) {
+    el.textContent = any ? '⚠ enter total weight' : '';
+    el.className = 'dsn-bom-pct-sum warn';
+    return;
+  }
+  el.textContent = 'Σ ' + sum + '%' + (sum === 100 ? ' ✓' : '');
+  el.className = 'dsn-bom-pct-sum ' + (sum === 100 ? 'ok' : 'warn');
+}
+
 // Effective waste % for a metal line (spec §5 hybrid model) — pure form,
 // usable outside the edit form (pricing sheet, cost rollups)
 function _dsnWastePctResolve(m, overridePct) {
@@ -999,13 +1084,14 @@ function _dsnWastePctFor(m) {
   return _dsnWastePctResolve(m, isNaN(ov) ? null : ov);
 }
 
-function _dsnEffectiveLabel(l) {
+function _dsnEffectiveLabel(l, split) {
   const m = _dsnBomMat(l.materialId);
   if (!m || !(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
-  if (m.category !== 'metal') return l.qty + ' ' + unit;
+  const base = (split && _dsnIsWeightUnit(m)) ? '= ' + l.qty + ' ' + unit : '';
+  if (m.category !== 'metal') return base || (l.qty + ' ' + unit);
   const w = _dsnWastePctFor(m);
-  return '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
+  return (base ? base + ' ' : '') + '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
 }
 
 function _dsnBomOptions(selectedId) {
@@ -1030,7 +1116,7 @@ function _dsnBomOptions(selectedId) {
 
 function dsnBomAdd() {
   dsnBomSyncFromDom();
-  _designsBom.push({ materialId: '', qty: null });
+  _designsBom.push({ materialId: '', qty: null, pct: null });
   _designsBomRender();
 }
 
@@ -1046,12 +1132,19 @@ function _designsBomRender() {
     return;
   }
 
+  const split = _dsnBomSplitOn();
+  const total = _dsnBomTotalG();
   wrap.innerHTML = _designsBom.map((l, i) => {
     const m = _dsnBomMat(l.materialId);
+    const usePct = split && _dsnIsWeightUnit(m);
+    if (usePct) l.qty = _dsnSplitQty(m, total, l.pct);
+    const inputHtml = usePct
+      ? `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`
+      : `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
     return `<div class="dsn-bom-row" data-idx="${i}">
       <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
-      <input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">
-      <span class="dsn-bom-eff">${escHtml(_dsnEffectiveLabel(l))}</span>
+      ${inputHtml}
+      <span class="dsn-bom-eff">${escHtml(_dsnEffectiveLabel(l, split))}</span>
       <button type="button" class="dsn-bom-remove" title="Remove line">✕</button>
     </div>`;
   }).join('') || '<div class="dsn-bom-note">No materials weighed yet — the recipe powers cost rollups and the replenishment engine.</div>';
@@ -1059,14 +1152,15 @@ function _designsBomRender() {
   wrap.querySelectorAll('.dsn-bom-row').forEach(row => {
     const idx   = parseInt(row.dataset.idx, 10);
     const sel   = row.querySelector('.dsn-bom-mat');
-    const qtyEl = row.querySelector('.dsn-bom-qty');
+    const qtyEl = row.querySelector('.dsn-bom-qty, .dsn-bom-pct');
     sel.addEventListener('change', () => {
+      dsnBomSyncFromDom();
+      if (_dsnBomSplitOn()) { _designsBomRender(); return; }
       const m = _dsnBomMat(sel.value);
       if (m) qtyEl.placeholder = 'Qty (' + _dsnUnitSuffix(m) + ')';
-      dsnBomSyncFromDom();
       dsnBomRecalcEffective();
     });
-    qtyEl.addEventListener('input', () => { dsnBomSyncFromDom(); dsnBomRecalcEffective(); });
+    qtyEl.addEventListener('input', () => { dsnBomSyncFromDom(); dsnBomRecalcEffective(); _dsnBomPctSumRender(); });
     row.querySelector('.dsn-bom-remove').addEventListener('click', () => {
       dsnBomSyncFromDom();
       _designsBom.splice(idx, 1);
@@ -1076,24 +1170,34 @@ function _designsBomRender() {
 
   dsnWasteDefaultsRefreshLabel();
   dsnRollupRender();
+  _dsnBomPctSumRender();
 }
 
 function dsnBomSyncFromDom() {
+  const total = _dsnBomTotalG();
   document.querySelectorAll('#dsn-bom-rows .dsn-bom-row').forEach(row => {
     const l = _designsBom[parseInt(row.dataset.idx, 10)];
     if (!l) return;
     l.materialId = row.querySelector('.dsn-bom-mat').value;
-    const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
-    l.qty = isNaN(q) ? null : q;
+    const pctEl = row.querySelector('.dsn-bom-pct');
+    if (pctEl) {
+      const p = parseFloat(pctEl.value);
+      l.pct = isNaN(p) ? null : p;
+      l.qty = _dsnSplitQty(_dsnBomMat(l.materialId), total, l.pct);
+    } else {
+      const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
+      l.qty = isNaN(q) ? null : q;
+    }
   });
 }
 
 // Refresh only the per-row effective-consumption labels (waste % changed)
 function dsnBomRecalcEffective() {
+  const split = _dsnBomSplitOn();
   document.querySelectorAll('#dsn-bom-rows .dsn-bom-row').forEach(row => {
     const l = _designsBom[parseInt(row.dataset.idx, 10)];
     const eff = row.querySelector('.dsn-bom-eff');
-    if (l && eff) eff.textContent = _dsnEffectiveLabel(l);
+    if (l && eff) eff.textContent = _dsnEffectiveLabel(l, split);
   });
   dsnRollupRender();
 }

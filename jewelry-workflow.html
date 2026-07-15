@@ -8021,6 +8021,19 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
   font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text); outline: none;
 }
 .dsn-bom-waste-row input:focus { border-color: var(--accent); }
+.dsn-bom-split-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.dsn-bom-split-lbl { font-size: 12px; color: var(--text3); font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#dsn-bom-total-wrap { display: flex; gap: 8px; align-items: center; }
+#dsn-bom-total {
+  width: 90px; padding: 7px 10px; border: 1px solid var(--bdr); border-radius: 7px;
+  font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text); outline: none;
+}
+#dsn-bom-total:focus { border-color: var(--accent); }
+.dsn-bom-pct-sum { font-size: 12px; font-weight: 700; }
+.dsn-bom-pct-sum.ok { color: #1E7B3C; }
+.dsn-bom-pct-sum.warn { color: #c77b00; }
+body.theme-midnight .dsn-bom-pct-sum.ok { color: #6fd08a; }
+.dsn-bom-row .dsn-bom-pct { flex: 1; }
 .dsn-waste-defaults { margin-top: 10px; font-size: 12px; color: var(--text3); }
 .dsn-wd-edit { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0 4px; }
 .dsn-wd-grid {
@@ -8442,6 +8455,17 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
         <!-- Materials / BOM (Phase 3) -->
         <label class="dsn-field-label">Materials (per piece)</label>
         <div class="dsn-bom-box">
+          <div class="dsn-bom-split-row">
+            <label class="dsn-bom-split-lbl" for="dsn-bom-split">
+              <input type="checkbox" id="dsn-bom-split" onchange="dsnBomSplitToggle()">
+              Total weight → % per material
+            </label>
+            <span id="dsn-bom-total-wrap" style="display:none">
+              <input id="dsn-bom-total" type="number" step="0.01" min="0" placeholder="total g"
+                oninput="dsnBomTotalInput()">
+              <span id="dsn-bom-pct-sum"></span>
+            </span>
+          </div>
           <div id="dsn-bom-rows"></div>
           <button type="button" class="btn btn-outline btn-sm" onclick="dsnBomAdd()">+ Add Material</button>
           <div class="dsn-bom-waste-row">
