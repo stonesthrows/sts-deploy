@@ -3160,6 +3160,56 @@
     body.theme-midnight .sales-sync-btn { background: var(--accent-bg); color: var(--accent-light); border-color: var(--accent-border); }
     body.theme-midnight .sales-sync-btn:hover:not(:disabled) { background: #342C20; }
 
+    /* ── Best Sellers (bs-*) ─────────────────── */
+    /* Bars/tiles reuse .sales-bar-*, .stat-card and .sales-stats unchanged */
+    .bs-toolbar { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); flex-wrap: wrap; }
+    .bs-toolbar-spacer { flex: 1; }
+    .bs-seg { display: inline-flex; background: #F0EBE3; border-radius: var(--rad-sm); padding: 2px; }
+    .bs-seg-btn {
+      border: none; background: transparent; padding: 6px 14px;
+      font-size: 12.5px; font-weight: 600; font-family: inherit; color: var(--text2);
+      border-radius: calc(var(--rad-sm) - 2px); cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
+    }
+    .bs-seg-btn.active { background: var(--card-bg); color: var(--text); box-shadow: var(--shadow-sm); }
+    .bs-seg-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .bs-period-nav { display: inline-flex; align-items: center; gap: 4px; }
+    .bs-period-btn {
+      border: 1px solid #E4DDD4; background: var(--card-bg); color: var(--text2);
+      width: 28px; height: 28px; border-radius: var(--rad-sm);
+      font-size: 15px; line-height: 1; font-family: inherit; cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-smooth);
+    }
+    .bs-period-btn:hover:not(:disabled) { background: var(--accent-bg); }
+    .bs-period-btn:disabled { opacity: 0.4; cursor: default; }
+    .bs-period-label { min-width: 84px; text-align: center; font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .bs-progress-wrap { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+    .bs-progress { flex: 1; height: 6px; background: #F0EBE3; border-radius: 999px; overflow: hidden; }
+    .bs-progress-fill { height: 100%; width: 0; background: linear-gradient(90deg,#C9983A,#E8B850); border-radius: 999px; transition: width var(--dur-med) var(--ease-smooth); }
+    .bs-progress-note { font-size: 11px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .bs-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-3); }
+    .bs-cat-card .sales-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3); }
+    .bs-cat-tot { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bs-cat-more { font-size: 11px; color: var(--text3); margin-top: 8px; }
+    .bs-restock-table th, .bs-restock-table td { white-space: nowrap; }
+    .bs-restock-table td:first-child, .bs-restock-table th:first-child { white-space: normal; }
+    .bs-proj-note { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+    .bs-footnote { margin-top: var(--sp-3); font-size: 11.5px; color: var(--text3); }
+    #tab-bestsellers .stat-card { cursor: default; }
+    #tab-bestsellers .stat-card:hover { border-color: #E4DDD4; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+    #tab-bestsellers .stat-value { font-variant-numeric: tabular-nums; }
+    #tab-bestsellers .stat-sub { font-size: 11px; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+    @media (max-width: 720px) { .bs-cat-grid { grid-template-columns: 1fr; } }
+
+    /* Midnight theme: Best Sellers surfaces */
+    body.theme-midnight .bs-seg { background: #38383C; }
+    body.theme-midnight .bs-seg-btn { color: var(--text3); }
+    body.theme-midnight .bs-seg-btn.active { background: var(--card-bg); color: var(--text); }
+    body.theme-midnight .bs-period-btn { background: var(--card-bg); border-color: var(--bdr); color: var(--text2); }
+    body.theme-midnight .bs-period-btn:hover:not(:disabled) { background: var(--accent-bg); }
+    body.theme-midnight .bs-progress { background: #38383C; }
+    body.theme-midnight #tab-bestsellers .stat-card:hover { border-color: var(--bdr) !important; }
+
     /* ── Notes ───────────────────────────────── */
     .notes-capture {
       background: #fff; border: 1px solid #E4DDD4; border-radius: 12px;
@@ -5546,6 +5596,7 @@
     <div class="sb-item" data-sb="notes"    onclick="sbNavDirect('notes',this)">📝 Notes</div>
     <div class="sb-item" data-sb="designs"  onclick="sbNavDirect('designs',this)">🎨 Designs</div>
     <div class="sb-item" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
+    <div class="sb-item" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
     <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
   </nav>
   <div style="padding:10px 10px 14px;border-top:1px solid #2E5C78;flex-shrink:0;">
@@ -5647,6 +5698,9 @@
 <div class="sub-nav" id="sub-nav-more" role="tablist" aria-label="More">
   <div class="sub-nav-tab active" role="tab" tabindex="0" aria-selected="false" data-tab="sales" onclick="switchSubTab('sales',this)">
     📊 Sales
+  </div>
+  <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="bestsellers" onclick="switchSubTab('bestsellers',this)">
+    🏆 Best Sellers
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="calendar" onclick="switchSubTab('calendar',this)">
     📅 Calendar
@@ -6767,6 +6821,17 @@
     </div>
   </div>
   <div id="salesContent"><!-- rendered by renderSales() --></div>
+</div>
+
+<!-- ═══════════════════ BEST SELLERS ═══════════════════ -->
+<div id="tab-bestsellers" class="tab-panel">
+  <div class="page-bar">
+    <div>
+      <div class="page-title">🏆 Best Sellers</div>
+      <div class="page-sub">Square market sales by category — monthly, quarterly &amp; yearly</div>
+    </div>
+  </div>
+  <div id="bsContent"><!-- rendered by bestsellersInit() --></div>
 </div>
 
 <!-- ═══════════════════ NOTES ═══════════════════ -->
@@ -10852,7 +10917,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/order-normalize.js?v=20260713c"></script>
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/customers.js?v=20260711a"></script>
-<script src="js/app.js?v=20260711a"></script>
+<script src="js/app.js?v=20260715a"></script>
 <script src="js/sketchpad.js?v=4"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/orders.js?v=20260713a"></script>
@@ -10951,6 +11016,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
 <script src="js/replenish.js?v=3"></script>
+<script src="js/bestsellers.js?v=1"></script>
 <script src="js/calendar.js"></script>
 <script>
 function timerTabInit() { /* timer now lives inline in the restock queue */ }
@@ -11041,6 +11107,7 @@ function applyStatFilter(key) {
     'gmail':             'Gmail',
     'notes':             'Notes',
     'sales':             'Sales',
+    'bestsellers':       'Best Sellers',
     'calendar':          'Calendar',
     'pj-calc':           'PJ Calc',
     'pj-ref':            'PJ Reference',

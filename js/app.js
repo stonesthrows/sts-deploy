@@ -156,7 +156,7 @@ const NAV_GROUPS = {
   'custom-orders': ['dashboard','production','customers','print-bag'],
   'inventory':     ['to-restock','inv-adjust','prod-report','replenish'],
   'supplies':      ['supplier','order-history','materials'],
-  'more':          ['sales','calendar','pj-calc','pj-ref'],
+  'more':          ['sales','bestsellers','calendar','pj-calc','pj-ref'],
 };
 
 // Reverse lookup: sub-tab id -> parent group id
@@ -177,6 +177,7 @@ const TAB_HOOKS = {
   },
   production: function() { if (typeof renderProduction === 'function') setTimeout(renderProduction, 0); },
   sales:      function() { if (typeof renderSales === 'function') setTimeout(renderSales, 0); if (typeof salesAutoSync === 'function') setTimeout(salesAutoSync, 500); },
+  bestsellers: function() { if (typeof bestsellersInit === 'function') setTimeout(bestsellersInit, 0); },
   gmail:      function() { if (typeof loadScheduledBrief === 'function') loadScheduledBrief(); },
   supplier:   function() { ohInitSupplier(); },
   'order-history': function() { ohInitHistory(); },
