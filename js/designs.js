@@ -576,6 +576,7 @@ function designsRenderForm() {
   if (_dsnLinkedSq) _dsnLoadSqPrices([_dsnLinkedSq.id]).then(dsnRollupRender);
 
   _designsBomRender();
+  _dsnVariantsInit(design);
 
   _designsImgQueue = design ? [...(design.images || [])] : [];
   designsRenderImagePreviews();
@@ -675,6 +676,7 @@ async function designsSaveDesign() {
     squareItemName: _dsnLinkedSq ? _dsnLinkedSq.name : null,
     retailPriceOverride:      _dsnNumOrNull((document.getElementById('dsn-retail-ov') || {}).value),
     laborMinPerPieceOverride: _dsnNumOrNull((document.getElementById('dsn-labor-ov')  || {}).value),
+    variants:     _dsnVariants,
     images:       [..._designsImgQueue],
     createdAt:    (_designsCurrentFull && _designsCurrentFull.createdAt) ? _designsCurrentFull.createdAt : now,
     updatedAt:    now,
@@ -1451,6 +1453,18 @@ function dsnCostRollup(d) {
            retail, retailSource, pieceCost, margin, suggested };
 }
 
+// A design's own top-level bom/squareItemId/etc. are its "default" combo;
+// each entry in d.variants[] is another size/metal/width combo sharing the
+// same specs/instructions/images. Expand a design into one cost-rollup row
+// per combo so the Pricing Sheet (and CSV export) can compare them.
+function _dsnDesignEntries(d) {
+  const entries = [{ label: d.name || 'Untitled', r: dsnCostRollup(d), isVariant: false }];
+  (d.variants || []).forEach(v => {
+    entries.push({ label: (d.name || 'Untitled') + ' — ' + (v.label || 'Variation'), r: dsnCostRollup(v), isVariant: true });
+  });
+  return entries;
+}
+
 // ── Cost breakdown panel on the design form ──
 function _dsnFormDesignSnapshot() {
   dsnBomSyncFromDom();
@@ -1579,6 +1593,275 @@ function dsnSqUnlink() {
   dsnRollupRender();
 }
 
+// ── Design Variants (size / metal / width combos) ──────────────
+// A design's own top-level bom/squareItemId/etc. represent its "default"
+// combo (e.g. Small / Gold Fill). Other combos that share the same specs,
+// instructions and images but cost or sell differently (Large / Silver,
+// a wider gauge, …) live in d.variants[], each with its own BOM and Square
+// link, so cost/margin can be compared side-by-side without duplicating
+// the whole design.
+let _dsnVariants         = [];   // working copy for the design open in the form
+let _dsnVarEditIdx       = null; // index into _dsnVariants being edited, null = new
+let _dsnVarBom           = [];   // working BOM lines for the variant in the modal
+let _dsnVarLinkedSq      = null; // {id, name} staged for the variant in the modal
+let _dsnVarSqSearchTimer = null;
+
+function _dsnVariantsInit(design) {
+  _dsnVariants = (design && Array.isArray(design.variants))
+    ? design.variants.map(v => ({
+        id: v.id, label: v.label || '',
+        bom: (v.bom || []).map(l => ({ materialId: l.materialId, qty: l.qty })),
+        wasteOverridePct: v.wasteOverridePct != null ? v.wasteOverridePct : null,
+        squareItemId: v.squareItemId || null, squareItemName: v.squareItemName || null,
+        retailPriceOverride: v.retailPriceOverride != null ? v.retailPriceOverride : null,
+        laborMinPerPieceOverride: v.laborMinPerPieceOverride != null ? v.laborMinPerPieceOverride : null,
+      }))
+    : [];
+  _dsnVariantsRender();
+}
+
+function _dsnVariantsRender() {
+  const wrap = document.getElementById('dsn-var-list');
+  if (!wrap) return;
+  if (!_dsnVariants.length) {
+    wrap.innerHTML = '<div class="dsn-bom-note">No other combos yet — add sizes, metals, or widths that share this design\'s specs but cost or sell differently.</div>';
+    return;
+  }
+  const sqIds = _dsnVariants.map(v => v.squareItemId).filter(Boolean);
+  if (sqIds.length) _dsnLoadSqPrices(sqIds).then(_dsnVariantsRender);
+  wrap.innerHTML = _dsnVariants.map((v, i) => {
+    const r = dsnCostRollup(v);
+    const stats = [
+      `Mat ${r.hasBom ? _dsnMoney(r.matCost) : '—'}`,
+      `Labor ${_dsnMoney(r.laborCost)}`,
+      `Piece ${_dsnMoney(r.pieceCost)}`,
+      `Retail ${_dsnMoney(r.retail)}`,
+      `Margin ${r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—'}`,
+    ].join(' · ');
+    return `<div class="dsn-var-row">
+      <div class="dsn-var-row-main">
+        <div class="dsn-var-row-label">${escHtml(v.label || 'Untitled variation')}</div>
+        <div class="dsn-var-row-stats">${stats}</div>
+      </div>
+      <div class="dsn-var-row-actions">
+        <button type="button" class="dsn-bom-remove" onclick="dsnVariantEdit(${i})" title="Edit">✎</button>
+        <button type="button" class="dsn-bom-remove" onclick="dsnVariantDelete(${i})" title="Remove">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function dsnVariantDelete(idx) {
+  if (!confirm('Remove this variation?')) return;
+  _dsnVariants.splice(idx, 1);
+  _dsnVariantsRender();
+}
+
+function dsnVariantAdd()        { _dsnVariantModalOpen(null); }
+function dsnVariantEdit(idx)    { _dsnVariantModalOpen(idx); }
+
+function _dsnVariantModalOpen(idx) {
+  _dsnVarEditIdx = idx;
+  const v = idx != null ? _dsnVariants[idx] : null;
+  document.getElementById('dsnVarModalTitle').textContent = v ? 'Edit Variation' : 'Add Variation';
+  document.getElementById('dsn-var-label').value = v ? v.label : '';
+  _dsnVarBom = v ? v.bom.map(l => ({ materialId: l.materialId, qty: l.qty })) : [];
+  document.getElementById('dsn-var-waste').value = (v && v.wasteOverridePct != null) ? v.wasteOverridePct : '';
+  _dsnVarLinkedSq = (v && v.squareItemId) ? { id: v.squareItemId, name: v.squareItemName || v.squareItemId } : null;
+  document.getElementById('dsn-var-retail-ov').value = (v && v.retailPriceOverride != null) ? v.retailPriceOverride : '';
+  document.getElementById('dsn-var-labor-ov').value  = (v && v.laborMinPerPieceOverride != null) ? v.laborMinPerPieceOverride : '';
+  dsnVarSqLinkRender();
+  _dsnVarBomRender();
+  if (_dsnVarLinkedSq) _dsnLoadSqPrices([_dsnVarLinkedSq.id]).then(dsnVariantModalRollupRender);
+  document.getElementById('dsnVarOverlay').classList.add('active');
+  document.getElementById('dsnVarModal').classList.add('active');
+}
+
+function dsnVariantModalClose() {
+  document.getElementById('dsnVarOverlay').classList.remove('active');
+  document.getElementById('dsnVarModal').classList.remove('active');
+  _dsnVarEditIdx = null;
+}
+
+function dsnVariantModalSave() {
+  const label = document.getElementById('dsn-var-label').value.trim();
+  if (!label) { toast('Give this variation a label', '⚠'); return; }
+  dsnVarBomSyncFromDom();
+  const variant = {
+    id: (_dsnVarEditIdx != null && _dsnVariants[_dsnVarEditIdx].id) || ('v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    label,
+    bom: _dsnVarBom.filter(l => l.materialId && l.qty > 0),
+    wasteOverridePct: _dsnNumOrNull(document.getElementById('dsn-var-waste').value),
+    squareItemId: _dsnVarLinkedSq ? _dsnVarLinkedSq.id : null,
+    squareItemName: _dsnVarLinkedSq ? _dsnVarLinkedSq.name : null,
+    retailPriceOverride: _dsnNumOrNull(document.getElementById('dsn-var-retail-ov').value),
+    laborMinPerPieceOverride: _dsnNumOrNull(document.getElementById('dsn-var-labor-ov').value),
+  };
+  if (_dsnVarEditIdx != null) _dsnVariants[_dsnVarEditIdx] = variant;
+  else _dsnVariants.push(variant);
+  dsnVariantModalClose();
+  _dsnVariantsRender();
+}
+
+// ── Variant modal: BOM editor (simplified — no total-weight % split mode) ──
+function dsnVarBomAdd() {
+  dsnVarBomSyncFromDom();
+  _dsnVarBom.push({ materialId: '', qty: null });
+  _dsnVarBomRender();
+}
+
+function _dsnVarWastePctFor(m) {
+  const ov = parseFloat((document.getElementById('dsn-var-waste') || {}).value);
+  return _dsnWastePctResolve(m, isNaN(ov) ? null : ov);
+}
+
+function _dsnVarEffectiveLabel(l) {
+  const m = _dsnBomMat(l.materialId);
+  if (!m || !(l.qty > 0)) return '';
+  const unit = _dsnUnitSuffix(m);
+  if (m.category !== 'metal') return l.qty + ' ' + unit;
+  const w = _dsnVarWastePctFor(m);
+  return '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
+}
+
+function _dsnVarBomRender() {
+  const wrap = document.getElementById('dsn-var-bom-rows');
+  if (!wrap) return;
+  if (_designsMaterials === null) { wrap.innerHTML = '<div class="dsn-bom-note">Loading materials…</div>'; return; }
+  wrap.innerHTML = _dsnVarBom.map((l, i) => `<div class="dsn-bom-row" data-idx="${i}">
+      <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
+      <input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${_dsnBomMat(l.materialId) ? ' (' + _dsnUnitSuffix(_dsnBomMat(l.materialId)) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">
+      <span class="dsn-bom-eff">${escHtml(_dsnVarEffectiveLabel(l))}</span>
+      <button type="button" class="dsn-bom-remove" title="Remove line">✕</button>
+    </div>`).join('') || '<div class="dsn-bom-note">No materials yet for this variation.</div>';
+
+  wrap.querySelectorAll('.dsn-bom-row').forEach(row => {
+    const idx = parseInt(row.dataset.idx, 10);
+    const sel = row.querySelector('.dsn-bom-mat');
+    const qtyEl = row.querySelector('.dsn-bom-qty');
+    sel.addEventListener('change', () => {
+      dsnVarBomSyncFromDom();
+      const m = _dsnBomMat(sel.value);
+      if (m) qtyEl.placeholder = 'Qty (' + _dsnUnitSuffix(m) + ')';
+      dsnVarBomRecalcEffective();
+    });
+    qtyEl.addEventListener('input', () => { dsnVarBomSyncFromDom(); dsnVarBomRecalcEffective(); });
+    row.querySelector('.dsn-bom-remove').addEventListener('click', () => {
+      dsnVarBomSyncFromDom();
+      _dsnVarBom.splice(idx, 1);
+      _dsnVarBomRender();
+    });
+  });
+  dsnVariantModalRollupRender();
+}
+
+function dsnVarBomSyncFromDom() {
+  document.querySelectorAll('#dsn-var-bom-rows .dsn-bom-row').forEach(row => {
+    const l = _dsnVarBom[parseInt(row.dataset.idx, 10)];
+    if (!l) return;
+    l.materialId = row.querySelector('.dsn-bom-mat').value;
+    const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
+    l.qty = isNaN(q) ? null : q;
+  });
+}
+
+function dsnVarBomRecalcEffective() {
+  document.querySelectorAll('#dsn-var-bom-rows .dsn-bom-row').forEach(row => {
+    const l = _dsnVarBom[parseInt(row.dataset.idx, 10)];
+    const eff = row.querySelector('.dsn-bom-eff');
+    if (l && eff) eff.textContent = _dsnVarEffectiveLabel(l);
+  });
+  dsnVariantModalRollupRender();
+}
+
+// ── Variant modal: Square link picker (mirrors the main design's) ──
+function dsnVarSqLinkRender() {
+  const linked = document.getElementById('dsn-var-sq-linked');
+  const search = document.getElementById('dsn-var-sq-search-wrap');
+  if (!linked || !search) return;
+  if (_dsnVarLinkedSq) {
+    linked.style.display = '';
+    search.style.display = 'none';
+    document.getElementById('dsn-var-sq-linked-name').textContent = _dsnVarLinkedSq.name;
+  } else {
+    linked.style.display = 'none';
+    search.style.display = '';
+    const inp = document.getElementById('dsn-var-sq-search');
+    if (inp) inp.value = '';
+    const res = document.getElementById('dsn-var-sq-results');
+    if (res) res.style.display = 'none';
+  }
+}
+
+function dsnVarSqSearchInput(q) {
+  clearTimeout(_dsnVarSqSearchTimer);
+  const res = document.getElementById('dsn-var-sq-results');
+  if (!q || q.trim().length < 2) { if (res) res.style.display = 'none'; return; }
+  _dsnVarSqSearchTimer = setTimeout(() => _dsnVarSqSearchRun(q.trim()), 350);
+}
+
+function _dsnVarSqSearchRun(q) {
+  const res = document.getElementById('dsn-var-sq-results');
+  if (!res) return;
+  res.style.display = '';
+  res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">Searching Square…</div>';
+  fetch('/api/square', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: '/v2/catalog/search-catalog-items', method: 'POST', body: { text_filter: q, limit: 10 } }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      const out = [];
+      (data.items || []).forEach(item => {
+        const nm = (item.item_data && item.item_data.name) || '';
+        ((item.item_data && item.item_data.variations) || []).forEach(v => {
+          const vd = v.item_variation_data || {};
+          const label = nm + (vd.name && vd.name !== 'Regular' ? ' — ' + vd.name : '');
+          const price = vd.price_money ? vd.price_money.amount / 100 : null;
+          out.push({ id: v.id, label, price });
+        });
+      });
+      if (!out.length) { res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">No Square items found</div>'; return; }
+      res.innerHTML = out.map(o =>
+        `<button type="button" class="dsn-sq-result" onclick="dsnVarSqLink('${o.id}','${escHtml(o.label).replace(/'/g, '&#39;')}',${o.price != null ? o.price : 'null'})">${escHtml(o.label)}${o.price != null ? ' <span class="dsn-ru-dim">$' + o.price.toFixed(2) + '</span>' : ''}</button>`
+      ).join('');
+    })
+    .catch(() => { res.innerHTML = '<div class="dsn-sq-result dsn-ru-dim">Square search failed</div>'; });
+}
+
+function dsnVarSqLink(id, label, price) {
+  _dsnVarLinkedSq = { id, name: label };
+  if (price != null) _dsnSqPrices[id] = price;
+  dsnVarSqLinkRender();
+  _dsnLoadSqPrices([id]).then(dsnVariantModalRollupRender);
+  dsnVariantModalRollupRender();
+}
+
+function dsnVarSqUnlink() {
+  _dsnVarLinkedSq = null;
+  dsnVarSqLinkRender();
+  dsnVariantModalRollupRender();
+}
+
+function dsnVariantModalRollupRender() {
+  const el = document.getElementById('dsn-var-rollup');
+  if (!el) return;
+  if (_designsMaterials === null) { el.innerHTML = '<div class="dsn-bom-note">Loading cost data…</div>'; return; }
+  const snapshot = {
+    bom: _dsnVarBom.filter(l => l.materialId && l.qty > 0),
+    wasteOverridePct: _dsnNumOrNull(document.getElementById('dsn-var-waste').value),
+    squareItemId: _dsnVarLinkedSq ? _dsnVarLinkedSq.id : null,
+    retailPriceOverride: _dsnNumOrNull(document.getElementById('dsn-var-retail-ov').value),
+    laborMinPerPieceOverride: _dsnNumOrNull(document.getElementById('dsn-var-labor-ov').value),
+  };
+  const r = dsnCostRollup(snapshot);
+  if (!r.hasBom && r.laborCost == null) {
+    el.innerHTML = '<div class="dsn-bom-note">⚖ Add materials above to see this variation\'s piece cost.</div>';
+    return;
+  }
+  el.innerHTML = _dsnRollupBoxHtml(r);
+}
+
 // ── Pricing Sheet view ─────────────────────────
 function dsnPricingToggle() {
   _designsPricingOpen = !_designsPricingOpen;
@@ -1650,7 +1933,12 @@ async function dsnPricingRender(forceRefresh) {
   if (forceRefresh) { _dsnLabor = null; _dsnSqPrices = {}; }
   await _dsnEnsureCostingData();
   await _dsnLoadLabor(forceRefresh);
-  await _dsnLoadSqPrices(_designs.map(d => d.squareItemId).filter(Boolean));
+  const sqIds = [];
+  _designs.forEach(d => {
+    if (d.squareItemId) sqIds.push(d.squareItemId);
+    (d.variants || []).forEach(v => { if (v.squareItemId) sqIds.push(v.squareItemId); });
+  });
+  await _dsnLoadSqPrices(sqIds);
 
   const s = _shopSettings || {};
   const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v != null ? v : ''; };
@@ -1661,16 +1949,17 @@ async function dsnPricingRender(forceRefresh) {
   const scoped = _designsPricingFamilyFilter
     ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
     : _designs;
-  const rows = scoped.map(d => ({ d, r: dsnCostRollup(d) }));
+  const rows = [];
+  scoped.forEach(d => { _dsnDesignEntries(d).forEach(e => rows.push({ d, e })); });
   const floor = typeof s.marginFloorPct === 'number' ? s.marginFloorPct : null;
 
   // Margin-erosion alert strip
-  const alerts = rows.filter(x => floor != null && x.r.margin != null && x.r.margin * 100 < floor);
+  const alerts = rows.filter(x => floor != null && x.e.r.margin != null && x.e.r.margin * 100 < floor);
   const alertEl = document.getElementById('dsn-ps-alerts');
   if (alertEl) {
     alertEl.innerHTML = alerts.length
       ? `<div class="dsn-ps-alert">⚠ Below ${floor}% margin floor: `
-        + alerts.map(x => `<strong>${escHtml(x.d.name || 'Untitled')}</strong> (${(x.r.margin * 100).toFixed(0)}%)`).join(' · ')
+        + alerts.map(x => `<strong>${escHtml(x.e.label)}</strong> (${(x.e.r.margin * 100).toFixed(0)}%)`).join(' · ')
         + '</div>'
       : '';
   }
@@ -1680,15 +1969,16 @@ async function dsnPricingRender(forceRefresh) {
     return;
   }
   body.innerHTML = rows.map(x => {
-    const { d, r } = x;
+    const { d, e } = x;
+    const r = e.r;
     const bad = floor != null && r.margin != null && r.margin * 100 < floor;
     const marginTxt = r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—';
     const flags = [];
     if (!r.hasBom) flags.push('⚖ not weighed');
     if (r.matMissing) flags.push('missing price');
     if (r.laborCost == null) flags.push('no labor data');
-    return `<tr class="${bad ? 'dsn-ps-bad' : ''}" onclick="designsShowForm('${d.id}')" style="cursor:pointer">`
-      + `<td>${escHtml(d.name || 'Untitled')}</td>`
+    return `<tr class="${bad ? 'dsn-ps-bad' : ''} ${e.isVariant ? 'dsn-ps-variant' : ''}" onclick="designsShowForm('${d.id}')" style="cursor:pointer">`
+      + `<td>${e.isVariant ? '↳ ' : ''}${escHtml(e.label)}</td>`
       + `<td>${r.hasBom ? _dsnMoney(r.matCost) : '—'}</td>`
       + `<td>${_dsnMoney(r.laborCost)}</td>`
       + `<td>${_dsnMoney(r.pieceCost)}</td>`
@@ -1724,18 +2014,19 @@ function dsnPricingExport() {
   const scoped = _designsPricingFamilyFilter
     ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
     : _designs;
-  const rows = scoped.map(d => ({ d, r: dsnCostRollup(d) }));
+  const rows = [];
+  scoped.forEach(d => { _dsnDesignEntries(d).forEach(e => rows.push({ d, e })); });
   const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const money = v => (v != null ? v.toFixed(2) : '');
   const csv = [
     ['Design', 'Category', 'Material Cost', 'Labor Cost', 'Piece Cost', 'Retail', 'Margin %', 'Suggested Price', 'Flags'].map(esc).join(','),
-  ].concat(rows.map(({ d, r }) => [
-    d.name || 'Untitled', d.category || '',
+  ].concat(rows.map(({ d, e }) => { const r = e.r; return [
+    e.label, d.category || '',
     r.hasBom ? money(r.matCost) : '', money(r.laborCost), money(r.pieceCost), money(r.retail),
     r.margin != null ? (r.margin * 100).toFixed(1) : '',
     money(r.suggested),
     [!r.hasBom ? 'not weighed' : '', r.matMissing ? 'missing material price' : '', r.laborCost == null ? 'no labor data' : ''].filter(Boolean).join('; '),
-  ].map(esc).join(','))).join('\n');
+  ].map(esc).join(','); })).join('\n');
 
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));

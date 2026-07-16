@@ -8055,6 +8055,19 @@ body.theme-midnight .dsn-bom-pct-sum.ok { color: #6fd08a; }
 .dsn-bom-chip.weighed { background: #DCF5E3; color: #1E7B3C; border-color: #b5e2c4; }
 body.theme-midnight .dsn-bom-chip.weighed { background: #1a3a26; color: #6fd08a; border-color: #2c5a3c; }
 
+/* ── Design Variations (size/metal/width combos) ── */
+.dsn-var-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--bdr);
+}
+.dsn-var-row:last-child { border-bottom: none; }
+.dsn-var-row-label { font-weight: 700; font-size: 13px; color: var(--text); }
+.dsn-var-row-stats { font-size: 11.5px; color: var(--text3); margin-top: 2px; }
+.dsn-var-row-actions { display: flex; gap: 2px; flex: none; }
+.dsn-var-modal { width: min(560px, 96vw); }
+.dsn-var-modal .tl-modal-body { max-height: 65vh; overflow-y: auto; }
+.oh-table tr.dsn-ps-variant td:first-child { color: var(--text3); font-style: italic; }
+
 /* ── Designs: costing & pricing sheet (Phase 4) ── */
 .dsn-sq-results {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 600;
@@ -8534,6 +8547,13 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
           <div id="dsn-rollup" style="margin-top:10px;"></div>
         </div>
 
+        <!-- Variations (size / metal / width combos sharing these specs) -->
+        <label class="dsn-field-label">Variations</label>
+        <div class="dsn-bom-box">
+          <div id="dsn-var-list"></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="dsnVariantAdd()">+ Add Variation</button>
+        </div>
+
       </div>
 
       <!-- RIGHT: reference images -->
@@ -8559,6 +8579,60 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
 <div id="dsn-img-overlay" onclick="if(event.target===this)designsCloseImageOverlay()">
   <span id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()">×</span>
   <img id="dsn-img-overlay-img" src="" alt="Design reference image">
+</div>
+
+<!-- Design Variation editor modal -->
+<div class="tl-modal-overlay" id="dsnVarOverlay" onclick="dsnVariantModalClose()"></div>
+<div class="tl-modal dsn-var-modal" id="dsnVarModal">
+  <div class="tl-modal-head">
+    <span id="dsnVarModalTitle">Add Variation</span>
+    <button class="tl-modal-close" onclick="dsnVariantModalClose()">×</button>
+  </div>
+  <div class="tl-modal-body">
+    <div>
+      <label class="dsn-field-label">Label</label>
+      <input id="dsn-var-label" class="dsn-input" type="text" placeholder="e.g. Large / Silver / 8mm">
+    </div>
+
+    <div>
+      <label class="dsn-field-label">Materials (per piece)</label>
+      <div class="dsn-bom-box">
+        <div id="dsn-var-bom-rows"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="dsnVarBomAdd()">+ Add Material</button>
+        <div class="dsn-bom-waste-row">
+          <label for="dsn-var-waste">Waste override %</label>
+          <input id="dsn-var-waste" type="number" step="0.1" min="0" placeholder="inherit" oninput="dsnVarBomRecalcEffective()">
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <label class="dsn-field-label">Costing</label>
+      <div class="dsn-bom-box">
+        <div id="dsn-var-sq-linked" style="display:none;font-size:13px;margin-bottom:8px;">
+          🔗 <span id="dsn-var-sq-linked-name" style="font-weight:600;"></span>
+          <button type="button" class="dsn-bom-remove" onclick="dsnVarSqUnlink()" title="Unlink Square item">✕</button>
+        </div>
+        <div id="dsn-var-sq-search-wrap" style="position:relative;margin-bottom:8px;">
+          <input id="dsn-var-sq-search" type="text" class="dsn-input" placeholder="🔗 Link to Square item — type to search…"
+            oninput="dsnVarSqSearchInput(this.value)" autocomplete="off">
+          <div id="dsn-var-sq-results" class="dsn-sq-results" style="display:none"></div>
+        </div>
+        <div class="dsn-bom-waste-row">
+          <label for="dsn-var-retail-ov">Retail override $</label>
+          <input id="dsn-var-retail-ov" type="number" step="0.01" min="0" placeholder="from Square" oninput="dsnVariantModalRollupRender()">
+          <label for="dsn-var-labor-ov">Labor min/pc override</label>
+          <input id="dsn-var-labor-ov" type="number" step="0.1" min="0" placeholder="from timers" oninput="dsnVariantModalRollupRender()">
+        </div>
+        <div id="dsn-var-rollup" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="tl-modal-foot">
+    <div style="flex:1"></div>
+    <button class="btn btn-outline btn-sm" onclick="dsnVariantModalClose()">Cancel</button>
+    <button class="btn btn-gold btn-sm" onclick="dsnVariantModalSave()">Save Variation</button>
+  </div>
 </div>
 
 <!-- ═══════════════════ TRIPLOG ═══════════════════ -->
