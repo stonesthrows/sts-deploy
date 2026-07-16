@@ -26,6 +26,7 @@ let _shopSettings     = null; // {wasteDefaultPct, wastePctByMetal, shopHourlyRa
 let _dsnLabor         = null; // parent squareItemId|custom:name -> {hrs, pcs, minPerPc} from work sessions
 let _dsnVarToItem     = {};   // squareVariationId -> parent ITEM id (labor pools across sizes)
 let _dsnSqPrices      = {};   // squareVariationId -> retail price (null = fetched, no price)
+let _dsnSqFetchAttempted = new Set(); // squareVariationId already fetched-and-rendered once (success or fail) — guards against _dsnVariantsRender re-triggering its own fetch forever
 let _dsnLinkedSq      = null; // {id, name} staged for current edit
 let _dsnSqSearchTimer = null;
 let _designsPricingOpen = false;
@@ -1628,7 +1629,11 @@ function _dsnVariantsRender() {
     return;
   }
   const sqIds = _dsnVariants.map(v => v.squareItemId).filter(Boolean);
-  if (sqIds.length) _dsnLoadSqPrices(sqIds).then(_dsnVariantsRender);
+  const sqNewIds = sqIds.filter(id => !_dsnSqFetchAttempted.has(id));
+  if (sqNewIds.length) {
+    sqNewIds.forEach(id => _dsnSqFetchAttempted.add(id));
+    _dsnLoadSqPrices(sqIds).then(_dsnVariantsRender);
+  }
   wrap.innerHTML = _dsnVariants.map((v, i) => {
     const r = dsnCostRollup(v);
     const stats = [
@@ -1930,7 +1935,7 @@ async function dsnPricingRender(forceRefresh) {
   if (!body) return;
   _dsnFamilyDropdownRefresh();
   body.innerHTML = '<tr><td colspan="7" class="oh-empty">Computing costs…</td></tr>';
-  if (forceRefresh) { _dsnLabor = null; _dsnSqPrices = {}; }
+  if (forceRefresh) { _dsnLabor = null; _dsnSqPrices = {}; _dsnSqFetchAttempted = new Set(); }
   await _dsnEnsureCostingData();
   await _dsnLoadLabor(forceRefresh);
   const sqIds = [];
