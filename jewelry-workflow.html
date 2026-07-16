@@ -3463,7 +3463,10 @@
     .rq-add-chip span:first-child { overflow: hidden; text-overflow: ellipsis; }
     .rq-add-chip-x { cursor: pointer; color: var(--text3); font-size: 14px; line-height: 1; flex-shrink: 0; }
     .rq-add-chip-x:hover { color: var(--text); }
-    .rq-add-sizes { flex: 1 1 100%; }
+    .rq-add-sizes {
+      flex: 1 1 100%; max-height: 40vh; overflow-y: auto;
+      background: var(--card-bg); border-radius: var(--rad-sm); padding: 8px 10px;
+    }
     @media (max-width: 640px) {
       .rq-add-bar { padding: 8px 12px 12px; }
       .rq-add-bar input { font-size: 16px; } /* ≥16px so iOS Safari doesn't zoom on focus */
