@@ -123,13 +123,19 @@ A reusable production recipe for a jewelry piece: name, category, specifications
 Optional grouping name on a Design that ties variations of one piece together — sizes, metals, minor variants. Free text; Designs sharing the exact name are one family.
 
 **Design Library**
-The index of all Designs. Collections are pinned across the top; the card grid below holds the loose Designs. Filterable by category and searchable.
+The index of all Designs, split across two sub-tabs: **Design Families** (the landing tab) and **All Designs**. Both are searchable; All Designs is also filterable by category.
+
+**Design Families tab**
+The Design Library's landing view: a card grid of the Collections, one card each, drilling into that family's members. Search filters the cards by family name or member name.
+
+**All Designs tab**
+Every Design as its own card, family members included — the flat view of the whole library. Filterable by category and searchable.
 
 **Collections**
-The Design Families with 2+ members, pinned as a horizontally scrollable strip at the top of the Design Library — one tile each, drilling into that family. A family of one is not a Collection; its Design sits in the grid like any unfamilied Design.
+The Design Families with 2+ members. A family of one is not a Collection and gets no card on the Design Families tab; its Design is still listed under All Designs like any unfamilied Design.
 
 **Library Search**
-Free-text search over the Design Library, matching a Design's name, category, family, and preview text. Multiple terms are AND-ed. Like a category filter, it flattens the view — the Collections strip hides and every matching Design is listed individually, so pieces inside a family stay reachable.
+Free-text search over the Design Library. On All Designs (and inside a family drill-in) it matches a Design's name, category, family, and preview text; on the Design Families tab it matches a Collection's family name and its members' names. Multiple terms are AND-ed.
 
 **Design Guide**
 The read-only, formatted view of a Design — the primary view opened by clicking a Design card. Reads as a how-to guide for making the piece. Editing happens in the separate edit form, reached via an Edit action from the Guide.

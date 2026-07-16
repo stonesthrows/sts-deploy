@@ -8154,36 +8154,28 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
   font-size:11px; line-height:1; padding:4px 5px; border-radius:4px;
 }
 .dsn-search-clear:hover { color:var(--text); background:var(--accent-bg); }
-/* Designs: pinned collections strip */
-.dsn-fam-strip-wrap { margin-bottom:var(--sp-4); }
-.dsn-fam-strip-head { display:flex; align-items:baseline; gap:8px; margin-bottom:var(--sp-2); }
-.dsn-fam-strip-title { font-size:11px; font-weight:800; color:var(--text2); letter-spacing:.4px; text-transform:uppercase; }
-.dsn-fam-strip-count { font-size:11px; font-weight:600; color:var(--text3); }
-.dsn-fam-strip-rail { position:relative; }
-.dsn-fam-strip {
-  display:flex; gap:var(--sp-3); overflow-x:auto; scroll-behavior:smooth;
-  scroll-snap-type:x proximity; padding:2px 2px 8px; scrollbar-width:thin;
+/* Designs: library sub-tabs (Design Families / All Designs) */
+.dsn-subtabs {
+  display:flex; gap:4px; flex-wrap:wrap;
+  border-bottom:1px solid var(--bdr); margin-bottom:var(--sp-4);
 }
-.dsn-fam-strip::-webkit-scrollbar { height:8px; }
-.dsn-fam-strip::-webkit-scrollbar-track { background:transparent; }
-.dsn-fam-strip::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:4px; }
-.dsn-fam-strip::-webkit-scrollbar-thumb:hover { background:var(--text3); }
-.dsn-fam-tile { flex:0 0 150px; scroll-snap-align:start; }
-.dsn-fam-tile .dsn-card-thumb-wrap { height:84px; }
-.dsn-fam-tile .dsn-card-body { padding:8px 10px 10px; }
-.dsn-fam-tile .dsn-card-name { font-size:12px; margin-bottom:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dsn-fam-nav {
-  position:absolute; top:calc(50% - 5px); transform:translateY(-50%); z-index:2;
-  width:28px; height:28px; padding:0; border-radius:50%; border:1px solid var(--bdr);
-  background:var(--card-bg); color:var(--text); box-shadow:var(--shadow-md);
-  cursor:pointer; display:none; align-items:center; justify-content:center;
-  font-size:15px; font-weight:700; line-height:1;
+.dsn-subtab {
+  padding:8px 14px; margin-bottom:-1px;
+  font-size:13px; font-weight:700; font-family:inherit;
+  color:var(--text3); background:none; border:none;
+  border-bottom:2.5px solid transparent;
+  border-radius:var(--rad-sm) var(--rad-sm) 0 0;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+  transition:color var(--dur-fast) var(--ease-smooth),
+             background var(--dur-fast) var(--ease-smooth),
+             border-color var(--dur-fast) var(--ease-smooth);
 }
-.dsn-fam-nav:hover { background:var(--accent-bg); border-color:var(--accent-border); }
-.dsn-fam-nav:focus-visible { outline:none; box-shadow:var(--focus-ring); }
-.dsn-fam-nav.show { display:flex; }
-.dsn-fam-nav-l { left:-8px; }
-.dsn-fam-nav-r { right:-8px; }
+.dsn-subtab:hover { color:var(--text); background:var(--accent-bg); }
+.dsn-subtab:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-subtab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.dsn-family-grid-head { display:flex; align-items:baseline; gap:8px; margin-bottom:var(--sp-2); }
+.dsn-family-grid-title { font-size:11px; font-weight:800; color:var(--text2); letter-spacing:.4px; text-transform:uppercase; }
+.dsn-family-grid-count { font-size:11px; font-weight:600; color:var(--text3); }
 /* Form */
 .dsn-form-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .dsn-form-title { font-size:16px; font-weight:800; color:var(--text); flex:1; }
@@ -8420,6 +8412,12 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
 
   <!-- Library view -->
   <div id="designs-library">
+    <div class="dsn-subtabs" id="dsn-subtabs" role="tablist" aria-label="Design Library views">
+      <button type="button" class="dsn-subtab active" role="tab" aria-selected="true" data-subtab="families"
+              onclick="designsSetSubTab('families')">📁 Design Families</button>
+      <button type="button" class="dsn-subtab" role="tab" aria-selected="false" data-subtab="all"
+              onclick="designsSetSubTab('all')">💎 All Designs</button>
+    </div>
     <div class="dsn-search-wrap">
       <span class="dsn-search-icon">🔍</span>
       <input id="dsn-search" class="dsn-search-input" type="search" autocomplete="off"
@@ -8428,7 +8426,7 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <button type="button" class="dsn-search-clear" id="dsn-search-clear" style="display:none"
               onclick="designsClearSearch()" aria-label="Clear search">✕</button>
     </div>
-    <div class="dsn-filter-bar">
+    <div class="dsn-filter-bar" id="dsn-filter-bar">
       <button class="dsn-filter-btn active" data-cat="all" onclick="designsSetCatFilter('all')">All</button>
       <button class="dsn-filter-btn" data-cat="Ear Cuffs" onclick="designsSetCatFilter('Ear Cuffs')">Ear Cuffs</button>
       <button class="dsn-filter-btn" data-cat="Rings" onclick="designsSetCatFilter('Rings')">Rings</button>
@@ -8436,19 +8434,15 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
       <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
     </div>
-    <div id="dsn-fam-strip-wrap" class="dsn-fam-strip-wrap" style="display:none">
-      <div class="dsn-fam-strip-head">
-        <div class="dsn-fam-strip-title">📁 Collections</div>
-        <div class="dsn-fam-strip-count" id="dsn-fam-strip-count"></div>
+    <div id="dsn-family-grid-wrap" style="display:none">
+      <div class="dsn-family-grid-head">
+        <div class="dsn-family-grid-title">📁 Collections</div>
+        <div class="dsn-family-grid-count" id="dsn-family-count"></div>
       </div>
-      <div class="dsn-fam-strip-rail">
-        <button type="button" class="dsn-fam-nav dsn-fam-nav-l" id="dsn-fam-nav-l" onclick="dsnFamStripScroll(-1)" aria-label="Scroll collections left">‹</button>
-        <div class="dsn-fam-strip" id="dsn-fam-strip"></div>
-        <button type="button" class="dsn-fam-nav dsn-fam-nav-r" id="dsn-fam-nav-r" onclick="dsnFamStripScroll(1)" aria-label="Scroll collections right">›</button>
-      </div>
+      <div class="dsn-grid" id="dsn-family-grid"></div>
     </div>
     <div id="dsn-family-bar" class="dsn-family-bar" style="display:none">
-      <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← All Designs</button>
+      <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← Design Families</button>
       <div class="dsn-family-title">📁 <span id="dsn-family-title"></span></div>
       <div style="flex:1"></div>
       <button class="btn btn-outline btn-sm" onclick="dsnPricingOpenForFamily(_designsFamilyOpen)">💲 Compare costs</button>

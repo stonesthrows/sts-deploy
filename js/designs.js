@@ -13,6 +13,7 @@ let _designsCurrentFull = null; // full design currently loaded for editing
 let _designsEditId   = null;    // null = new, string = editing existing
 let _designsView     = 'library';
 let _designsCatFilter = 'all';
+let _designsSubTab   = 'families'; // library sub-tab: 'families' (landing) | 'all'
 let _designsSearch   = '';      // library search query, lowercased (empty = no search)
 let _dsnSearchTimer  = null;
 let _designsFamilyOpen = null;  // design-family drill-in (null = top level)
@@ -77,15 +78,6 @@ async function designsInit() {
   await _designsMigrateLocalStorage();
   designsShowLibrary();
   _designsLoadCosting();
-  _dsnFamStripBindNav();
-}
-
-function _dsnFamStripBindNav() {
-  const strip = document.getElementById('dsn-fam-strip');
-  if (!strip || strip.dataset.navBound) return;
-  strip.dataset.navBound = '1';
-  strip.addEventListener('scroll', _dsnFamStripSyncNav, { passive: true });
-  window.addEventListener('resize', _dsnFamStripSyncNav);
 }
 
 // Background load of the materials picker + waste settings (BOM editor).
@@ -261,21 +253,12 @@ function _dsnDesignCardHtml(d) {
     </div>`;
 }
 
-function _dsnFamilyCardHtml(fam, members, tile) {
+function _dsnFamilyCardHtml(fam, members) {
   const thumbs = members.filter(m => m.thumb).slice(0, 4).map(m => m.thumb);
   const collage = thumbs.length
     ? `<div class="dsn-family-collage${thumbs.length === 1 ? ' cols-1' : ''}">${thumbs.map(t => `<div style="background-image:url('${t}')"></div>`).join('')}</div>`
     : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">📁</span></div>`;
   const names = members.map(m => m.name || 'Untitled').join(' · ');
-  if (tile) {
-    return `
-    <div class="dsn-card dsn-fam-tile" data-fam="${escHtml(fam)}" onclick="designsOpenFamily(this.dataset.fam)" title="${escHtml(fam)} — ${escHtml(names)}">
-      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length}</span></div>
-      <div class="dsn-card-body">
-        <div class="dsn-card-name">${escHtml(fam)}</div>
-      </div>
-    </div>`;
-  }
   return `
     <div class="dsn-card" data-fam="${escHtml(fam)}" onclick="designsOpenFamily(this.dataset.fam)">
       <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} designs</span></div>
@@ -287,38 +270,46 @@ function _dsnFamilyCardHtml(fam, members, tile) {
     </div>`;
 }
 
-// Pinned collections strip across the top of the All Designs view.
-function _dsnRenderFamilyStrip(show) {
-  const wrap  = document.getElementById('dsn-fam-strip-wrap');
-  const strip = document.getElementById('dsn-fam-strip');
-  if (!wrap || !strip) return 0;
-
-  const fams = show ? _dsnCollections() : [];
-  if (!fams.length) { wrap.style.display = 'none'; strip.innerHTML = ''; return 0; }
-
-  wrap.style.display = '';
-  strip.innerHTML = fams.map(([fam, members]) => _dsnFamilyCardHtml(fam, members, true)).join('');
-  const count = document.getElementById('dsn-fam-strip-count');
-  if (count) count.textContent = `${fams.length} collection${fams.length !== 1 ? 's' : ''}`;
-  requestAnimationFrame(_dsnFamStripSyncNav);
-  return fams.length;
+// Every term must hit the family name or one of its members' names.
+function _dsnFamilyMatchesSearch(fam, members) {
+  if (!_designsSearch) return true;
+  const hay = [fam, ...members.map(m => m.name || '')].join(' ').toLowerCase();
+  return _designsSearch.split(/\s+/).every(t => hay.includes(t));
 }
 
-function dsnFamStripScroll(dir) {
-  const strip = document.getElementById('dsn-fam-strip');
-  if (!strip) return;
-  strip.scrollBy({ left: dir * Math.max(160, strip.clientWidth * 0.8), behavior: 'smooth' });
+// Design Families tab — a grid of collection cards, each drilling into its members.
+function _dsnRenderFamiliesGrid() {
+  const grid = document.getElementById('dsn-family-grid');
+  if (!grid) return;
+
+  const fams = _dsnCollections().filter(([fam, members]) => _dsnFamilyMatchesSearch(fam, members));
+  const count = document.getElementById('dsn-family-count');
+  if (count) count.textContent = fams.length ? `${fams.length} collection${fams.length !== 1 ? 's' : ''}` : '';
+
+  if (!fams.length) {
+    grid.innerHTML = _designsSearch
+      ? `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+           <div style="font-size:13px;margin-bottom:10px">No collections match “${escHtml(_designsSearch)}”.</div>
+           <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
+         </div>`
+      : `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+           <div style="font-size:36px;margin-bottom:12px">📁</div>
+           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No design families yet</div>
+           <div style="font-size:12px">Give two or more designs the same <strong>Design Family</strong><br>and they'll group into a collection here.</div>
+         </div>`;
+    return;
+  }
+  grid.innerHTML = fams.map(([fam, members]) => _dsnFamilyCardHtml(fam, members)).join('');
 }
 
-// Arrows only appear on the side there's actually more to see.
-function _dsnFamStripSyncNav() {
-  const strip = document.getElementById('dsn-fam-strip');
-  const l = document.getElementById('dsn-fam-nav-l');
-  const r = document.getElementById('dsn-fam-nav-r');
-  if (!strip || !l || !r) return;
-  const max = strip.scrollWidth - strip.clientWidth;
-  l.classList.toggle('show', max > 4 && strip.scrollLeft > 4);
-  r.classList.toggle('show', max > 4 && strip.scrollLeft < max - 4);
+function designsSetSubTab(tab) {
+  _designsSubTab = tab === 'all' ? 'all' : 'families';
+  _designsFamilyOpen = null;
+  document.querySelectorAll('.dsn-subtab').forEach(b => {
+    b.classList.toggle('active', b.dataset.subtab === _designsSubTab);
+    b.setAttribute('aria-selected', b.dataset.subtab === _designsSubTab ? 'true' : 'false');
+  });
+  designsRenderLibrary();
 }
 
 function designsRenderLibrary() {
@@ -334,25 +325,31 @@ function designsRenderLibrary() {
   if (famBar)   famBar.style.display = _designsFamilyOpen ? 'flex' : 'none';
   if (famTitle) famTitle.textContent = _designsFamilyOpen || '';
 
-  // Top level = the All Designs page: collections are pinned in the strip above and
-  // the grid holds the loose designs. A category filter or a search flattens to the
-  // matching designs instead, so those still reach pieces that live inside a family.
-  const topLevel = !_designsFamilyOpen && _designsCatFilter === 'all' && !_designsSearch;
+  // Families tab shows collection cards; drilling into one swaps in that family's
+  // members, so the design grid owns both the drill-in and the All Designs tab.
+  const famGridView = _designsSubTab === 'families' && !_designsFamilyOpen;
+
+  const subtabs = document.getElementById('dsn-subtabs');
+  if (subtabs) subtabs.style.display = _designsFamilyOpen ? 'none' : '';
+  const catBar = document.getElementById('dsn-filter-bar');
+  if (catBar) catBar.style.display = famGridView ? 'none' : '';
+  const famWrap = document.getElementById('dsn-family-grid-wrap');
+  if (famWrap) famWrap.style.display = famGridView ? '' : 'none';
+  list.style.display = famGridView ? 'none' : '';
+
+  const search = document.getElementById('dsn-search');
+  if (search) {
+    search.placeholder = famGridView
+      ? 'Search collections — family or design name…'
+      : 'Search designs — name, collection, category, or details…';
+  }
+
+  if (famGridView) { _dsnRenderFamiliesGrid(); return; }
 
   let filtered = _designs;
   if (_designsCatFilter !== 'all') filtered = filtered.filter(d => d.category === _designsCatFilter);
   if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamilyOf(d) === _designsFamilyOpen);
   if (_designsSearch) filtered = filtered.filter(_dsnMatchesSearch);
-
-  const stripCount = _dsnRenderFamilyStrip(topLevel);
-
-  if (topLevel) {
-    const famMembers = _dsnFamilyMembers();
-    filtered = filtered.filter(d => {
-      const f = _dsnFamilyOf(d);
-      return !(f && famMembers.get(f).length > 1);
-    });
-  }
 
   if (filtered.length === 0) {
     if (_designs.length === 0) {
@@ -362,9 +359,6 @@ function designsRenderLibrary() {
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No designs yet</div>
         <div style="font-size:12px">Click <strong>+ New Design</strong> to add your first one,<br>or upload a PDF to get started.</div>
       </div>`;
-    } else if (topLevel && stripCount) {
-      // Everything lives in a collection — the strip above is the whole page.
-      list.innerHTML = '';
     } else if (_designsSearch) {
       list.innerHTML = `
       <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
@@ -386,8 +380,7 @@ function designsOpenFamily(fam) {
 }
 
 function designsCloseFamily() {
-  _designsFamilyOpen = null;
-  designsRenderLibrary();
+  designsSetSubTab('families');
 }
 
 // Existing family names → datalist so the form autocompletes and
