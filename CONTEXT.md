@@ -119,8 +119,17 @@ Brought − Sold for a variation. Computed in the UI; never stored.
 **Design**
 A reusable production recipe for a jewelry piece: name, category, specifications, step-by-step instructions, reference images, a Materials list (BOM), and Costing data. Stored via the designs API; browsed in the Designs tab.
 
+**Design Family**
+Optional grouping name on a Design that ties variations of one piece together — sizes, metals, minor variants. Free text; Designs sharing the exact name are one family.
+
 **Design Library**
-The card-grid index of all Designs, filterable by category.
+The index of all Designs. Collections are pinned across the top; the card grid below holds the loose Designs. Filterable by category and searchable.
+
+**Collections**
+The Design Families with 2+ members, pinned as a horizontally scrollable strip at the top of the Design Library — one tile each, drilling into that family. A family of one is not a Collection; its Design sits in the grid like any unfamilied Design.
+
+**Library Search**
+Free-text search over the Design Library, matching a Design's name, category, family, and preview text. Multiple terms are AND-ed. Like a category filter, it flattens the view — the Collections strip hides and every matching Design is listed individually, so pieces inside a family stay reachable.
 
 **Design Guide**
 The read-only, formatted view of a Design — the primary view opened by clicking a Design card. Reads as a how-to guide for making the piece. Editing happens in the separate edit form, reached via an Edit action from the Guide.

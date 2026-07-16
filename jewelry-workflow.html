@@ -8138,6 +8138,52 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-family-collage.cols-1 { grid-template-columns:1fr; }
 .dsn-family-collage > div { background-size:cover; background-position:center; }
 .dsn-family-collage > div:nth-child(3):last-child { grid-column:span 2; }
+/* Designs: search box */
+.dsn-search-wrap { position:relative; max-width:420px; margin-bottom:var(--sp-3); }
+.dsn-search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:12px; opacity:.6; pointer-events:none; }
+.dsn-search-input {
+  width:100%; padding:9px 30px; border:1px solid var(--bdr); border-radius:var(--rad-sm);
+  font-size:13px; font-family:inherit; background:var(--card-bg); color:var(--text);
+  transition:border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dsn-search-input:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
+.dsn-search-input::-webkit-search-cancel-button { -webkit-appearance:none; appearance:none; }
+.dsn-search-clear {
+  position:absolute; right:7px; top:50%; transform:translateY(-50%);
+  border:none; background:transparent; color:var(--text3); cursor:pointer;
+  font-size:11px; line-height:1; padding:4px 5px; border-radius:4px;
+}
+.dsn-search-clear:hover { color:var(--text); background:var(--accent-bg); }
+/* Designs: pinned collections strip */
+.dsn-fam-strip-wrap { margin-bottom:var(--sp-4); }
+.dsn-fam-strip-head { display:flex; align-items:baseline; gap:8px; margin-bottom:var(--sp-2); }
+.dsn-fam-strip-title { font-size:11px; font-weight:800; color:var(--text2); letter-spacing:.4px; text-transform:uppercase; }
+.dsn-fam-strip-count { font-size:11px; font-weight:600; color:var(--text3); }
+.dsn-fam-strip-rail { position:relative; }
+.dsn-fam-strip {
+  display:flex; gap:var(--sp-3); overflow-x:auto; scroll-behavior:smooth;
+  scroll-snap-type:x proximity; padding:2px 2px 8px; scrollbar-width:thin;
+}
+.dsn-fam-strip::-webkit-scrollbar { height:8px; }
+.dsn-fam-strip::-webkit-scrollbar-track { background:transparent; }
+.dsn-fam-strip::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:4px; }
+.dsn-fam-strip::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+.dsn-fam-tile { flex:0 0 150px; scroll-snap-align:start; }
+.dsn-fam-tile .dsn-card-thumb-wrap { height:84px; }
+.dsn-fam-tile .dsn-card-body { padding:8px 10px 10px; }
+.dsn-fam-tile .dsn-card-name { font-size:12px; margin-bottom:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dsn-fam-nav {
+  position:absolute; top:calc(50% - 5px); transform:translateY(-50%); z-index:2;
+  width:28px; height:28px; padding:0; border-radius:50%; border:1px solid var(--bdr);
+  background:var(--card-bg); color:var(--text); box-shadow:var(--shadow-md);
+  cursor:pointer; display:none; align-items:center; justify-content:center;
+  font-size:15px; font-weight:700; line-height:1;
+}
+.dsn-fam-nav:hover { background:var(--accent-bg); border-color:var(--accent-border); }
+.dsn-fam-nav:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-fam-nav.show { display:flex; }
+.dsn-fam-nav-l { left:-8px; }
+.dsn-fam-nav-r { right:-8px; }
 /* Form */
 .dsn-form-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .dsn-form-title { font-size:16px; font-weight:800; color:var(--text); flex:1; }
@@ -8374,6 +8420,14 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
 
   <!-- Library view -->
   <div id="designs-library">
+    <div class="dsn-search-wrap">
+      <span class="dsn-search-icon">🔍</span>
+      <input id="dsn-search" class="dsn-search-input" type="search" autocomplete="off"
+             placeholder="Search designs — name, collection, category, or details…"
+             oninput="designsSetSearch(this.value)">
+      <button type="button" class="dsn-search-clear" id="dsn-search-clear" style="display:none"
+              onclick="designsClearSearch()" aria-label="Clear search">✕</button>
+    </div>
     <div class="dsn-filter-bar">
       <button class="dsn-filter-btn active" data-cat="all" onclick="designsSetCatFilter('all')">All</button>
       <button class="dsn-filter-btn" data-cat="Ear Cuffs" onclick="designsSetCatFilter('Ear Cuffs')">Ear Cuffs</button>
@@ -8381,6 +8435,17 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <button class="dsn-filter-btn" data-cat="Earrings" onclick="designsSetCatFilter('Earrings')">Earrings</button>
       <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
       <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
+    </div>
+    <div id="dsn-fam-strip-wrap" class="dsn-fam-strip-wrap" style="display:none">
+      <div class="dsn-fam-strip-head">
+        <div class="dsn-fam-strip-title">📁 Collections</div>
+        <div class="dsn-fam-strip-count" id="dsn-fam-strip-count"></div>
+      </div>
+      <div class="dsn-fam-strip-rail">
+        <button type="button" class="dsn-fam-nav dsn-fam-nav-l" id="dsn-fam-nav-l" onclick="dsnFamStripScroll(-1)" aria-label="Scroll collections left">‹</button>
+        <div class="dsn-fam-strip" id="dsn-fam-strip"></div>
+        <button type="button" class="dsn-fam-nav dsn-fam-nav-r" id="dsn-fam-nav-r" onclick="dsnFamStripScroll(1)" aria-label="Scroll collections right">›</button>
+      </div>
     </div>
     <div id="dsn-family-bar" class="dsn-family-bar" style="display:none">
       <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← All Designs</button>
@@ -11131,7 +11196,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=10"></script>
+<script src="js/designs.js?v=11"></script>
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
