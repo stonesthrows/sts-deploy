@@ -855,6 +855,42 @@ function _designsMakeThumb(src) {
 }
 
 // ── Image upload ──────────────────────────────
+// Add an image by URL. A cross-origin image taints the canvas, so the bytes
+// come back through /api/img-fetch and are handed to designsHandleImages as a
+// File — same downscale, same cap, same previews as a picked file.
+async function designsAddImageFromUrl() {
+  designsCloseGearMenu();
+  const MAX = 10;
+  if (_designsImgQueue.length >= MAX) { toast(`Max ${MAX} images per design`, '⚠'); return; }
+
+  const url = (prompt("Image URL — the direct link to the image file\n(usually ends in .jpg or .png):") || '').trim();
+  if (!url) return;
+
+  try {
+    let blob;
+    if (/^data:image\//i.test(url)) {
+      blob = await (await fetch(url)).blob();     // already local, no round trip
+    } else {
+      toast('Fetching image…', '⏳');
+      const resp = await fetch('/api/img-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.error || `Couldn't fetch that image (${resp.status})`);
+      }
+      blob = await resp.blob();
+    }
+    let name = 'image';
+    try { name = decodeURIComponent(new URL(url).pathname.split('/').pop()) || name; } catch {}
+    designsHandleImages([new File([blob], name, { type: blob.type })]);
+  } catch (e) {
+    toast(e.message || "Couldn't add that image", '⚠');
+  }
+}
+
 function designsHandleImages(files) {
   const MAX = 10;
   const remaining = MAX - _designsImgQueue.length;
@@ -877,6 +913,8 @@ function designsHandleImages(files) {
         loaded++;
         if (loaded === toAdd.length) designsRenderImagePreviews();
       };
+      // Without this an undecodable file (e.g. HEIC in Chrome) just dead-ends.
+      img.onerror = () => toast(`Couldn't read ${file.name || 'that image'}`, '⚠');
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
