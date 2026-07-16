@@ -29,6 +29,7 @@ let _dsnSqPrices      = {};   // squareVariationId -> retail price (null = fetch
 let _dsnLinkedSq      = null; // {id, name} staged for current edit
 let _dsnSqSearchTimer = null;
 let _designsPricingOpen = false;
+let _designsPricingFamilyFilter = null; // family name to scope Pricing Sheet rows (null = all designs)
 
 // ── KV API helpers ────────────────────────────
 async function _designsApiFetch(id) {
@@ -1585,8 +1586,49 @@ function dsnPricingToggle() {
   document.getElementById('designs-pricing').style.display = _designsPricingOpen ? '' : 'none';
   const btn = document.getElementById('dsn-pricing-btn');
   if (btn) btn.textContent = _designsPricingOpen ? '← Library' : '💲 Pricing Sheet';
-  if (_designsPricingOpen) dsnPricingRender();
-  else designsRenderLibrary();
+  if (_designsPricingOpen) {
+    // Inherit whichever family (if any) was drilled into in the Library view,
+    // so "Pricing Sheet" opened from a family card lands pre-scoped to it.
+    _designsPricingFamilyFilter = _designsFamilyOpen || null;
+    dsnPricingRender();
+  } else {
+    designsRenderLibrary();
+  }
+}
+
+// Jump straight to the Pricing Sheet, pre-scoped to one family — used by the
+// "💲 Compare costs" link on a family card/drill-in bar.
+function dsnPricingOpenForFamily(fam) {
+  _designsPricingFamilyFilter = fam || null;
+  _designsPricingOpen = true;
+  document.getElementById('designs-library').style.display = 'none';
+  document.getElementById('designs-pricing').style.display = '';
+  const btn = document.getElementById('dsn-pricing-btn');
+  if (btn) btn.textContent = '← Library';
+  dsnPricingRender();
+}
+
+// Populate the family-scope <select> on the Pricing Sheet with every family
+// that has 2+ members (families of 1 have nothing to compare).
+function _dsnFamilyDropdownRefresh() {
+  const sel = document.getElementById('dsn-ps-family');
+  if (!sel) return;
+  const counts = new Map();
+  for (const d of _designs) {
+    const f = _dsnFamilyOf(d);
+    if (f) counts.set(f, (counts.get(f) || 0) + 1);
+  }
+  const fams = [...counts.keys()].filter(f => counts.get(f) > 1).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">All designs</option>'
+    + fams.map(f => `<option value="${escHtml(f)}">📁 ${escHtml(f)} (${counts.get(f)})</option>`).join('');
+  sel.value = fams.includes(_designsPricingFamilyFilter) ? _designsPricingFamilyFilter : '';
+  if (!fams.includes(_designsPricingFamilyFilter)) _designsPricingFamilyFilter = null;
+}
+
+function dsnPricingFamilyFilterChange() {
+  const sel = document.getElementById('dsn-ps-family');
+  _designsPricingFamilyFilter = (sel && sel.value) ? sel.value : null;
+  dsnPricingRender();
 }
 
 function _dsnEnsureCostingData() {
@@ -1603,6 +1645,7 @@ function _dsnEnsureCostingData() {
 async function dsnPricingRender(forceRefresh) {
   const body = document.getElementById('dsn-ps-body');
   if (!body) return;
+  _dsnFamilyDropdownRefresh();
   body.innerHTML = '<tr><td colspan="7" class="oh-empty">Computing costs…</td></tr>';
   if (forceRefresh) { _dsnLabor = null; _dsnSqPrices = {}; }
   await _dsnEnsureCostingData();
@@ -1615,7 +1658,10 @@ async function dsnPricingRender(forceRefresh) {
   setVal('dsn-set-target', s.targetMarginPct);
   setVal('dsn-set-floor',  s.marginFloorPct);
 
-  const rows = _designs.map(d => ({ d, r: dsnCostRollup(d) }));
+  const scoped = _designsPricingFamilyFilter
+    ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
+    : _designs;
+  const rows = scoped.map(d => ({ d, r: dsnCostRollup(d) }));
   const floor = typeof s.marginFloorPct === 'number' ? s.marginFloorPct : null;
 
   // Margin-erosion alert strip
@@ -1630,7 +1676,7 @@ async function dsnPricingRender(forceRefresh) {
   }
 
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="7" class="oh-empty">No designs yet.</td></tr>';
+    body.innerHTML = `<tr><td colspan="7" class="oh-empty">${_designsPricingFamilyFilter ? 'No designs in this family.' : 'No designs yet.'}</td></tr>`;
     return;
   }
   body.innerHTML = rows.map(x => {
@@ -1675,7 +1721,10 @@ async function dsnPricingSettingsSave() {
 }
 
 function dsnPricingExport() {
-  const rows = _designs.map(d => ({ d, r: dsnCostRollup(d) }));
+  const scoped = _designsPricingFamilyFilter
+    ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
+    : _designs;
+  const rows = scoped.map(d => ({ d, r: dsnCostRollup(d) }));
   const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const money = v => (v != null ? v.toFixed(2) : '');
   const csv = [
@@ -1690,7 +1739,8 @@ function dsnPricingExport() {
 
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = 'pricing-sheet-' + new Date().toISOString().slice(0, 10) + '.csv';
+  const famSlug = _designsPricingFamilyFilter ? '-' + _designsPricingFamilyFilter.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') : '';
+  a.download = 'pricing-sheet' + famSlug + '-' + new Date().toISOString().slice(0, 10) + '.csv';
   document.body.appendChild(a);
   a.click();
   a.remove();

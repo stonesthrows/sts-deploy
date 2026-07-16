@@ -8084,6 +8084,11 @@ body.theme-midnight .dsn-ru-row.dsn-ru-bad { color: #e08070; }
   font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text); outline: none;
 }
 .dsn-ps-settings input:focus { border-color: var(--accent); }
+.dsn-ps-settings select {
+  padding: 7px 9px; border: 1px solid var(--bdr); border-radius: 7px; max-width: 220px;
+  font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text); outline: none;
+}
+.dsn-ps-settings select:focus { border-color: var(--accent); }
 .dsn-ps-alert {
   background: #FDE2E1; color: #B3392C; border: 1px solid #f3b6b2; border-radius: 8px;
   padding: 9px 13px; font-size: 12.5px; margin-bottom: 12px;
@@ -8323,6 +8328,10 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       <input id="dsn-set-floor" type="number" step="1" min="0" max="99" placeholder="—">
       <button class="btn btn-gold btn-sm" onclick="dsnPricingSettingsSave()">Save</button>
       <div style="flex:1"></div>
+      <label>Family</label>
+      <select id="dsn-ps-family" onchange="dsnPricingFamilyFilterChange()">
+        <option value="">All designs</option>
+      </select>
       <button class="btn btn-outline btn-sm" onclick="dsnPricingRender(true)" title="Re-fetch labor history and Square prices">↻ Refresh</button>
       <button class="btn btn-outline btn-sm" onclick="dsnPricingExport()">⬇ Export CSV</button>
     </div>
@@ -8360,6 +8369,8 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
     <div id="dsn-family-bar" class="dsn-family-bar" style="display:none">
       <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← All Designs</button>
       <div class="dsn-family-title">📁 <span id="dsn-family-title"></span></div>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="dsnPricingOpenForFamily(_designsFamilyOpen)">💲 Compare costs</button>
     </div>
     <div class="dsn-grid" id="designs-list"></div>
   </div>
