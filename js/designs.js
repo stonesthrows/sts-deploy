@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════
 
 const DESIGNS_KEY  = 'sts-designs';          // legacy localStorage key (migration only)
-const DESIGNS_CATS = ['Ear Cuffs', 'Rings', 'Earrings', 'Pendants / Necklaces', 'Other'];
+const DESIGNS_CATS = ['Ear Cuffs', 'Rings', 'Earrings', 'Pendants / Necklaces', 'Meditation Rings', 'Other'];
 
 // Index-only array — no images, just metadata for the library listing.
 // Full design (with images) is fetched from KV only when editing.
