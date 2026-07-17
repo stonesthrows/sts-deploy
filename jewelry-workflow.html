@@ -8212,6 +8212,12 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
              box-shadow var(--dur-fast) var(--ease-smooth);
 }
 .dsn-textarea { resize:none; min-height:38px; line-height:1.5; overflow:hidden; }
+.dsn-mobile-save-btn { display:none; }
+@media (max-width:640px) {
+  #designs-form-wrap .dsn-mobile-hide { display:none !important; }
+  #designs-form-wrap .dsn-mobile-save-btn { display:inline-block; }
+  #designs-form-wrap .dsn-input, #designs-form-wrap .dsn-textarea, #designs-form-wrap .dsn-select { font-size:16px; }
+}
 .dsn-input:focus, .dsn-textarea:focus, .dsn-select:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
 .dsn-chip-input {
   min-height:38px; padding:5px 6px; border:1px solid var(--bdr); border-radius:var(--rad-sm);
@@ -8509,7 +8515,8 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
     <div class="dsn-form-header">
       <button class="btn btn-outline btn-sm" onclick="designsShowLibrary()">← Back</button>
       <div style="flex:1"></div>
-      <div style="position:relative">
+      <button class="btn btn-gold btn-sm dsn-mobile-save-btn" onclick="designsSaveDesign()">💾 Save</button>
+      <div style="position:relative" class="dsn-mobile-hide">
         <button class="btn btn-outline btn-sm" id="dsn-gear-btn" onclick="designsToggleGearMenu()">⚙ Actions</button>
         <div id="dsn-gear-menu" class="dsn-gear-menu" style="display:none">
           <label class="dsn-gear-item">
@@ -8554,7 +8561,7 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
             <label class="dsn-field-label">Design Name <span class="dsn-req">*</span></label>
             <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
           </div>
-          <div>
+          <div class="dsn-mobile-hide">
             <label class="dsn-field-label">Design Families</label>
             <div id="dsn-family-chips" class="dsn-chip-input" style="width:200px" onclick="dsnFamilyChipsClick()">
               <span id="dsn-family-chip-list" style="display:contents"></span>
@@ -8563,7 +8570,7 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
             </div>
             <datalist id="dsn-family-list"></datalist>
           </div>
-          <div>
+          <div class="dsn-mobile-hide">
             <label class="dsn-field-label">Category</label>
             <select id="dsn-cat" class="dsn-select">
           <option value="">— Select category —</option>
@@ -8590,8 +8597,8 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
           oninput="dsnAutoResize(this)"></textarea>
 
         <!-- Materials / BOM (Phase 3) -->
-        <label class="dsn-field-label">Materials (per piece)</label>
-        <div class="dsn-bom-box">
+        <label class="dsn-field-label dsn-mobile-hide">Materials (per piece)</label>
+        <div class="dsn-bom-box dsn-mobile-hide">
           <div class="dsn-bom-split-row">
             <label class="dsn-bom-split-lbl" for="dsn-bom-split">
               <input type="checkbox" id="dsn-bom-split" onchange="dsnBomSplitToggle()">
@@ -8635,8 +8642,8 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
         </div>
 
         <!-- Costing (Phase 4) -->
-        <label class="dsn-field-label">Costing</label>
-        <div class="dsn-bom-box">
+        <label class="dsn-field-label dsn-mobile-hide">Costing</label>
+        <div class="dsn-bom-box dsn-mobile-hide">
           <div id="dsn-sq-linked" style="display:none;font-size:13px;margin-bottom:8px;">
             🔗 <span id="dsn-sq-linked-name" style="font-weight:600;"></span>
             <button type="button" class="dsn-bom-remove" onclick="dsnSqUnlink()" title="Unlink Square item">✕</button>
@@ -8656,8 +8663,8 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
         </div>
 
         <!-- Variations (size / metal / width combos sharing these specs) -->
-        <label class="dsn-field-label">Variations</label>
-        <div class="dsn-bom-box">
+        <label class="dsn-field-label dsn-mobile-hide">Variations</label>
+        <div class="dsn-bom-box dsn-mobile-hide">
           <div id="dsn-var-list"></div>
           <button type="button" class="btn btn-outline btn-sm" onclick="dsnVariantAdd()">+ Add Variation</button>
         </div>
@@ -8665,7 +8672,7 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
       </div>
 
       <!-- RIGHT: reference images -->
-      <div class="dsn-form-right">
+      <div class="dsn-form-right dsn-mobile-hide">
         <label class="dsn-field-label" style="margin-bottom:8px;display:block">Reference Images</label>
         <div class="dsn-img-col" id="dsn-img-previews">
           <span style="color:var(--text3);font-size:12px">No images yet</span>
