@@ -2025,6 +2025,8 @@ function _dsnVarSqSearchRun(q) {
 function dsnVarSqLink(id, label, price) {
   _dsnVarLinkedSq = { id, name: label };
   if (price != null) _dsnSqPrices[id] = price;
+  const labelInput = document.getElementById('dsn-var-label');
+  if (labelInput) labelInput.value = label;
   dsnVarSqLinkRender();
   _dsnLoadSqPrices([id]).then(dsnVariantModalRollupRender);
   dsnVariantModalRollupRender();
