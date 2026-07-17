@@ -33,7 +33,6 @@ const _INVMGR_TABS = {
       { key: 'spirit',     label: 'Spirit Animal' },
       { key: 'geometric',  label: 'Geometric' },
       { key: 'symbolic',   label: 'Symbolic' },
-      { key: 'meditation', label: 'Meditation' },
     ],
   },
   pendants: {
@@ -58,6 +57,13 @@ const _INVMGR_TABS = {
     label: 'Nose Rings',
     subs: [
       { key: 'nose-rings', label: 'Faux Nose Rings' },
+    ],
+  },
+  meditation: {
+    icon: '🧘',
+    label: 'Meditation Rings',
+    subs: [
+      { key: 'meditation', label: 'Meditation Rings' },
     ],
   },
 };

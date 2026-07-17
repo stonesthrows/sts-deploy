@@ -21,13 +21,13 @@ let _bgabImpChecked = {};            // { squareId: { item, sub } | { alreadyAdd
 
 // ── Sub-tab metadata ──────────────────────────────────────────────────────────
 const _BGAB_EAR_SUBS     = ['ear-cuffs','dangle','studs','hoops','spirit'];
-const _BGAB_RING_SUBS    = ['stackable','ring-spirit','geometric','symbolic','meditation'];
+const _BGAB_RING_SUBS    = ['stackable','ring-spirit','geometric','symbolic'];
 const _BGAB_PENDANT_SUBS = ['p-spirit','p-geometric','p-symbolic'];
 
 const _BGAB_SUB_LABELS = {
   'ear-cuffs':'Ear Cuffs', 'dangle':'Dangle', 'studs':'Studs', 'hoops':'Hoops', 'spirit':'Spirit',
   'stackable':'Stackable', 'ring-spirit':'Spirit', 'geometric':'Geometric',
-  'symbolic':'Symbolic', 'meditation':'Meditation',
+  'symbolic':'Symbolic',
   'p-spirit':'Spirit', 'p-geometric':'Geometric', 'p-symbolic':'Symbolic',
 };
 

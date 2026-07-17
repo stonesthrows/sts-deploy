@@ -7432,6 +7432,7 @@
   <button id="inv-main-tab-pendants" class="inv-ear-sub"        onclick="invSwitchMain('pendants');if(!window._invPendantLoaded)invLoadPendants()">📿 Pendants</button>
   <button id="inv-main-tab-permjewelry" class="inv-ear-sub"     onclick="invSwitchMain('permjewelry');if(!window._invPermJewelryLoaded)invLoadPermJewelry()">🔗 Permanent Jewelry</button>
   <button id="inv-main-tab-noserings" class="inv-ear-sub"       onclick="invSwitchMain('noserings');if(!window._invNoseRingLoaded)invLoadNoseRings()">👃 Faux Nose Rings</button>
+  <button id="inv-main-tab-meditation" class="inv-ear-sub"      onclick="invSwitchMain('meditation');if(!window._invMeditationLoaded)invLoadMeditation()">🧘 Meditation Rings</button>
   <button class="btn btn-outline btn-sm" onclick="invMgrOpen()" style="margin-left:auto;font-size:12px;">⚙ Manage Items</button>
 </div>
 
@@ -7488,7 +7489,6 @@
   <button id="inv-ring-subtab-ring-spirit" class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('ring-spirit',this)">Spirit Animal</button>
   <button id="inv-ring-subtab-geometric"  class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('geometric',this)">Geometric</button>
   <button id="inv-ring-subtab-symbolic"   class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('symbolic',this)">Symbolic</button>
-  <button id="inv-ring-subtab-meditation" class="inv-ring-sub-btn inv-ear-sub"        onclick="invSwitchRingSub('meditation',this)">Meditation</button>
 </div>
 
 <!-- Toolbar -->
@@ -7507,7 +7507,6 @@
   <div id="inv-rsub-ring-spirit" class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-geometric"  class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
   <div id="inv-rsub-symbolic"   class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
-  <div id="inv-rsub-meditation" class="inv-ring-panel" style="display:none"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
 </div>
 
@@ -7599,6 +7598,31 @@
 <!-- Faux Nose Rings panel content -->
 <div class="inv-panel-body">
   <div id="inv-nrsub-nose-rings" class="inv-nosering-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
+</div>
+</div>
+
+<!-- Meditation Rings panel -->
+<div id="inv-main-meditation" class="inv-main-panel" style="display:none">
+<div class="page-bar" style="margin-bottom:0;border-bottom:1px solid var(--bdr)">
+  <div>
+    <div class="page-title">🧘 Meditation Rings Inventory</div>
+    <div class="page-sub">Current Square stock · updates push directly to Square</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="inv-toolbar">
+  <input id="invMeditationSearch" type="text" placeholder="Filter items…"
+    class="inv-search"
+    oninput="invMeditationFilter(this.value)">
+  <button class="btn btn-gold btn-sm" id="invMeditationUpdateAllBtn" onclick="invUpdateAllMeditation()">Update All</button>
+  <button class="btn btn-outline btn-sm" id="invMeditationRefreshBtn" onclick="invRefreshMeditation()">↻ Refresh</button>
+</div>
+<div id="invMeditationCountLabel" class="inv-count-label"></div>
+
+<!-- Meditation Rings panel content -->
+<div class="inv-panel-body">
+  <div id="inv-medsub-meditation" class="inv-meditation-panel"><div style="padding:32px;text-align:center;color:var(--text-dim)">Loading…</div></div>
 </div>
 </div>
 
@@ -8189,6 +8213,24 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 }
 .dsn-textarea { resize:none; min-height:38px; line-height:1.5; overflow:hidden; }
 .dsn-input:focus, .dsn-textarea:focus, .dsn-select:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
+.dsn-chip-input {
+  min-height:38px; padding:5px 6px; border:1px solid var(--bdr); border-radius:var(--rad-sm);
+  background:var(--card-bg); margin-bottom:14px; display:flex; flex-wrap:wrap; gap:5px; align-items:center;
+  cursor:text; transition:border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dsn-chip-input:focus-within { border-color:var(--accent); box-shadow:var(--focus-ring); }
+.dsn-family-chip {
+  display:inline-flex; align-items:center; gap:4px; background:var(--accent-bg); border:1px solid var(--accent-border);
+  color:var(--text); border-radius:999px; padding:3px 5px 3px 9px; font-size:12px; font-weight:600; white-space:nowrap;
+}
+.dsn-family-chip button {
+  background:none; border:none; cursor:pointer; padding:0 2px; font-size:13px; line-height:1; color:var(--text2); font-family:inherit;
+}
+.dsn-family-chip button:hover { color:var(--text); }
+.dsn-chip-input input {
+  border:none; outline:none; background:transparent; font-size:13px; font-family:inherit; color:var(--text);
+  flex:1; min-width:70px; padding:3px 2px; margin:0;
+}
 .dsn-upload-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
 .dsn-upload-btn {
   display:inline-block; background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:var(--rad-sm);
@@ -8512,8 +8554,12 @@ body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }
             <input id="dsn-name" class="dsn-input" type="text" placeholder="e.g. Ear Cuff — Double Bar and X">
           </div>
           <div>
-            <label class="dsn-field-label">Design Family</label>
-            <input id="dsn-family" class="dsn-input" type="text" list="dsn-family-list" placeholder="e.g. Feather" style="width:140px">
+            <label class="dsn-field-label">Design Families</label>
+            <div id="dsn-family-chips" class="dsn-chip-input" style="width:200px" onclick="dsnFamilyChipsClick()">
+              <span id="dsn-family-chip-list" style="display:contents"></span>
+              <input id="dsn-family-input" type="text" list="dsn-family-list" placeholder="Add family…"
+                     onkeydown="dsnFamilyInputKeydown(event)" onblur="_dsnFamilySyncFromInput()" style="width:90px">
+            </div>
             <datalist id="dsn-family-list"></datalist>
           </div>
           <div>

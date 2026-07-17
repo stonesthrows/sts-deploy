@@ -9,7 +9,12 @@ const INV_RING_CAT_IDS = {
   'ring-spirit': ['ZIICMTQVHNGD4RCNGMWYS3JB'],
   'geometric':   ['R5VVEETOKEH4T2TORR4ST2DD', 'R47DX3MHU2CQ6MKWN5QLKG3T'],
   'symbolic':    ['PZBEBEWWCI3MS52THSF2E2DM'],
-  'meditation':  ['KCBQ7S6OOBEATCBNCH4IWSZ5', 'A6V47F3AH7YYNTSXD7NA67PZ'],
+};
+
+// Square category IDs → Meditation Rings tab (promoted from a Rings sub-tab
+// to its own top-level Inventory tab)
+const INV_MEDITATION_CAT_IDS = {
+  'meditation': ['KCBQ7S6OOBEATCBNCH4IWSZ5', 'A6V47F3AH7YYNTSXD7NA67PZ'],
 };
 
 // Item name substrings to exclude per ring sub-tab
@@ -100,21 +105,23 @@ function _invCustomSubMain(sub) {
 
 // Panel-id prefix for any sub-tab, built-in or custom
 function _invPanelPrefix(sub) {
-  if (INV_RING_CAT_IDS[sub])     return 'inv-rsub-';
-  if (INV_PENDANT_CAT_IDS[sub])  return 'inv-psub-';
-  if (INV_PERM_CAT_IDS[sub])     return 'inv-pjsub-';
-  if (INV_NOSERING_CAT_IDS[sub]) return 'inv-nrsub-';
-  if (INV_CAT_IDS[sub])          return 'inv-sub-';
+  if (INV_RING_CAT_IDS[sub])       return 'inv-rsub-';
+  if (INV_PENDANT_CAT_IDS[sub])    return 'inv-psub-';
+  if (INV_PERM_CAT_IDS[sub])       return 'inv-pjsub-';
+  if (INV_NOSERING_CAT_IDS[sub])   return 'inv-nrsub-';
+  if (INV_MEDITATION_CAT_IDS[sub]) return 'inv-medsub-';
+  if (INV_CAT_IDS[sub])            return 'inv-sub-';
   return INV_SUB_PREFIX[_invCustomSubMain(sub)] || 'inv-xsub-';
 }
 
 // Search-input id for any sub-tab, built-in or custom
 function _invSearchIdFor(sub) {
-  if (INV_RING_CAT_IDS[sub])     return 'invRingSearch';
-  if (INV_PENDANT_CAT_IDS[sub])  return 'invPendantSearch';
-  if (INV_PERM_CAT_IDS[sub])     return 'invPermJewelrySearch';
-  if (INV_NOSERING_CAT_IDS[sub]) return 'invNoseRingSearch';
-  if (INV_CAT_IDS[sub])          return 'invSearch';
+  if (INV_RING_CAT_IDS[sub])       return 'invRingSearch';
+  if (INV_PENDANT_CAT_IDS[sub])    return 'invPendantSearch';
+  if (INV_PERM_CAT_IDS[sub])       return 'invPermJewelrySearch';
+  if (INV_NOSERING_CAT_IDS[sub])   return 'invNoseRingSearch';
+  if (INV_MEDITATION_CAT_IDS[sub]) return 'invMeditationSearch';
+  if (INV_CAT_IDS[sub])            return 'invSearch';
   const main = _invCustomSubMain(sub);
   return INV_SUB_SEARCH[main] || ('invXSearch-' + main);
 }
@@ -340,7 +347,7 @@ async function invLoad() {
 }
 
 async function _invLoadSub(sub) {
-  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub] || INV_NOSERING_CAT_IDS[sub];
+  let catIds = INV_CAT_IDS[sub] || INV_RING_CAT_IDS[sub] || INV_PENDANT_CAT_IDS[sub] || INV_PERM_CAT_IDS[sub] || INV_NOSERING_CAT_IDS[sub] || INV_MEDITATION_CAT_IDS[sub];
   if (!catIds) {
     if (!_invCustomSubMain(sub)) return;
     catIds = []; // custom sub-tab — items come only from Inventory Manager assignments
@@ -708,6 +715,7 @@ async function _invSaveCount(qtyMap, sub) {
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
   else if (INV_PERM_CAT_IDS[sub]) _invUpdatePermJewelryCountLabel();
   else if (INV_NOSERING_CAT_IDS[sub]) _invUpdateNoseRingCountLabel();
+  else if (INV_MEDITATION_CAT_IDS[sub]) _invUpdateMeditationCountLabel();
   else _invUpdateCountLabel();
 }
 
@@ -1005,6 +1013,55 @@ function invNoseRingFilter(val) {
 function _invUpdateNoseRingCountLabel() {
   const data  = _invData[_invNoseRingCurSub];
   const label = document.getElementById('invNoseRingCountLabel');
+  if (!label) return;
+  if (!data) { label.textContent = ''; return; }
+  const total      = data.items.length;
+  const outOfStock = Object.values(data.counts).filter(q => q === 0).length;
+  label.textContent = total + ' item' + (total !== 1 ? 's' : '') +
+    (outOfStock ? ' · ' + outOfStock + ' out of stock' : '');
+}
+
+let _invMeditationCurSub = 'meditation';
+let _invMeditationLoaded = false;
+
+async function invLoadMeditation() {
+  if (_invData[_invMeditationCurSub]) return;
+  await _invLoadSub(_invMeditationCurSub);
+  _invMeditationLoaded = true;
+}
+
+async function invUpdateAllMeditation() {
+  const entries = Object.entries(_invDirty);
+  if (!entries.length) { toast('No changes to save', 'ℹ'); return; }
+  const btn = document.getElementById('invMeditationUpdateAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await _invSaveCount(Object.fromEntries(entries), _invMeditationCurSub);
+    toast(entries.length + ' item' + (entries.length > 1 ? 's' : '') + ' updated ✓', '✓');
+  } catch (e) {
+    toast('Square error: ' + e.message, '⚠');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update All'; }
+  }
+}
+
+async function invRefreshMeditation() {
+  const btn = document.getElementById('invMeditationRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  Object.keys(INV_MEDITATION_CAT_IDS).forEach(sub => { delete _invData[sub]; });
+  _invDirty = {};
+  _invMeditationLoaded = false;
+  await invLoadMeditation();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+
+function invMeditationFilter(val) {
+  _invRenderSub(_invMeditationCurSub);
+}
+
+function _invUpdateMeditationCountLabel() {
+  const data  = _invData[_invMeditationCurSub];
+  const label = document.getElementById('invMeditationCountLabel');
   if (!label) return;
   if (!data) { label.textContent = ''; return; }
   const total      = data.items.length;

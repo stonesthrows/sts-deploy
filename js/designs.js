@@ -187,15 +187,22 @@ async function designsShowForm(id) {
 }
 
 // ── Library ───────────────────────────────────
-function _dsnFamilyOf(d) { return (d.family || '').trim(); }
+// A design may belong to multiple families. New designs store `families`
+// (array); designs saved before multi-family support only have the legacy
+// singular `family` string — normalize that into a one-item array on read.
+function _dsnFamiliesOf(d) {
+  if (Array.isArray(d.families)) return d.families.map(f => (f || '').trim()).filter(Boolean);
+  const legacy = (d.family || '').trim();
+  return legacy ? [legacy] : [];
+}
 
 // family name -> [designs]. Built from every design, not the filtered view, so a
 // family's size (and therefore whether it's a collection) doesn't shift with filters.
+// A design in 2+ families is counted as a member of each.
 function _dsnFamilyMembers() {
   const m = new Map();
   for (const d of _designs) {
-    const f = _dsnFamilyOf(d);
-    if (f) m.set(f, (m.get(f) || []).concat(d));
+    for (const f of _dsnFamiliesOf(d)) m.set(f, (m.get(f) || []).concat(d));
   }
   return m;
 }
@@ -210,7 +217,7 @@ function _dsnCollections() {
 // All search terms must hit somewhere on the design (AND across terms).
 function _dsnMatchesSearch(d) {
   if (!_designsSearch) return true;
-  const hay = [d.name, d.category, _dsnFamilyOf(d), d.preview]
+  const hay = [d.name, d.category, ..._dsnFamiliesOf(d), d.preview]
     .filter(Boolean).join(' ').toLowerCase();
   return _designsSearch.split(/\s+/).every(t => hay.includes(t));
 }
@@ -317,7 +324,7 @@ function designsRenderLibrary() {
   if (!list) return;
 
   // Drop the drill-in if the family no longer exists (rename / delete)
-  if (_designsFamilyOpen && !_designs.some(d => _dsnFamilyOf(d) === _designsFamilyOpen)) {
+  if (_designsFamilyOpen && !_designs.some(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen))) {
     _designsFamilyOpen = null;
   }
   const famBar   = document.getElementById('dsn-family-bar');
@@ -348,7 +355,7 @@ function designsRenderLibrary() {
 
   let filtered = _designs;
   if (_designsCatFilter !== 'all') filtered = filtered.filter(d => d.category === _designsCatFilter);
-  if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamilyOf(d) === _designsFamilyOpen);
+  if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen));
   if (_designsSearch) filtered = filtered.filter(_dsnMatchesSearch);
 
   if (filtered.length === 0) {
@@ -388,8 +395,56 @@ function designsCloseFamily() {
 function _dsnFamilyDatalistRefresh() {
   const dl = document.getElementById('dsn-family-list');
   if (!dl) return;
-  const fams = [...new Set(_designs.map(_dsnFamilyOf).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const fams = [...new Set(_designs.flatMap(_dsnFamiliesOf))].sort((a, b) => a.localeCompare(b));
   dl.innerHTML = fams.map(f => `<option value="${escHtml(f)}"></option>`).join('');
+}
+
+// ── Design Families chip picker (form) ──────────
+let _designsFormFamilies = [];
+
+function _dsnFamilyChipsRender() {
+  const list = document.getElementById('dsn-family-chip-list');
+  if (!list) return;
+  list.innerHTML = _designsFormFamilies.map((f, i) =>
+    `<span class="dsn-family-chip">${escHtml(f)}<button type="button" onclick="event.stopPropagation();dsnFamilyRemove(${i})" aria-label="Remove ${escHtml(f)}">×</button></span>`
+  ).join('');
+}
+
+function dsnFamilyAdd(raw) {
+  const name = (raw || '').trim();
+  const inp = document.getElementById('dsn-family-input');
+  if (inp) inp.value = '';
+  if (!name) return;
+  if (!_designsFormFamilies.some(f => f.toLowerCase() === name.toLowerCase())) {
+    _designsFormFamilies.push(name);
+    _dsnFamilyChipsRender();
+  }
+}
+
+function dsnFamilyRemove(idx) {
+  _designsFormFamilies.splice(idx, 1);
+  _dsnFamilyChipsRender();
+}
+
+// Flushes whatever's still typed (but not yet committed as a chip) into the
+// family list — called before save so an un-Entered value isn't lost.
+function _dsnFamilySyncFromInput() {
+  const inp = document.getElementById('dsn-family-input');
+  if (inp && inp.value.trim()) dsnFamilyAdd(inp.value);
+}
+
+function dsnFamilyInputKeydown(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    dsnFamilyAdd(e.target.value);
+  } else if (e.key === 'Backspace' && !e.target.value && _designsFormFamilies.length) {
+    dsnFamilyRemove(_designsFormFamilies.length - 1);
+  }
+}
+
+function dsnFamilyChipsClick() {
+  const inp = document.getElementById('dsn-family-input');
+  if (inp) inp.focus();
 }
 
 function designsSetCatFilter(cat) {
@@ -464,7 +519,7 @@ function designsRenderGuide() {
   page.innerHTML = `
     <header class="dsn-gd-head">
       <div class="dsn-gd-headtext">
-        ${d.category ? `<div class="dsn-cat-chip">${escHtml(d.category)}</div>` : ''}${d.family ? ` <div class="dsn-cat-chip">📁 ${escHtml(d.family)}</div>` : ''}
+        ${d.category ? `<div class="dsn-cat-chip">${escHtml(d.category)}</div>` : ''}${_dsnFamiliesOf(d).map(f => ` <div class="dsn-cat-chip">📁 ${escHtml(f)}</div>`).join('')}
         <h1 class="dsn-gd-title">${escHtml(d.name || 'Untitled')}</h1>
         <div class="dsn-gd-meta">Stones Throw Studio · Design Guide${upd ? ' · Updated ' + upd : ''}</div>
       </div>
@@ -635,8 +690,10 @@ function designsRenderForm() {
   document.getElementById('dsn-name').value         = design ? (design.name         || '') : '';
   document.getElementById('dsn-cat').value           = design ? (design.category     || '') : '';
   // New designs started from inside a family drill-in inherit that family
-  const famEl = document.getElementById('dsn-family');
-  if (famEl) famEl.value = design ? (design.family || '') : (_designsFamilyOpen || '');
+  _designsFormFamilies = design ? _dsnFamiliesOf(design) : (_designsFamilyOpen ? [_designsFamilyOpen] : []);
+  const famInput = document.getElementById('dsn-family-input');
+  if (famInput) famInput.value = '';
+  _dsnFamilyChipsRender();
   _dsnFamilyDatalistRefresh();
   document.getElementById('dsn-specs').value         = design ? (design.specs        || '') : '';
   document.getElementById('dsn-instructions').value  = design ? (design.instructions || '') : '';
@@ -743,6 +800,7 @@ async function designsSaveDesign() {
   const id  = _designsEditId || ('dsn-' + Date.now());
 
   dsnBomSyncFromDom();
+  _dsnFamilySyncFromInput();
   const splitOn     = _dsnBomSplitOn();
   const splitTotalG = _dsnBomTotalG();
   if (splitOn && splitTotalG == null && _designsBom.some(l => l.materialId && l.pct > 0)) {
@@ -754,7 +812,7 @@ async function designsSaveDesign() {
     id,
     name,
     category:     document.getElementById('dsn-cat').value,
-    family:       ((document.getElementById('dsn-family') || {}).value || '').trim(),
+    families:     [..._designsFormFamilies],
     specs:        document.getElementById('dsn-specs').value.trim(),
     instructions: document.getElementById('dsn-instructions').value.trim(),
     bom:          _designsBom
@@ -2033,8 +2091,7 @@ function _dsnFamilyDropdownRefresh() {
   if (!sel) return;
   const counts = new Map();
   for (const d of _designs) {
-    const f = _dsnFamilyOf(d);
-    if (f) counts.set(f, (counts.get(f) || 0) + 1);
+    for (const f of _dsnFamiliesOf(d)) counts.set(f, (counts.get(f) || 0) + 1);
   }
   const fams = [...counts.keys()].filter(f => counts.get(f) > 1).sort((a, b) => a.localeCompare(b));
   sel.innerHTML = '<option value="">All designs</option>'
@@ -2082,7 +2139,7 @@ async function dsnPricingRender(forceRefresh) {
   setVal('dsn-set-floor',  s.marginFloorPct);
 
   const scoped = _designsPricingFamilyFilter
-    ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
+    ? _designs.filter(d => _dsnFamiliesOf(d).includes(_designsPricingFamilyFilter))
     : _designs;
   const rows = [];
   scoped.forEach(d => { _dsnDesignEntries(d).forEach(e => rows.push({ d, e })); });
@@ -2147,7 +2204,7 @@ async function dsnPricingSettingsSave() {
 
 function dsnPricingExport() {
   const scoped = _designsPricingFamilyFilter
-    ? _designs.filter(d => _dsnFamilyOf(d) === _designsPricingFamilyFilter)
+    ? _designs.filter(d => _dsnFamiliesOf(d).includes(_designsPricingFamilyFilter))
     : _designs;
   const rows = [];
   scoped.forEach(d => { _dsnDesignEntries(d).forEach(e => rows.push({ d, e })); });

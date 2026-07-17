@@ -66,7 +66,7 @@ export async function onRequestPost(context) {
     id:        design.id,
     name:      design.name      || '',
     category:  design.category  || '',
-    family:    design.family    || '',
+    families:  Array.isArray(design.families) ? design.families : (design.family ? [design.family] : []),
     thumb:     design.thumb     || null,
     imgCount:  (design.images   || []).length,
     preview:   ((design.specs || design.instructions || '').slice(0, 120)),
