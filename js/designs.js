@@ -463,6 +463,7 @@ function designsSetCatFilter(cat) {
 // ════════════════════════════════════════════
 
 let _dsnGuideCostOpen = false;
+let _dsnGuideVarOpen  = false;
 
 async function designsShowGuide(id) {
   if (!id) return;
@@ -470,6 +471,7 @@ async function designsShowGuide(id) {
   _designsEditId = id;
   _designsCurrentFull = null;
   _dsnGuideCostOpen   = false;
+  _dsnGuideVarOpen    = false;
   _designsPricingOpen = false;
   const pricing = document.getElementById('designs-pricing');
   if (pricing) pricing.style.display = 'none';
@@ -494,6 +496,7 @@ async function designsShowGuide(id) {
   designsRenderGuide();
   _dsnLoadLabor().then(_dsnGuideCostRender);
   if (_designsCurrentFull.squareItemId) _dsnLoadSqPrices([_designsCurrentFull.squareItemId]).then(_dsnGuideCostRender);
+  _dsnGuideVarRender();
 }
 
 function designsRenderGuide() {
@@ -534,10 +537,12 @@ function designsRenderGuide() {
     ${d.instructions
       ? `<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2>${_dsnGuideParseText(d.instructions)}</section>`
       : '<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2><p class="dsn-gd-p" style="color:var(--text3)">No instructions yet — open ✎ Edit to add them.</p></section>'}
-    <div id="dsn-guide-cost" class="dsn-no-print"></div>`;
+    <div id="dsn-guide-cost" class="dsn-no-print"></div>
+    <div id="dsn-guide-var" class="dsn-no-print"></div>`;
 
   _dsnGuideBomRender();
   _dsnGuideCostRender();
+  _dsnGuideVarRender();
 }
 
 // Light formatter: numbered lines ("1." / "Step 1:") become badged steps,
@@ -658,11 +663,58 @@ function _dsnGuideCostRender() {
     + (_dsnGuideCostOpen ? `<div class="dsn-guide-cost-detail">${_dsnRollupBoxHtml(r)}</div>` : '');
 }
 
+// Collapsed one-line variations strip at the foot of the guide, below Costing
+function dsnGuideVarToggle() {
+  _dsnGuideVarOpen = !_dsnGuideVarOpen;
+  _dsnGuideVarRender();
+}
+
+function _dsnGuideVarRender() {
+  const el = document.getElementById('dsn-guide-var');
+  if (!el || _designsView !== 'guide' || !_designsCurrentFull) return;
+  const variants = _designsCurrentFull.variants || [];
+  if (!variants.length) {
+    el.innerHTML = '<div class="dsn-guide-cost-bar static"><span>📐 Variations</span><span class="dsn-ru-dim">none yet — add in ✎ Edit</span></div>';
+    return;
+  }
+  if (_designsMaterials === null) {
+    el.innerHTML = '<div class="dsn-guide-cost-bar static"><span>📐 Variations</span><span class="dsn-ru-dim">loading…</span></div>';
+    return;
+  }
+  const sqIds = variants.map(v => v.squareItemId).filter(Boolean);
+  const sqNewIds = sqIds.filter(id => !_dsnSqFetchAttempted.has(id));
+  if (sqNewIds.length) {
+    sqNewIds.forEach(id => _dsnSqFetchAttempted.add(id));
+    _dsnLoadSqPrices(sqIds).then(_dsnGuideVarRender);
+  }
+  const summary = `${variants.length} variation${variants.length === 1 ? '' : 's'}`;
+  const rows = variants.map(v => {
+    const r = dsnCostRollup(v);
+    const stats = [
+      `Piece ${_dsnMoney(r.pieceCost)}`,
+      `Retail ${_dsnMoney(r.retail)}`,
+      `Margin ${r.margin != null ? (r.margin * 100).toFixed(0) + '%' : '—'}`,
+    ].join(' · ');
+    return `<div class="dsn-var-row">
+      <div class="dsn-var-row-main">
+        <div class="dsn-var-row-label">${escHtml(v.label || 'Untitled variation')}</div>
+        <div class="dsn-var-row-stats">${stats}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML =
+    `<button type="button" class="dsn-guide-cost-bar${_dsnGuideVarOpen ? ' open' : ''}" onclick="dsnGuideVarToggle()">
+      <span>📐 Variations</span><span>${summary}</span><span class="dsn-gd-chev">${_dsnGuideVarOpen ? '▾' : '▸'}</span>
+    </button>`
+    + (_dsnGuideVarOpen ? `<div class="dsn-guide-cost-detail">${rows}</div>` : '');
+}
+
 // Re-render guide modules when background costing data lands (no-op elsewhere)
 function _dsnGuideRefresh() {
   if (_designsView !== 'guide') return;
   _dsnGuideBomRender();
   _dsnGuideCostRender();
+  _dsnGuideVarRender();
 }
 
 // Lightbox over the guide's own image set
