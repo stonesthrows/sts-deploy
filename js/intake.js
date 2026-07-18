@@ -202,6 +202,22 @@ function intakeUpdateShippingField() {
   el.style.display = (type !== 'order' && isShipped) ? '' : 'none';
 }
 
+// ── Order For (Individual / Couple) — a couple order (e.g. matching
+//    wedding bands) needs a second ring size + a second stamping field;
+//    an individual order shows just the one of each.
+let _intakeOrderFor = 'individual';
+
+function intakeSetOrderFor(val) {
+  _intakeOrderFor = (val === 'couple') ? 'couple' : 'individual';
+  const isCouple = _intakeOrderFor === 'couple';
+  document.getElementById('order-for-individual-btn')?.classList.toggle('selected', !isCouple);
+  document.getElementById('order-for-couple-btn')?.classList.toggle('selected', isCouple);
+  const ringsize2Fg = document.getElementById('ringsize2-fg');
+  if (ringsize2Fg) ringsize2Fg.style.display = isCouple ? '' : 'none';
+  const stamping2Fg = document.getElementById('stamping2-fg');
+  if (stamping2Fg) stamping2Fg.style.display = isCouple ? '' : 'none';
+}
+
 // Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
 // Delegates to the shared formatter (js/order-widgets.js) so the string
 // format only lives in one place — orders.js uses the same helper.
@@ -313,7 +329,8 @@ function intakeResetDockPos() {
 // ── Dirty check + exit ────────────────────────────────────────
 function _intakeDirty() {
   const ids = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-materials',
-               'f-sizing', 'f-gemstones', 'f-description', 'f-job-desc', 'f-notes',
+               'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2', 'f-gemstones',
+               'f-description', 'f-job-desc', 'f-notes',
                'f-repair-notes', 'f-resize-from', 'f-resize-to'];
   const fields = ids.some(id => {
     const el = document.getElementById(id);
@@ -439,6 +456,15 @@ async function intakeSubmit() {
   const resizeTo    = isResize ? g('f-resize-to').value.trim()   : '';
   const notes       = g('f-notes').value.trim();
   const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
+  // Individual vs Couple (brief: matching-set orders, e.g. wedding bands) —
+  // set from the Step-2 bottom sheet's Sizing tab, so it's Custom-Design-only
+  // (Repair/Resize/Square Item never reach that sheet — don't let stale
+  // sheet state from an earlier Custom Design session leak into them).
+  const isCustomDesign = typeVal === 'order';
+  const orderFor    = isCustomDesign ? (_intakeOrderFor === 'couple' ? 'couple' : 'individual') : '';
+  const ringSize2   = (isCustomDesign && orderFor === 'couple') ? g('f-ringsize2').value.trim() : '';
+  const stamping    = isCustomDesign ? g('f-stamping').value.trim() : '';
+  const stamping2   = (isCustomDesign && orderFor === 'couple') ? g('f-stamping2').value.trim() : '';
   // Sensitivities: structured on the order AND joined into notes so Notion +
   // the printed bag see plain text with no pipeline changes (brief 1.3).
   const sens        = intakeSensList();
@@ -480,6 +506,10 @@ async function intakeSubmit() {
     materials:     (typeVal === 'order' && _intakeEstMaterialLines()) || g('f-materials').value.trim(),
     pieceType:     g('f-piece-type').value || '',
     sizing:        sizing,
+    orderFor:      orderFor,
+    ringSize2:     ringSize2,
+    stamping:      stamping,
+    stamping2:     stamping2,
     gemstones:     g('f-gemstones').value.trim(),
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
@@ -557,7 +587,8 @@ async function intakeSubmit() {
 function intakeReset() {
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
-   'f-piece-type', 'f-sizing', 'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
+   'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
+   'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
    'f-sensitivity-note',
    'f-addr-street', 'f-addr-street2', 'f-addr-city', 'f-addr-state', 'f-addr-zip']
     .forEach(id => {
@@ -567,6 +598,7 @@ function intakeReset() {
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = false);
   document.querySelectorAll('#f-sensitivities input').forEach(c => c.checked = false);
   intakeSensChanged();
+  intakeSetOrderFor('individual');
   _depMode = null;
   document.getElementById('est-preset-strip')?.classList.remove('open');
   if (typeof intakeProfileReset === 'function') intakeProfileReset();

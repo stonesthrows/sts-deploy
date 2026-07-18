@@ -140,12 +140,27 @@ function psRenderPanes() {
       wheel += '<button type="button" class="ps-chip" data-v="' + v + '">' + String(v).replace(/\.?0+$/, '') + '</button>';
     }
     sizing.innerHTML =
-      '<div class="ps-label">Ring Size (US)</div>'
+      '<div class="ps-label">Order For</div>'
+      + '<div class="ps-chips" id="ps-orderfor">'
+      + '<button type="button" class="ps-chip on" data-v="individual">Individual</button>'
+      + '<button type="button" class="ps-chip" data-v="couple">Couple</button>'
+      + '</div>'
+      + '<div class="ps-label" id="ps-ringsize-label">Ring Size (US)</div>'
       + '<div class="ps-wheel ps-chips" id="ps-ringsize">' + wheel + '</div>'
+      + '<div id="ps-ring2-wrap" style="display:none;">'
+      + '<div class="ps-label">Ring Size (US) — Ring 2</div>'
+      + '<div class="ps-wheel ps-chips" id="ps-ringsize2">' + wheel + '</div>'
+      + '</div>'
       + '<div class="ps-label">Band</div>'
       + '<div>'
       + '<span class="ps-step">Width <button type="button" onclick="psStep(\'width\',-0.5)">−</button><span class="ps-step-val" id="ps-width-val">—</span><button type="button" onclick="psStep(\'width\',0.5)">＋</button></span>'
       + '<span class="ps-step">Thickness <button type="button" onclick="psStep(\'thick\',-0.25)">−</button><span class="ps-step-val" id="ps-thick-val">—</span><button type="button" onclick="psStep(\'thick\',0.25)">＋</button></span>'
+      + '</div>'
+      + '<div class="ps-label" id="ps-stamping-label">Ring Stamping</div>'
+      + '<input type="text" class="ps-input" id="ps-stamping" placeholder="e.g. Forever &amp; Always" style="width:100%;">'
+      + '<div id="ps-stamping2-wrap" style="display:none;margin-top:8px;">'
+      + '<div class="ps-label">Ring Stamping — Ring 2</div>'
+      + '<input type="text" class="ps-input" id="ps-stamping2" placeholder="e.g. To the moon and back" style="width:100%;">'
       + '</div>';
   }
   const photos = document.getElementById('ps-pane-photos');
@@ -417,6 +432,18 @@ function _psMetalText() {
 }
 
 function psWrite() {
+  // Order For (Individual/Couple) → shows/hides the 2nd ring size wheel +
+  // 2nd stamping input, and gates whether they submit at all.
+  const orderFor = _psSel('orderfor') || 'individual';
+  const isCouple = orderFor === 'couple';
+  if (typeof intakeSetOrderFor === 'function') intakeSetOrderFor(orderFor);
+  const ring2Wrap = document.getElementById('ps-ring2-wrap');
+  if (ring2Wrap) ring2Wrap.style.display = isCouple ? '' : 'none';
+  const stamping2Wrap = document.getElementById('ps-stamping2-wrap');
+  if (stamping2Wrap) stamping2Wrap.style.display = isCouple ? '' : 'none';
+  const ringsizeLabel = document.getElementById('ps-ringsize-label');
+  if (ringsizeLabel) ringsizeLabel.textContent = 'Ring Size (US)' + (isCouple ? ' — Ring 1' : '');
+
   // Metal + finish → f-materials (+ mirror the finish chips onto the
   // existing #f-finish checkboxes that intakeSubmit() reads)
   const metal = _psMetalText();
@@ -444,6 +471,17 @@ function psWrite() {
     sizing.value = parts.join(' · ');
     sizing.dataset.auto = '2'; // sheet-owned — registry prefill leaves it alone
   }
+  // 2nd ring size (Couple only) → f-ringsize2
+  const sz2 = isCouple ? _psSel('ringsize2') : '';
+  const ringsize2El = document.getElementById('f-ringsize2');
+  if (ringsize2El) ringsize2El.value = sz2 ? ('sz ' + sz2) : '';
+  // Ring stamping(s) → f-stamping / f-stamping2 (2nd only when Couple)
+  const stampEl = document.getElementById('ps-stamping');
+  const fStamp  = document.getElementById('f-stamping');
+  if (fStamp) fStamp.value = stampEl ? stampEl.value.trim() : '';
+  const stamp2El = document.getElementById('ps-stamping2');
+  const fStamp2  = document.getElementById('f-stamping2');
+  if (fStamp2) fStamp2.value = (isCouple && stamp2El) ? stamp2El.value.trim() : '';
   // Peek summary — the one-line echo ("14k Rose · 1ct oval moissanite · sz 6.5")
   const sumParts = [];
   if (metal) sumParts.push(metal.replace(' Gold', ''));
@@ -513,6 +551,11 @@ document.getElementById('ps-pane-notes')?.addEventListener('input', e => {
   if (e.target.id !== 'ps-notes') return;
   const dst = document.getElementById('f-notes');
   if (dst) dst.value = e.target.value;
+});
+// Stamping inputs (typed, not tapped) → re-run psWrite() so f-stamping /
+// f-stamping2 stay in sync as the user types.
+document.getElementById('ps-pane-sizing')?.addEventListener('input', e => {
+  if (e.target.id === 'ps-stamping' || e.target.id === 'ps-stamping2') psWrite();
 });
 document.getElementById('ps-pane-notes')?.addEventListener('focusin', e => {
   if (e.target.id === 'ps-notes') psSetDetent('full');
