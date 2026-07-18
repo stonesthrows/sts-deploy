@@ -1673,6 +1673,16 @@ async function retrySyncOrder(id) {
 }
 
 
+// Custom Design intake stores its ring size inside the free-text Sizing /
+// Dimensions string ("sz 6.5 · 4mm wide", "ring size 7, 18\" chain") rather
+// than on a line item, so oiPrintRingSizeShort() comes back empty for those
+// orders — pull the size out of the string so the bag's Ring Size(s) box
+// isn't blank.
+function _woRingSizeFromSizing(sizing) {
+  const m = /(?:\bsz|\bsize)\s*:?\s*([\d.\/]+(?:\s+\d+\/\d+)?)/i.exec(sizing || '');
+  return m ? m[1] : '';
+}
+
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
@@ -1712,7 +1722,10 @@ function printOrder(id) {
     price:     o.price       || '',
     deposit:   o.deposit     || '',
     shipping:  o.shipping    || '',
-    ringSize:  oiPrintRingSizeShort(o),
+    ringSize:  oiPrintRingSizeShort(o) || _woRingSizeFromSizing(o.sizing),
+    ringSize2: _woRingSizeFromSizing(o.ringSize2) || o.ringSize2 || '',
+    stamping:  o.stamping  || '',
+    stamping2: o.stamping2 || '',
     pickup:    o.pickup      || '',
     source:    o.contactSource || '',
     stage:     o.stage       || '',

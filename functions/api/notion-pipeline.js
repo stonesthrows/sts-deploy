@@ -112,6 +112,7 @@ const APP_DATA_FIELDS = [
   'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
   'stones', 'estimateAlternatives', 'estimate',
   'items', 'jobDescMode', 'fullyPaid', 'shipping',
+  'orderFor', 'ringSize2', 'stamping', 'stamping2',
 ];
 
 function appDataToProp(o) {
