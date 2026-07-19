@@ -51,10 +51,15 @@ function loadNotes() {
   }
 }
 
-// Re-render the Restock Queue if its tab is showing (its items live in NOTES_DATA)
+// Re-render the Restock Queue if its tab is showing (its items live in
+// NOTES_DATA) — but never while the user is mid-edit in the queue UI
+// (open edit panel or focused input): rebuilding the list DOM under them
+// dismisses the mobile keyboard and throws away the half-typed qty.
 function _notesRerenderQueue() {
   var queuePanel = document.getElementById('tab-to-restock');
-  if (queuePanel && queuePanel.classList.contains('active') && typeof restockQueueRender === 'function') restockQueueRender();
+  if (!queuePanel || !queuePanel.classList.contains('active')) return;
+  if (typeof _rqRefreshBlocked === 'function' && _rqRefreshBlocked()) return;
+  if (typeof restockQueueRender === 'function') restockQueueRender();
 }
 
 function refreshNotes() {
@@ -67,8 +72,7 @@ function refreshNotes() {
       ['studio','todo','toorder','webapp','market'].forEach(function(key) {
         renderNotesList(key, itemsFor(key));
       });
-      var queuePanel = document.getElementById('tab-to-restock');
-      if (queuePanel && queuePanel.classList.contains('active')) restockQueueRender();
+      _notesRerenderQueue();
     })
     .catch(function() {});
 }

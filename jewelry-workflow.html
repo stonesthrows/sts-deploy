@@ -3361,10 +3361,10 @@
       font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 12px;
       cursor: pointer; margin-top: 6px; transition: background 0.15s;
     }
-    /* On mobile, editing is reached via the header ✎ Edit toggle, not a
-       per-bar button — tapping a bar goes straight to the read view (or,
-       with the header toggle on, straight to edit) instead. */
-    @media (max-width: 640px) { .rq-edit-btn { display: none; } }
+    /* The per-bar ✎ Edit button shows on every viewport. On mobile the
+       header ✎ Edit toggle additionally lets a tap open bars straight
+       into edit mode, but it must never be the only way in — hiding this
+       button on phones left the read view as a dead end. */
     .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: #8A6020; }
     .rq-note-textarea {
       width: 100%; box-sizing: border-box; margin-top: 8px; padding: 7px 10px;
@@ -3583,12 +3583,11 @@
     .rq-timer-pieces.rq-pieces-missing label { color: #C0392B; font-weight: 600; }
     /* Auto-calculated chain-making time shown for pendant timers (info-only) */
     .rq-timer-chain { font-size: 12px; color: var(--text2); }
+    /* The editable sizes grid shows on every viewport while a timer runs —
+       phones adjust counts at the bench too, so mobile must never be
+       locked to the read-only summary. */
     .rq-timer-sizes-edit { display: block; }
     .rq-timer-sizes-readonly { display: none; }
-    @media (max-width: 640px) {
-      .rq-timer-sizes-edit { display: none; }
-      .rq-timer-sizes-readonly { display: block; }
-    }
     /* ── Push to Square (session log) ── */
     .rq-sbar-pieces { font-size: 11px; color: var(--text2); font-weight: 500; }
     .rq-sbar-pcs-inline { font-size: 12px; font-weight: 500; color: var(--text2); }
@@ -3823,6 +3822,25 @@
       font-size: 12px; text-align: center; font-family: inherit; color: var(--text); background: #fff;
     }
     .rq-variant-qty:focus { border-color: var(--accent); outline: none; }
+    /* Phones: every editable control in the queue panels needs ≥16px text —
+       below that iOS Safari zooms the whole viewport on focus, which made
+       editing the qty totals nearly impossible on mobile. Inputs also get
+       roomier tap targets at this width. */
+    @media (max-width: 640px) {
+      .rq-variant-qty, .rq-variant-qty-inline {
+        font-size: 16px; width: 52px; padding: 4px 3px;
+      }
+      .rq-variant-stone-select,
+      .rq-edit-title-input,
+      .rq-note-textarea,
+      .rq-piece-input,
+      .rq-price-input,
+      .rq-setup-search-input,
+      .rq-timer-notes-area { font-size: 16px; }
+      /* Wide metal × size tables pan sideways instead of clipping at the
+         panel edge now that their qty cells are finger-sized. */
+      .rq-variant-group-stack { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
     .rq-variant-done {
       background: var(--accent); border: none; border-radius: 5px; color: #fff;
       font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 4px 13px; cursor: pointer;
@@ -11165,7 +11183,7 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/gmail.js"></script>
 <script src="js/sales.js?v=20260715a"></script>
 <script src="js/production.js?v=20260711a"></script>
-<script src="js/notes.js?v=39"></script>
+<script src="js/notes.js?v=40"></script>
 <script src="js/restock.js?v=13"></script>
 <script src="js/restock-sessions.js?v=4"></script>
 <script src="js/supplier-history.js?v=2"></script>
