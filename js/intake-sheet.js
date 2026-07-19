@@ -277,7 +277,10 @@ function psSetDetent(d) {
 
 function psSetTab(name) {
   document.querySelectorAll('#ps-tabs .ps-tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
-  document.querySelectorAll('.ps-pane').forEach(p => p.classList.toggle('on', p.id === 'ps-pane-' + name));
+  // Scoped to #param-sheet's own panes only — Metal/Stone now live outside
+  // the sheet (Paper mode's Screen 1, js/intake-paper.js) as always-visible
+  // panes and must not be hidden by tab switching here.
+  document.querySelectorAll('#param-sheet .ps-pane').forEach(p => p.classList.toggle('on', p.id === 'ps-pane-' + name));
   if (name === 'notes') {
     const ta = document.getElementById('ps-notes');
     const src = document.getElementById('f-notes');
@@ -491,7 +494,7 @@ function psWrite() {
   }
   if (sz) sumParts.push('sz ' + sz);
   const sum = document.getElementById('ps-summary');
-  if (sum) sum.textContent = sumParts.length ? sumParts.join(' · ') : 'tap a tab to set metal · stone · sizing';
+  if (sum) sum.textContent = sumParts.length ? sumParts.join(' · ') : 'tap a tab to set sizing';
   // Sensitivity conflicts warn inline here (2.5 ties back to 1.3)
   if (typeof intakeSensChanged === 'function') intakeSensChanged();
 }
@@ -538,10 +541,10 @@ function psReset() {
   _refPhotos = [];
   psRenderPanes();
   psRenderStoneList();
-  psSetTab('metal');
+  psSetTab('sizing');
   psSetDetent('peek');
   const sum = document.getElementById('ps-summary');
-  if (sum) sum.textContent = 'tap a tab to set metal · stone · sizing';
+  if (sum) sum.textContent = 'tap a tab to set sizing';
 }
 
 // ── Init ──────────────────────────────────────────────────────

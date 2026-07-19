@@ -1,9 +1,15 @@
 // ════════════════════════════════════════════
 //  PAPER MODE  —  js/intake-paper.js
-//  Goodnotes-style handwritten intake page for intake.html.
-//  The on-screen page recreates the physical STS work-order bag: circle the
-//  order type / pickup market, write customer info on ruled lines, sketch in
-//  the sketch box. Two stacked canvases:
+//  Goodnotes-style handwritten intake, 3 screens:
+//    Screen 1 (this file) — the handwriting page: circle the order type /
+//      pickup market, write customer info on ruled lines, plus a Metal/Stone
+//      side panel (the same chip UI js/intake-sheet.js renders, relocated
+//      here). Optional — see the Sketch toggle below.
+//    Screen 2 — the EXISTING #step-2 (full sketch canvas + dock + bottom
+//      sheet), reused as-is. Skippable per-order via the Sketch toggle.
+//    Screen 3 — the EXISTING #step-3 (Estimate Builder), reused as-is with
+//      the Order Items/Total block hidden via CSS (see intake.html).
+//  Screen 1's page is two stacked canvases:
 //    #paper-template — the printed form (redrawn at any size, never inked)
 //    #paper-canvas   — transparent ink layer (sketchpad.js pad, Pencil-only)
 //  Invisible zones over the page tell the OCR what each region means; a
@@ -24,7 +30,7 @@ const _PAPER_PICKUP = {
   SVFM: "Sunset Valley Farmer's Market", Bell: 'Bell Market', TXFM: 'Mueller Market',
   CCFM: 'Chaparral Crossing Market', Flea: 'Austin Flea', Studio: 'Studio', Ship: 'To be Shipped',
 };
-const _PAPER_TYPE = { Custom: 'order', Etsy: 'order', Resize: 'resize', Repair: 'repair' };
+const _PAPER_TYPE = { Custom: 'order', Resize: 'resize', Repair: 'repair' };
 const _PAPER_PAID = { Cash: 'Cash', Credit: 'Credit Card' }; // Check has no f-paid-by option — lands in notes
 
 let _paperZones = [];         // live zone objects: {id,kind,label,rect,options?,field?,hasInk,value,_t,_dirty,chip}
@@ -35,7 +41,10 @@ let _paperKeyHinted = false;
 
 // ── Page layout — single source of truth for the template drawing, the
 //    OCR zone rects, and the chip positions. All pixel math, recomputed on
-//    every resize, so landscape/portrait both work. ──────────────────────
+//    every resize, so landscape/portrait both work. The Metal/Stone panel
+//    (js/intake-sheet.js's ps-pane-metal/ps-pane-stone) and the sketch page
+//    are separate screens now (see paperGoScreen below), so this page is
+//    just the ruled fields — full width in both orientations. ──────────
 function _paperLayout(w, h) {
   const landscape = w >= h;
   const M = Math.round(Math.min(w, h) * 0.04);
@@ -46,13 +55,13 @@ function _paperLayout(w, h) {
   // Circle strips — order type + pickup market, like the top of the bag
   const optH = Math.max(42, Math.round(h * 0.055));
   if (landscape) {
-    zones.push({ id: 'ordertype', kind: 'circle', label: 'ORDER TYPE', options: ['Custom', 'Etsy', 'Resize', 'Repair'],
-                 rect: { x: M, y, w: Math.round(innerW * 0.42), h: optH } });
+    zones.push({ id: 'ordertype', kind: 'circle', label: 'ORDER TYPE', options: ['Custom', 'Resize', 'Repair'],
+                 rect: { x: M, y, w: Math.round(innerW * 0.32), h: optH } });
     zones.push({ id: 'pickup', kind: 'circle', label: 'PICKUP', options: ['SVFM', 'Bell', 'TXFM', 'CCFM', 'Flea', 'Studio', 'Ship'],
-                 rect: { x: M + Math.round(innerW * 0.46), y, w: innerW - Math.round(innerW * 0.46), h: optH } });
+                 rect: { x: M + Math.round(innerW * 0.36), y, w: innerW - Math.round(innerW * 0.36), h: optH } });
     y += optH + 6;
   } else {
-    zones.push({ id: 'ordertype', kind: 'circle', label: 'ORDER TYPE', options: ['Custom', 'Etsy', 'Resize', 'Repair'],
+    zones.push({ id: 'ordertype', kind: 'circle', label: 'ORDER TYPE', options: ['Custom', 'Resize', 'Repair'],
                  rect: { x: M, y, w: innerW, h: optH } });
     y += optH + 2;
     zones.push({ id: 'pickup', kind: 'circle', label: 'PICKUP', options: ['SVFM', 'Bell', 'TXFM', 'CCFM', 'Flea', 'Studio', 'Ship'],
@@ -60,14 +69,13 @@ function _paperLayout(w, h) {
     y += optH + 6;
   }
 
-  // Fields column (left in landscape, top in portrait) + sketch box
-  const colTop = y;
-  const fieldW = landscape ? Math.round(innerW * 0.52) : innerW;
-  const fieldsBottom = landscape ? (h - M) : (colTop + Math.round((h - M - colTop) * 0.58));
-  const avail = fieldsBottom - colTop;
-  const rowH = Math.max(44, Math.min(78, Math.floor(avail / 9)));
+  // Fields fill the full page width now (no sketch column to share with).
+  const fieldW = innerW;
+  const fieldsBottom = h - M;
+  const avail = fieldsBottom - y;
+  const rowH = Math.max(48, Math.min(90, Math.floor(avail / 7)));
   const half = Math.round(fieldW * 0.5) - 6;
-  let fy = colTop;
+  let fy = y;
   const row = (id, kind, label, x, wd, hh, extra) => {
     zones.push(Object.assign({ id, kind, label, rect: { x, y: fy, w: wd, h: hh } }, extra || {}));
   };
@@ -82,12 +90,6 @@ function _paperLayout(w, h) {
   const itemH = Math.round(rowH * 1.4);
   row('itemprice', 'itemprice', 'Item & Price', M, fieldW, itemH); fy += itemH;
   row('notes', 'notes', 'Notes', M, fieldW, Math.max(rowH * 2, fieldsBottom - fy));
-
-  // Sketch box — right column (landscape) / lower half (portrait)
-  const sk = landscape
-    ? { x: M + fieldW + 16, y: colTop, w: w - M - (M + fieldW + 16), h: h - M - colTop }
-    : { x: M, y: fieldsBottom + 10, w: innerW, h: h - M - (fieldsBottom + 10) };
-  zones.push({ id: 'sketch', kind: 'sketch', label: 'Sketch', rect: sk });
   return zones;
 }
 
@@ -158,20 +160,6 @@ function _paperDrawTemplate(ctx, w, h, zones) {
         for (let y = r.y + Math.min(46, Math.round(r.h * 0.3)); y <= r.y + r.h - 4; y += 34) rule(r.x, y, r.w);
         break;
       }
-      case 'sketch': {
-        ctx.strokeStyle = '#E4D2B0';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
-        ctx.fillStyle = 'rgba(165,131,74,0.4)';
-        ctx.font = '800 11px -apple-system, system-ui, sans-serif';
-        ctx.fillText('SKETCH', r.x + 10, r.y + 18);
-        ctx.fillStyle = 'rgba(90,130,160,0.14)';
-        for (let gx = r.x + 20; gx < r.x + r.w - 6; gx += 26)
-          for (let gy = r.y + 30; gy < r.y + r.h - 6; gy += 26) {
-            ctx.beginPath(); ctx.arc(gx, gy, 1.1, 0, Math.PI * 2); ctx.fill();
-          }
-        break;
-      }
       default: { // text / date ruled fields
         label(z);
         rule(z.rect.x, z.rect.y + z.rect.h - 10, z.rect.w);
@@ -185,6 +173,10 @@ function _paperDrawTemplate(ctx, w, h, zones) {
 function _paperSize() {
   const stage = document.getElementById('paper-stage');
   if (!stage || !PAPER) return;
+  // .paper-row goes row (landscape) / column (portrait) — same aspect check
+  // _paperLayout() uses, kept in sync so the CSS and the canvas math agree.
+  const mode = document.getElementById('paper-mode');
+  if (mode) mode.classList.toggle('portrait', mode.clientHeight > mode.clientWidth);
   requestAnimationFrame(() => {
     const w = Math.round(stage.clientWidth);
     const h = Math.round(stage.clientHeight);
@@ -259,7 +251,6 @@ function _paperWireStrokes() {
       const hit = s.minX - pad < r.x + r.w && s.maxX + pad > r.x && s.minY - pad < r.y + r.h && s.maxY + pad > r.y;
       if (!hit) return;
       if (!s.eraser) z.hasInk = true;
-      if (z.kind === 'sketch') return; // never OCR'd — pure ink
       z._dirty = true;
       _paperChipSet(z, 'pending', '✍ …');
       clearTimeout(z._t);
@@ -466,7 +457,6 @@ function _paperApplyItemPrice(item, price) {
 function _paperApplyOrderType(opt) {
   const type = _PAPER_TYPE[opt];
   if (!type) return;
-  if (opt === 'Etsy') _paperSetField('f-source', 'Etsy Message');
   const sel = document.getElementById('f-order-type');
   if (!sel || sel.value === type) return;
   const keep = (_paperItemRef && _oiItems.includes(_paperItemRef)) ? _paperItemRef : null;
@@ -553,15 +543,15 @@ async function _paperPagePass() {
 
 function _paperPagePrompt() {
   return 'You are an order intake assistant for Stones Throw Studio, a custom jewelry shop. '
-    + 'The image is a handwritten digital work-order page with printed labels: circled ORDER TYPE (Custom, Etsy, Resize, Repair), '
+    + 'The image is a handwritten digital work-order page with printed labels: circled ORDER TYPE (Custom, Resize, Repair), '
     + 'circled PICKUP market (SVFM = Sunset Valley Farmer\'s Market, Bell = Bell Market, TXFM = Mueller Market, CCFM = Chaparral Crossing Market, Flea = Austin Flea, Studio = Studio, Ship = To be Shipped), '
-    + 'ruled fields (Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), an Item & Price line, a Notes area, and a sketch box.\n'
+    + 'ruled fields (Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), an Item & Price line, and a Notes area.\n'
     + 'CRITICAL ACCURACY RULES: copy the exact words you see — never substitute similar-sounding products; if a word is unclear write it as-is with [?] after it; look closely at numerals.\n'
     + 'Capture ALL text in the Notes area verbatim — do not skip or summarize it. Also transcribe any handwriting written OUTSIDE the labeled fields into notes.\n'
     + 'Return ONLY a valid JSON object with these exact keys (null for anything not visible):\n'
     + '{"customer_name":string|null,"email":string|null,"phone":string|null,"take_in_date":"YYYY-MM-DD"|null,"deadline":"YYYY-MM-DD"|null,'
     + '"pickup_location":"Bell Market"|"Mueller Market"|"Chaparral Crossing Market"|"Sunset Valley Farmer\'s Market"|"Austin Flea"|"Studio"|"To be Shipped"|null,'
-    + '"contacted_via":"Etsy Message"|null,"order_type":"order"|"resize"|"repair","description":string|null,"ring_size":string|null,'
+    + '"order_type":"order"|"resize"|"repair","description":string|null,"ring_size":string|null,'
     + '"price":number|null,"paid_by":"Cash"|"Credit"|"Check"|null,"notes":string|null}\n'
     + 'For dates, infer the year as ' + new Date().getFullYear() + ' if only month/day is shown. Return ONLY the JSON object, no other text.';
 }
@@ -582,7 +572,6 @@ function _paperMergePagePass(p) {
   fillIfEmpty('f-takein',   /^\d{4}-\d{2}-\d{2}$/.test(p.take_in_date || '') ? p.take_in_date : '');
   fillIfEmpty('f-deadline', /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '');
   if (fillIfEmpty('f-pickup', p.pickup_location || '') && typeof toggleShippingAddress === 'function') toggleShippingAddress();
-  fillIfEmpty('f-source', p.contacted_via || '');
   fillIfEmpty('f-description', (p.description || '').trim());
   if (p.ring_size) fillIfEmpty('f-sizing', /[a-z]/i.test(p.ring_size) ? p.ring_size : 'ring size ' + p.ring_size);
   if (p.paid_by && _PAPER_PAID[p.paid_by]) fillIfEmpty('f-paid-by', _PAPER_PAID[p.paid_by]);
@@ -598,23 +587,6 @@ function _paperMergePagePass(p) {
     filled++;
   }
   if (filled) toast('✓ Page read — filled ' + filled + ' more field' + (filled > 1 ? 's' : ''), '✓');
-}
-
-// ── Sketch handoff — the sketch box's ink becomes the order's design sketch
-//    (drawn into the SK pad so sketchExport(), the review thumbnail, and the
-//    bag print all work exactly as they do for a Step-2 sketch). ───────────
-function _paperHandoffSketch() {
-  const z = _paperZones.find(x => x.id === 'sketch');
-  if (!z || !z.hasInk || typeof SK === 'undefined' || !SK) return;
-  const r = z.rect;
-  const crop = document.createElement('canvas');
-  crop.width = r.w; crop.height = r.h;
-  crop.getContext('2d').drawImage(PAPER.canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-  _padBlank(SK);
-  const s = Math.min(SK.canvas.width / r.w, SK.canvas.height / r.h, 1);
-  SK.ctx.drawImage(crop, (SK.canvas.width - r.w * s) / 2, (SK.canvas.height - r.h * s) / 2, r.w * s, r.h * s);
-  SK.hasInk = true;
-  SK.dirty = true;
 }
 
 // Full-page export: printed template + ink flattened. jpeg=true for the
@@ -659,13 +631,90 @@ function paperDockToggle() {
   document.getElementById('paper-dock')?.classList.toggle('collapsed');
 }
 
+// ── 3-screen navigation ────────────────────────────────────────────────────
+// Screen 1 = #paper-mode (this file's handwriting page + Metal/Stone panel).
+// Screen 2 = the EXISTING #step-2 (full sketch canvas/dock/bottom sheet),
+// Screen 3 = the EXISTING #step-3 (Estimate Builder; Order Items/Total
+// hidden via the body.paper-on CSS rule in intake.html) — both reused as-is,
+// just shown/hidden here instead of relocated. Mirrors intakeStep()'s
+// show-one-hide-the-rest pattern, driven by Paper mode's own footer
+// (#paper-footer) since the typed wizard's footer stays hidden throughout.
+let _paperScreen = 1;
+let _paperSketchOn = true; // Screen 2 is optional — not every order needs a sketch
+const _PAPER_SCREEN_LABEL = { 1: 'Handwriting', 2: 'Sketch', 3: 'Estimate' };
+
+function _paperFlow() { return _paperSketchOn ? [1, 2, 3] : [1, 3]; }
+
+function paperGoScreen(n) {
+  const flow = _paperFlow();
+  if (!flow.includes(n)) return;
+  _paperScreen = n;
+  const s1 = document.getElementById('paper-mode');
+  if (s1) s1.style.display = (n === 1) ? 'flex' : 'none';
+  const s2 = document.getElementById('step-2');
+  if (s2) s2.style.display = (n === 2) ? 'flex' : 'none';
+  const s3 = document.getElementById('step-3');
+  if (s3) s3.style.display = (n === 3) ? 'block' : 'none';
+  if (n === 1) _paperSize();
+  if (n === 2 && typeof intakeSizeSketchStage === 'function') intakeSizeSketchStage();
+  _paperRenderNav();
+}
+
+function paperNext() {
+  const flow = _paperFlow(), i = flow.indexOf(_paperScreen);
+  if (i >= 0 && i < flow.length - 1) paperGoScreen(flow[i + 1]);
+}
+
+function paperBack() {
+  const flow = _paperFlow(), i = flow.indexOf(_paperScreen);
+  if (i > 0) paperGoScreen(flow[i - 1]);
+}
+
+// Turning the Sketch page off doesn't discard any ink already drawn on SK —
+// only navigation is affected (SK.hasInk is independent of this toggle). If
+// it's off and no ink was ever drawn, sketchExport() already returns null
+// today — no order-schema change needed either way.
+function paperSetSketchOn(on) {
+  _paperSketchOn = !!on;
+  if (!_paperSketchOn && _paperScreen === 2) { paperGoScreen(1); return; }
+  _paperRenderNav();
+}
+function paperToggleSketchOn() { paperSetSketchOn(!_paperSketchOn); }
+
+function _paperRenderNav() {
+  const flow = _paperFlow();
+  const idx = flow.indexOf(_paperScreen);
+  const dots = document.getElementById('paper-dots');
+  if (dots) {
+    dots.innerHTML = flow.map(s =>
+      '<button type="button" class="paper-dot' + (s === _paperScreen ? ' on' : '') + '" onclick="paperGoScreen(' + s + ')" aria-label="' + _PAPER_SCREEN_LABEL[s] + '"></button>'
+    ).join('');
+  }
+  const label = document.getElementById('paper-screen-label');
+  if (label) label.textContent = _PAPER_SCREEN_LABEL[_paperScreen] + ' · ' + (idx + 1) + ' of ' + flow.length;
+  const back = document.getElementById('paper-back-btn');
+  if (back) back.classList.toggle('invisible', idx <= 0);
+  const next = document.getElementById('paper-next-btn');
+  if (next) next.classList.toggle('invisible', idx === flow.length - 1);
+  const toggle = document.getElementById('paper-sketch-toggle');
+  if (toggle) toggle.classList.toggle('on', _paperSketchOn);
+}
+
 // ── Mode toggle + init ────────────────────────────────────────────────────
 function paperToggle(on) {
   _paperOn = (on !== undefined) ? !!on : !_paperOn;
   document.body.classList.toggle('paper-on', _paperOn);
   const btn = document.getElementById('paper-mode-btn');
   if (btn) btn.textContent = _paperOn ? '⌨ Form' : '✍ Paper';
-  if (_paperOn) { _paperEnsureInit(); _paperSize(); }
+  if (_paperOn) {
+    _paperEnsureInit();
+    paperGoScreen(_paperScreen);
+  } else if (typeof intakeStep === 'function') {
+    // Re-assert the typed wizard's own step visibility — paperGoScreen() was
+    // the last thing to set #step-2/#step-3's inline display, and only
+    // #step-1 is force-hidden by CSS while Paper mode is on.
+    intakeStep(_intakeStep);
+  }
   try { localStorage.setItem('sts-intake-paper', _paperOn ? '1' : '0'); } catch (e) {}
 }
 
@@ -679,8 +728,8 @@ function _paperEnsureInit() {
   _padBlank(PAPER);
   _paperWireStrokes();
 }
-window.addEventListener('resize', () => { if (_paperOn) _paperSize(); });
-window.addEventListener('orientationchange', () => { if (_paperOn) setTimeout(_paperSize, 300); });
+window.addEventListener('resize', () => { if (_paperOn && _paperScreen === 1) _paperSize(); });
+window.addEventListener('orientationchange', () => { if (_paperOn && _paperScreen === 1) setTimeout(_paperSize, 300); });
 
 function _paperResetState() {
   if (PAPER) {
@@ -696,6 +745,9 @@ function _paperResetState() {
   });
   Object.keys(_paperWrote).forEach(k => delete _paperWrote[k]);
   _paperItemRef = null;
+  _paperScreen = 1;
+  _paperSketchOn = true;
+  if (_paperOn) paperGoScreen(1);
 }
 
 // ── Wrap the intake.js entry points (loaded before this file) ─────────────
@@ -711,23 +763,24 @@ intakeReset = function () {
 };
 
 // Save & Close from Paper mode: finish reading the ink (pending zones →
-// whole-page pass → sketch handoff), then the normal review screen. The
-// chips + filled fields ARE the field-level review; the review overlay
-// stays the client-facing confirmation it already is.
+// whole-page pass), then the normal review screen. The chips + filled
+// fields ARE the field-level review; the review overlay stays the
+// client-facing confirmation it already is. The Sketch screen (when used)
+// draws straight onto SK via #step-2 — nothing to hand off here anymore.
 const _ppReviewOpen = intakeReviewOpen;
 intakeReviewOpen = async function () {
   if (_paperOn && PAPER && PAPER.hasInk) {
     await _paperFlush();
     await _paperPagePass();
-    _paperHandoffSketch();
   }
   if (_paperOn) {
-    // Validation deep-links (intakeStep) are invisible while the wizard is
-    // hidden — surface the gap here instead of silently jumping nowhere.
-    if (!getFullName()) { toast('Write the customer name before saving (or tap its chip to type it)', '⚠', 4000); return; }
+    // Validation deep-links (intakeStep) don't reach Paper mode's screens —
+    // jump back to the Handwriting screen so the gap is visible, not silent.
+    if (!getFullName()) { toast('Write the customer name before saving (or tap its chip to type it)', '⚠', 4000); paperGoScreen(1); return; }
     const type = document.getElementById('f-order-type')?.value || 'order';
     if (type !== 'repair' && !(document.getElementById('f-description')?.value || '').trim()) {
       toast('Write the item / description before saving', '⚠', 4000);
+      paperGoScreen(1);
       return;
     }
   }
