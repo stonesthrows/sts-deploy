@@ -731,8 +731,6 @@
 
     #paper-mode { display: none; position: absolute; inset: 0; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
     body.paper-on #paper-mode { display: flex; }
-    .paper-row { display: flex; flex: 1; min-height: 0; gap: 10px; }
-    #paper-mode.portrait .paper-row { flex-direction: column; }
     .paper-stage {
       position: relative; flex: 1; min-height: 0; min-width: 0;
       border-radius: 14px; overflow: hidden; background: #FDF8EE;
@@ -754,21 +752,6 @@
     .paper-chip.err { color: #B03030; border-color: #ECC5C5; background: #FDF1F0; }
     #paper-dock { top: auto; bottom: 14px; }
     #paper-mode .dock-reopen { top: auto; bottom: 14px; }
-
-    /* Metal/Stone side panel — the SAME ps-pane-metal/ps-pane-stone ids
-       js/intake-sheet.js already renders into (relocated here from Step 2's
-       bottom sheet), just always-visible instead of tab-switched. */
-    .paper-side {
-      flex: 0 0 320px; min-width: 0; overflow-y: auto; overscroll-behavior: contain;
-      background: rgba(15,23,32,0.94); border-radius: 14px; padding: 14px 16px;
-      color: #E8EEF2; box-shadow: 0 18px 44px rgba(0,0,0,0.45);
-    }
-    #paper-mode.portrait .paper-side { flex: 0 0 auto; max-height: 42%; }
-    .paper-side-title {
-      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
-      color: #C9983A; margin: 14px 0 4px;
-    }
-    .paper-side-title:first-child { margin-top: 0; }
 
     /* ═══ Paper-mode footer — Back / Sketch toggle / dots / Next.
        Sibling of #intake-footer (which stays hidden in paper mode);
@@ -1097,7 +1080,7 @@
             <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
             <div class="sens-warn" id="sens-warn"></div>
           </div>
-          <div class="fg">
+          <div class="fg" id="sizing-fg">
             <label>Sizing / Dimensions</label>
             <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
             <div class="sens-warn" id="sizing-verify-hint"></div>
@@ -1106,7 +1089,7 @@
             <label>2nd Ring Size</label>
             <input type="text" id="f-ringsize2" placeholder="e.g. ring size 9">
           </div>
-          <div class="fg">
+          <div class="fg" id="stamping-fg">
             <label>Ring Stamping</label>
             <input type="text" id="f-stamping" placeholder="e.g. Forever &amp; Always">
           </div>
@@ -1419,46 +1402,38 @@
       </div>
     </section>
 
-    <!-- ── Paper mode Screen 1 — Handwriting. The work-order page (printed
-         template + transparent ink + ghost-chip layer) plus a Metal/Stone
-         side panel (the SAME ps-pane-metal/ps-pane-stone js/intake-sheet.js
-         already renders, relocated here from Step 2's bottom sheet). All
-         drawing/OCR/nav logic in js/intake-paper.js. Screens 2 (Sketch) and
-         3 (Estimate) are the EXISTING #step-2/#step-3 above, reused as-is —
-         paperGoScreen() just shows/hides between the three. ── -->
+    <!-- ── Paper mode Screen 1 — Handwriting. A single full-page work-order
+         page (printed template + transparent ink + ghost-chip layer) —
+         order type / piece type / pickup circles, ruled fields, a
+         multi-line Materials block, Item & Price, and Notes, all
+         handwritten + OCR'd (no chip UI). All drawing/OCR/nav logic in
+         js/intake-paper.js. Screens 2 (Sketch) and 3 (Estimate) are the
+         EXISTING #step-2/#step-3 above, reused as-is — paperGoScreen()
+         just shows/hides between the three. ── -->
     <section id="paper-mode">
-      <div class="paper-row" id="paper-row">
-        <div class="paper-stage" id="paper-stage">
-          <canvas id="paper-template"></canvas>
-          <canvas id="paper-canvas"></canvas>
-          <div id="paper-chips"></div>
+      <div class="paper-stage" id="paper-stage">
+        <canvas id="paper-template"></canvas>
+        <canvas id="paper-canvas"></canvas>
+        <div id="paper-chips"></div>
 
-          <div class="sketch-dock" id="paper-dock">
-            <div class="dock-head">
-              <span class="dock-grip">⠿</span>
-              <button type="button" class="dock-toggle" onclick="paperDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
-            </div>
-            <div class="dock-row">
-              <button type="button" class="dock-btn tool active" id="pp-pen"    onclick="paperSetTool('pen')"    title="Pen">🖊</button>
-              <button type="button" class="dock-btn tool"        id="pp-pencil" onclick="paperSetTool('pencil')" title="Pencil">✏️</button>
-              <button type="button" class="dock-btn tool"        id="pp-eraser" onclick="paperSetTool('eraser')" title="Eraser">🧽</button>
-            </div>
-            <div class="dock-row">
-              <button type="button" class="dock-btn" onclick="paperUndo()"  title="Undo">↩</button>
-              <button type="button" class="dock-btn" onclick="paperRedo()"  title="Redo">↪</button>
-              <button type="button" class="dock-btn" onclick="paperClear()" title="Clear page">🗑</button>
-            </div>
-            <div class="dock-hint">✎ Apple Pencil only<br>✌️ undo · 🤟 redo</div>
+        <div class="sketch-dock" id="paper-dock">
+          <div class="dock-head">
+            <span class="dock-grip">⠿</span>
+            <button type="button" class="dock-toggle" onclick="paperDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
           </div>
-          <button type="button" class="dock-reopen" onclick="paperDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
+          <div class="dock-row">
+            <button type="button" class="dock-btn tool active" id="pp-pen"    onclick="paperSetTool('pen')"    title="Pen">🖊</button>
+            <button type="button" class="dock-btn tool"        id="pp-pencil" onclick="paperSetTool('pencil')" title="Pencil">✏️</button>
+            <button type="button" class="dock-btn tool"        id="pp-eraser" onclick="paperSetTool('eraser')" title="Eraser">🧽</button>
+          </div>
+          <div class="dock-row">
+            <button type="button" class="dock-btn" onclick="paperUndo()"  title="Undo">↩</button>
+            <button type="button" class="dock-btn" onclick="paperRedo()"  title="Redo">↪</button>
+            <button type="button" class="dock-btn" onclick="paperClear()" title="Clear page">🗑</button>
+          </div>
+          <div class="dock-hint">✎ Apple Pencil only<br>✌️ undo · 🤟 redo</div>
         </div>
-
-        <div class="paper-side" id="paper-side">
-          <div class="paper-side-title">Metal</div>
-          <div class="ps-pane on" id="ps-pane-metal"></div>
-          <div class="paper-side-title">Stone</div>
-          <div class="ps-pane on" id="ps-pane-stone"></div>
-        </div>
+        <button type="button" class="dock-reopen" onclick="paperDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
       </div>
     </section>
   </main>

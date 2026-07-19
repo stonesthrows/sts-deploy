@@ -5,34 +5,20 @@
 //  (smart defaults from the loaded client profile).
 //
 //  The sheet is the Custom Design parameter surface on Step 2 — it
-//  writes into the hidden Step-1 fields (f-materials / f-sizing /
-//  f-gemstones / f-piece-type / f-finish checkboxes) so intakeSubmit()
-//  and the Notion pipeline never change. Repair/Resize/Square layouts
-//  are untouched (they never reach Step 2).
+//  writes into the hidden Step-1 fields (f-sizing / f-ringsize2 /
+//  f-stamping / f-stamping2) so intakeSubmit() and the Notion pipeline
+//  never change. Repair/Resize/Square layouts are untouched (they never
+//  reach Step 2). Metal/Stone entry is handwritten now (Paper mode's
+//  Screen 1, js/intake-paper.js) or typed directly into Step 1's plain
+//  f-materials/f-gemstones fields — no chip UI for them anymore.
 // ════════════════════════════════════════════
 
-// ── Chip config ───────────────────────────────────────────────
-const _PS_GROUPS = {
-  piece:   { label: 'Piece Type', multi: false, values: ['Ring', 'Ear Cuff', 'Necklace', 'Bracelet', 'Earrings', 'Pendant', 'Other'] },
-  tone:    { label: 'Metal', multi: false, values: ['Yellow', 'White', 'Rose', 'Platinum', 'Sterling'] },
-  karat:   { label: 'Karat', multi: false, values: ['10k', '14k', '18k'] },
-  finish:  { label: 'Texture / Finish', multi: true, values: ['Polished', 'Hammered', 'Matte', 'Oxidized'] },
-  stype:   { label: 'Stone', multi: false, values: ['Moissanite', 'Diamond', 'Sapphire', 'Ruby', 'Emerald', 'Opal', 'Turquoise', 'Pearl', 'Garnet', 'Amethyst'] },
-  origin:  { label: 'Origin', multi: false, values: ['Natural', 'Lab', 'Client-supplied'] },
-  cut:     { label: 'Cut', multi: false, values: ['Round', 'Oval', 'Pear', 'Emerald', 'Marquise', 'Cab'] },
-  carat:   { label: 'Size (ct)', multi: false, values: ['0.25', '0.5', '0.75', '1', '1.5', '2', '3'] },
-  setting: { label: 'Setting', multi: false, values: ['Bezel', 'Prong ×4', 'Prong ×6', 'Flush', 'Channel', 'Pavé'] },
-  role:    { label: 'Role', multi: false, values: ['Center', 'Accent'] },
-};
-
-// Sheet finish label → existing #f-finish checkbox value
-const _PS_FINISH_MAP = { 'Polished': 'Polished', 'Hammered': 'Hammered/Textured', 'Matte': 'Matte', 'Oxidized': 'Oxidized' };
-// Profile metal tone → sheet tone chip (2.5)
-const _PS_TONE_FROM_PROFILE = { 'Yellow': 'Yellow', 'White': 'White', 'Rose': 'Rose', 'Silver-only': 'Sterling' };
-
-let _psStones = [];        // committed stones (serialized to the order + f-gemstones)
+// _psStones stays declared (always empty) only because js/intake.js's
+// intakeSubmit() still reads it for order.stones — structured per-stone
+// capture was chip-UI-only and is retired; order.gemstones (free text)
+// carries stone info now. Safe to leave at [] indefinitely.
+let _psStones = [];
 let _psDetent = 'peek';
-let _psSuggestedDone = false; // smart defaults are applied once per intake
 
 // ── Reference Photos (Photos tab) ─────────────────────────────
 // Client-shown inspiration/existing-piece photos — distinct from the
@@ -107,31 +93,7 @@ function rpRenderGrid() {
 }
 
 // ── Pane rendering ────────────────────────────────────────────
-function _psChipsHtml(group) {
-  const cfg = _PS_GROUPS[group];
-  return '<div class="ps-label">' + cfg.label + '</div>'
-    + '<div class="ps-chips" id="ps-' + group + '" ' + (cfg.multi ? 'data-multi="1"' : '') + '>'
-    + cfg.values.map(v => '<button type="button" class="ps-chip" data-v="' + v + '">' + v + '</button>').join('')
-    + '</div>';
-}
-
 function psRenderPanes() {
-  const metal = document.getElementById('ps-pane-metal');
-  if (metal) {
-    metal.innerHTML = _psChipsHtml('piece') + _psChipsHtml('tone') + _psChipsHtml('karat') + _psChipsHtml('finish')
-      + '<div class="ps-sens-warn" id="ps-sens-warn"></div>';
-  }
-  const stone = document.getElementById('ps-pane-stone');
-  if (stone) {
-    stone.innerHTML =
-      '<div class="ps-stone-list" id="ps-stone-list"></div>'
-      + _psChipsHtml('stype')
-      + '<input type="text" class="ps-input" id="ps-stone-other" placeholder="Other stone…" style="width:100%;margin-top:2px;">'
-      + _psChipsHtml('origin') + _psChipsHtml('cut') + _psChipsHtml('carat')
-      + '<input type="text" class="ps-input" id="ps-carat-other" placeholder="Custom size — e.g. 1.2ct or 6mm" inputmode="decimal" style="width:100%;margin-top:2px;">'
-      + _psChipsHtml('setting') + _psChipsHtml('role')
-      + '<div style="margin-top:12px;"><button type="button" class="btn btn-gold" onclick="psAddStone()">＋ Add stone</button></div>';
-  }
   const sizing = document.getElementById('ps-pane-sizing');
   if (sizing) {
     let wheel = '';
@@ -272,14 +234,10 @@ function psSetDetent(d) {
   sheet.classList.remove('peek', 'half', 'full', 'dragging');
   sheet.classList.add(d);
   sheet.style.height = '';
-  if (d !== 'peek' && !_psSuggestedDone) psApplySmartDefaults(); // 2.5: pure read at sheet-open
 }
 
 function psSetTab(name) {
   document.querySelectorAll('#ps-tabs .ps-tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
-  // Scoped to #param-sheet's own panes only — Metal/Stone now live outside
-  // the sheet (Paper mode's Screen 1, js/intake-paper.js) as always-visible
-  // panes and must not be hidden by tab switching here.
   document.querySelectorAll('#param-sheet .ps-pane').forEach(p => p.classList.toggle('on', p.id === 'ps-pane-' + name));
   if (name === 'notes') {
     const ta = document.getElementById('ps-notes');
@@ -376,64 +334,7 @@ function psStep(dim, delta) {
   psWrite();
 }
 
-// ── Stones (2.2) ──────────────────────────────────────────────
-function psAddStone() {
-  const type = _psSel('stype') || document.getElementById('ps-stone-other')?.value.trim();
-  if (!type) { if (typeof toast === 'function') toast('Pick a stone type first', '⚠'); return; }
-  const caratCustom = document.getElementById('ps-carat-other')?.value.trim();
-  const stone = {
-    type,
-    origin:  _psSel('origin'),
-    cut:     _psSel('cut'),
-    size:    caratCustom || (_psSel('carat') ? _psSel('carat') + 'ct' : ''),
-    setting: _psSel('setting'),
-    role:    _psSel('role') || (_psStones.length ? 'Accent' : 'Center'),
-  };
-  _psStones.push(stone);
-  // Clear the builder for the next stone
-  ['stype', 'origin', 'cut', 'carat', 'setting', 'role'].forEach(g =>
-    document.querySelectorAll('#ps-' + g + ' .ps-chip.on').forEach(c => c.classList.remove('on')));
-  const other = document.getElementById('ps-stone-other'); if (other) other.value = '';
-  const co = document.getElementById('ps-carat-other'); if (co) co.value = '';
-  psRenderStoneList();
-  psWrite();
-}
-
-function psRemoveStone(i) {
-  _psStones.splice(i, 1);
-  psRenderStoneList();
-  psWrite();
-}
-
-function _psStoneLine(s) {
-  const bits = [s.size, s.cut ? s.cut.toLowerCase() : '', s.type].filter(Boolean).join(' ');
-  let line = (s.role || 'Stone') + ': ' + bits;
-  if (s.origin === 'Client-supplied') line += ' (CLIENT-SUPPLIED — heirloom: photograph at intake)';
-  else if (s.origin) line += ' (' + s.origin.toLowerCase() + ')';
-  if (s.setting) line += ', ' + s.setting.toLowerCase() + ' set';
-  return line;
-}
-
-function psRenderStoneList() {
-  const list = document.getElementById('ps-stone-list');
-  if (!list) return;
-  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  list.innerHTML = _psStones.map((s, i) =>
-    '<div class="ps-stone-item"><span>💎 ' + esc(_psStoneLine(s)) + '</span>'
-    + '<button type="button" class="ps-stone-x" onclick="psRemoveStone(' + i + ')" aria-label="Remove stone">✕</button></div>'
-  ).join('');
-}
-
 // ── Serialize sheet state → hidden Step-1 fields + peek summary ──
-function _psMetalText() {
-  const tone = _psSel('tone');
-  const karat = _psSel('karat');
-  if (!tone) return '';
-  if (tone === 'Sterling') return 'Sterling Silver';
-  if (tone === 'Platinum') return 'Platinum';
-  return (karat ? karat + ' ' : '') + tone + ' Gold';
-}
-
 function psWrite() {
   // Order For (Individual/Couple) → shows/hides the 2nd ring size wheel +
   // 2nd stamping input, and gates whether they submit at all.
@@ -447,22 +348,6 @@ function psWrite() {
   const ringsizeLabel = document.getElementById('ps-ringsize-label');
   if (ringsizeLabel) ringsizeLabel.textContent = 'Ring Size (US)' + (isCouple ? ' — Ring 1' : '');
 
-  // Metal + finish → f-materials (+ mirror the finish chips onto the
-  // existing #f-finish checkboxes that intakeSubmit() reads)
-  const metal = _psMetalText();
-  const finishes = _psSelAll('finish');
-  const mat = document.getElementById('f-materials');
-  if (mat) mat.value = [metal, finishes.join(', ')].filter(Boolean).join(' · ');
-  document.querySelectorAll('#f-finish input').forEach(c => {
-    c.checked = finishes.some(f => _PS_FINISH_MAP[f] === c.value);
-  });
-  // Piece type → hidden select
-  const piece = _psSel('piece');
-  const pieceSel = document.getElementById('f-piece-type');
-  if (pieceSel && piece) pieceSel.value = piece;
-  // Stones → f-gemstones (human-readable, newline per stone)
-  const gem = document.getElementById('f-gemstones');
-  if (gem) gem.value = _psStones.map(_psStoneLine).join('\n');
   // Sizing → f-sizing ("sz 6.5 · 4mm wide · 1.5mm thick")
   const sz = _psSel('ringsize');
   const parts = [];
@@ -485,34 +370,12 @@ function psWrite() {
   const stamp2El = document.getElementById('ps-stamping2');
   const fStamp2  = document.getElementById('f-stamping2');
   if (fStamp2) fStamp2.value = (isCouple && stamp2El) ? stamp2El.value.trim() : '';
-  // Peek summary — the one-line echo ("14k Rose · 1ct oval moissanite · sz 6.5")
+  // Peek summary — the one-line echo ("sz 6.5 · 4mm wide")
   const sumParts = [];
-  if (metal) sumParts.push(metal.replace(' Gold', ''));
-  if (_psStones[0]) {
-    const s = _psStones[0];
-    sumParts.push([s.size, s.cut ? s.cut.toLowerCase() : '', s.type.toLowerCase()].filter(Boolean).join(' '));
-  }
   if (sz) sumParts.push('sz ' + sz);
+  if (_psBand.width) sumParts.push(_psBand.width + 'mm wide');
   const sum = document.getElementById('ps-summary');
   if (sum) sum.textContent = sumParts.length ? sumParts.join(' · ') : 'tap a tab to set sizing';
-  // Sensitivity conflicts warn inline here (2.5 ties back to 1.3)
-  if (typeof intakeSensChanged === 'function') intakeSensChanged();
-}
-
-// ── Smart defaults from the loaded profile (2.5) ──────────────
-// Hollow "suggested" chips only — never solid, never guessed without a
-// loaded profile. First tap in the group solidifies or replaces.
-function psApplySmartDefaults() {
-  _psSuggestedDone = true;
-  if (typeof _profLoadedId === 'undefined' || !_profLoadedId) return;
-  let p = null;
-  try { p = _custLoad().profiles.find(x => x.id === _profLoadedId); } catch (e) {}
-  if (!p || !p.styleProfile) return;
-  const tone = _PS_TONE_FROM_PROFILE[p.styleProfile.tone];
-  if (tone && !_psSel('tone')) {
-    const chip = document.querySelector('#ps-tone .ps-chip[data-v="' + tone + '"]');
-    if (chip) chip.classList.add('suggested');
-  }
 }
 
 // Sizing wheel pre-select from the ring registry (client, or recipient in
@@ -535,12 +398,9 @@ function _psSyncSizingFromRegistry() {
 
 // ── Reset for the next intake — called from intakeReset() ─────
 function psReset() {
-  _psStones = [];
   _psBand.width = 0; _psBand.thick = 0;
-  _psSuggestedDone = false;
   _refPhotos = [];
   psRenderPanes();
-  psRenderStoneList();
   psSetTab('sizing');
   psSetDetent('peek');
   const sum = document.getElementById('ps-summary');

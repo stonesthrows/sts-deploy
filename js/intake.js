@@ -116,12 +116,18 @@ function intakeApplyTypeLayout(type) {
     const el = document.getElementById(id);
     if (el) el.style.display = (t === type) ? '' : 'none';
   });
-  // Custom Design's technical parameters live in the Step-2 bottom sheet
-  // (brief 2.1) — the Step-1 grid stays in the DOM purely as the hidden
-  // fields the sheet writes into. Repair/Resize/Square layouts untouched.
+  // Custom Design's SIZING parameters (ring size / band / stamping) still
+  // live in the Step-2 bottom sheet's Sizing tab (js/intake-sheet.js) — those
+  // specific Step-1 fields stay hidden in the DOM purely as the fields the
+  // sheet writes into, so they don't fight it. Piece Type / Materials /
+  // Finish / Gemstones have no sheet tab anymore (that chip UI was retired
+  // in favor of handwriting on Paper mode's Screen 1) and stay visible here
+  // as the plain-text fallback. Repair/Resize/Square layouts untouched.
   if (type === 'order' && typeof psRenderPanes === 'function') {
-    const tc = document.getElementById('type-custom');
-    if (tc) tc.style.display = 'none';
+    ['sizing-fg', 'ringsize2-fg', 'stamping-fg', 'stamping2-fg'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
   }
 
   // Repair / Resize / Square Item collapse to a single page: Items & Price
@@ -212,6 +218,10 @@ function intakeSetOrderFor(val) {
   const isCouple = _intakeOrderFor === 'couple';
   document.getElementById('order-for-individual-btn')?.classList.toggle('selected', !isCouple);
   document.getElementById('order-for-couple-btn')?.classList.toggle('selected', isCouple);
+  // Custom Design keeps these two sheet-owned (Step 2's Sizing tab has its
+  // own 2nd-ring-size/2nd-stamping controls) — Step 1's copies stay hidden
+  // regardless of Individual/Couple so there's only one editing surface.
+  if (_intakeCurrentOrderType === 'order') return;
   const ringsize2Fg = document.getElementById('ringsize2-fg');
   if (ringsize2Fg) ringsize2Fg.style.display = isCouple ? '' : 'none';
   const stamping2Fg = document.getElementById('stamping2-fg');
