@@ -522,6 +522,9 @@ async function intakeSubmit() {
     // sketch; absent signature never blocks a save. Pushing it to Notion
     // as an attachment is deferred until the pipeline grows a slot for it.
     signatureImg:  (typeof SIG !== 'undefined' && SIG && SIG.hasInk) ? SIG.canvas.toDataURL('image/png') : null,
+    // Paper mode's handwritten page (js/intake-paper.js) — the full-fidelity
+    // human record, kept alongside the structured fields OCR'd out of it.
+    paperPageImg:  (typeof paperExportPage === 'function') ? paperExportPage() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
     notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
                     notes,

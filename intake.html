@@ -710,6 +710,38 @@
       width: 100%; height: auto; display: block; touch-action: none;
       border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
     }
+
+    /* ═══ Paper mode (js/intake-paper.js) — Goodnotes-style handwritten
+       work-order page. body.paper-on swaps the wizard for the paper stage;
+       !important so it wins over the inline display styles intakeStep()
+       keeps setting on the hidden step panels. ═══ */
+    body.paper-on #step-1, body.paper-on #step-2, body.paper-on #step-3 { display: none !important; }
+    body.paper-on #intake-footer, body.paper-on #intake-step-progress { display: none !important; }
+    #paper-mode { display: none; position: absolute; inset: 0; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
+    body.paper-on #paper-mode { display: flex; }
+    .paper-stage {
+      position: relative; flex: 1; min-height: 0; min-width: 0;
+      border-radius: 14px; overflow: hidden; background: #FDF8EE;
+      box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+    }
+    #paper-template, #paper-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    }
+    #paper-canvas { background: transparent; touch-action: none; cursor: crosshair; }
+    #paper-chips { position: absolute; inset: 0; pointer-events: none; }
+    .paper-chip {
+      position: absolute; pointer-events: auto; z-index: 2;
+      max-width: 46%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      font-size: 12px; font-weight: 600; color: #8A6A20;
+      background: rgba(253,246,232,0.94); border: 1px solid #E0CDA4; border-radius: 7px;
+      padding: 3px 9px; cursor: pointer; box-shadow: 0 1px 4px rgba(120,90,30,0.18);
+    }
+    .paper-chip.converting { color: #7E93A4; border-style: dashed; }
+    .paper-chip.err { color: #B03030; border-color: #ECC5C5; background: #FDF1F0; }
+    /* Dock sits bottom-right in Paper mode — top-right would cover the last
+       PICKUP options; bottom-right only floats over the sketch box corner. */
+    #paper-dock { top: auto; bottom: 14px; }
+    #paper-mode .dock-reopen { top: auto; bottom: 14px; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -723,6 +755,8 @@
             class="flex items-center gap-2 rounded-lg border border-[#35576D] px-4 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">
       ✕ Exit
     </button>
+    <button type="button" id="paper-mode-btn" onclick="paperToggle()" title="Switch between the typed form and the handwritten paper page"
+            class="rounded-lg border border-[#35576D] px-4 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">✍ Paper</button>
     <div class="flex-1"></div>
     <div class="flex items-center gap-3" role="status" aria-live="polite" id="intake-step-progress">
       <span id="intake-step-label" class="text-[12.5px] font-bold tracking-wide text-[#9FB4C4]">Step 1 of 3</span>
@@ -1334,6 +1368,38 @@
         </div>
       </div>
     </section>
+
+    <!-- ── Paper mode — Goodnotes-style handwritten work-order page.
+         Two stacked canvases (printed template + transparent ink) plus a
+         ghost-chip layer; all drawing/OCR logic in js/intake-paper.js. ── -->
+    <section id="paper-mode">
+      <div class="paper-stage" id="paper-stage">
+        <canvas id="paper-template"></canvas>
+        <canvas id="paper-canvas"></canvas>
+        <div id="paper-chips"></div>
+
+        <div class="sketch-dock" id="paper-dock">
+          <div class="dock-head">
+            <span class="dock-grip">⠿</span>
+            <button type="button" class="dock-toggle" onclick="paperDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
+          </div>
+          <div class="dock-row">
+            <button type="button" class="dock-btn tool active" id="pp-pen"    onclick="paperSetTool('pen')"    title="Pen">🖊</button>
+            <button type="button" class="dock-btn tool"        id="pp-pencil" onclick="paperSetTool('pencil')" title="Pencil">✏️</button>
+            <button type="button" class="dock-btn tool"        id="pp-eraser" onclick="paperSetTool('eraser')" title="Eraser">🧽</button>
+          </div>
+          <div class="dock-row">
+            <button type="button" class="dock-btn" onclick="paperUndo()"  title="Undo">↩</button>
+            <button type="button" class="dock-btn" onclick="paperRedo()"  title="Redo">↪</button>
+            <button type="button" class="dock-btn" onclick="paperClear()" title="Clear page">🗑</button>
+          </div>
+          <div class="dock-sep"></div>
+          <button type="button" class="btn btn-gold" style="width:100%;min-height:40px;" onclick="intakeReviewOpen()">✓ Done</button>
+          <div class="dock-hint">✎ Apple Pencil only<br>✌️ undo · 🤟 redo</div>
+        </div>
+        <button type="button" class="dock-reopen" onclick="paperDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
+      </div>
+    </section>
   </main>
 
   <!-- ═══ Bottom bar: Back · step tabs · Next ═══ -->
@@ -1420,11 +1486,12 @@
 
 <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
 <input type="file" id="rp-file" accept="image/*" multiple style="display:none;" onchange="rpFilesChosen(this)">
-<script src="js/sketchpad.js?v=4"></script>
+<script src="js/sketchpad.js?v=5"></script>
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/intake-sheet.js?v=3"></script>
-<script src="js/intake.js?v=10"></script>
+<script src="js/intake.js?v=11"></script>
+<script src="js/intake-paper.js?v=1"></script>
 </body>
 </html>

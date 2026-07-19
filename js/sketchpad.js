@@ -58,8 +58,25 @@ function _padCreate(canvasId, opts) {
   return pad;
 }
 
+// Pad-generic undo/redo — shared by the dock buttons (via sketchUndo/
+// sketchRedo below, which bind SK) and the tap gestures, which must act on
+// whichever pad was tapped (SK on the sketch step, PAPER in Paper mode).
+function _padUndo(pad) {
+  if (!pad || !pad.undo.length) return;
+  pad.redo.push(_padSnapshot(pad));
+  _padRestore(pad, pad.undo.pop());
+  pad.dirty = true;
+}
+
+function _padRedo(pad) {
+  if (!pad || !pad.redo.length) return;
+  pad.undo.push(_padSnapshot(pad));
+  _padRestore(pad, pad.redo.pop());
+  pad.dirty = true;
+}
+
 // Two-finger tap ⇒ undo, three-finger tap ⇒ redo. Only live on a pen-only
-// pad (SK): touch is already ignored there for drawing, so fingers are free
+// pad: touch is already ignored there for drawing, so fingers are free
 // for gestures — skip entirely once "Allow finger drawing" is toggled on,
 // since a tap can't then be told apart from a deliberate short stroke.
 function _padWireTapGestures(pad) {
@@ -85,9 +102,9 @@ function _padWireTapGestures(pad) {
     if (touches.size > 0) return; // gesture still in progress — wait for the last finger up
     if (moved || performance.now() - gestureStart >= TAP_MS) return;
     if (peak === 2) {
-      if (SK.undo.length) { sketchUndo(); toast('Undo', '↩'); } else toast('Nothing to undo', '↩');
+      if (pad.undo.length) { _padUndo(pad); toast('Undo', '↩'); } else toast('Nothing to undo', '↩');
     } else if (peak === 3) {
-      if (SK.redo.length) { sketchRedo(); toast('Redo', '↪'); } else toast('Nothing to redo', '↪');
+      if (pad.redo.length) { _padRedo(pad); toast('Redo', '↪'); } else toast('Nothing to redo', '↪');
     }
   };
   el.addEventListener('pointerup', release);
@@ -495,19 +512,9 @@ function sketchGridToggle() {
   if (btn) btn.classList.toggle('on', on);
 }
 
-function sketchUndo() {
-  if (!SK || !SK.undo.length) return;
-  SK.redo.push(_padSnapshot(SK));
-  _padRestore(SK, SK.undo.pop());
-  SK.dirty = true;
-}
+function sketchUndo() { _padUndo(SK); }
 
-function sketchRedo() {
-  if (!SK || !SK.redo.length) return;
-  SK.undo.push(_padSnapshot(SK));
-  _padRestore(SK, SK.redo.pop());
-  SK.dirty = true;
-}
+function sketchRedo() { _padRedo(SK); }
 
 function sketchClear() {
   if (!SK || (!SK.hasInk && !SK.undo.length)) return;
