@@ -2,9 +2,9 @@
 //  PAPER MODE  —  js/intake-paper.js
 //  Goodnotes-style handwritten intake, 3 screens:
 //    Screen 1 (this file) — the handwriting page: circle the order type /
-//      pickup market, write customer info on ruled lines, plus a Metal/Stone
-//      side panel (the same chip UI js/intake-sheet.js renders, relocated
-//      here). Optional — see the Sketch toggle below.
+//      piece type / pickup market, write customer info, materials, and
+//      item/notes on ruled lines — everything handwritten + OCR'd, no
+//      chip UI. Screen 2 (Sketch) is optional — see the toggle below.
 //    Screen 2 — the EXISTING #step-2 (full sketch canvas + dock + bottom
 //      sheet), reused as-is. Skippable per-order via the Sketch toggle.
 //    Screen 3 — the EXISTING #step-3 (Estimate Builder), reused as-is with
@@ -41,10 +41,11 @@ let _paperKeyHinted = false;
 
 // ── Page layout — single source of truth for the template drawing, the
 //    OCR zone rects, and the chip positions. All pixel math, recomputed on
-//    every resize, so landscape/portrait both work. The Metal/Stone panel
-//    (js/intake-sheet.js's ps-pane-metal/ps-pane-stone) and the sketch page
-//    are separate screens now (see paperGoScreen below), so this page is
-//    just the ruled fields — full width in both orientations. ──────────
+//    every resize, so landscape/portrait both work. The Sketch page is a
+//    separate screen now (see paperGoScreen below) — this page is a single
+//    full-width work-order page: circles, ruled fields, a multi-line
+//    Materials block, and Notes. No chip UI anywhere on it — everything
+//    here is handwritten + OCR'd, same as the rest of the page. ──────────
 function _paperLayout(w, h) {
   const landscape = w >= h;
   const M = Math.round(Math.min(w, h) * 0.04);
@@ -68,12 +69,32 @@ function _paperLayout(w, h) {
                  rect: { x: M, y, w: innerW, h: optH } });
     y += optH + 6;
   }
+  // Piece Type — its own full-width circle row (7 options needs the room;
+  // values match f-piece-type's <select> options exactly, no mapping table).
+  zones.push({ id: 'piecetype', kind: 'circle', label: 'PIECE TYPE',
+               options: ['Ring', 'Ear Cuff', 'Necklace', 'Bracelet', 'Earrings', 'Pendant', 'Other'],
+               rect: { x: M, y, w: innerW, h: optH } });
+  y += optH + 6;
 
-  // Fields fill the full page width now (no sketch column to share with).
+  // Fields fill the full page width (no sketch column, no side panel).
   const fieldW = innerW;
   const fieldsBottom = h - M;
-  const avail = fieldsBottom - y;
-  const rowH = Math.max(48, Math.min(90, Math.floor(avail / 7)));
+  const availAll = fieldsBottom - y;
+  // Materials gets a near-fixed reservation targeting ~6 ruled lines (the
+  // same 34px line spacing _paperDrawTemplate uses) — reserved BEFORE the
+  // other rows are sized so the promised line count holds on a typical
+  // iPad even as the rest of the page compresses around it. Capped at 40%
+  // of the space so it can't crowd out everything else on a short screen.
+  const materialsTarget = 40 + 6 * 34;
+  const materialsH = Math.max(120, Math.min(materialsTarget, Math.round(availAll * 0.4)));
+  // Remaining budget for the other rows. Divisor covers 4 plain rows (name /
+  // phone+email / takein+deadline / ringsize+paidby) + a taller Item & Price
+  // row + Notes' own minimum share — Notes isn't a separate "whatever's
+  // left" claim on top of this (that double-counting is what overflowed the
+  // canvas before): its weight is baked into the same divisor so the sum of
+  // every row, including Notes' minimum, exactly equals the space available.
+  const avail = availAll - materialsH;
+  const rowH = Math.max(40, Math.min(90, Math.floor(avail / 7.4)));
   const half = Math.round(fieldW * 0.5) - 6;
   let fy = y;
   const row = (id, kind, label, x, wd, hh, extra) => {
@@ -87,9 +108,12 @@ function _paperLayout(w, h) {
   row('ringsize', 'text', 'Ring Size', M, Math.round(fieldW * 0.34), rowH, { hint: 'a ring size number' });
   row('paidby', 'check', 'Paid By', M + Math.round(fieldW * 0.34) + 12, fieldW - Math.round(fieldW * 0.34) - 12, rowH,
       { options: ['Cash', 'Credit', 'Check'] }); fy += rowH;
+  // Materials — the reservation computed above, for metal + stones written
+  // together, replacing the old chip-based Metal/Stone side panel.
+  row('materials', 'materials', 'Materials', M, fieldW, materialsH); fy += materialsH;
   const itemH = Math.round(rowH * 1.4);
   row('itemprice', 'itemprice', 'Item & Price', M, fieldW, itemH); fy += itemH;
-  row('notes', 'notes', 'Notes', M, fieldW, Math.max(rowH * 2, fieldsBottom - fy));
+  row('notes', 'notes', 'Notes', M, fieldW, Math.max(40, fieldsBottom - fy));
   return zones;
 }
 
@@ -155,7 +179,9 @@ function _paperDrawTemplate(ctx, w, h, zones) {
         rule(r.x, r.y + r.h - 8, r.w);
         break;
       }
-      case 'notes': {
+      case 'notes': case 'materials': {
+        // Same generic ruled-line drawing for both — Materials is just a
+        // shorter, fixed-height version of the Notes block (~6 lines).
         label(z);
         for (let y = r.y + Math.min(46, Math.round(r.h * 0.3)); y <= r.y + r.h - 4; y += 34) rule(r.x, y, r.w);
         break;
@@ -173,10 +199,6 @@ function _paperDrawTemplate(ctx, w, h, zones) {
 function _paperSize() {
   const stage = document.getElementById('paper-stage');
   if (!stage || !PAPER) return;
-  // .paper-row goes row (landscape) / column (portrait) — same aspect check
-  // _paperLayout() uses, kept in sync so the CSS and the canvas math agree.
-  const mode = document.getElementById('paper-mode');
-  if (mode) mode.classList.toggle('portrait', mode.clientHeight > mode.clientWidth);
   requestAnimationFrame(() => {
     const w = Math.round(stage.clientWidth);
     const h = Math.round(stage.clientHeight);
@@ -317,6 +339,10 @@ function _paperPromptFor(z) {
     case 'notes':
       return base + 'It is the Notes area. Transcribe ALL handwriting verbatim, preserving line breaks as \\n. Do not summarize. '
         + 'Return ONLY valid JSON: {"value":""} — "" if blank.';
+    case 'materials':
+      return base + 'It is the Materials area — staff write the metal (type, karat, finish) and any gemstones (type, cut, carat, setting), '
+        + 'often one item per line. Transcribe ALL handwriting verbatim, preserving line breaks as \\n — do not summarize or reorganize. '
+        + 'Return ONLY valid JSON: {"value":""} — "" if blank.';
     default:
       return base + 'It is the "' + z.label + '" field' + (z.hint ? ' (' + z.hint + ')' : '')
         + ' — ignore the printed label and ruled line, read only the handwriting. '
@@ -412,6 +438,7 @@ function _paperApply(z, parsed) {
     case 'deadline': if (/^\d{4}-\d{2}-\d{2}$/.test(val)) _paperSetField('f-deadline', val); break;
     case 'ringsize': if (val) _paperSetField('f-sizing', /[a-z]/i.test(val) ? val : 'ring size ' + val); break;
     case 'ordertype': _paperApplyOrderType(val); break;
+    case 'piecetype': _paperSetField('f-piece-type', val); break;
     case 'pickup': {
       if (_PAPER_PICKUP[val]) {
         _paperSetField('f-pickup', _PAPER_PICKUP[val]);
@@ -434,6 +461,21 @@ function _paperApply(z, parsed) {
       return;
     }
     case 'notes': _paperSetField('f-notes', val); break;
+    case 'materials': {
+      // f-gemstones is the multi-line-capable field (textarea) — it gets
+      // the full block verbatim. f-materials is a single-line input, so it
+      // only gets the first line, as a short descriptor. Either write can
+      // affect the sensitivity-vs-alloy warning, which normally fires on
+      // #f-materials/#f-gemstones' oninput — a programmatic .value= doesn't
+      // trigger that, so re-run it explicitly here.
+      const lines = val.split('\n').map(s => s.trim()).filter(Boolean);
+      const wroteFirst = _paperSetField('f-materials', lines[0] || '');
+      const wroteFull  = _paperSetField('f-gemstones', val);
+      if ((wroteFirst || wroteFull) && typeof intakeSensChanged === 'function') intakeSensChanged();
+      z.value = val;
+      _paperChipSet(z, val ? 'value' : null, val.replace(/\n/g, ' · '));
+      return;
+    }
   }
   z.value = val;
   _paperChipSet(z, val ? 'value' : null, val);
@@ -544,14 +586,17 @@ async function _paperPagePass() {
 function _paperPagePrompt() {
   return 'You are an order intake assistant for Stones Throw Studio, a custom jewelry shop. '
     + 'The image is a handwritten digital work-order page with printed labels: circled ORDER TYPE (Custom, Resize, Repair), '
+    + 'circled PIECE TYPE (Ring, Ear Cuff, Necklace, Bracelet, Earrings, Pendant, Other), '
     + 'circled PICKUP market (SVFM = Sunset Valley Farmer\'s Market, Bell = Bell Market, TXFM = Mueller Market, CCFM = Chaparral Crossing Market, Flea = Austin Flea, Studio = Studio, Ship = To be Shipped), '
-    + 'ruled fields (Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), an Item & Price line, and a Notes area.\n'
+    + 'ruled fields (Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), a multi-line Materials area '
+    + '(metal + gemstones written together, often one item per line), an Item & Price line, and a Notes area.\n'
     + 'CRITICAL ACCURACY RULES: copy the exact words you see — never substitute similar-sounding products; if a word is unclear write it as-is with [?] after it; look closely at numerals.\n'
-    + 'Capture ALL text in the Notes area verbatim — do not skip or summarize it. Also transcribe any handwriting written OUTSIDE the labeled fields into notes.\n'
+    + 'Capture ALL text in the Notes and Materials areas verbatim, preserving line breaks as \\n — do not skip or summarize either. Also transcribe any handwriting written OUTSIDE the labeled fields into notes.\n'
     + 'Return ONLY a valid JSON object with these exact keys (null for anything not visible):\n'
     + '{"customer_name":string|null,"email":string|null,"phone":string|null,"take_in_date":"YYYY-MM-DD"|null,"deadline":"YYYY-MM-DD"|null,'
     + '"pickup_location":"Bell Market"|"Mueller Market"|"Chaparral Crossing Market"|"Sunset Valley Farmer\'s Market"|"Austin Flea"|"Studio"|"To be Shipped"|null,'
-    + '"order_type":"order"|"resize"|"repair","description":string|null,"ring_size":string|null,'
+    + '"order_type":"order"|"resize"|"repair","piece_type":"Ring"|"Ear Cuff"|"Necklace"|"Bracelet"|"Earrings"|"Pendant"|"Other"|null,'
+    + '"description":string|null,"ring_size":string|null,"materials":string|null,'
     + '"price":number|null,"paid_by":"Cash"|"Credit"|"Check"|null,"notes":string|null}\n'
     + 'For dates, infer the year as ' + new Date().getFullYear() + ' if only month/day is shown. Return ONLY the JSON object, no other text.';
 }
@@ -576,6 +621,14 @@ function _paperMergePagePass(p) {
   if (p.ring_size) fillIfEmpty('f-sizing', /[a-z]/i.test(p.ring_size) ? p.ring_size : 'ring size ' + p.ring_size);
   if (p.paid_by && _PAPER_PAID[p.paid_by]) fillIfEmpty('f-paid-by', _PAPER_PAID[p.paid_by]);
   fillIfEmpty('f-notes', (p.notes || '').trim());
+  fillIfEmpty('f-piece-type', p.piece_type || '');
+  const materials = (p.materials || '').trim();
+  if (materials) {
+    const lines = materials.split('\n').map(s => s.trim()).filter(Boolean);
+    const wroteFirst = fillIfEmpty('f-materials', lines[0] || '');
+    const wroteFull  = fillIfEmpty('f-gemstones', materials);
+    if ((wroteFirst || wroteFull) && typeof intakeSensChanged === 'function') intakeSensChanged();
+  }
   const sel = document.getElementById('f-order-type');
   if (p.order_type && _TYPE_BLOCKS[p.order_type] && sel && sel.value === 'order' && p.order_type !== 'order') {
     _paperApplyOrderType(p.order_type === 'resize' ? 'Resize' : p.order_type === 'repair' ? 'Repair' : 'Custom');
