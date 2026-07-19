@@ -35,7 +35,7 @@ const _PAPER_PAID = { Cash: 'Cash', Credit: 'Credit Card' }; // Check has no f-p
 
 let _paperZones = [];         // live zone objects: {id,kind,label,rect,options?,field?,hasInk,value,_t,_dirty,chip}
 const _paperWrote = {};       // fieldId → last value Paper wrote (typed edits always win over re-OCR)
-let _paperItemRef = null;     // the _oiItems entry the Item & Price zone owns
+const _paperMaterialRefs = {}; // zone id ('materials-1'..'materials-6') -> its _oiItems entry
 let _paperChain = Promise.resolve(); // sequential OCR queue — no parallel API bursts
 let _paperKeyHinted = false;
 
@@ -69,32 +69,36 @@ function _paperLayout(w, h) {
                  rect: { x: M, y, w: innerW, h: optH } });
     y += optH + 6;
   }
-  // Piece Type — its own full-width circle row (7 options needs the room;
-  // values match f-piece-type's <select> options exactly, no mapping table).
-  zones.push({ id: 'piecetype', kind: 'circle', label: 'PIECE TYPE',
-               options: ['Ring', 'Ear Cuff', 'Necklace', 'Bracelet', 'Earrings', 'Pendant', 'Other'],
-               rect: { x: M, y, w: innerW, h: optH } });
+  // Inside Ring Stamping — its own full-width ruled row, in the slot the
+  // Order Type/Pickup circles leave open (same position Piece Type used
+  // to occupy before it was replaced by this).
+  zones.push({ id: 'stamping', kind: 'text', label: 'INSIDE RING STAMPING',
+               hint: 'an engraved inscription', rect: { x: M, y, w: innerW, h: optH } });
   y += optH + 6;
 
   // Fields fill the full page width (no sketch column, no side panel).
   const fieldW = innerW;
   const fieldsBottom = h - M;
   const availAll = fieldsBottom - y;
-  // Materials gets a near-fixed reservation targeting ~6 ruled lines (the
-  // same 34px line spacing _paperDrawTemplate uses) — reserved BEFORE the
-  // other rows are sized so the promised line count holds on a typical
-  // iPad even as the rest of the page compresses around it. Capped at 40%
-  // of the space so it can't crowd out everything else on a short screen.
-  const materialsTarget = 40 + 6 * 34;
-  const materialsH = Math.max(120, Math.min(materialsTarget, Math.round(availAll * 0.4)));
+  const MAT_ROWS = 6;
+  // Materials gets a near-fixed reservation for 6 priced lines (each one a
+  // compact Item & Price row: a description rule + $ + a price rule — see
+  // the 'itemprice' case in _paperDrawTemplate, reused verbatim for all 6).
+  // Reserved BEFORE the other rows are sized so the promised line count
+  // holds on a typical iPad even as the rest of the page compresses around
+  // it. Capped at 55% of the space so it can't crowd out everything else.
+  const matRowTarget = 46;
+  const materialsTarget = MAT_ROWS * matRowTarget;
+  const materialsH = Math.max(6 * 36, Math.min(materialsTarget, Math.round(availAll * 0.55)));
+  const matRowH = Math.floor(materialsH / MAT_ROWS);
   // Remaining budget for the other rows. Divisor covers 4 plain rows (name /
-  // phone+email / takein+deadline / ringsize+paidby) + a taller Item & Price
-  // row + Notes' own minimum share — Notes isn't a separate "whatever's
-  // left" claim on top of this (that double-counting is what overflowed the
-  // canvas before): its weight is baked into the same divisor so the sum of
-  // every row, including Notes' minimum, exactly equals the space available.
+  // phone+email / takein+deadline / ringsize+paidby) + Notes' own minimum
+  // share — Notes isn't a separate "whatever's left" claim on top of this
+  // (that double-counting overflowed the canvas before): its weight is
+  // baked into the same divisor so the sum of every row, including Notes'
+  // minimum, exactly equals the space available.
   const avail = availAll - materialsH;
-  const rowH = Math.max(40, Math.min(90, Math.floor(avail / 7.4)));
+  const rowH = Math.max(40, Math.min(90, Math.floor(avail / 6)));
   const half = Math.round(fieldW * 0.5) - 6;
   let fy = y;
   const row = (id, kind, label, x, wd, hh, extra) => {
@@ -108,11 +112,13 @@ function _paperLayout(w, h) {
   row('ringsize', 'text', 'Ring Size', M, Math.round(fieldW * 0.34), rowH, { hint: 'a ring size number' });
   row('paidby', 'check', 'Paid By', M + Math.round(fieldW * 0.34) + 12, fieldW - Math.round(fieldW * 0.34) - 12, rowH,
       { options: ['Cash', 'Credit', 'Check'] }); fy += rowH;
-  // Materials — the reservation computed above, for metal + stones written
-  // together, replacing the old chip-based Metal/Stone side panel.
-  row('materials', 'materials', 'Materials', M, fieldW, materialsH); fy += materialsH;
-  const itemH = Math.round(rowH * 1.4);
-  row('itemprice', 'itemprice', 'Item & Price', M, fieldW, itemH); fy += itemH;
+  // Materials — 6 stacked priced lines, replacing both the old free-text
+  // Materials block and the standalone Item & Price line. Only the first
+  // row prints the section label; label() is a no-op on '' for the rest.
+  for (let i = 1; i <= MAT_ROWS; i++) {
+    row('materials-' + i, 'itemprice', i === 1 ? 'MATERIALS' : '', M, fieldW, matRowH);
+    fy += matRowH;
+  }
   row('notes', 'notes', 'Notes', M, fieldW, Math.max(40, fieldsBottom - fy));
   return zones;
 }
@@ -169,19 +175,22 @@ function _paperDrawTemplate(ctx, w, h, zones) {
         break;
       }
       case 'itemprice': {
+        // Compact: description rule + $ + price rule, near the row's
+        // bottom like a plain text field — used 6x (Materials lines 1-6),
+        // so it must stay legible without the padding a single standalone
+        // row could afford. label() no-ops on '' for rows 2-6.
         label(z);
-        const r1 = r.y + Math.round(r.h * 0.55);
-        rule(r.x, r1, Math.round(r.w * 0.68));
+        const ry = r.y + r.h - 10;
+        const priceW = Math.max(64, Math.round(r.w * 0.22));
+        const itemW = r.w - priceW - 14;
+        rule(r.x, ry, itemW);
         ctx.fillStyle = '#A5834A';
-        ctx.font = '700 15px -apple-system, system-ui, sans-serif';
-        ctx.fillText('$', r.x + Math.round(r.w * 0.72), r1 - 2);
-        rule(r.x + Math.round(r.w * 0.72) + 14, r1, r.w - Math.round(r.w * 0.72) - 14);
-        rule(r.x, r.y + r.h - 8, r.w);
+        ctx.font = '700 14px -apple-system, system-ui, sans-serif';
+        ctx.fillText('$', r.x + itemW + 14, ry - 2);
+        rule(r.x + itemW + 30, ry, priceW - 16);
         break;
       }
-      case 'notes': case 'materials': {
-        // Same generic ruled-line drawing for both — Materials is just a
-        // shorter, fixed-height version of the Notes block (~6 lines).
+      case 'notes': {
         label(z);
         for (let y = r.y + Math.min(46, Math.round(r.h * 0.3)); y <= r.y + r.h - 4; y += 34) rule(r.x, y, r.w);
         break;
@@ -334,14 +343,11 @@ function _paperPromptFor(z) {
       return base + 'It shows printed checkboxes labeled: ' + z.options.join(', ') + '. An X or check mark in/over a box selects it. '
         + 'Return ONLY valid JSON: {"value":""} where value is the single checked label copied exactly, or "" if none is marked.';
     case 'itemprice':
-      return base + 'It is the "Item & Price" area: the item/piece description is handwritten on the long line and its dollar price after the printed $. '
+      return base + 'It is one line of the Materials section: a material or component (metal, karat, finish, gemstone — type/cut/carat/setting) '
+        + 'is handwritten on the long line and its dollar price after the printed $. '
         + 'Copy the exact words — do not substitute similar-sounding products. Return ONLY valid JSON: {"item":"","price":null} (price numeric, no $; use ""/null if blank or illegible).';
     case 'notes':
       return base + 'It is the Notes area. Transcribe ALL handwriting verbatim, preserving line breaks as \\n. Do not summarize. '
-        + 'Return ONLY valid JSON: {"value":""} — "" if blank.';
-    case 'materials':
-      return base + 'It is the Materials area — staff write the metal (type, karat, finish) and any gemstones (type, cut, carat, setting), '
-        + 'often one item per line. Transcribe ALL handwriting verbatim, preserving line breaks as \\n — do not summarize or reorganize. '
         + 'Return ONLY valid JSON: {"value":""} — "" if blank.';
     default:
       return base + 'It is the "' + z.label + '" field' + (z.hint ? ' (' + z.hint + ')' : '')
@@ -415,6 +421,16 @@ function _paperNoteAppend(line) {
 }
 
 function _paperApply(z, parsed) {
+  // All 6 Materials rows share kind 'itemprice' (id materials-1..materials-6)
+  // — dispatch on kind here since the switch below is id-keyed.
+  if (z.kind === 'itemprice') {
+    const item = ((parsed && parsed.item) || '').toString().trim();
+    const price = (parsed && parsed.price != null) ? parseFloat(parsed.price) : NaN;
+    _paperApplyMaterialLine(z.id, item, price);
+    z.value = item + (!isNaN(price) && price > 0 ? ' · $' + price : '');
+    _paperChipSet(z, z.value ? 'value' : null, z.value);
+    return;
+  }
   const val = ((parsed && parsed.value) || '').toString().trim();
   switch (z.id) {
     case 'name': {
@@ -438,7 +454,7 @@ function _paperApply(z, parsed) {
     case 'deadline': if (/^\d{4}-\d{2}-\d{2}$/.test(val)) _paperSetField('f-deadline', val); break;
     case 'ringsize': if (val) _paperSetField('f-sizing', /[a-z]/i.test(val) ? val : 'ring size ' + val); break;
     case 'ordertype': _paperApplyOrderType(val); break;
-    case 'piecetype': _paperSetField('f-piece-type', val); break;
+    case 'stamping': _paperSetField('f-stamping', val); break;
     case 'pickup': {
       if (_PAPER_PICKUP[val]) {
         _paperSetField('f-pickup', _PAPER_PICKUP[val]);
@@ -451,59 +467,65 @@ function _paperApply(z, parsed) {
       else if (val === 'Check') _paperNoteAppend('Paid by check');
       break;
     }
-    case 'itemprice': {
-      const item = ((parsed && parsed.item) || '').toString().trim();
-      const price = (parsed && parsed.price != null) ? parseFloat(parsed.price) : NaN;
-      if (item) _paperSetField('f-description', item);
-      if (!isNaN(price) && price > 0) _paperApplyItemPrice(item, price);
-      z.value = item + (!isNaN(price) && price > 0 ? ' · $' + price : '');
-      _paperChipSet(z, z.value ? 'value' : null, z.value);
-      return;
-    }
     case 'notes': _paperSetField('f-notes', val); break;
-    case 'materials': {
-      // f-gemstones is the multi-line-capable field (textarea) — it gets
-      // the full block verbatim. f-materials is a single-line input, so it
-      // only gets the first line, as a short descriptor. Either write can
-      // affect the sensitivity-vs-alloy warning, which normally fires on
-      // #f-materials/#f-gemstones' oninput — a programmatic .value= doesn't
-      // trigger that, so re-run it explicitly here.
-      const lines = val.split('\n').map(s => s.trim()).filter(Boolean);
-      const wroteFirst = _paperSetField('f-materials', lines[0] || '');
-      const wroteFull  = _paperSetField('f-gemstones', val);
-      if ((wroteFirst || wroteFull) && typeof intakeSensChanged === 'function') intakeSensChanged();
-      z.value = val;
-      _paperChipSet(z, val ? 'value' : null, val.replace(/\n/g, ' · '));
-      return;
-    }
   }
   z.value = val;
   _paperChipSet(z, val ? 'value' : null, val);
 }
 
-// The Item & Price line owns one manual order item — re-OCR updates it in
-// place instead of stacking duplicates. oiRender() recomputes f-price.
-function _paperApplyItemPrice(item, price) {
-  if (_paperItemRef && _oiItems.includes(_paperItemRef)) {
-    if (item) _paperItemRef.name = item;
-    _paperItemRef.price = price;
-  } else {
-    _paperItemRef = { type: 'manual', name: item || 'Paper intake item', price, quantity: 1 };
-    _oiItems.push(_paperItemRef);
+// Each Materials row owns one manual order item — re-OCR of that row
+// updates it in place instead of stacking duplicates. oiRender() recomputes
+// f-price from every row's item together. A row with text but no legible
+// price still gets an entry (price 0) so its text isn't silently dropped —
+// staff can fill the price in later via the Estimate Builder (Screen 3).
+function _paperApplyMaterialLine(zoneId, item, price) {
+  const hasPrice = !isNaN(price) && price > 0;
+  if (item || hasPrice) {
+    let ref = _paperMaterialRefs[zoneId];
+    if (ref && _oiItems.includes(ref)) {
+      if (item) ref.name = item;
+      if (hasPrice) ref.price = price;
+    } else {
+      ref = { type: 'manual', name: item || 'Materials line', price: hasPrice ? price : 0, quantity: 1 };
+      _paperMaterialRefs[zoneId] = ref;
+      _oiItems.push(ref);
+    }
+    oiRender();
   }
-  oiRender();
+  _paperSyncMaterialsFields();
+}
+
+// Mirrors every Materials row's item text into f-description (joined, the
+// order summary), f-materials (first row, short single-line descriptor),
+// and f-gemstones (all rows joined, multi-line — the field actually built
+// for this). Re-runs the sensitivity-vs-alloy warning, which normally
+// fires on these fields' oninput — a programmatic .value= doesn't trigger
+// that on its own.
+function _paperSyncMaterialsFields() {
+  const items = [];
+  for (let i = 1; i <= 6; i++) {
+    const ref = _paperMaterialRefs['materials-' + i];
+    if (ref && ref.name) items.push(ref.name);
+  }
+  const wroteDesc = _paperSetField('f-description', items.join(' · '));
+  const wroteMat  = _paperSetField('f-materials', items[0] || '');
+  const wroteGem  = _paperSetField('f-gemstones', items.join('\n'));
+  if ((wroteDesc || wroteMat || wroteGem) && typeof intakeSensChanged === 'function') intakeSensChanged();
 }
 
 // Order type drives the pipeline stage AND intakeApplyTypeLayout, which
-// resets _oiItems on a genuine type change — re-adopt the paper item after.
+// resets _oiItems on a genuine type change — re-adopt every Materials
+// row's item after.
 function _paperApplyOrderType(opt) {
   const type = _PAPER_TYPE[opt];
   if (!type) return;
   const sel = document.getElementById('f-order-type');
   if (!sel || sel.value === type) return;
-  const keep = (_paperItemRef && _oiItems.includes(_paperItemRef)) ? _paperItemRef : null;
+  const keep = Object.values(_paperMaterialRefs).filter(ref => _oiItems.includes(ref));
   intakeApplyTypeLayout(type);
-  if (keep && !_oiItems.includes(keep)) { _oiItems.push(keep); oiRender(); }
+  let changed = false;
+  keep.forEach(ref => { if (!_oiItems.includes(ref)) { _oiItems.push(ref); changed = true; } });
+  if (changed) oiRender();
   _paperWrote['f-order-type'] = type;
 }
 
@@ -586,18 +608,19 @@ async function _paperPagePass() {
 function _paperPagePrompt() {
   return 'You are an order intake assistant for Stones Throw Studio, a custom jewelry shop. '
     + 'The image is a handwritten digital work-order page with printed labels: circled ORDER TYPE (Custom, Resize, Repair), '
-    + 'circled PIECE TYPE (Ring, Ear Cuff, Necklace, Bracelet, Earrings, Pendant, Other), '
     + 'circled PICKUP market (SVFM = Sunset Valley Farmer\'s Market, Bell = Bell Market, TXFM = Mueller Market, CCFM = Chaparral Crossing Market, Flea = Austin Flea, Studio = Studio, Ship = To be Shipped), '
-    + 'ruled fields (Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), a multi-line Materials area '
-    + '(metal + gemstones written together, often one item per line), an Item & Price line, and a Notes area.\n'
+    + 'ruled fields (Inside Ring Stamping, Name, Phone, Email, Take In, Deadline, Ring Size), Paid By checkboxes (Cash, Credit, Check), '
+    + 'a Materials section of up to 6 lines, each pairing a material or gemstone description with its own price after a printed $, and a Notes area.\n'
     + 'CRITICAL ACCURACY RULES: copy the exact words you see — never substitute similar-sounding products; if a word is unclear write it as-is with [?] after it; look closely at numerals.\n'
-    + 'Capture ALL text in the Notes and Materials areas verbatim, preserving line breaks as \\n — do not skip or summarize either. Also transcribe any handwriting written OUTSIDE the labeled fields into notes.\n'
+    + 'Capture ALL text in the Notes area verbatim, preserving line breaks as \\n — do not skip or summarize. Also transcribe any handwriting written OUTSIDE the labeled fields into notes.\n'
     + 'Return ONLY a valid JSON object with these exact keys (null for anything not visible):\n'
     + '{"customer_name":string|null,"email":string|null,"phone":string|null,"take_in_date":"YYYY-MM-DD"|null,"deadline":"YYYY-MM-DD"|null,'
     + '"pickup_location":"Bell Market"|"Mueller Market"|"Chaparral Crossing Market"|"Sunset Valley Farmer\'s Market"|"Austin Flea"|"Studio"|"To be Shipped"|null,'
-    + '"order_type":"order"|"resize"|"repair","piece_type":"Ring"|"Ear Cuff"|"Necklace"|"Bracelet"|"Earrings"|"Pendant"|"Other"|null,'
+    + '"order_type":"order"|"resize"|"repair","inside_stamping":string|null,'
     + '"description":string|null,"ring_size":string|null,"materials":string|null,'
     + '"price":number|null,"paid_by":"Cash"|"Credit"|"Check"|null,"notes":string|null}\n'
+    + 'The "materials" key is a rough combined summary of the Materials section (all lines\' descriptions, joined) — a safety net only, since each line is already read individually elsewhere. '
+    + 'The "price" key is the sum of all visible prices in the Materials section, if any are legible.\n'
     + 'For dates, infer the year as ' + new Date().getFullYear() + ' if only month/day is shown. Return ONLY the JSON object, no other text.';
 }
 
@@ -621,22 +644,23 @@ function _paperMergePagePass(p) {
   if (p.ring_size) fillIfEmpty('f-sizing', /[a-z]/i.test(p.ring_size) ? p.ring_size : 'ring size ' + p.ring_size);
   if (p.paid_by && _PAPER_PAID[p.paid_by]) fillIfEmpty('f-paid-by', _PAPER_PAID[p.paid_by]);
   fillIfEmpty('f-notes', (p.notes || '').trim());
-  fillIfEmpty('f-piece-type', p.piece_type || '');
-  const materials = (p.materials || '').trim();
-  if (materials) {
-    const lines = materials.split('\n').map(s => s.trim()).filter(Boolean);
-    const wroteFirst = fillIfEmpty('f-materials', lines[0] || '');
-    const wroteFull  = fillIfEmpty('f-gemstones', materials);
-    if ((wroteFirst || wroteFull) && typeof intakeSensChanged === 'function') intakeSensChanged();
+  fillIfEmpty('f-stamping', (p.inside_stamping || '').trim());
+  // Coarse fallback only — real per-line materials/prices come from the 6
+  // dedicated Materials-row zone passes, which run first. Only step in here
+  // if NONE of those landed anything yet.
+  const hasMaterialRefs = Object.keys(_paperMaterialRefs).length > 0;
+  if (!hasMaterialRefs) {
+    const materials = (p.materials || '').trim();
+    if (materials) { fillIfEmpty('f-materials', materials); fillIfEmpty('f-gemstones', materials); }
+    const price = (p.price != null) ? parseFloat(p.price) : NaN;
+    if (!isNaN(price) && price > 0 && !(parseFloat(document.getElementById('f-price')?.value) > 0)) {
+      _paperApplyMaterialLine('materials-1', materials, price);
+      filled++;
+    }
   }
   const sel = document.getElementById('f-order-type');
   if (p.order_type && _TYPE_BLOCKS[p.order_type] && sel && sel.value === 'order' && p.order_type !== 'order') {
     _paperApplyOrderType(p.order_type === 'resize' ? 'Resize' : p.order_type === 'repair' ? 'Repair' : 'Custom');
-    filled++;
-  }
-  const price = (p.price != null) ? parseFloat(p.price) : NaN;
-  if (!isNaN(price) && price > 0 && !_paperItemRef && !(parseFloat(document.getElementById('f-price')?.value) > 0)) {
-    _paperApplyItemPrice((p.description || '').trim(), price);
     filled++;
   }
   if (filled) toast('✓ Page read — filled ' + filled + ' more field' + (filled > 1 ? 's' : ''), '✓');
@@ -797,7 +821,7 @@ function _paperResetState() {
     _paperChipSet(z, null);
   });
   Object.keys(_paperWrote).forEach(k => delete _paperWrote[k]);
-  _paperItemRef = null;
+  Object.keys(_paperMaterialRefs).forEach(k => delete _paperMaterialRefs[k]);
   _paperScreen = 1;
   _paperSketchOn = true;
   if (_paperOn) paperGoScreen(1);
