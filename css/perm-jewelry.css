@@ -1,0 +1,194 @@
+/* ── Perm Jewelry — Calculator ─────────────── */
+.pj-wrap { padding: var(--sp-4) 20px 30px; max-width: 680px; }
+.pj-step {
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: var(--rad-lg); padding: 14px 18px; margin-bottom: var(--sp-3);
+  box-shadow: var(--shadow-sm);
+  animation: kbFadeSlide var(--dur-med) var(--ease-smooth);
+}
+.pj-step-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text3); margin-bottom: 10px;
+}
+.pj-step-label::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent); flex: none;
+}
+.pj-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.pj-chip {
+  padding: 7px 15px; border-radius: 22px;
+  border: 1.5px solid var(--bdr-light);
+  background: var(--card-bg); color: var(--text2);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              background var(--dur-fast) var(--ease-smooth),
+              color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth),
+              transform var(--dur-fast) var(--ease-smooth);
+}
+.pj-chip:hover {
+  border-color: var(--accent-mid); color: var(--text);
+  transform: translateY(-1px); box-shadow: var(--shadow-sm);
+}
+.pj-chip:active { transform: translateY(0); box-shadow: none; }
+.pj-chip:focus-visible {
+  outline: none; border-color: var(--accent-mid);
+  box-shadow: var(--focus-ring);
+}
+.pj-chip.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #fff; font-weight: 600; box-shadow: var(--shadow-sm);
+}
+.pj-chip.active:hover { border-color: var(--accent); color: #fff; }
+.pj-hidden { display: none !important; }
+.pj-price-card {
+  background: linear-gradient(135deg, var(--hdr) 0%, #1A3850 100%);
+  border: 1px solid var(--hdr-bdr); border-radius: var(--rad-lg);
+  padding: 24px 22px; margin-bottom: var(--sp-3); text-align: center;
+  box-shadow: var(--shadow-md);
+  animation: kbFadeSlide var(--dur-med) var(--ease-smooth);
+}
+.pj-price-line {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: #7AACCB; margin-bottom: 10px;
+}
+.pj-price-amount {
+  font-size: 64px; font-weight: 900; color: var(--accent-light);
+  line-height: 1; letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+}
+.pj-price-meta { font-size: 11.5px; color: #6898B8; margin-top: 10px; }
+
+/* Midnight theme — calculator */
+body.theme-midnight .pj-step { background: var(--card-bg); border-color: var(--bdr); }
+body.theme-midnight .pj-chip { background: var(--hdr-pill); border-color: var(--bdr); }
+body.theme-midnight .pj-chip:hover { border-color: var(--accent-mid); }
+body.theme-midnight .pj-chip.active { background: var(--accent); border-color: var(--accent); color: #1A1A1C; }
+body.theme-midnight .pj-chip.active:hover { border-color: var(--accent); color: #1A1A1C; }
+body.theme-midnight .pj-price-card {
+  background: linear-gradient(135deg, #232327 0%, #2C2C31 100%);
+  border-color: var(--bdr);
+}
+body.theme-midnight .pj-price-line { color: var(--text3); }
+body.theme-midnight .pj-price-meta { color: var(--text3); }
+/* ── Perm Jewelry — Reference table ─────────── */
+/* Horizontal inset is margin (not padding) so the scrollport edge sits flush
+   with the table — otherwise scrolled columns peek out beside the sticky column. */
+.pj-ref-wrap { overflow-x: auto; padding: 2px 0 30px; margin: calc(var(--sp-4) - 2px) 20px 0; }
+.pj-ref-table {
+  border-collapse: separate; border-spacing: 0;
+  width: 100%; font-size: 12.5px;
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: var(--rad-md); white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+/* Round the corner cells themselves (no overflow:hidden on the table —
+   it would break the sticky first column). */
+.pj-ref-table thead tr:first-child th:first-child { border-top-left-radius: calc(var(--rad-md) - 1px); }
+.pj-ref-table thead tr:first-child th:last-child  { border-top-right-radius: calc(var(--rad-md) - 1px); }
+.pj-ref-table tbody tr:last-child td:first-child  { border-bottom-left-radius: calc(var(--rad-md) - 1px); }
+.pj-ref-table tbody tr:last-child td:last-child   { border-bottom-right-radius: calc(var(--rad-md) - 1px); }
+.pj-th {
+  background: var(--card-head-bg); border-bottom: 1px solid var(--bdr);
+  padding: 8px 13px; text-align: center; font-size: 11px;
+  font-weight: 700; color: var(--text2); text-transform: uppercase;
+  letter-spacing: 0.4px; font-variant-numeric: tabular-nums;
+}
+.pj-th:first-child { text-align: left; min-width: 110px; }
+.pj-th-grp {
+  background: var(--subnav); color: #A8C8D8; font-size: 10px;
+  font-weight: 700; letter-spacing: 0.6px; padding: 5px 13px;
+  border-bottom: 1px solid var(--bdr); text-align: center;
+  text-transform: uppercase;
+}
+.pj-th-grp:first-child { text-align: left; }
+.pj-sep-l { border-left: 2px solid var(--bdr); }
+.pj-ref-td {
+  padding: 9px 13px; border-bottom: 1px solid var(--bdr-light);
+  text-align: center; color: var(--text2);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-fast) var(--ease-smooth);
+}
+.pj-ref-td:first-child { text-align: left; color: var(--text); font-weight: 600; }
+.pj-ref-td.pj-sep-l { border-left: 2px solid var(--bdr-light); }
+.pj-ref-table tbody tr:last-child .pj-ref-td { border-bottom: 0; }
+/* Row tint carried by a custom property so both themes and the sticky
+   first column stay in sync (no hardcoded light-hex row backgrounds). */
+.pj-ref-tr-ss { --pj-row-tint: transparent; }
+.pj-ref-tr-gf { --pj-row-tint: rgba(201,152,58,0.07); }
+.pj-ref-tr-ss .pj-ref-td, .pj-ref-tr-gf .pj-ref-td { background: var(--pj-row-tint); }
+.pj-ref-tr-ss:hover, .pj-ref-tr-gf:hover { --pj-row-tint: rgba(26,46,56,0.06); }
+/* Sticky Style column — keeps row labels visible while scrolling to
+   the belly-chain price columns. Opaque base + tint overlay so content
+   never shows through. */
+.pj-th:first-child, .pj-th-grp:first-child, .pj-ref-td:first-child {
+  position: sticky; left: 0; z-index: 1;
+  box-shadow: inset -1px 0 0 var(--bdr-light);
+}
+.pj-ref-td:first-child {
+  background-color: var(--card-bg);
+  background-image: linear-gradient(var(--pj-row-tint), var(--pj-row-tint));
+}
+.pj-badge-ss {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  background: #E8F0F8; color: #3A6A8A; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.pj-badge-gf {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  background: var(--accent-bg); color: #8C6520; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.pj-price-td { font-weight: 600; color: var(--text); }
+
+/* Midnight theme — reference */
+body.theme-midnight .pj-th-grp { background: var(--hdr-pill); color: var(--text2); }
+body.theme-midnight .pj-ref-tr-gf { --pj-row-tint: rgba(212,160,64,0.09); }
+body.theme-midnight .pj-ref-tr-ss:hover,
+body.theme-midnight .pj-ref-tr-gf:hover { --pj-row-tint: rgba(255,255,255,0.06); }
+body.theme-midnight .pj-badge-ss { background: #24313C; color: #90BEDC; }
+body.theme-midnight .pj-badge-gf { color: var(--accent-light); }
+
+@media (max-width: 640px) {
+  .pj-wrap { padding: 10px 12px 28px; }
+  .pj-step { padding: 14px 16px; margin-bottom: 10px; border-radius: 12px; }
+  .pj-step-label { font-size: 9px; margin-bottom: 10px; }
+
+  /* Metal: two equal full-width buttons */
+  #pjMetal_SS, #pjMetal_GF {
+    flex: 1; text-align: center; padding: 12px 10px;
+    font-size: 14px; border-radius: 12px;
+  }
+
+  /* Style chips: 3-column grid so they don't wrap awkwardly */
+  #pjStyleChips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #pjStyleChips .pj-chip {
+    text-align: center; justify-content: center;
+    padding: 10px 6px; font-size: 12px; border-radius: 10px;
+  }
+
+  /* Piece type: 2×2 grid, big tap targets */
+  #pjPieceStep .pj-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  #pjPieceStep .pj-chip {
+    text-align: center; padding: 13px 8px;
+    font-size: 14px; border-radius: 12px;
+  }
+
+  /* Size chips: larger tap targets */
+  #pjSizeChips .pj-chip { padding: 11px 14px; font-size: 14px; }
+
+  /* Price card */
+  .pj-price-card { padding: 22px 18px; border-radius: 14px; }
+  .pj-price-amount { font-size: 72px; letter-spacing: -3px; }
+  .pj-price-line { font-size: 10px; }
+  .pj-price-meta { font-size: 11px; }
+
+  /* Reference table: a bit tighter on mobile */
+  .pj-ref-wrap { padding: 2px 0 28px; margin: 8px 12px 0; }
+  .pj-ref-table { font-size: 12px; }
+  .pj-th, .pj-th-grp { padding: 8px 10px; }
+  .pj-ref-td { padding: 8px 10px; }
+}
