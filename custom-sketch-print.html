@@ -120,7 +120,7 @@
 
     /* ── Bench notes ── */
     .notes { margin-top: 8px; }
-    .notes .mat { font-size: 11.5px; margin-top: 2px; }
+    .notes .mat { font-size: 11.5px; margin-top: 2px; white-space: pre-wrap; }
     .notes .rule { border-bottom: 1px solid #bbb; height: 24px; }
 
     /* ── Items + money strip ── */
@@ -281,7 +281,7 @@
     pickup: q.get('pickup') || '',
     pieceType: q.get('pieceType') || '', jobTitle: q.get('jobTitle') || '',
     desc: q.get('desc') || '', stones: q.get('stones') || '', finish: q.get('finish') || '',
-    notes: q.get('notes') || '', materials: q.get('materials') || '',
+    notes: q.get('notes') || '', materials: q.get('materials') || '', rings: q.get('rings') || '',
     ringSize: q.get('ringSize') || '', chain: q.get('chain') || '',
     wrist: q.get('wrist') || '', neck: q.get('neck') || '',
     giftFor: q.get('giftFor') || '', giftDate: q.get('giftDate') || '',
@@ -391,10 +391,37 @@
     showSketch(c.toDataURL('image/png'));
   }
 
-  // ── Materials → bench notes ──
-  if (src.materials) {
+  // ── Materials → bench notes ── one line per ring when the order has
+  // per-ring Ring Type data (js/ring-fields.js); falls back to the flat
+  // materials string otherwise.
+  let materialsText = src.materials;
+  try {
+    const rings = JSON.parse(src.rings || 'null');
+    if (Array.isArray(rings) && rings.length) {
+      const multi = rings.length > 1;
+      materialsText = rings.map((r, i) => {
+        const parts = [];
+        if (r.category === 'Meditation Ring') {
+          parts.push(['Meditation Ring', r.medWidth, r.medTexture].filter(Boolean).join(', '));
+          if (r.medSpinners) parts.push(r.medSpinners + ' spinner' + (r.medSpinners === '1' ? '' : 's') + (r.medSpinnerStyle ? ' (' + r.medSpinnerStyle + ')' : ''));
+          if (r.medSize) parts.push('Size ' + r.medSize);
+        } else if (r.category === 'Simple Band') {
+          parts.push(['Simple Band', r.bandWidth, r.bandTexture].filter(Boolean).join(', '));
+          if (r.bandSize) parts.push('Size ' + r.bandSize);
+        } else if (r.category === 'Custom Ring') {
+          parts.push([r.customMetal, r.customWidth, r.customGauge].filter(Boolean).join(', '));
+          if ((r.customTexture || []).length) parts.push(r.customTexture.join('/'));
+          if (r.customSize) parts.push('Size ' + r.customSize);
+          if (r.customNotes) parts.push(r.customNotes);
+        }
+        const label = multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : 'Ring';
+        return label + ': ' + parts.filter(Boolean).join(' — ');
+      }).join('\n');
+    }
+  } catch (e) {}
+  if (materialsText) {
     const m = document.getElementById('n-materials');
-    m.textContent = src.materials; m.style.display = 'block';
+    m.textContent = materialsText; m.style.display = 'block';
   }
 
   // ── Items + money ──

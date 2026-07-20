@@ -598,6 +598,38 @@
   const size      = p.get('size')      || '';
   const notes     = p.get('notes')     || '';
   const materials = p.get('materials') || '';
+  // Ring piece type (js/ring-fields.js data, one entry per ring) — when
+  // present, renders each ring on its own line in the Notes/Materials box
+  // instead of the flattened, semicolon-joined `materials` string (which
+  // only ever carries rings 1-2 anyway). Falls back to `materials` for
+  // every other piece type and for orders saved before this existed.
+  let materialsText = materials;
+  try {
+    const rings = JSON.parse(p.get('rings') || 'null');
+    if (Array.isArray(rings) && rings.length) materialsText = _woRingsMaterialsText(rings);
+  } catch (e) {}
+
+  function _woRingsMaterialsText(rings) {
+    const multi = rings.length > 1;
+    return rings.map((r, i) => {
+      const parts = [];
+      if (r.category === 'Meditation Ring') {
+        parts.push(['Meditation Ring', r.medWidth, r.medTexture].filter(Boolean).join(', '));
+        if (r.medSpinners) parts.push(r.medSpinners + ' spinner' + (r.medSpinners === '1' ? '' : 's') + (r.medSpinnerStyle ? ' (' + r.medSpinnerStyle + ')' : ''));
+        if (r.medSize) parts.push('Size ' + r.medSize);
+      } else if (r.category === 'Simple Band') {
+        parts.push(['Simple Band', r.bandWidth, r.bandTexture].filter(Boolean).join(', '));
+        if (r.bandSize) parts.push('Size ' + r.bandSize);
+      } else if (r.category === 'Custom Ring') {
+        parts.push([r.customMetal, r.customWidth, r.customGauge].filter(Boolean).join(', '));
+        if ((r.customTexture || []).length) parts.push(r.customTexture.join('/'));
+        if (r.customSize) parts.push('Size ' + r.customSize);
+        if (r.customNotes) parts.push(r.customNotes);
+      }
+      const label = multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : 'Ring';
+      return label + ': ' + parts.filter(Boolean).join(' — ');
+    }).join('\n');
+  }
   const takeIn    = p.get('takeIn')    || '';
   const deadline  = p.get('deadline')  || '';
   const price     = p.get('price')     || '';
@@ -725,7 +757,12 @@
     document.getElementById('stamp-block').style.display = '';
     document.getElementById('stamp-body').textContent = stampLines.join('\n');
   }
-  const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
+  // Single-line materials (the common case) stays inline after the label;
+  // multi-ring text (one ring per line) gets the label on its own line.
+  const materialsLine = materialsText
+    ? 'Materials:' + (materialsText.includes('\n') ? '\n' : ' ') + materialsText
+    : '';
+  const notesText = [notes, materialsLine].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 
   // Per-layout content: header band + item rows + Ship To block (ecom),
@@ -859,7 +896,7 @@
       document.getElementById('buyer-note').textContent = buyerMsg;
       document.getElementById('buyer-block').classList.add('has-note');
     }
-    document.getElementById('n-notes').textContent = materials ? 'Materials: ' + materials : '';
+    document.getElementById('n-notes').textContent = materialsLine;
   }
   if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
     document.querySelector('.jd-desc-head').textContent = 'Item Taken In / Job';

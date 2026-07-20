@@ -1802,6 +1802,7 @@ function printOrder(id) {
       if (ei.length) p.set('ecomItems', JSON.stringify(ei));
     }
   }
+  if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
   // Append print layout settings from localStorage
   try {
     const ps = Object.assign(
@@ -1857,6 +1858,7 @@ function printOrderSketchBag(o) {
       amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
     }))),
   });
+  if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
   const gift = o.gift || {};
   if (gift.recipient || gift.occasion || gift.surprise) {
     p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
