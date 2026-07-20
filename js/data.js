@@ -92,27 +92,12 @@ const COLUMN_GROUPS = [
 
 // ClickUp list 901416911135 — legacy Asana IDs preserved for reference only
 
-// ── Square Market Weekend Sales (auto-fetched, last updated May 26 2026) ─────
-const SQUARE_WEEKENDS = [
-  { weekend: "2026-01-17", label: "Jan 17-18", saturday: 59.54,   sunday: 1149.26, total: 1208.80,  num_transactions: 22 },
-  { weekend: "2026-01-31", label: "Jan 31-Feb 1", saturday: 442.74, sunday: 903.32, total: 1346.06, num_transactions: 26 },
-  { weekend: "2026-02-07", label: "Feb 7-8",   saturday: 1268.11, sunday: 1287.46, total: 2555.57,  num_transactions: 46 },
-  { weekend: "2026-02-14", label: "Feb 14-15", saturday: 48.71,   sunday: 1290.55, total: 1339.26,  num_transactions: 24 },
-  { weekend: "2026-02-21", label: "Feb 21-22", saturday: 1015.26, sunday: 1477.49, total: 2492.75,  num_transactions: 48 },
-  { weekend: "2026-02-28", label: "Feb 28-Mar 1", saturday: 1052.32, sunday: 555.10, total: 1607.42, num_transactions: 30 },
-  { weekend: "2026-03-07", label: "Mar 7-8",   saturday: 476.74,  sunday: 1351.22, total: 1827.96,  num_transactions: 30 },
-  { weekend: "2026-03-14", label: "Mar 14-15", saturday: 574.16,  sunday: 2472.40, total: 3046.56,  num_transactions: 52 },
-  { weekend: "2026-03-21", label: "Mar 21-22", saturday: 644.30,  sunday: 1898.64, total: 2542.94,  num_transactions: 44 },
-  { weekend: "2026-03-28", label: "Mar 28-29", saturday: 721.58,  sunday: 1493.70, total: 2215.28,  num_transactions: 36 },
-  { weekend: "2026-04-04", label: "Apr 4-5",   saturday: 0,       sunday: 506.34,  total: 506.34,   num_transactions: 12 },
-  { weekend: "2026-04-11", label: "Apr 11-12", saturday: 832.42,  sunday: 2019.98, total: 2852.40,  num_transactions: 47 },
-  { weekend: "2026-04-18", label: "Apr 18-19", saturday: 901.03,  sunday: 1572.76, total: 2473.79,  num_transactions: 51 },
-  { weekend: "2026-04-25", label: "Apr 25-26", saturday: 996.44,  sunday: 1522.67, total: 2519.11,  num_transactions: 45 },
-  { weekend: "2026-05-02", label: "May 2-3",   saturday: 2310.98, sunday: 2054.26, total: 4365.24,  num_transactions: 77 },
-  { weekend: "2026-05-09", label: "May 9-10",  saturday: 1860.90, sunday: 3799.99, total: 5660.89,  num_transactions: 76 },
-  { weekend: "2026-05-16", label: "May 16-17", saturday: 1016.10, sunday: 1513.28, total: 2529.38,  num_transactions: 45 },
-  { weekend: "2026-05-23", label: "May 23-24", saturday: 907.12,  sunday: 1956.21, total: 2863.33,  num_transactions: 54 },
-];
+// ── Square Market Weekend Sales ──────────────────────────────────────────────
+// Populated at runtime from /api/weekend-sales (totals section) — see
+// salesFetchTotals() in js/sales.js. The baseline lives server-side in
+// functions/api/weekend-sales.js; never hardcode revenue here — this file
+// is served publicly.
+const SQUARE_WEEKENDS = [];
 
 // Orders are loaded from Notion on startup via notionStartupSync()
 // and from localStorage as a fast cache. This array is intentionally

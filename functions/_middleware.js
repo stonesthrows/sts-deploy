@@ -30,13 +30,6 @@ const BLOCKED_FILE = new Set([
   '/serve.js',           // local dev server
   '/.mcp.json',
   '/.gitignore',
-  '/med_batch.json',     // product/batch data exports — app never fetches these
-  '/med_batch_inline.json',
-  '/med_item_0.json',
-  '/med_item_1.json',
-  '/med_item_2.json',
-  '/med_item_3.json',
-  '/med_item_4.json',
 ]);
 
 export async function onRequest(context) {
