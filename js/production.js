@@ -1280,7 +1280,7 @@ function sotRenderCatalog() {
         html += '<div class="sot-item-info">';
         html += '<div class="sot-item-name">' + sotEsc(item.name) + '</div>';
         if (item.desc) html += '<div class="sot-item-desc">' + sotEsc(item.desc) + '</div>';
-        html += '<span class="sot-item-sku">' + sotEsc(item.id) + '</span>';
+        html += '<span class="sot-item-sku">' + sotEsc(item.id.replace(/^[a-z]+_/, '')) + '</span>';
         if (url) {
           html += '<a class="sot-item-link" href="' + sotEsc(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ordering page">&#128279; Order page</a>';
         }
@@ -1373,8 +1373,9 @@ function sotRenderOrder() {
         var qty = entry.qty || 1;
         var unit = sotGetUnit(it.desc);
         html += '<div class="sot-ord-item">';
+        html += '<input class="sot-ord-sku-input" type="text" readonly value="' + sotEsc(it.id.replace(/^[a-z]+_/, '')) + '"'
+              + ' onclick="this.select()" onfocus="this.select()" title="Click to select SKU">';
         html += '<div class="sot-ord-item-info">';
-        if (it.sku) html += '<div class="sot-ord-item-sku">' + sotEsc(it.sku) + '</div>';
         html += '<div class="sot-ord-item-name">' + sotEsc(it.name) + '</div>';
         html += '</div>';
         if (unit) {
