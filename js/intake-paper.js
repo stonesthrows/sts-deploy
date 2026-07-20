@@ -791,11 +791,16 @@ function paperToggle(on) {
   if (_paperOn) {
     _paperEnsureInit();
     paperGoScreen(_paperScreen);
-  } else if (typeof intakeStep === 'function') {
+  } else {
+    // paperGoScreen() sets an inline display on #paper-mode itself (to pick
+    // which of its 3 screens shows) — that inline style overrides the
+    // body.paper-on CSS rule and sticks around after leaving Paper mode
+    // unless cleared here, permanently overlapping the typed form.
+    const pm = document.getElementById('paper-mode');
+    if (pm) pm.style.display = '';
     // Re-assert the typed wizard's own step visibility — paperGoScreen() was
-    // the last thing to set #step-2/#step-3's inline display, and only
-    // #step-1 is force-hidden by CSS while Paper mode is on.
-    intakeStep(_intakeStep);
+    // also the last thing to set #step-2/#step-3's inline display.
+    if (typeof intakeStep === 'function') intakeStep(_intakeStep);
   }
   try { localStorage.setItem('sts-intake-paper', _paperOn ? '1' : '0'); } catch (e) {}
 }
