@@ -231,10 +231,16 @@ function intakeSetOrderFor(val) {
 // ── Ring piece type: N-ring dynamic fields ─────────────────────
 // Replaces the shared Materials/Finish/Gemstones fields + the sheet's
 // Individual/Couple 2-ring cap with one field-set per ring (any count),
-// each with its own name (once there's more than one), size, materials,
-// texture/finish, gemstones, and an optional inside-ring stamping.
+// each with its own name (once there's more than one) and an independent
+// Ring Type (Meditation Ring / Simple Band / Custom Ring) — each type has
+// its own field set — plus an optional inside-ring stamping.
 function _intakeBlankRing() {
-  return { name: '', size: '', materials: '', finish: [], gemstones: '', stamping: '' };
+  return {
+    name: '', category: '', stamping: '',
+    medWidth: '', medTexture: '', medSpinners: '', medSpinnerStyle: '', medSize: '',
+    bandWidth: '', bandTexture: '', bandSize: '',
+    customSize: '', customWidth: '', customGauge: '', customMetal: '', customTexture: [], customNotes: '',
+  };
 }
 let _intakeRings = [_intakeBlankRing()];
 
@@ -256,14 +262,40 @@ function intakeApplyPieceType(pieceType) {
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
   if (!blocks.length) return _intakeRings;
+  const g = id => document.getElementById(id);
+  // Reads every category's fields regardless of which category is currently
+  // rendered for a given ring — fields not in the DOM just fall back to ''/[]
+  // via the optional chaining below, and a ring's data for a category it's
+  // NOT currently showing simply isn't touched (so switching category and
+  // back restores what was there before).
   return [...blocks].map((block, i) => ({
-    name:      document.getElementById('f-ring-name-' + i)?.value.trim() || '',
-    size:      document.getElementById('f-ring-size-' + i)?.value.trim() || '',
-    materials: document.getElementById('f-ring-materials-' + i)?.value.trim() || '',
-    finish:    [...block.querySelectorAll('.ring-finish input:checked')].map(c => c.value),
-    gemstones: document.getElementById('f-ring-gemstones-' + i)?.value.trim() || '',
-    stamping:  document.getElementById('f-ring-stamping-' + i)?.value.trim() || '',
+    name:            g('f-ring-name-' + i)?.value.trim() || '',
+    category:        g('f-ring-category-' + i)?.value || '',
+    stamping:        g('f-ring-stamping-' + i)?.value.trim() || '',
+    medWidth:        g('f-ring-medwidth-' + i)?.value || '',
+    medTexture:      g('f-ring-medtexture-' + i)?.value || '',
+    medSpinners:     g('f-ring-medspinners-' + i)?.value || '',
+    medSpinnerStyle: g('f-ring-medspinnerstyle-' + i)?.value || '',
+    medSize:         g('f-ring-medsize-' + i)?.value || '',
+    bandWidth:       g('f-ring-bandwidth-' + i)?.value || '',
+    bandTexture:     g('f-ring-bandtexture-' + i)?.value || '',
+    bandSize:        g('f-ring-bandsize-' + i)?.value || '',
+    customSize:      g('f-ring-customsize-' + i)?.value.trim() || '',
+    customWidth:     g('f-ring-customwidth-' + i)?.value.trim() || '',
+    customGauge:     g('f-ring-customgauge-' + i)?.value.trim() || '',
+    customMetal:     g('f-ring-custommetal-' + i)?.value.trim() || '',
+    customTexture:   [...block.querySelectorAll('.ring-custom-texture input:checked')].map(c => c.value),
+    customNotes:     g('f-ring-customnotes-' + i)?.value.trim() || '',
   }));
+}
+
+// Switching a single ring's Type re-renders all ring blocks (simplest way
+// to swap that ring's field set), so snapshot every ring's current DOM
+// values first or the others' typed-but-not-yet-synced data would be lost.
+function intakeSetRingCategory(i, category) {
+  _intakeRings = _intakeCollectRingsFromDom();
+  if (_intakeRings[i]) _intakeRings[i].category = category;
+  intakeRenderRingBlocks();
 }
 
 // Renders a preview of the ring blocks as the user types, WITHOUT writing
@@ -290,6 +322,99 @@ function intakeClampRingCount(el) {
   if (el.value != n) el.value = n;
 }
 
+// Half-size steps from min to max inclusive, e.g. _intakeSizeOptions(4,13)
+// → ["4","4.5","5",…,"13"].
+function _intakeSizeOptions(min, max) {
+  const out = [];
+  for (let q = min * 2; q <= max * 2; q++) out.push(String(q / 2));
+  return out;
+}
+
+function _intakeSelectHtml(id, options, current) {
+  return '<select id="' + id + '">'
+    + '<option value="">— Select —</option>'
+    + options.map(o => '<option value="' + o + '"' + (o === current ? ' selected' : '') + '>' + o + '</option>').join('')
+    + '</select>';
+}
+
+// The 3 Ring Types each have their own field set — Meditation Ring and
+// Simple Band are fixed product lines (enumerated widths/textures/sizes),
+// Custom Ring is free-text/free-select like a bespoke piece.
+function _intakeRingCategoryFieldsHtml(i, r) {
+  const esc = v => String(v || '').replace(/"/g, '&quot;');
+  if (r.category === 'Meditation Ring') {
+    return `
+      <div class="fg">
+        <label>Width of Ring</label>
+        ${_intakeSelectHtml('f-ring-medwidth-' + i, ['6mm', '8mm', '10mm'], r.medWidth)}
+      </div>
+      <div class="fg">
+        <label>Texture</label>
+        ${_intakeSelectHtml('f-ring-medtexture-' + i, ['Bodhi Leaf', 'Round Hammer'], r.medTexture)}
+      </div>
+      <div class="fg">
+        <label>Number of Spinners</label>
+        ${_intakeSelectHtml('f-ring-medspinners-' + i, ['1', '2', '3'], r.medSpinners)}
+      </div>
+      <div class="fg">
+        <label>Style of Spinner Ring</label>
+        ${_intakeSelectHtml('f-ring-medspinnerstyle-' + i, ['Leaf', 'Orbit Tricolor'], r.medSpinnerStyle)}
+      </div>
+      <div class="fg">
+        <label>Ring Size</label>
+        ${_intakeSelectHtml('f-ring-medsize-' + i, _intakeSizeOptions(4, 13), r.medSize)}
+      </div>`;
+  }
+  if (r.category === 'Simple Band') {
+    return `
+      <div class="fg">
+        <label>Band Width</label>
+        ${_intakeSelectHtml('f-ring-bandwidth-' + i, ['4mm', '6mm', '8mm', '10mm'], r.bandWidth)}
+      </div>
+      <div class="fg">
+        <label>Band Texture</label>
+        ${_intakeSelectHtml('f-ring-bandtexture-' + i, ['Small Rounded', 'Large Rounded', 'Vertical Lined', 'Horizontal Lined', 'Smooth'], r.bandTexture)}
+      </div>
+      <div class="fg">
+        <label>Band Size</label>
+        ${_intakeSelectHtml('f-ring-bandsize-' + i, _intakeSizeOptions(4, 15), r.bandSize)}
+      </div>`;
+  }
+  if (r.category === 'Custom Ring') {
+    return `
+      <div class="fg">
+        <label>Ring Size</label>
+        <input type="text" id="f-ring-customsize-${i}" value="${esc(r.customSize)}" placeholder="e.g. 7">
+      </div>
+      <div class="fg">
+        <label>Ring Width</label>
+        <input type="text" id="f-ring-customwidth-${i}" value="${esc(r.customWidth)}" placeholder="e.g. 4mm">
+      </div>
+      <div class="fg">
+        <label>Ring Gauge</label>
+        <input type="text" id="f-ring-customgauge-${i}" value="${esc(r.customGauge)}" placeholder="e.g. 18ga">
+      </div>
+      <div class="fg">
+        <label>Metal</label>
+        <input type="text" id="f-ring-custommetal-${i}" value="${esc(r.customMetal)}" placeholder="e.g. 14k yellow gold">
+      </div>
+      <div class="fg">
+        <label>Texture</label>
+        <div class="finish-checks ring-custom-texture">
+          <label><input type="checkbox" value="Polished" ${r.customTexture.includes('Polished') ? 'checked' : ''}> Polished</label>
+          <label><input type="checkbox" value="Hammered/Textured" ${r.customTexture.includes('Hammered/Textured') ? 'checked' : ''}> Hammered</label>
+          <label><input type="checkbox" value="Matte" ${r.customTexture.includes('Matte') ? 'checked' : ''}> Matte</label>
+          <label><input type="checkbox" value="Oxidized" ${r.customTexture.includes('Oxidized') ? 'checked' : ''}> Oxidized</label>
+        </div>
+      </div>
+      <div class="fg full">
+        <label>Notes</label>
+        <textarea id="f-ring-customnotes-${i}" placeholder="Any additional detail…" style="min-height:40px;">${esc(r.customNotes)}</textarea>
+      </div>`;
+  }
+  return '';
+}
+
 function intakeRenderRingBlocks() {
   const list = document.getElementById('rings-dynamic-list');
   if (!list) return;
@@ -304,32 +429,54 @@ function intakeRenderRingBlocks() {
         <input type="text" id="f-ring-name-${i}" value="${esc(r.name)}" placeholder="e.g. Sarah" oninput="_intakeRings[${i}].name=this.value">
       </div>` : ''}
       <div class="fg">
-        <label>Ring Size</label>
-        <input type="text" id="f-ring-size-${i}" value="${esc(r.size)}" placeholder="e.g. 7">
+        <label>Ring Type</label>
+        <select id="f-ring-category-${i}" onchange="intakeSetRingCategory(${i}, this.value)">
+          <option value="">— Select —</option>
+          <option value="Meditation Ring" ${r.category === 'Meditation Ring' ? 'selected' : ''}>Meditation Ring</option>
+          <option value="Simple Band" ${r.category === 'Simple Band' ? 'selected' : ''}>Simple Band</option>
+          <option value="Custom Ring" ${r.category === 'Custom Ring' ? 'selected' : ''}>Custom Ring</option>
+        </select>
       </div>
-      <div class="fg">
-        <label>Materials / Metal</label>
-        <input type="text" id="f-ring-materials-${i}" value="${esc(r.materials)}" placeholder="e.g. 14k yellow gold">
-      </div>
-      <div class="fg">
-        <label>Texture / Finish</label>
-        <div class="finish-checks ring-finish">
-          <label><input type="checkbox" value="Polished" ${r.finish.includes('Polished') ? 'checked' : ''}> Polished</label>
-          <label><input type="checkbox" value="Hammered/Textured" ${r.finish.includes('Hammered/Textured') ? 'checked' : ''}> Hammered</label>
-          <label><input type="checkbox" value="Matte" ${r.finish.includes('Matte') ? 'checked' : ''}> Matte</label>
-          <label><input type="checkbox" value="Oxidized" ${r.finish.includes('Oxidized') ? 'checked' : ''}> Oxidized</label>
-        </div>
-      </div>
-      <div class="fg full">
-        <label>Gemstones / Components</label>
-        <textarea id="f-ring-gemstones-${i}" placeholder="Stones, cuts, settings, beads…" style="min-height:40px;">${esc(r.gemstones)}</textarea>
-      </div>
+      ${_intakeRingCategoryFieldsHtml(i, r)}
       <div class="fg">
         <label>Inside Ring Stamping <span style="font-weight:400;">(optional)</span></label>
         <input type="text" id="f-ring-stamping-${i}" value="${esc(r.stamping)}" placeholder="e.g. Forever &amp; Always">
       </div>
     </div>
   `).join('');
+}
+
+// Normalizes one ring's category-specific fields into the
+// {size, materials, finish, gemstones} shape the legacy flat fields expect —
+// a single place that knows how each Ring Type maps onto that shape.
+function _intakeRingSummary(r) {
+  if (r.category === 'Meditation Ring') {
+    const spinners = r.medSpinners ? (r.medSpinners + ' spinner' + (r.medSpinners === '1' ? '' : 's')) : '';
+    return {
+      size: r.medSize,
+      materials: ['Meditation Ring', r.medWidth, r.medTexture].filter(Boolean).join(', ')
+        + (spinners ? ' — ' + spinners + (r.medSpinnerStyle ? ' (' + r.medSpinnerStyle + ')' : '') : ''),
+      finish: [],
+      gemstones: '',
+    };
+  }
+  if (r.category === 'Simple Band') {
+    return {
+      size: r.bandSize,
+      materials: ['Simple Band', r.bandWidth, r.bandTexture].filter(Boolean).join(', '),
+      finish: [],
+      gemstones: '',
+    };
+  }
+  if (r.category === 'Custom Ring') {
+    return {
+      size: r.customSize,
+      materials: [r.customMetal, r.customWidth, r.customGauge].filter(Boolean).join(', '),
+      finish: r.customTexture || [],
+      gemstones: r.customNotes,
+    };
+  }
+  return { size: '', materials: '', finish: [], gemstones: '' };
 }
 
 // Flat, backward-compatible fields derived from rings[] — the desktop
@@ -340,16 +487,17 @@ function intakeRenderRingBlocks() {
 // fields surface rings 1-2 only, same as the old Individual/Couple cap.
 function _intakeRingsLegacyFields(rings) {
   const multi = rings.length > 1;
+  const summaries = rings.map(_intakeRingSummary);
   const label = (r, i) => multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : '';
   const join = key => rings
-    .map((r, i) => r[key] ? (label(r, i) ? label(r, i) + ': ' + r[key] : r[key]) : '')
+    .map((r, i) => summaries[i][key] ? (label(r, i) ? label(r, i) + ': ' + summaries[i][key] : summaries[i][key]) : '')
     .filter(Boolean).join('; ');
   return {
     materials: join('materials'),
     gemstones: join('gemstones'),
-    finish:    [...new Set(rings.flatMap(r => r.finish || []))],
-    sizing:    rings[0] && rings[0].size ? ('sz ' + rings[0].size) : '',
-    ringSize2: rings[1] && rings[1].size ? ('sz ' + rings[1].size) : '',
+    finish:    [...new Set(summaries.flatMap(s => s.finish || []))],
+    sizing:    summaries[0] && summaries[0].size ? ('sz ' + summaries[0].size) : '',
+    ringSize2: summaries[1] && summaries[1].size ? ('sz ' + summaries[1].size) : '',
     stamping:  (rings[0] && rings[0].stamping) || '',
     stamping2: (rings[1] && rings[1].stamping) || '',
     orderFor:  multi ? 'couple' : 'individual',
@@ -475,8 +623,8 @@ function _intakeDirty() {
     return el && el.value && el.value.trim();
   });
   const ringsDirty = document.getElementById('f-ring-count')?.value > 1
-    || [...document.querySelectorAll('#rings-dynamic-list input, #rings-dynamic-list textarea')]
-        .some(el => el.type === 'checkbox' ? el.checked : el.value.trim());
+    || [...document.querySelectorAll('#rings-dynamic-list input, #rings-dynamic-list textarea, #rings-dynamic-list select')]
+        .some(el => el.type === 'checkbox' ? el.checked : (el.value || '').trim());
   return fields
     || ringsDirty
     || (typeof _oiItems !== 'undefined' && _oiItems.some(it => it.name || it.price))
