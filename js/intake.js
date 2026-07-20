@@ -116,12 +116,18 @@ function intakeApplyTypeLayout(type) {
     const el = document.getElementById(id);
     if (el) el.style.display = (t === type) ? '' : 'none';
   });
-  // Custom Design's technical parameters live in the Step-2 bottom sheet
-  // (brief 2.1) — the Step-1 grid stays in the DOM purely as the hidden
-  // fields the sheet writes into. Repair/Resize/Square layouts untouched.
+  // Custom Design's SIZING parameters (ring size / band / stamping) still
+  // live in the Step-2 bottom sheet's Sizing tab (js/intake-sheet.js) — those
+  // specific Step-1 fields stay hidden in the DOM purely as the fields the
+  // sheet writes into, so they don't fight it. Piece Type / Materials /
+  // Finish / Gemstones have no sheet tab anymore (that chip UI was retired
+  // in favor of handwriting on Paper mode's Screen 1) and stay visible here
+  // as the plain-text fallback. Repair/Resize/Square layouts untouched.
   if (type === 'order' && typeof psRenderPanes === 'function') {
-    const tc = document.getElementById('type-custom');
-    if (tc) tc.style.display = 'none';
+    ['sizing-fg', 'ringsize2-fg', 'stamping-fg', 'stamping2-fg'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
   }
 
   // Repair / Resize / Square Item collapse to a single page: Items & Price
@@ -200,6 +206,26 @@ function intakeUpdateShippingField() {
   const type = document.getElementById('f-order-type')?.value || 'order';
   const isShipped = document.getElementById('f-pickup')?.value === 'To be Shipped';
   el.style.display = (type !== 'order' && isShipped) ? '' : 'none';
+}
+
+// ── Order For (Individual / Couple) — a couple order (e.g. matching
+//    wedding bands) needs a second ring size + a second stamping field;
+//    an individual order shows just the one of each.
+let _intakeOrderFor = 'individual';
+
+function intakeSetOrderFor(val) {
+  _intakeOrderFor = (val === 'couple') ? 'couple' : 'individual';
+  const isCouple = _intakeOrderFor === 'couple';
+  document.getElementById('order-for-individual-btn')?.classList.toggle('selected', !isCouple);
+  document.getElementById('order-for-couple-btn')?.classList.toggle('selected', isCouple);
+  // Custom Design keeps these two sheet-owned (Step 2's Sizing tab has its
+  // own 2nd-ring-size/2nd-stamping controls) — Step 1's copies stay hidden
+  // regardless of Individual/Couple so there's only one editing surface.
+  if (_intakeCurrentOrderType === 'order') return;
+  const ringsize2Fg = document.getElementById('ringsize2-fg');
+  if (ringsize2Fg) ringsize2Fg.style.display = isCouple ? '' : 'none';
+  const stamping2Fg = document.getElementById('stamping2-fg');
+  if (stamping2Fg) stamping2Fg.style.display = isCouple ? '' : 'none';
 }
 
 // Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
@@ -313,7 +339,8 @@ function intakeResetDockPos() {
 // ── Dirty check + exit ────────────────────────────────────────
 function _intakeDirty() {
   const ids = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-materials',
-               'f-sizing', 'f-gemstones', 'f-description', 'f-job-desc', 'f-notes',
+               'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2', 'f-gemstones',
+               'f-description', 'f-job-desc', 'f-notes',
                'f-repair-notes', 'f-resize-from', 'f-resize-to'];
   const fields = ids.some(id => {
     const el = document.getElementById(id);
@@ -439,6 +466,15 @@ async function intakeSubmit() {
   const resizeTo    = isResize ? g('f-resize-to').value.trim()   : '';
   const notes       = g('f-notes').value.trim();
   const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
+  // Individual vs Couple (brief: matching-set orders, e.g. wedding bands) —
+  // set from the Step-2 bottom sheet's Sizing tab, so it's Custom-Design-only
+  // (Repair/Resize/Square Item never reach that sheet — don't let stale
+  // sheet state from an earlier Custom Design session leak into them).
+  const isCustomDesign = typeVal === 'order';
+  const orderFor    = isCustomDesign ? (_intakeOrderFor === 'couple' ? 'couple' : 'individual') : '';
+  const ringSize2   = (isCustomDesign && orderFor === 'couple') ? g('f-ringsize2').value.trim() : '';
+  const stamping    = isCustomDesign ? g('f-stamping').value.trim() : '';
+  const stamping2   = (isCustomDesign && orderFor === 'couple') ? g('f-stamping2').value.trim() : '';
   // Sensitivities: structured on the order AND joined into notes so Notion +
   // the printed bag see plain text with no pipeline changes (brief 1.3).
   const sens        = intakeSensList();
@@ -480,6 +516,10 @@ async function intakeSubmit() {
     materials:     (typeVal === 'order' && _intakeEstMaterialLines()) || g('f-materials').value.trim(),
     pieceType:     g('f-piece-type').value || '',
     sizing:        sizing,
+    orderFor:      orderFor,
+    ringSize2:     ringSize2,
+    stamping:      stamping,
+    stamping2:     stamping2,
     gemstones:     g('f-gemstones').value.trim(),
     finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
@@ -492,6 +532,9 @@ async function intakeSubmit() {
     // sketch; absent signature never blocks a save. Pushing it to Notion
     // as an attachment is deferred until the pipeline grows a slot for it.
     signatureImg:  (typeof SIG !== 'undefined' && SIG && SIG.hasInk) ? SIG.canvas.toDataURL('image/png') : null,
+    // Paper mode's handwritten page (js/intake-paper.js) — the full-fidelity
+    // human record, kept alongside the structured fields OCR'd out of it.
+    paperPageImg:  (typeof paperExportPage === 'function') ? paperExportPage() : null,
     customerNotes: g('f-customer-notes').value.trim() || '',
     notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
                     notes,
@@ -557,7 +600,8 @@ async function intakeSubmit() {
 function intakeReset() {
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
-   'f-piece-type', 'f-sizing', 'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
+   'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
+   'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
    'f-sensitivity-note',
    'f-addr-street', 'f-addr-street2', 'f-addr-city', 'f-addr-state', 'f-addr-zip']
     .forEach(id => {
@@ -567,6 +611,7 @@ function intakeReset() {
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = false);
   document.querySelectorAll('#f-sensitivities input').forEach(c => c.checked = false);
   intakeSensChanged();
+  intakeSetOrderFor('individual');
   _depMode = null;
   document.getElementById('est-preset-strip')?.classList.remove('open');
   if (typeof intakeProfileReset === 'function') intakeProfileReset();

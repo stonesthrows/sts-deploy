@@ -1,0 +1,11 @@
+{
+  "name": "sts-deploy-tests",
+  "private": true,
+  "description": "Dev-only smoke suite for jewelry-workflow.html. Not part of the deployed app — see tests/README.md.",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.48.0"
+  }
+}

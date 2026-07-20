@@ -76,7 +76,70 @@ function _saveSyncedWeekend(entry) {
   var idx = stored.findIndex(function(w){ return w.weekend === entry.weekend; });
   if (idx >= 0) { stored[idx] = entry; } else { stored.push(entry); }
   localStorage.setItem(SALES_LS_KEY, JSON.stringify(stored));
+  // Share to the server store so every device sees the same totals
+  var t = {}; t[entry.weekend] = entry;
+  fetch('/api/weekend-sales', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ totals: t }),
+  }).catch(function(){});
 }
+
+// ── Server-shared weekend totals ─────────────────────────────────────────────
+// SQUARE_WEEKENDS (js/data.js) is an empty runtime array now — the baseline
+// used to be hardcoded there, which served revenue numbers publicly and went
+// stale between hand edits. Totals live in the /api/weekend-sales KV store
+// ('totals' section, baseline seeded server-side); cached in localStorage
+// for instant first paint, refreshed at most every 5 minutes.
+var SALES_TOTALS_CACHE_KEY = 'sts-weekend-totals-cache';
+var _salesTotalsFetchedAt = 0;
+
+function _salesApplyTotals(arr) {
+  if (!Array.isArray(arr) || !arr.length || typeof SQUARE_WEEKENDS === 'undefined') return;
+  arr.sort(function(a,b){ return a.weekend < b.weekend ? -1 : a.weekend > b.weekend ? 1 : 0; });
+  SQUARE_WEEKENDS.length = 0;
+  arr.forEach(function(w){ SQUARE_WEEKENDS.push(w); });
+}
+
+function salesLoadTotalsCache() {
+  try { _salesApplyTotals(JSON.parse(localStorage.getItem(SALES_TOTALS_CACHE_KEY) || '[]')); } catch(e) {}
+}
+
+function salesFetchTotals() {
+  if (Date.now() - _salesTotalsFetchedAt < 300000) return;
+  _salesTotalsFetchedAt = Date.now();
+  fetch('/api/weekend-sales')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d || !d.totals) return;
+      var arr = Object.keys(d.totals).map(function(k){ return d.totals[k]; });
+      if (!arr.length) return;
+      _salesApplyTotals(arr);
+      try { localStorage.setItem(SALES_TOTALS_CACHE_KEY, JSON.stringify(arr)); } catch(e) {}
+      // One-time backfill: push locally-synced weekends the server lacks
+      var missing = {}, n = 0;
+      _loadSyncedWeekends().forEach(function(w){
+        if (!d.totals[w.weekend]) { missing[w.weekend] = w; n++; }
+      });
+      if (n) {
+        fetch('/api/weekend-sales', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ totals: missing }),
+        }).catch(function(){});
+      }
+      // Refresh whatever is currently showing these numbers
+      var panel = document.getElementById('tab-sales');
+      if (panel && panel.classList.contains('active')) renderSales();
+      if (typeof dashSquareLoad === 'function' && document.getElementById('hw-square-body')) dashSquareLoad();
+    })
+    .catch(function(){});
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  salesLoadTotalsCache();
+  salesFetchTotals();
+});
 
 // Merges hardcoded baseline with localStorage overrides (synced data wins)
 function _mergedWeekends() {
@@ -162,6 +225,7 @@ function salesAutoSync() {
 function renderSales() {
   var el = document.getElementById('salesContent');
   if (!el) return;
+  salesFetchTotals();   // throttled — refreshes shared totals when the tab opens
 
   // ── Stats ─────────────────────────────────
   var allData  = _mergedWeekends();

@@ -94,6 +94,7 @@ function cardPointerDown(ev, orderId, kind) {
 
   function endDrag(up) {
     clearTimeout(longPressTimer);
+    window._touchDragActive = false;
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', endDrag);
     document.removeEventListener('pointercancel', endDrag);
@@ -111,6 +112,7 @@ function cardPointerDown(ev, orderId, kind) {
 
   function startDrag() {
     dragging = true;
+    window._touchDragActive = true; // pauses background Notion pulls (notion.js)
     card.style.opacity = '0.4';
     const rect = card.getBoundingClientRect();
     ghost = card.cloneNode(true);
@@ -229,7 +231,7 @@ function setConnStatus(ok) {
   if (!pill) return;
   pill.classList.toggle('conn-bad', !ok);
   const label = pill.querySelector('.conn-label');
-  if (label) label.textContent = ok ? 'Notion connected' : 'Notion unreachable';
+  if (label) label.textContent = ok ? 'Notion' : 'Notion offline';
 }
 
 // Find the top-nav element for a parent group or a direct tab
@@ -387,31 +389,75 @@ function safeSendPrompt(msg) {
 }
 
 
-function saveToStorage() {
-  try {
-    localStorage.setItem('sts-orders', JSON.stringify(ORDERS));
-    localStorage.setItem('sts-hidden', JSON.stringify([...completedHidden]));
-  } catch(e) {}
+// Orders + hidden set live in IndexedDB (js/storage.js) — localStorage's
+// ~5MB quota was silently eaten by base64 photos/sketches on orders, and
+// the old empty-catch here meant saves just stopped working with no sign.
+//
+// saveToStorage() stays synchronous for its ~30 call sites: it debounces
+// an async IndexedDB write and SURFACES failures (toast, throttled).
+let _saveTimer     = null;
+let _lastSaveErrAt = 0;
+
+function _writeStorage() {
+  _saveTimer = null;
+  const hidden = (typeof completedHidden !== 'undefined') ? [...completedHidden] : [];
+  return Promise.all([
+    stsStoreSet('orders', ORDERS.slice()),
+    stsStoreSet('hidden', hidden),
+  ]).catch(e => {
+    console.error('saveToStorage failed', e);
+    if (Date.now() - _lastSaveErrAt > 60000) {
+      _lastSaveErrAt = Date.now();
+      if (typeof toast === 'function') toast('⚠ Local save failed — changes may not survive a reload (Notion sync still applies)', '⚠');
+    }
+  });
 }
 
-// ════════════════════════════════════════════
-//  SAVE CHOICE  —  Local vs Notion
-// ════════════════════════════════════════════
+function saveToStorage() {
+  if (_saveTimer) return;                    // a write is already scheduled
+  _saveTimer = setTimeout(_writeStorage, 250);
+}
 
+// Flush a pending debounced write when the tab is backgrounded/closed
+function _flushStorage() {
+  if (_saveTimer) { clearTimeout(_saveTimer); _writeStorage(); }
+}
+window.addEventListener('pagehide', _flushStorage);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') _flushStorage();
+});
 
-function loadFromStorage() {
+async function loadFromStorage() {
+  let loaded = null, hiddenSaved = null;
   try {
-    const saved = localStorage.getItem('sts-orders');
-    if (saved) {
-      const loaded = JSON.parse(saved);
-      if (Array.isArray(loaded) && loaded.length > 0) {
-        ORDERS.length = 0;
-        loaded.forEach(o => ORDERS.push(o));
+    loaded      = await stsStoreGet('orders');
+    hiddenSaved = await stsStoreGet('hidden');
+
+    // One-time migration: first run after the IndexedDB switch pulls the
+    // old localStorage copy in, then deletes it to free the quota.
+    if (loaded == null) {
+      const ls = localStorage.getItem('sts-orders');
+      if (ls) loaded = JSON.parse(ls);
+      const lh = localStorage.getItem('sts-hidden');
+      if (lh) hiddenSaved = JSON.parse(lh);
+      if (loaded) {
+        await stsStoreSet('orders', loaded);
+        if (hiddenSaved) await stsStoreSet('hidden', hiddenSaved);
+        localStorage.removeItem('sts-orders');
+        localStorage.removeItem('sts-hidden');
+        console.log('loadFromStorage: migrated', loaded.length, 'orders from localStorage to IndexedDB');
       }
     }
-    const hiddenSaved = localStorage.getItem('sts-hidden');
-    if (hiddenSaved) { JSON.parse(hiddenSaved).forEach(id => completedHidden.add(id)); }
-  } catch(e) {}
+  } catch(e) {
+    console.error('loadFromStorage failed', e);
+  }
+  if (Array.isArray(loaded) && loaded.length > 0) {
+    ORDERS.length = 0;
+    loaded.forEach(o => ORDERS.push(o));
+  }
+  if (Array.isArray(hiddenSaved) && typeof completedHidden !== 'undefined') {
+    hiddenSaved.forEach(id => completedHidden.add(id));
+  }
   // Migrate legacy stage IDs to new ones
   let migrated = false;
   ORDERS.forEach(o => {
@@ -450,21 +496,22 @@ function toggleThemePicker() {
 // ════════════════════════════════════════════
 //  STARTUP
 // ════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  APP BOOTSTRAP  —  single startup path, runs once the DOM is ready
+//  (previously split across a DOMContentLoaded handler and an IIFE that
+//  both called loadFromStorage — consolidated when storage went async)
+// ════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
   // Restore theme
   const savedTheme = localStorage.getItem('sts-theme') || '';
   if (savedTheme) setTheme(savedTheme);
 
-  // Load order data
-  loadFromStorage();
-  renderKanban();
-  renderCustomers();
-  loadNotes();
-
-  // Unregister any old service workers
+  // Register the service worker (offline shell — see sw.js). Replaces the
+  // old kill-switch that unregistered workers while the app had no offline
+  // support at all.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(r => r.unregister());
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('service worker registration failed', e);
     });
   }
 
@@ -475,37 +522,29 @@ document.addEventListener('DOMContentLoaded', function() {
       if (picker) picker.classList.remove('open');
     }
   });
-});
 
+  // Load orders from IndexedDB, then render and start the Notion sync chain
+  loadFromStorage().then(function() {
+    if (typeof renderKanban === 'function') renderKanban();
+    if (typeof renderCustomers === 'function') renderCustomers();
+    if (typeof loadNotes === 'function') loadNotes();
 
+    // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
+    if (typeof loadGmailOverview === 'function') loadGmailOverview();
+    if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
 
+    // Load customers from cache instantly, then refresh from Notion in background
+    if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
+    if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
-
-// ════════════════════════════════════════════
-//  APP BOOTSTRAP  —  runs once DOM is ready
-// ════════════════════════════════════════════
-(function init() {
-  // Restore orders + hidden set from localStorage
-  loadFromStorage();
-
-  // Kick off Kanban render (guarded — orders.js may not be loaded yet)
-  if (typeof renderKanban === 'function') renderKanban();
-
-  // Restore notes from localStorage
-  if (typeof loadNotes === 'function') loadNotes();
-
-  // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
-  if (typeof loadGmailOverview === 'function') loadGmailOverview();
-  if (typeof loadScheduledBrief === 'function') loadScheduledBrief();
-
-  // Load customers from cache instantly, then refresh from Notion in background
-  if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
-  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
-
-  // Push any local orders missing a notionId, then pull everything from Notion
-  if (typeof notionPushUnsynced === 'function') notionPushUnsynced().then(() => {
-    if (typeof notionStartupSync === 'function') notionStartupSync();
+    // Replay any writes queued while offline, push any local orders missing
+    // a notionId, then pull everything from Notion
+    const replay = (typeof notionReplayQueue === 'function') ? notionReplayQueue() : Promise.resolve();
+    replay.then(function() {
+      if (typeof notionPushUnsynced === 'function') return notionPushUnsynced();
+    }).then(function() {
+      if (typeof notionStartupSync === 'function') notionStartupSync();
+    });
   });
-  if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
-})();
+});
 

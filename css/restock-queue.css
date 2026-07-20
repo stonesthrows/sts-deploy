@@ -1,0 +1,182 @@
+/* ── Restock Queue redesign (scoped to #tab-to-restock only) ──
+   The queue markup is rendered by js/restock.js (frozen on a parallel
+   branch), so this pass is CSS-only. The .rq- base rules are shared with
+   the Production Report tab and the phone.html embed, so everything here
+   is scoped under this tab's id; where the JS inlines hardcoded colors we
+   out-specific them with [style*=…] hooks (same stopgap as the report
+   pass — post-merge cleanup task exists to move them into classes). */
+
+/* Add bar: token radius + focus ring on the Square-catalog search */
+#tab-to-restock .rq-add-bar input {
+  border-radius: var(--rad-sm);
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+}
+#tab-to-restock .rq-add-bar input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+#tab-to-restock .rq-add-dropdown { border-radius: var(--rad-sm); box-shadow: var(--shadow-lg); }
+
+/* Empty / loading placeholders sit directly on the blue page background
+   (js/restock.js inlines #B0A898 for the loading one) */
+#restock-queue-empty { text-align: center; color: rgba(255,255,255,0.78); font-size: 14px; padding: 40px 0; }
+#restock-queue-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+#restock-queue-list > div[style*="#B0A898"] { color: rgba(255,255,255,0.78) !important; }
+
+/* Queue cards: shared tokens + a subtle hover lift (mirrors the report
+   tab's session cards). var(--card-bg) also fixes the hardcoded #fff
+   card background in midnight. */
+#tab-to-restock .rq-item {
+  background: var(--card-bg);
+  border-color: var(--bdr-light);
+  border-radius: var(--rad-md);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth),
+              background var(--dur-fast) var(--ease-smooth),
+              transform var(--dur-fast) var(--ease-smooth);
+}
+#tab-to-restock .rq-item:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--bdr);
+  transform: translateY(-1px);
+}
+
+/* Rank as a small numbered badge; queue position reads at a glance */
+#tab-to-restock .rq-rank {
+  display: inline-block; width: 22px; height: 22px; line-height: 22px;
+  border-radius: 50%; background: var(--card-head-bg);
+  color: var(--text2); font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+#tab-to-restock .rq-text.rq-done { color: var(--text-dim); }
+
+/* Reorder arrows: retokened from warm-gray hexes (#fff/#B8B0A8/#5A5250)
+   so they follow both themes */
+#tab-to-restock .rq-arrow { background: var(--card-bg); border-color: var(--bdr); color: var(--text2); }
+
+/* Assignee select reads as a pill chip */
+#tab-to-restock .rq-assignee {
+  border-radius: 999px;
+  font-weight: 600;
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+}
+#tab-to-restock .rq-assignee:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* Start-timer CTA */
+#tab-to-restock .rq-start-btn {
+  border-radius: var(--rad-sm);
+  transition: background var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth);
+}
+#tab-to-restock .rq-start-btn:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
+#tab-to-restock .rq-start-btn:disabled { border-color: var(--bdr-light); color: var(--bdr); }
+
+/* Running-timer card: theme-aware gold wash (base hardcodes #FDF0D0) —
+   the 4px gold left border + tinted shadow from the base rule stay */
+#tab-to-restock .rq-item.rq-active { background: var(--accent-bg); }
+/* …but keep the base rules' intentionally loud phone highlight (the ID
+   selector above would otherwise out-rank the base media query) */
+@media (max-width: 640px) {
+  #tab-to-restock .rq-item.rq-active { background: #EFBF0A; }
+}
+/* Elapsed readout as a pill so the live number is the focal point */
+#tab-to-restock .rq-timer-elapsed {
+  background: var(--card-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-variant-numeric: tabular-nums;
+}
+#tab-to-restock .rq-timer-panel:has(.rq-dot-paused) .rq-timer-elapsed {
+  border-color: var(--bdr);
+  color: var(--text3);
+}
+#tab-to-restock .rq-timer-dot { box-shadow: 0 0 0 3px rgba(58,122,74,0.15); }
+#tab-to-restock .rq-timer-emp { font-weight: 600; color: var(--text2); }
+#tab-to-restock .rq-stop-btn,
+#tab-to-restock .rq-pause-btn {
+  border-radius: var(--rad-sm);
+  transition: background var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+}
+
+/* Counts / times / prices line up in columns */
+#tab-to-restock .rq-timer-meta,
+#tab-to-restock .rq-piece-input,
+#tab-to-restock .rq-price-input,
+#tab-to-restock .rq-pcs-input,
+#tab-to-restock .rq-variant-qty,
+#tab-to-restock .rq-variant-qty-inline,
+#tab-to-restock .rq-read-qty,
+#tab-to-restock .rq-adjust-input { font-variant-numeric: tabular-nums; }
+
+/* Setup panel (Square search) + expand-panel surfaces: retoken the
+   hardcoded #fff so midnight inherits (these are divs, so the global
+   midnight input/select override never reaches them) */
+#tab-to-restock .rq-setup-search-wrap { background: var(--input-bg); border-radius: var(--rad-sm); }
+#tab-to-restock .rq-setup-search-wrap:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+#tab-to-restock .rq-setup-results { border-radius: var(--rad-sm); }
+#tab-to-restock .rq-variant-chip { background: var(--card-bg); }
+#tab-to-restock .rq-read-row { background: var(--card-bg); }
+#tab-to-restock .rq-expand-panel { border-radius: var(--rad-sm); }
+
+/* Text inputs: gold focus ring to match the rest of the redesign */
+#tab-to-restock .rq-edit-title-input:focus,
+#tab-to-restock .rq-note-textarea:focus,
+#tab-to-restock .rq-timer-notes-area:focus,
+#tab-to-restock .rq-adjust-input:focus,
+#tab-to-restock .rq-piece-input:focus,
+#tab-to-restock .rq-price-input:focus,
+#tab-to-restock .rq-pcs-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* Keyboard focus for the small button controls */
+#tab-to-restock .rq-start-btn:focus-visible,
+#tab-to-restock .rq-arrow:focus-visible,
+#tab-to-restock .rq-stop-btn:focus-visible,
+#tab-to-restock .rq-pause-btn:focus-visible,
+#tab-to-restock .rq-edit-btn:focus-visible,
+#tab-to-restock .rq-edit-done-btn:focus-visible,
+#tab-to-restock .rq-setup-cancel-btn:focus-visible,
+#tab-to-restock .rq-start-confirm-btn:focus-visible,
+#tab-to-restock .rq-variant-done:focus-visible,
+#tab-to-restock .rq-save-note-btn:focus-visible,
+#tab-to-restock .rq-item-remove:focus-visible,
+#tab-to-restock .rq-adjust-link:focus-visible,
+#tab-to-restock .rq-timer-notes-toggle:focus-visible,
+#tab-to-restock .rq-match-change:focus-visible,
+#tab-to-restock .rq-style-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Midnight ── */
+/* Stock badges keep their light-hex backgrounds in the dark theme (same
+   fix the Adjust Inventory pass applied under #tab-inv-adjust) */
+body.theme-midnight #tab-to-restock .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
+body.theme-midnight #tab-to-restock .inv-badge.low-stock { background: #332818; color: #F0C060; }
+body.theme-midnight #tab-to-restock .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
+/* The global midnight select override (background/color !important) wipes
+   the per-person assignee tints — restore dark-appropriate ones */
+body.theme-midnight #tab-to-restock .rq-assignee.rq-vanessa { background: #1E2A3E !important; border-color: #3A5A9A !important; color: #8CB4F0 !important; }
+body.theme-midnight #tab-to-restock .rq-assignee.rq-stevie  { background: #28203C !important; border-color: #5A48A0 !important; color: #B0A0F0 !important; }
+body.theme-midnight #tab-to-restock .rq-assignee.rq-kyle    { background: #1C2E22 !important; border-color: #3F6B4F !important; color: #7FC79A !important; }
+/* Dark-legible reds/greens for stop / confirm / missing-pieces states */
+body.theme-midnight #tab-to-restock .rq-stop-btn { border-color: #8A4A3A; color: #E08A80; }
+body.theme-midnight #tab-to-restock .rq-stop-btn:hover { background: rgba(224,138,128,0.08); }
+body.theme-midnight #tab-to-restock .rq-pause-btn { border-color: #7A6A3A; color: #E0C888; }
+body.theme-midnight #tab-to-restock .rq-pause-btn:hover { background: rgba(224,200,136,0.08); }
+body.theme-midnight #tab-to-restock .rq-timer-dot.rq-dot-paused { background: #C8A050; }
+body.theme-midnight #tab-to-restock .rq-timer-panel:has(.rq-dot-paused) .rq-timer-elapsed { border-color: #3A3A3A; color: #8A8A8A; }
+body.theme-midnight #tab-to-restock .rq-start-confirm-btn:disabled { background: #26362C; color: #5A7A64; }
+body.theme-midnight #tab-to-restock .rq-timer-pieces.rq-pieces-missing .rq-piece-input { border-color: #E08A80; }
+body.theme-midnight #tab-to-restock .rq-timer-pieces.rq-pieces-missing label { color: #E08A80; }
+body.theme-midnight #tab-to-restock .rq-del:hover { color: #E08A80; }
+body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { background: #4A4A50; }
+/* Mobile running-card highlight hardcodes a light-theme yellow (#EFBF0A)
+   that swallows midnight's light text — keep the loud treatment but dark */
+@media (max-width: 640px) {
+  body.theme-midnight #tab-to-restock .rq-item.rq-active {
+    background: #332818;
+    border-left-color: #D4A040;
+    border-top-color: #D4A040;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+  }
+}

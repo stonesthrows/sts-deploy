@@ -515,6 +515,11 @@
     </div>
   </div>
 
+  <div class="sec-block" id="stamp-block" style="display:none;">
+    <div class="sec-head">✎ Ring Stamping — exact</div>
+    <div class="sec-body" id="stamp-body" contenteditable="true" style="white-space:pre-wrap; text-align:left; padding:4px 6px;"></div>
+  </div>
+
   <div class="sec-block grow">
     <div class="sec-head">Notes / Materials</div>
     <div class="sec-body notes" id="n-notes" contenteditable="true"></div>
@@ -574,6 +579,9 @@
   const deposit   = p.get('deposit')   || '';
   const shipping  = p.get('shipping')  || '';
   const ringSize  = p.get('ringSize')  || '';
+  const ringSize2 = p.get('ringSize2') || '';
+  const stamping  = p.get('stamping')  || '';
+  const stamping2 = p.get('stamping2') || '';
   const fullyPaid = p.get('fullyPaid') || '';
   const workedBy  = p.get('workedBy')  || '';
   let lineItems = [];
@@ -672,7 +680,25 @@
   document.getElementById('c-state').textContent = state;
   document.getElementById('c-zip').textContent   = zip;
   document.getElementById('j-desc').textContent = desc;
-  document.getElementById('j-size').textContent = ringSize;
+  // Couple orders carry a second ring size — label the two lines so the
+  // bench knows which is which; individual orders keep the plain one-liner
+  // with the second line left blank for handwriting, as before.
+  if (ringSize2) {
+    document.getElementById('j-size').textContent  = ringSize ? '1: ' + ringSize : '';
+    document.getElementById('j-size2').textContent = '2: ' + ringSize2;
+  } else {
+    document.getElementById('j-size').textContent = ringSize;
+  }
+  // Ring stamping text is exact-copy critical (like ecom personalization) —
+  // print it in its own block, only when the order has any.
+  const stampLines = [];
+  if (stamping && stamping2)  stampLines.push('Ring 1: “' + stamping + '”', 'Ring 2: “' + stamping2 + '”');
+  else if (stamping)          stampLines.push('“' + stamping + '”');
+  else if (stamping2)         stampLines.push('Ring 2: “' + stamping2 + '”');
+  if (stampLines.length) {
+    document.getElementById('stamp-block').style.display = '';
+    document.getElementById('stamp-body').textContent = stampLines.join('\n');
+  }
   const notesText = [notes, materials ? 'Materials: ' + materials : ''].filter(Boolean).join('\n\n');
   document.getElementById('n-notes').textContent = notesText;
 

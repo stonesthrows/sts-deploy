@@ -710,6 +710,72 @@
       width: 100%; height: auto; display: block; touch-action: none;
       border: 1px solid #D8D0C8; border-radius: 10px; background: #fff; cursor: crosshair;
     }
+
+    /* ═══ Paper mode (js/intake-paper.js) — Goodnotes-style handwritten
+       intake, now 3 screens: Handwriting (#paper-mode) → Sketch (the
+       EXISTING #step-2, reused as-is, optional) → Estimate (the EXISTING
+       #step-3, reused as-is, Order Items/Total hidden — Estimate Builder
+       only). body.paper-on swaps the typed customer form for this flow;
+       !important so it wins over the inline display styles intakeStep()
+       keeps setting on the hidden step panels. Only #step-1 is force-hidden
+       here — #step-2/#step-3's visibility is driven by paperGoScreen()'s
+       own inline styles, same pattern intakeStep() already uses. ═══ */
+    body.paper-on #step-1 { display: none !important; }
+    body.paper-on #intake-footer, body.paper-on #intake-step-progress { display: none !important; }
+    /* Order Items/Total/Deposit block is Form-mode-only on Screen 3 — Paper
+       mode's Screen 1 already captures a quick item+price by hand; only the
+       Estimate Builder card is shown here. !important because oiRender()/
+       intakeApplyTypeLayout() set inline display styles on this block that
+       would otherwise outlive a Form→Paper mode switch mid-order. */
+    body.paper-on #items-price-grid, body.paper-on #est-mini-bar { display: none !important; }
+
+    #paper-mode { display: none; position: absolute; inset: 0; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
+    body.paper-on #paper-mode { display: flex; }
+    .paper-stage {
+      position: relative; flex: 1; min-height: 0; min-width: 0;
+      border-radius: 14px; overflow: hidden; background: #FDF8EE;
+      box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+    }
+    #paper-template, #paper-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    }
+    #paper-canvas { background: transparent; touch-action: none; cursor: crosshair; }
+    #paper-chips { position: absolute; inset: 0; pointer-events: none; }
+    .paper-chip {
+      position: absolute; pointer-events: auto; z-index: 2;
+      max-width: 46%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      font-size: 12px; font-weight: 600; color: #8A6A20;
+      background: rgba(253,246,232,0.94); border: 1px solid #E0CDA4; border-radius: 7px;
+      padding: 3px 9px; cursor: pointer; box-shadow: 0 1px 4px rgba(120,90,30,0.18);
+    }
+    .paper-chip.converting { color: #7E93A4; border-style: dashed; }
+    .paper-chip.err { color: #B03030; border-color: #ECC5C5; background: #FDF1F0; }
+    #paper-dock { top: auto; bottom: 14px; }
+    #paper-mode .dock-reopen { top: auto; bottom: 14px; }
+
+    /* ═══ Paper-mode footer — Back / Sketch toggle / dots / Next.
+       Sibling of #intake-footer (which stays hidden in paper mode);
+       persists across all 3 screens since it lives outside <main>. ═══ */
+    #paper-footer { display: none; }
+    body.paper-on #paper-footer {
+      display: flex; align-items: center; gap: 12px; padding: 0 16px; flex-shrink: 0;
+      background: #0F1720; border-top: 1px solid rgba(255,255,255,0.10);
+      padding-bottom: env(safe-area-inset-bottom); height: calc(68px + env(safe-area-inset-bottom));
+    }
+    .paper-dots { display: flex; align-items: center; gap: 10px; }
+    .paper-dot {
+      width: 9px; height: 9px; border-radius: 50%; border: none; padding: 0;
+      background: #35576D; cursor: pointer;
+    }
+    .paper-dot.on { background: #C9983A; transform: scale(1.25); }
+    #paper-screen-label { font-size: 12.5px; font-weight: 700; color: #9FB4C4; margin-left: 4px; }
+    .paper-toggle {
+      display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+      border: 1px solid #35576D; background: transparent; color: #9FB4C4;
+      font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 8px 14px;
+      min-height: 40px; cursor: pointer; white-space: nowrap;
+    }
+    .paper-toggle.on { background: rgba(201,152,58,0.16); border-color: #C9983A; color: #F1DFB6; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -723,6 +789,8 @@
             class="flex items-center gap-2 rounded-lg border border-[#35576D] px-4 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">
       ✕ Exit
     </button>
+    <button type="button" id="paper-mode-btn" onclick="paperToggle()" title="Switch between the typed form and the handwritten paper page"
+            class="rounded-lg border border-[#35576D] px-4 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">✍ Paper</button>
     <div class="flex-1"></div>
     <div class="flex items-center gap-3" role="status" aria-live="polite" id="intake-step-progress">
       <span id="intake-step-label" class="text-[12.5px] font-bold tracking-wide text-[#9FB4C4]">Step 1 of 3</span>
@@ -1012,10 +1080,22 @@
             <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
             <div class="sens-warn" id="sens-warn"></div>
           </div>
-          <div class="fg">
+          <div class="fg" id="sizing-fg">
             <label>Sizing / Dimensions</label>
             <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
             <div class="sens-warn" id="sizing-verify-hint"></div>
+          </div>
+          <div class="fg" id="ringsize2-fg" style="display:none;">
+            <label>2nd Ring Size</label>
+            <input type="text" id="f-ringsize2" placeholder="e.g. ring size 9">
+          </div>
+          <div class="fg" id="stamping-fg">
+            <label>Ring Stamping</label>
+            <input type="text" id="f-stamping" placeholder="e.g. Forever &amp; Always">
+          </div>
+          <div class="fg" id="stamping2-fg" style="display:none;">
+            <label>2nd Ring Stamping</label>
+            <input type="text" id="f-stamping2" placeholder="e.g. To the moon and back">
           </div>
           <div class="fg">
             <label>Texture / Finish</label>
@@ -1165,18 +1245,17 @@
           <div class="ps-grip"></div>
           <div class="ps-handle-row">
             <div class="ps-tabs" id="ps-tabs">
-              <button type="button" class="ps-tab on" data-tab="metal" onpointerdown="event.stopPropagation()">Metal</button>
-              <button type="button" class="ps-tab" data-tab="stone" onpointerdown="event.stopPropagation()">Stone</button>
-              <button type="button" class="ps-tab" data-tab="sizing" onpointerdown="event.stopPropagation()">Sizing</button>
+              <button type="button" class="ps-tab on" data-tab="sizing" onpointerdown="event.stopPropagation()">Sizing</button>
               <button type="button" class="ps-tab" data-tab="photos" onpointerdown="event.stopPropagation()">Photos</button>
               <button type="button" class="ps-tab" data-tab="notes" onpointerdown="event.stopPropagation()">Notes</button>
             </div>
-            <div class="ps-summary" id="ps-summary">tap a tab to set metal · stone · sizing</div>
+            <div class="ps-summary" id="ps-summary">tap a tab to set sizing</div>
           </div>
         </div>
         <div class="ps-body">
-          <div class="ps-pane on" id="ps-pane-metal"></div>
-          <div class="ps-pane" id="ps-pane-stone"></div>
+          <!-- Metal/Stone panes live on Paper mode's Screen 1 (js/intake-paper.js)
+               and, for the typed wizard, are reachable via #f-materials/#f-gemstones
+               text fields on Step 1 directly — no separate tab here anymore. -->
           <div class="ps-pane" id="ps-pane-sizing"></div>
           <div class="ps-pane" id="ps-pane-photos"></div>
           <div class="ps-pane" id="ps-pane-notes"></div>
@@ -1322,6 +1401,41 @@
         </div>
       </div>
     </section>
+
+    <!-- ── Paper mode Screen 1 — Handwriting. A single full-page work-order
+         page (printed template + transparent ink + ghost-chip layer) —
+         order type / piece type / pickup circles, ruled fields, a
+         multi-line Materials block, Item & Price, and Notes, all
+         handwritten + OCR'd (no chip UI). All drawing/OCR/nav logic in
+         js/intake-paper.js. Screens 2 (Sketch) and 3 (Estimate) are the
+         EXISTING #step-2/#step-3 above, reused as-is — paperGoScreen()
+         just shows/hides between the three. ── -->
+    <section id="paper-mode">
+      <div class="paper-stage" id="paper-stage">
+        <canvas id="paper-template"></canvas>
+        <canvas id="paper-canvas"></canvas>
+        <div id="paper-chips"></div>
+
+        <div class="sketch-dock" id="paper-dock">
+          <div class="dock-head">
+            <span class="dock-grip">⠿</span>
+            <button type="button" class="dock-toggle" onclick="paperDockToggle()" title="Hide tools" aria-label="Hide tools">⟩</button>
+          </div>
+          <div class="dock-row">
+            <button type="button" class="dock-btn tool active" id="pp-pen"    onclick="paperSetTool('pen')"    title="Pen">🖊</button>
+            <button type="button" class="dock-btn tool"        id="pp-pencil" onclick="paperSetTool('pencil')" title="Pencil">✏️</button>
+            <button type="button" class="dock-btn tool"        id="pp-eraser" onclick="paperSetTool('eraser')" title="Eraser">🧽</button>
+          </div>
+          <div class="dock-row">
+            <button type="button" class="dock-btn" onclick="paperUndo()"  title="Undo">↩</button>
+            <button type="button" class="dock-btn" onclick="paperRedo()"  title="Redo">↪</button>
+            <button type="button" class="dock-btn" onclick="paperClear()" title="Clear page">🗑</button>
+          </div>
+          <div class="dock-hint">✎ Apple Pencil only<br>✌️ undo · 🤟 redo</div>
+        </div>
+        <button type="button" class="dock-reopen" onclick="paperDockToggle()" title="Show tools" aria-label="Show tools">🖌</button>
+      </div>
+    </section>
   </main>
 
   <!-- ═══ Bottom bar: Back · step tabs · Next ═══ -->
@@ -1335,6 +1449,21 @@
       <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)"><span class="tab-glyph g-empty" id="tab-glyph-3">○</span>Items &amp; Price</button>
     </div>
     <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
+            class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
+  </footer>
+
+  <!-- ═══ Paper-mode footer — Back / Include-Sketch toggle / screen dots /
+       Next. Sibling of #intake-footer (hidden in paper mode); finishing the
+       order still uses the header's persistent "Save & Close" button. ═══ -->
+  <footer id="paper-footer">
+    <button type="button" id="paper-back-btn" onclick="paperBack()"
+            class="invisible rounded-lg border border-[#35576D] px-5 py-2.5 text-sm font-bold text-[#B7C9D6] active:bg-[#1C3B50]">‹ Back</button>
+    <div class="flex flex-1 items-center justify-center gap-2">
+      <div class="paper-dots" id="paper-dots"></div>
+      <span id="paper-screen-label"></span>
+    </div>
+    <button type="button" class="paper-toggle" id="paper-sketch-toggle" onclick="paperToggleSketchOn()" title="Include the Sketch page in this order">✎ Sketch</button>
+    <button type="button" id="paper-next-btn" onclick="paperNext()"
             class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
   </footer>
 </div>
@@ -1408,11 +1537,12 @@
 
 <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
 <input type="file" id="rp-file" accept="image/*" multiple style="display:none;" onchange="rpFilesChosen(this)">
-<script src="js/sketchpad.js?v=4"></script>
+<script src="js/sketchpad.js?v=5"></script>
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
-<script src="js/intake-sheet.js?v=2"></script>
-<script src="js/intake.js?v=9"></script>
+<script src="js/intake-sheet.js?v=3"></script>
+<script src="js/intake.js?v=11"></script>
+<script src="js/intake-paper.js?v=1"></script>
 </body>
 </html>
