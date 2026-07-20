@@ -1341,6 +1341,9 @@
               <button type="button" class="btn btn-ghost" onclick="intakeEstAddLine()">＋ Add Line</button>
             </div>
           </div>
+          <!-- Ring size + Inside Ring Stamping glance list — populated by
+               js/ring-fields.js whenever Piece Type is Ring; hidden otherwise. -->
+          <div id="est-ring-stamping-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#FBF3E0;font-size:13px;line-height:1.6;color:#4A3F2A;"></div>
           <!-- Good/Better/Best variant strip (brief 3.4) — hidden until ⧉ Compare -->
           <div class="est-variants" id="est-variants" style="display:none;"></div>
           <div class="est-preset-strip" id="est-preset-strip"></div>
@@ -1550,7 +1553,7 @@
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
-<script src="js/ring-fields.js?v=1"></script>
+<script src="js/ring-fields.js?v=2"></script>
 <script src="js/intake-sheet.js?v=4"></script>
 <script src="js/intake.js?v=16"></script>
 <script src="js/intake-paper.js?v=5"></script>

@@ -42,8 +42,47 @@ function ringFieldsApplyPieceType(pieceType) {
   if (countFg) countFg.style.display = isRing ? '' : 'none';
   if (dynWrap) dynWrap.style.display = isRing ? '' : 'none';
   if (shared)  shared.style.display  = isRing ? 'none' : 'contents';
-  if (isRing) intakeRenderRingBlocks();
+  if (isRing) {
+    intakeRenderRingBlocks();
+  } else {
+    const summary = document.getElementById('est-ring-stamping-summary');
+    if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
+  }
 }
+
+// Compact "Ring N — Size X — 'stamping'" glance list shown in the Estimate
+// Builder (both apps have a #est-ring-stamping-summary container there) so
+// staff building a quote can see size/stamping without scrolling up to the
+// Design section. Reads straight from the DOM rather than `_intakeRings` so
+// it can be called on every keystroke (see the delegated listener below)
+// without re-rendering the ring blocks or fighting the user's typing.
+function ringFieldsRenderStampingSummary() {
+  const el = document.getElementById('est-ring-stamping-summary');
+  if (!el) return;
+  const g = id => document.getElementById(id);
+  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
+  const multi = blocks.length > 1;
+  const esc = v => String(v || '').replace(/</g, '&lt;');
+  const rows = [...blocks].map((block, i) => {
+    const category = g('f-ring-category-' + i)?.value || '';
+    const size = category === 'Meditation Ring' ? g('f-ring-medsize-' + i)?.value
+               : category === 'Simple Band'     ? g('f-ring-bandsize-' + i)?.value
+               : category === 'Custom Ring'     ? g('f-ring-customsize-' + i)?.value
+               : '';
+    const stamping = g('f-ring-stamping-' + i)?.value || '';
+    if (!size && !stamping) return '';
+    const name = g('f-ring-name-' + i)?.value || '';
+    const label = multi ? ('Ring ' + (i + 1) + (name ? ' (' + name + ')' : '')) : 'Ring';
+    return '<div class="est-ring-stamp-row"><strong>' + esc(label) + '</strong>'
+      + (size ? ' — Size ' + esc(size) : '')
+      + (stamping ? ' — “' + esc(stamping) + '”' : '')
+      + '</div>';
+  }).filter(Boolean).join('');
+  el.innerHTML = rows;
+  el.style.display = rows ? '' : 'none';
+}
+document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
+document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
@@ -230,6 +269,7 @@ function intakeRenderRingBlocks() {
       </div>
     </div>
   `).join('');
+  ringFieldsRenderStampingSummary();
 }
 
 // Normalizes one ring's category-specific fields into the
@@ -295,4 +335,6 @@ function _intakeRingsLegacyFields(rings) {
 // in js/orders.js) so the next order started doesn't inherit stale data.
 function ringFieldsReset() {
   _intakeRings = [_intakeBlankRing()];
+  const summary = document.getElementById('est-ring-stamping-summary');
+  if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
 }
