@@ -323,6 +323,36 @@ function eoPopulateFields(o) {
   }
 }
 
+// Seeds the shared ring-fields engine (js/ring-fields.js) from an order
+// being opened for edit, then shows/hides the Ring UI vs. the shared
+// (non-Ring) fields to match its Piece Type.
+//
+// order.rings[] (present on anything created/edited since the per-ring
+// Ring Type feature shipped) is used as-is. Older Ring orders never had
+// rings[] — for those, synthesize a single Ring 1 entry in the 'Custom
+// Ring' category from the legacy materials/gemstones/finish/sizing/
+// stamping fields so they show real data instead of a blank form.
+function _eoPopulateRings(o) {
+  if (Array.isArray(o.rings) && o.rings.length) {
+    _intakeRings = o.rings.map(r => Object.assign(_intakeBlankRing(), r));
+  } else if (o.pieceType === 'Ring') {
+    const ring = Object.assign(_intakeBlankRing(), {
+      category: 'Custom Ring',
+      customSize: (o.sizing || '').replace(/^sz\s+/i, ''),
+      customMetal: o.materials || '',
+      customTexture: o.finish || [],
+      customNotes: o.gemstones || '',
+      stamping: o.stamping || '',
+    });
+    _intakeRings = [ring];
+  } else {
+    ringFieldsReset();
+  }
+  const countEl = document.getElementById('f-ring-count');
+  if (countEl) countEl.value = _intakeRings.length;
+  ringFieldsApplyPieceType(o.pieceType || '');
+}
+
 function _eoPopulateFieldsInner(o) {
   document.getElementById('f-editing-id').value  = o.id;
   setNameFields(o.name);
@@ -358,6 +388,7 @@ function _eoPopulateFieldsInner(o) {
   document.getElementById('f-sizing').value        = o.sizing        || '';
   document.getElementById('f-gemstones').value     = o.gemstones     || '';
   document.querySelectorAll('#f-finish input').forEach(c => c.checked = (o.finish || []).includes(c.value));
+  _eoPopulateRings(o);
   _orderFormLegacyFields(o);
   eoRenderViewIdentity(o);
   eoLoadSketch(o);
@@ -843,6 +874,7 @@ function closeEditOrderModal() {
   // Clearing the editing id stops the estimate autosave path while closed
   const editingId = document.getElementById('f-editing-id');
   if (editingId) editingId.value = '';
+  ringFieldsReset();
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
   eoSetMode('view');
@@ -961,9 +993,27 @@ function saveOrderEdit() {
   o.sketchDesc    = document.getElementById('f-sketch').value.trim()    || '';
   o.contactMethod = document.getElementById('f-contact-method').value  || '';
   o.pieceType     = document.getElementById('f-piece-type').value      || '';
-  o.sizing        = document.getElementById('f-sizing').value.trim()   || '';
-  o.gemstones     = document.getElementById('f-gemstones').value.trim() || '';
-  o.finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
+  if (o.pieceType === 'Ring') {
+    // Per-ring Meditation Ring / Simple Band / Custom Ring fields (shared
+    // engine, js/ring-fields.js) replace the flat Sizing/Gemstones/Finish
+    // reads above — o.materials set above is overwritten here too.
+    const rings  = _intakeCollectRingsFromDom();
+    const legacy = _intakeRingsLegacyFields(rings);
+    o.rings      = rings;
+    o.materials  = legacy.materials;
+    o.gemstones  = legacy.gemstones;
+    o.finish     = legacy.finish;
+    o.sizing     = legacy.sizing;
+    o.ringSize2  = legacy.ringSize2;
+    o.stamping   = legacy.stamping;
+    o.stamping2  = legacy.stamping2;
+    o.orderFor   = legacy.orderFor;
+  } else {
+    delete o.rings;
+    o.sizing        = document.getElementById('f-sizing').value.trim()   || '';
+    o.gemstones     = document.getElementById('f-gemstones').value.trim() || '';
+    o.finish        = [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value);
+  }
   // The modal otherwise only VIEWS the sketch drawn in intake.html — it
   // never touches o.sketchImg unless the user explicitly drew/uploaded a
   // new one this session (staged in _eoSketchDraft via the Draw/Replace

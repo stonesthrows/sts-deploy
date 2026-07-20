@@ -653,7 +653,7 @@
         <div class="form-grid" style="margin-top:18px;">
           <div class="fg">
             <label>Piece Type</label>
-            <select id="f-piece-type">
+            <select id="f-piece-type" onchange="ringFieldsApplyPieceType(this.value)">
               <option value="">— Select —</option>
               <option value="Ring">Ring</option>
               <option value="Ear Cuff">Ear Cuff</option>
@@ -664,34 +664,43 @@
               <option value="Other">Other</option>
             </select>
           </div>
-          <div class="fg" id="materials-fg">
-            <label>Materials / Metal</label>
-            <!-- Textarea, not input: intake saves Custom Order materials as
-                 newline-joined estimate lines — a single-line input strips
-                 those newlines on populate and a Save would garble them. -->
-            <textarea id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" style="min-height:48px;"></textarea>
+          <div class="fg" id="ring-count-fg" style="display:none;">
+            <label>Number of Rings</label>
+            <input type="number" id="f-ring-count" min="1" max="8" value="1" oninput="intakeSetRingCount(this.value)" onblur="intakeClampRingCount(this)">
           </div>
-          <div class="fg">
-            <label>Sizing / Dimensions</label>
-            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
+          <div class="fg full" id="rings-dynamic-wrap" style="display:none;">
+            <div id="rings-dynamic-list"></div>
           </div>
-          <div class="fg">
-            <label>Texture / Finish</label>
-            <div class="finish-checks" id="f-finish">
-              <label><input type="checkbox" value="Polished"> Polished</label>
-              <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
-              <label><input type="checkbox" value="Matte"> Matte</label>
-              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+          <div id="ring-fields-shared" style="display:contents;">
+            <div class="fg" id="materials-fg">
+              <label>Materials / Metal</label>
+              <!-- Textarea, not input: intake saves Custom Order materials as
+                   newline-joined estimate lines — a single-line input strips
+                   those newlines on populate and a Save would garble them. -->
+              <textarea id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" style="min-height:48px;"></textarea>
             </div>
-          </div>
-          <div class="fg" id="gemstones-fg">
-            <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
-          </div>
-          <div class="fg full" id="stones-fg">
-            <label>Stones (structured) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ from the intake app; editing rewrites the Gemstones text above</span></label>
-            <div id="eo-stone-list"></div>
-            <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="eoStoneAdd()">+ Add Stone</button>
+            <div class="fg" id="sizing-fg">
+              <label>Sizing / Dimensions</label>
+              <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18&quot; chain, 6.5&quot; wrist'>
+            </div>
+            <div class="fg" id="finish-fg">
+              <label>Texture / Finish</label>
+              <div class="finish-checks" id="f-finish">
+                <label><input type="checkbox" value="Polished"> Polished</label>
+                <label><input type="checkbox" value="Hammered/Textured"> Hammered/Textured</label>
+                <label><input type="checkbox" value="Matte"> Matte</label>
+                <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+              </div>
+            </div>
+            <div class="fg" id="gemstones-fg">
+              <label>Gemstones / Components</label>
+              <textarea id="f-gemstones" placeholder="Stones, cuts (hexagon, kite…), settings, beads, findings…" style="min-height:48px;"></textarea>
+            </div>
+            <div class="fg full" id="stones-fg">
+              <label>Stones (structured) <span style="font-size:11px;font-weight:400;color:var(--text3);">→ from the intake app; editing rewrites the Gemstones text above</span></label>
+              <div id="eo-stone-list"></div>
+              <button type="button" class="btn btn-outline eo-edit-only" style="font-size:12px;padding:6px 12px;" onclick="eoStoneAdd()">+ Add Stone</button>
+            </div>
           </div>
           <div class="fg full legacy-hide" id="sketch-fg">
             <label>Sketch Notes</label>
@@ -3443,7 +3452,8 @@
 <script src="js/app.js?v=20260720c"></script>
 <script src="js/sketchpad.js?v=5"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
-<script src="js/orders.js?v=20260720a"></script>
+<script src="js/ring-fields.js?v=1"></script>
+<script src="js/orders.js?v=20260720b"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
