@@ -37,7 +37,6 @@ let _paperZones = [];         // live zone objects: {id,kind,label,rect,options?
 const _paperWrote = {};       // fieldId → last value Paper wrote (typed edits always win over re-OCR)
 const _paperMaterialRefs = {}; // zone id ('materials-1'..'materials-6') -> its _oiItems entry
 let _paperChain = Promise.resolve(); // sequential OCR queue — no parallel API bursts
-let _paperKeyHinted = false;
 
 // ── Page layout — single source of truth for the template drawing, the
 //    OCR zone rects, and the chip positions. All pixel math, recomputed on
@@ -358,15 +357,7 @@ function _paperPromptFor(z) {
 
 async function _paperConvert(z) {
   z._dirty = false;
-  const apiKey = localStorage.getItem('sts-anthropic-key');
-  if (!apiKey) {
-    if (!_paperKeyHinted) {
-      _paperKeyHinted = true;
-      toast('No API key set (⚙) — ink is saved, but handwriting won\'t auto-fill the fields', '⚠', 4500);
-    }
-    _paperChipSet(z, null);
-    return;
-  }
+  const apiKey = localStorage.getItem('sts-anthropic-key') || undefined;
   _paperChipSet(z, 'converting', '… reading');
   try {
     const resp = await fetch('/api/claude-proxy', {
@@ -575,8 +566,7 @@ function _paperParseItemEdit(v) {
 //    prompt family; fills ONLY still-empty fields (zone results win). ──────
 async function _paperPagePass() {
   if (!PAPER || !PAPER.hasInk) return;
-  const apiKey = localStorage.getItem('sts-anthropic-key');
-  if (!apiKey) return;
+  const apiKey = localStorage.getItem('sts-anthropic-key') || undefined;
   toast('Reading the full page…', '✨', 2500);
   try {
     const page = paperExportPage(true);
