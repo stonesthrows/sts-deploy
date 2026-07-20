@@ -190,6 +190,15 @@
     .jd-panel .sec-head, .size-panel .sec-head {
       border-top: none;
     }
+    .jd-panel .sec-head.jd-desc-head { border-top: 1px solid #000; }
+    .form-content[data-layout="repair"]  #j-title-row,
+    .form-content[data-layout="resize"]  #j-title-row,
+    .form-content[data-layout="estimate"] #j-title-row,
+    .form-content[data-layout="ecom"]     #j-title-row { display: none !important; }
+    .form-content[data-layout="repair"]  .jd-desc-head,
+    .form-content[data-layout="resize"]  .jd-desc-head,
+    .form-content[data-layout="estimate"] .jd-desc-head,
+    .form-content[data-layout="ecom"]     .jd-desc-head { border-top: none; }
 
     /* Line items */
     .li-block {
@@ -505,7 +514,11 @@
 
   <div class="jd-size-row" id="jd-size-row">
     <div class="jd-panel">
-      <div class="sec-head">Job Description</div>
+      <div id="j-title-row" style="display:flex; flex-direction:column; flex:0 0 auto;">
+        <div class="sec-head">Job Title</div>
+        <div class="sec-body" id="j-title" contenteditable="true" style="flex:0 0 auto; min-height:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:left; font-weight:bold; padding:3px 6px;"></div>
+      </div>
+      <div class="sec-head jd-desc-head">Job Description</div>
       <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden; text-align:left; display:flex; align-items:center; justify-content:flex-start; padding:4px 6px;"></div>
     </div>
     <div class="size-panel">
@@ -570,6 +583,7 @@
   const phone     = p.get('phone')     || '';
   const address   = p.get('address')   || '';
   const desc      = p.get('desc')      || '';
+  const jobTitle  = p.get('jobTitle')  || '';
   const size      = p.get('size')      || '';
   const notes     = p.get('notes')     || '';
   const materials = p.get('materials') || '';
@@ -679,6 +693,7 @@
   document.getElementById('c-city').textContent  = city;
   document.getElementById('c-state').textContent = state;
   document.getElementById('c-zip').textContent   = zip;
+  document.getElementById('j-title').textContent = jobTitle;
   document.getElementById('j-desc').textContent = desc;
   // Couple orders carry a second ring size — label the two lines so the
   // bench knows which is which; individual orders keep the plain one-liner
@@ -836,7 +851,7 @@
     document.getElementById('n-notes').textContent = materials ? 'Materials: ' + materials : '';
   }
   if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
-    document.querySelector('.jd-panel .sec-head').textContent = 'Item Taken In / Job';
+    document.querySelector('.jd-panel .jd-desc-head').textContent = 'Item Taken In / Job';
   }
   if (fc.dataset.layout === 'resize') {
     document.querySelector('.size-panel .sec-head').textContent = 'Resize';

@@ -1712,6 +1712,7 @@ function printOrder(id) {
     city:      o.addrCity  || sa.city  || '',
     state:     o.addrState || sa.state || '',
     zip:       o.addrZip   || sa.zip   || '',
+    jobTitle:  o.jobDesc || '',
     desc:      oiPrintJobDescShort(o),
     // Repair instructions live in o.repairNotes now (not folded into
     // o.notes) — prepend them so the printed bag still shows them.
