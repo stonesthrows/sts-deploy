@@ -122,80 +122,8 @@ const ORDERS = [];
 // Populated at runtime from Notion via loadCustomersFromNotion()
 const CUSTOMERS = [];
 
-// ── Shopify Orders 2026 (last synced 2026-06-08) ─────────────────────────────
-const SHOPIFY_ORDERS = [
-  {
-    id: 'gid://shopify/Order/7127958323449', name: '#1147',
-    createdAt: '2026-06-08', customerName: 'Gretchen Hingley',
-    customerEmail: 'ghingely@gmail.com', totalPrice: 28.00, subtotalPrice: 23.00, totalTax: 0.00,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: { city: 'Bend', province: 'OR', zip: '97703' },
-    lineItems: [
-      { title: 'Chevron Stackable Ring', quantity: 1, unitPrice: 23.00, variant: 'Size 6 / Gold Fill / Arrow Point' }
-    ],
-    tracking: { company: 'USPS', number: '9400150106151262058002', shippedAt: '2026-06-08' }
-  },
-  {
-    id: 'gid://shopify/Order/7105999044857', name: '#1146',
-    createdAt: '2026-05-27', customerName: 'Amaya Leon',
-    customerEmail: 'aleon2201@gmail.com', totalPrice: 27.06, subtotalPrice: 20.00, totalTax: 2.06,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: { city: 'Austin', province: 'TX', zip: '78759' },
-    lineItems: [
-      { title: 'Wide Stackable Ring', quantity: 1, unitPrice: 20.00, variant: 'Size 7 / Silver / Smooth' }
-    ],
-    tracking: { company: 'USPS', number: '9400150106151246800658', shippedAt: '2026-05-28' }
-  },
-  {
-    id: 'gid://shopify/Order/7021783974137', name: '#1145',
-    createdAt: '2026-04-30', customerName: 'Michele Williams McLellan',
-    customerEmail: 'michelewilliamsmclellan@yahoo.com', totalPrice: 45.00, subtotalPrice: 40.00, totalTax: 0.00,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: { city: 'Centennial', province: 'CO', zip: '80015' },
-    lineItems: [
-      { title: 'Thin Stackable Ring', quantity: 1, unitPrice: 20.00, variant: 'Size 8 / Gold Fill / Smooth' },
-      { title: 'Thin Stackable Ring', quantity: 1, unitPrice: 20.00, variant: 'Size 8 / Gold Fill / Arrow Point' }
-    ],
-    tracking: { company: 'USPS', number: '9400150106151208086205', shippedAt: '2026-05-02' }
-  },
-  {
-    id: 'gid://shopify/Order/6995620823289', name: '#1144',
-    createdAt: '2026-04-22', customerName: 'Erica Abeyta',
-    customerEmail: 'e_abeyta10@yahoo.com', totalPrice: 50.00, subtotalPrice: 50.00, totalTax: 0.00,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: null,
-    lineItems: [
-      { title: 'Stones Throw Studio Gift Card', quantity: 1, unitPrice: 50.00, variant: '$50.00' }
-    ],
-    tracking: null
-  },
-  {
-    id: 'gid://shopify/Order/6995570622713', name: '#1143',
-    createdAt: '2026-04-22', customerName: 'Sarah Tinsley',
-    customerEmail: 'sarah.tinsley1@gmail.com', totalPrice: 55.00, subtotalPrice: 50.00, totalTax: 0.00,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: { city: 'Jackson', province: 'MO', zip: '63755' },
-    lineItems: [
-      { title: 'Wide Stackable Ring', quantity: 2, unitPrice: 25.00, variant: 'Size 2 / Gold Fill / Smooth' }
-    ],
-    tracking: { company: 'USPS', number: '9400150206217664209424', shippedAt: '2026-04-27' }
-  },
-  {
-    id: 'gid://shopify/Order/6992300048633', name: '#1142',
-    createdAt: '2026-04-20', customerName: 'Allison Pala',
-    customerEmail: 'pala.allison@gmail.com', totalPrice: 70.00, subtotalPrice: 65.00, totalTax: 0.00,
-    financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED',
-    shippingAddress: { city: 'Portland', province: 'ME', zip: '04101' },
-    lineItems: [
-      { title: 'Running Hare Pendant', quantity: 1, unitPrice: 65.00, variant: null }
-    ],
-    tracking: { company: 'USPS', number: '9400150106151193910509', shippedAt: '2026-04-22' }
-  },
-];
-
-const GMAIL_THREADS = [
-  { subject:'Invoice Paid — Ladybug Ring (#000464)', from:'invoicing@squareup.com', snippet:'Josh Corpus paid $70.36 for Ladybug Ring – Remaining Balance. Paid with Visa 5901, May 20 2026.', name:'Josh Corpus', email:'josh.corpus@email.com' },
-  { subject:'You made a sale on Etsy — Ship by May 26', from:'transaction@etsy.com', snippet:'Congratulations! 1 item sold. Ship to Marissa Garretto, 1328 41st Ave, Kenosha WI 53144.', name:'Marissa Garretto', email:'' },
-  { subject:'Square Sales Report: May 17', from:'noreply@messaging.squareup.com', snippet:'Stones Throw Studio. Sales May 17, 2026. Gross sales summary across all devices.', name:'', email:'' },
-  { subject:'Ring builder upgrades', from:'hello@pencildesign.co', snippet:'New interface with cleaner, image-driven options and automatic layouts for custom jewelry builders.', name:'', email:'' },
-];
+// ── Shopify shipments ────────────────────────────────────────────────────────
+// Populated at runtime from /api/shopify-orders (see shopifyLoadShipments in
+// js/shopify.js). Never hardcode order/customer data here — this file is
+// served publicly, so anything in it is readable by anyone on the internet.
+const SHOPIFY_ORDERS = [];

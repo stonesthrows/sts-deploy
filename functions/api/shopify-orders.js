@@ -51,6 +51,7 @@ export async function onRequestGet(context) {
           }
           shippingAddress { firstName lastName address1 address2 city province country zip }
           displayFulfillmentStatus
+          fulfillments { createdAt trackingInfo { company number } }
         }
       }
     }
@@ -140,6 +141,16 @@ export async function onRequestGet(context) {
       addrCountry: addr?.country  || '',
       createdAt:         o.createdAt,
       fulfillmentStatus: o.displayFulfillmentStatus,
+      // First fulfillment with tracking — feeds the home Packages widget
+      tracking: (() => {
+        const f = (o.fulfillments || []).find(f => (f.trackingInfo || []).length);
+        if (!f) return null;
+        return {
+          company:   f.trackingInfo[0].company || '',
+          number:    f.trackingInfo[0].number  || '',
+          shippedAt: (f.createdAt || '').slice(0, 10),
+        };
+      })(),
     };
   });
 
