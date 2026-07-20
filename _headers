@@ -1,6 +1,7 @@
 # STS deploy 1780349069
 /*
   X-Frame-Options: SAMEORIGIN
+  X-Robots-Tag: noindex, nofollow
 
 # Never cache the service worker or main HTML — must always be fresh
 /sw.js

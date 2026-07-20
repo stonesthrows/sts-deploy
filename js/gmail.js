@@ -788,7 +788,9 @@ function _refreshFromJson(showFeedback) {
     document.getElementById('gt-content').style.display = 'none';
     document.getElementById('gt-empty').style.display   = 'none';
   }
-  fetch('./gmail-brief.json?t=' + Date.now())
+  // Served through the key-authed API gate — the static /gmail-brief.json
+  // is blocked from direct public access (functions/_middleware.js).
+  fetch('/api/gmail-brief?t=' + Date.now())
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
       if (data && data.threads && data.threads.length) { loadGmailThreads(data); }
