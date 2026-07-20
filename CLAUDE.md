@@ -13,6 +13,7 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 - **Deleted experiments** (removed 2026-07, recover from git history if ever needed): `crm.html` + `crm/`, `sts-kanban.html`, `med_batch*/med_item*` import artifacts
 - Related MCP servers (separate folders, not part of deploy): `triplog-mcp-http` (active), `triplog-mcp` (superseded), `triplog-proxy`
 - `square-sync-trigger` (separate folder, not part of deploy): standalone Cloudflare Worker, Cron Trigger only, pings `/api/square-sync` on `sts-deploy.pages.dev` every 15 min. No secrets of its own. See [docs/adr/0002](docs/adr/0002-square-sync-via-scheduled-worker.md).
+- **`tests/` folder** (dev-only, not part of the deploy): headless-Chromium smoke suite. Run `cd tests && node run.js` before pushing a change that touches shared infrastructure (`js/app.js`, `js/storage.js`, `js/notion.js`, `sw.js`, or the CSS/JS extraction structure of `jewelry-workflow.html`) — see [tests/README.md](tests/README.md). One-time setup: `cd tests && npm install`.
 
 ## Tech Stack
 - Vanilla HTML, CSS, JavaScript (no framework, no build step)
