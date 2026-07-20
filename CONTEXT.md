@@ -6,7 +6,7 @@
 The active web application for Stones Throw Studio business management. Vanilla HTML/CSS/JS PWA hosted on Cloudflare Pages. All new development happens here. Features a Kanban-style order pipeline synced bidirectionally with Notion.
 
 **CRM** (`crm.html`)
-A partial rebuild that was started but dropped. Not in active use — do not edit.
+A partial rebuild that was started but dropped, then deleted from the repo (July 2026). Lives only in git history.
 
 ---
 
