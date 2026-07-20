@@ -94,6 +94,7 @@ function cardPointerDown(ev, orderId, kind) {
 
   function endDrag(up) {
     clearTimeout(longPressTimer);
+    window._touchDragActive = false;
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', endDrag);
     document.removeEventListener('pointercancel', endDrag);
@@ -111,6 +112,7 @@ function cardPointerDown(ev, orderId, kind) {
 
   function startDrag() {
     dragging = true;
+    window._touchDragActive = true; // pauses background Notion pulls (notion.js)
     card.style.opacity = '0.4';
     const rect = card.getBoundingClientRect();
     ghost = card.cloneNode(true);
@@ -229,7 +231,7 @@ function setConnStatus(ok) {
   if (!pill) return;
   pill.classList.toggle('conn-bad', !ok);
   const label = pill.querySelector('.conn-label');
-  if (label) label.textContent = ok ? 'Notion connected' : 'Notion unreachable';
+  if (label) label.textContent = ok ? 'Notion' : 'Notion offline';
 }
 
 // Find the top-nav element for a parent group or a direct tab
