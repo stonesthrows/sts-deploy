@@ -7,6 +7,21 @@
 
 const PIPELINE_PROXY = '/api/notion-pipeline';
 
+// ── Sync freshness / write-tracking state ─────────────────────
+// Background pulls (see notionBackgroundSync at the bottom of this file)
+// must never clobber a local change whose push hasn't landed in Notion
+// yet, so every write path records itself here first.
+let _notionWritesInFlight = 0;    // pushes currently on the wire
+let _lastLocalWriteAt     = 0;    // ms timestamp of the most recent local mutation
+let _lastPullAt           = 0;    // ms timestamp of the last successful pull
+let _lastPullAttemptAt    = 0;    // throttle stamp (attempts, not successes)
+const SYNC_EDIT_GRACE_MS  = 30000; // how long a local edit outranks a pull
+
+function _noteLocalWrite(order) {
+  _lastLocalWriteAt = Date.now();
+  if (order) order._localEditAt = _lastLocalWriteAt;
+}
+
 // ── Stage ID ↔ Notion Stage option name ──────────────────────
 const STAGE_TO_NOTION = {
   'intake-custom':  'Custom Intake',
@@ -91,6 +106,8 @@ function _recordRefPhotosSync(order, d) {
 //  Returns the Notion page ID (string) or null on failure.
 // ════════════════════════════════════════════
 async function notionCreateOrder(order) {
+  _noteLocalWrite(order);
+  _notionWritesInFlight++;
   try {
     _markSketchChanged(order);
     _markRefPhotosChanged(order);
@@ -111,6 +128,8 @@ async function notionCreateOrder(order) {
   } catch(e) {
     console.warn('notionCreateOrder error', e);
     return null;
+  } finally {
+    _notionWritesInFlight--;
   }
 }
 
@@ -120,6 +139,8 @@ async function notionCreateOrder(order) {
 // ════════════════════════════════════════════
 async function notionUpdateOrder(order) {
   if (!order.notionId) return;
+  _noteLocalWrite(order);
+  _notionWritesInFlight++;
   try {
     _markSketchChanged(order);
     _markRefPhotosChanged(order);
@@ -141,6 +162,8 @@ async function notionUpdateOrder(order) {
     }
   } catch(e) {
     console.warn('notionUpdateOrder error', e);
+  } finally {
+    _notionWritesInFlight--;
   }
 }
 
@@ -151,6 +174,8 @@ async function notionUpdateOrder(order) {
 // ════════════════════════════════════════════
 async function notionUpdateStage(notionId, stageId) {
   if (!notionId) return;
+  _noteLocalWrite(typeof ORDERS !== 'undefined' && ORDERS.find(o => o.notionId === notionId));
+  _notionWritesInFlight++;
   try {
     await fetch(PIPELINE_PROXY, {
       method:  'POST',
@@ -159,6 +184,8 @@ async function notionUpdateStage(notionId, stageId) {
     });
   } catch(e) {
     console.warn('notionUpdateStage error', e);
+  } finally {
+    _notionWritesInFlight--;
   }
 }
 
@@ -273,6 +300,8 @@ async function notionSyncFromNotion() {
     renderKanban();
     renderCustomers();
     updateCompletedToggle();
+    _lastPullAt = Date.now();
+    _syncPillRefresh();
     toast('Notion sync: +' + added + ' new, ' + updated + ' updated', '✓');
 
   } catch(e) {
@@ -319,13 +348,14 @@ async function notionStartupSync() {
     const r = await fetch(PIPELINE_PROXY);
     if (!r.ok) {
       setConnStatus(false);
+      _syncPillRefresh();
       console.warn('notionStartupSync: API returned', r.status);
-      return;
+      return false;
     }
     const notionOrders = await r.json();
     if (!Array.isArray(notionOrders) || !notionOrders.length) {
       console.warn('notionStartupSync: Notion returned 0 orders — skipping replacement to avoid data loss');
-      return;
+      return false;
     }
     setConnStatus(true);
     console.log('notionStartupSync: loaded', notionOrders.length, 'orders from Notion');
@@ -401,6 +431,15 @@ async function notionStartupSync() {
     // Full replacement — Notion is the source of truth
     ORDERS.length = 0;
     for (const no of notionOrders) {
+      // A local edit inside the grace window outranks this pull — its push
+      // may not have landed in Notion when the GET was issued, so replacing
+      // it would bounce the order back to its pre-edit state.
+      const localCur = byAppId[no.id] || (no.notionId && byNotionId[no.notionId]) || null;
+      if (localCur && localCur._localEditAt &&
+          Date.now() - localCur._localEditAt < SYNC_EDIT_GRACE_MS) {
+        ORDERS.push(localCur);
+        continue;
+      }
       const alreadyCompleted = completedMap[no.id] || completedMap['n:' + no.notionId];
       if (alreadyCompleted) no.stage = alreadyCompleted;
       // Restore local-only fields that Notion doesn't store
@@ -442,7 +481,80 @@ async function notionStartupSync() {
     if (typeof renderProduction === 'function') renderProduction();
     if (typeof renderCustomers === 'function') renderCustomers();
     updateCompletedToggle();
+    _lastPullAt = Date.now();
+    _syncPillRefresh();
+    return true;
   } catch(e) {
     // Startup sync is best-effort — fail silently
+    _syncPillRefresh();
+    return false;
   }
 }
+
+// ════════════════════════════════════════════
+//  BACKGROUND SYNC  —  keeps every device's board fresh
+//  Pulls from Notion on an interval (visible tabs only) and whenever the
+//  tab regains focus/visibility or the network comes back. Guarded so a
+//  pull never re-renders under the user's feet or clobbers an edit whose
+//  push hasn't landed yet.
+// ════════════════════════════════════════════
+const SYNC_INTERVAL_MS = 60000;  // periodic pull while tab is visible
+const SYNC_MIN_GAP_MS  = 20000;  // floor between pulls (focus+visibility can double-fire)
+
+// Native HTML5 drag state (kanban + production columns) — a re-render
+// mid-drag would destroy the dragged element.
+let _dndActive = false;
+
+// Reason the background pull must wait, or null if it's safe to pull now.
+function _syncBlocked() {
+  const modal = document.getElementById('editOrderModalBg');
+  if (modal && modal.classList.contains('open')) return 'order card open';
+  if (_dndActive || window._touchDragActive)     return 'drag in progress';
+  if (_notionWritesInFlight > 0)                 return 'saving changes';
+  if (Date.now() - _lastLocalWriteAt < SYNC_EDIT_GRACE_MS) return 'recent local edit';
+  return null;
+}
+
+async function notionBackgroundSync(force) {
+  if (document.visibilityState === 'hidden') return;
+  if (!force && Date.now() - _lastPullAttemptAt < SYNC_MIN_GAP_MS) return;
+  if (_syncBlocked()) return;
+  _lastPullAttemptAt = Date.now();
+  await notionStartupSync();
+}
+
+// Click handler for the topbar sync pill — explicit refresh
+function syncPillClick() {
+  const why = _syncBlocked();
+  if (why) { toast('Sync paused — ' + why, '⏸'); return; }
+  toast('Refreshing from Notion…', '⟳');
+  notionBackgroundSync(true);
+}
+
+// "synced Xm ago" label + stale tint on the topbar pill
+function _syncPillRefresh() {
+  const pill = document.getElementById('connPill');
+  const age  = document.getElementById('connAge');
+  if (!pill || !age) return;
+  if (!_lastPullAt) { age.textContent = ''; return; }
+  const mins = Math.floor((Date.now() - _lastPullAt) / 60000);
+  age.textContent = mins < 1 ? 'synced just now'
+                  : mins < 60 ? 'synced ' + mins + 'm ago'
+                  : 'synced ' + Math.floor(mins / 60) + 'h ago';
+  pill.classList.toggle('conn-stale', mins >= 5);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('dragstart', function () { _dndActive = true;  });
+  document.addEventListener('dragend',   function () { _dndActive = false; });
+  document.addEventListener('drop',      function () { _dndActive = false; });
+
+  setInterval(function () { notionBackgroundSync(false); }, SYNC_INTERVAL_MS);
+  setInterval(_syncPillRefresh, 30000);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') notionBackgroundSync(false);
+  });
+  window.addEventListener('focus',  function () { notionBackgroundSync(false); });
+  window.addEventListener('online', function () { notionBackgroundSync(true);  });
+});

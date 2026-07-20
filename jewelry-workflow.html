@@ -199,6 +199,13 @@
     .header-pill.conn-bad .dot { background: #FF9090; }
     .header-pill.conn-bad .conn-label { color: #FF9090; }
 
+    /* Sync-status pill (topbar) — freshness of the last Notion pull */
+    .sync-pill { cursor: pointer; user-select: none; }
+    .sync-pill .conn-age { color: var(--text-dim); }
+    .sync-pill.conn-stale .dot { background: #E8C468; }
+    .sync-pill.conn-stale .conn-age { color: #E8C468; }
+    .sync-pill.conn-bad .conn-age { color: #FF9090; }
+
     /* ── Nav ─────────────────────────────────── */
     .nav {
       background: var(--nav);
@@ -4924,6 +4931,9 @@
     .header { padding: 0 14px; height: 50px; }
     .logo-sub { display: none; }
     .header-pill { display: none; }
+    /* Sync pill stays on phones, compacted to dot + age */
+    .header-pill.sync-pill { display: flex; padding: 4px 10px; }
+    .sync-pill .conn-label { display: none; }
     .theme-btn { font-size: 14px; padding: 4px 6px; }
 
     /* Nav */
@@ -5735,6 +5745,11 @@
   <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
   <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
   <div class="topbar-spacer"></div>
+  <div class="header-pill sync-pill" id="connPill" onclick="if(typeof syncPillClick==='function')syncPillClick()" title="Notion sync status — click to refresh now" role="button" tabindex="0">
+    <span class="dot"></span>
+    <span class="conn-label">Notion</span>
+    <span class="conn-age" id="connAge"></span>
+  </div>
   <button class="theme-btn rq-mobile-edit-toggle" id="rqMobileEditToggle" onclick="rqToggleMobileEditMode()" title="Edit Restock Queue items">✎ Edit</button>
   <button class="theme-btn" onclick="openIntegrationsModal()" title="Configure API keys and integrations" style="font-size:15px;">🔌</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">🗺️</button>
@@ -11168,9 +11183,9 @@ body.theme-midnight #tab-to-restock .rq-scroll-area::-webkit-scrollbar-thumb { b
 <script src="js/api-auth.js?v=1"></script>
 <script src="js/data.js?v=20260720a"></script>
 <script src="js/order-normalize.js?v=20260713c"></script>
-<script src="js/notion.js?v=20260710a"></script>
+<script src="js/notion.js?v=20260720a"></script>
 <script src="js/customers.js?v=20260711a"></script>
-<script src="js/app.js?v=20260715a"></script>
+<script src="js/app.js?v=20260720a"></script>
 <script src="js/sketchpad.js?v=5"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/orders.js?v=20260718a"></script>
