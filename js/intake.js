@@ -228,6 +228,122 @@ function intakeSetOrderFor(val) {
   if (stamping2Fg) stamping2Fg.style.display = isCouple ? '' : 'none';
 }
 
+// ── Ring piece type: N-ring dynamic fields ─────────────────────
+// Replaces the shared Materials/Finish/Gemstones fields + the sheet's
+// Individual/Couple 2-ring cap with one field-set per ring (any count),
+// each with its own name (once there's more than one), size, materials,
+// texture/finish, gemstones, and an optional inside-ring stamping.
+function _intakeBlankRing() {
+  return { name: '', size: '', materials: '', finish: [], gemstones: '', stamping: '' };
+}
+let _intakeRings = [_intakeBlankRing()];
+
+function intakeApplyPieceType(pieceType) {
+  const isRing = pieceType === 'Ring';
+  const countFg = document.getElementById('ring-count-fg');
+  const dynWrap = document.getElementById('rings-dynamic-wrap');
+  const shared  = document.getElementById('ring-fields-shared');
+  if (countFg) countFg.style.display = isRing ? '' : 'none';
+  if (dynWrap) dynWrap.style.display = isRing ? '' : 'none';
+  if (shared)  shared.style.display  = isRing ? 'none' : 'contents';
+  if (isRing) intakeRenderRingBlocks();
+  // Bottom sheet's Sizing tab drops its now-redundant Order-For/ring-size-2/
+  // stamping-2 controls while Piece Type is Ring — Step 1's per-ring blocks
+  // are the single editing surface for that case.
+  if (typeof psRenderPanes === 'function') psRenderPanes();
+}
+
+function _intakeCollectRingsFromDom() {
+  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
+  if (!blocks.length) return _intakeRings;
+  return [...blocks].map((block, i) => ({
+    name:      document.getElementById('f-ring-name-' + i)?.value.trim() || '',
+    size:      document.getElementById('f-ring-size-' + i)?.value.trim() || '',
+    materials: document.getElementById('f-ring-materials-' + i)?.value.trim() || '',
+    finish:    [...block.querySelectorAll('.ring-finish input:checked')].map(c => c.value),
+    gemstones: document.getElementById('f-ring-gemstones-' + i)?.value.trim() || '',
+    stamping:  document.getElementById('f-ring-stamping-' + i)?.value.trim() || '',
+  }));
+}
+
+function intakeSetRingCount(raw) {
+  let n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  if (n > 8) n = 8;
+  const countEl = document.getElementById('f-ring-count');
+  if (countEl && countEl.value != n) countEl.value = n;
+  _intakeRings = _intakeCollectRingsFromDom();
+  while (_intakeRings.length < n) _intakeRings.push(_intakeBlankRing());
+  _intakeRings.length = n;
+  intakeRenderRingBlocks();
+}
+
+function intakeRenderRingBlocks() {
+  const list = document.getElementById('rings-dynamic-list');
+  if (!list) return;
+  const showName = _intakeRings.length > 1;
+  const esc = v => String(v || '').replace(/"/g, '&quot;');
+  list.innerHTML = _intakeRings.map((r, i) => `
+    <div class="ring-block" style="border-top:1px solid #e2e2e2;margin-top:${i ? '12px' : '0'};padding-top:${i ? '12px' : '0'};">
+      <div class="fg full"><label>Ring ${i + 1}</label></div>
+      ${showName ? `
+      <div class="fg">
+        <label>Name</label>
+        <input type="text" id="f-ring-name-${i}" value="${esc(r.name)}" placeholder="e.g. Sarah" oninput="_intakeRings[${i}].name=this.value">
+      </div>` : ''}
+      <div class="fg">
+        <label>Ring Size</label>
+        <input type="text" id="f-ring-size-${i}" value="${esc(r.size)}" placeholder="e.g. 7">
+      </div>
+      <div class="fg">
+        <label>Materials / Metal</label>
+        <input type="text" id="f-ring-materials-${i}" value="${esc(r.materials)}" placeholder="e.g. 14k yellow gold">
+      </div>
+      <div class="fg">
+        <label>Texture / Finish</label>
+        <div class="finish-checks ring-finish">
+          <label><input type="checkbox" value="Polished" ${r.finish.includes('Polished') ? 'checked' : ''}> Polished</label>
+          <label><input type="checkbox" value="Hammered/Textured" ${r.finish.includes('Hammered/Textured') ? 'checked' : ''}> Hammered</label>
+          <label><input type="checkbox" value="Matte" ${r.finish.includes('Matte') ? 'checked' : ''}> Matte</label>
+          <label><input type="checkbox" value="Oxidized" ${r.finish.includes('Oxidized') ? 'checked' : ''}> Oxidized</label>
+        </div>
+      </div>
+      <div class="fg full">
+        <label>Gemstones / Components</label>
+        <textarea id="f-ring-gemstones-${i}" placeholder="Stones, cuts, settings, beads…" style="min-height:40px;">${esc(r.gemstones)}</textarea>
+      </div>
+      <div class="fg">
+        <label>Inside Ring Stamping <span style="font-weight:400;">(optional)</span></label>
+        <input type="text" id="f-ring-stamping-${i}" value="${esc(r.stamping)}" placeholder="e.g. Forever &amp; Always">
+      </div>
+    </div>
+  `).join('');
+}
+
+// Flat, backward-compatible fields derived from rings[] — the desktop
+// workflow app and print templates only ever understood a single ring
+// (materials/gemstones/finish/sizing/stamping) plus an optional 2nd ring
+// (ringSize2/stamping2, gated by orderFor==='couple'). Ring orders with
+// more than 2 rings still get full detail in order.rings; these flat
+// fields surface rings 1-2 only, same as the old Individual/Couple cap.
+function _intakeRingsLegacyFields(rings) {
+  const multi = rings.length > 1;
+  const label = (r, i) => multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : '';
+  const join = key => rings
+    .map((r, i) => r[key] ? (label(r, i) ? label(r, i) + ': ' + r[key] : r[key]) : '')
+    .filter(Boolean).join('; ');
+  return {
+    materials: join('materials'),
+    gemstones: join('gemstones'),
+    finish:    [...new Set(rings.flatMap(r => r.finish || []))],
+    sizing:    rings[0] && rings[0].size ? ('sz ' + rings[0].size) : '',
+    ringSize2: rings[1] && rings[1].size ? ('sz ' + rings[1].size) : '',
+    stamping:  (rings[0] && rings[0].stamping) || '',
+    stamping2: (rings[1] && rings[1].stamping) || '',
+    orderFor:  multi ? 'couple' : 'individual',
+  };
+}
+
 // Resize → single Sizing/Dimensions string (Notion 'Sizing / Dimensions').
 // Delegates to the shared formatter (js/order-widgets.js) so the string
 // format only lives in one place — orders.js uses the same helper.
@@ -346,7 +462,11 @@ function _intakeDirty() {
     const el = document.getElementById(id);
     return el && el.value && el.value.trim();
   });
+  const ringsDirty = document.getElementById('f-ring-count')?.value > 1
+    || [...document.querySelectorAll('#rings-dynamic-list input, #rings-dynamic-list textarea')]
+        .some(el => el.type === 'checkbox' ? el.checked : el.value.trim());
   return fields
+    || ringsDirty
     || (typeof _oiItems !== 'undefined' && _oiItems.some(it => it.name || it.price))
     || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
     || (typeof SK !== 'undefined' && SK && SK.hasInk)
@@ -465,16 +585,20 @@ async function intakeSubmit() {
   const resizeFrom  = isResize ? g('f-resize-from').value.trim() : '';
   const resizeTo    = isResize ? g('f-resize-to').value.trim()   : '';
   const notes       = g('f-notes').value.trim();
-  const sizing      = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
+  let sizing        = isResize ? _intakeResizeSizing() : g('f-sizing').value.trim();
   // Individual vs Couple (brief: matching-set orders, e.g. wedding bands) —
   // set from the Step-2 bottom sheet's Sizing tab, so it's Custom-Design-only
   // (Repair/Resize/Square Item never reach that sheet — don't let stale
   // sheet state from an earlier Custom Design session leak into them).
   const isCustomDesign = typeVal === 'order';
-  const orderFor    = isCustomDesign ? (_intakeOrderFor === 'couple' ? 'couple' : 'individual') : '';
-  const ringSize2   = (isCustomDesign && orderFor === 'couple') ? g('f-ringsize2').value.trim() : '';
-  const stamping    = isCustomDesign ? g('f-stamping').value.trim() : '';
-  const stamping2   = (isCustomDesign && orderFor === 'couple') ? g('f-stamping2').value.trim() : '';
+  const isRingPiece = isCustomDesign && g('f-piece-type').value === 'Ring';
+  const rings       = isRingPiece ? _intakeCollectRingsFromDom() : null;
+  const ringLegacy  = rings ? _intakeRingsLegacyFields(rings) : null;
+  const orderFor    = isCustomDesign ? (ringLegacy ? ringLegacy.orderFor : (_intakeOrderFor === 'couple' ? 'couple' : 'individual')) : '';
+  const ringSize2   = ringLegacy ? ringLegacy.ringSize2 : ((isCustomDesign && orderFor === 'couple') ? g('f-ringsize2').value.trim() : '');
+  const stamping    = ringLegacy ? ringLegacy.stamping : (isCustomDesign ? g('f-stamping').value.trim() : '');
+  const stamping2   = ringLegacy ? ringLegacy.stamping2 : ((isCustomDesign && orderFor === 'couple') ? g('f-stamping2').value.trim() : '');
+  if (ringLegacy) sizing = ringLegacy.sizing;
   // Sensitivities: structured on the order AND joined into notes so Notion +
   // the printed bag see plain text with no pipeline changes (brief 1.3).
   const sens        = intakeSensList();
@@ -513,15 +637,16 @@ async function intakeSubmit() {
     // Estimate rows are authoritative for Custom Design (the builder is
     // custom-only); otherwise fall back to the Materials/Metal text. Fixes
     // intake orders reaching Notion with no Materials at all.
-    materials:     (typeVal === 'order' && _intakeEstMaterialLines()) || g('f-materials').value.trim(),
+    materials:     (typeVal === 'order' && _intakeEstMaterialLines()) || (ringLegacy ? ringLegacy.materials : g('f-materials').value.trim()),
     pieceType:     g('f-piece-type').value || '',
     sizing:        sizing,
     orderFor:      orderFor,
     ringSize2:     ringSize2,
     stamping:      stamping,
     stamping2:     stamping2,
-    gemstones:     g('f-gemstones').value.trim(),
-    finish:        [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
+    gemstones:     ringLegacy ? ringLegacy.gemstones : g('f-gemstones').value.trim(),
+    finish:        ringLegacy ? ringLegacy.finish : [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
+    rings:         rings || undefined,
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
     sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
     // Client-shown reference photos (Photos tab in the bottom sheet) —
@@ -612,6 +737,11 @@ function intakeReset() {
   document.querySelectorAll('#f-sensitivities input').forEach(c => c.checked = false);
   intakeSensChanged();
   intakeSetOrderFor('individual');
+  _intakeRings = [_intakeBlankRing()];
+  const ringCountEl = document.getElementById('f-ring-count');
+  if (ringCountEl) ringCountEl.value = 1;
+  intakeRenderRingBlocks();
+  intakeApplyPieceType('');
   _depMode = null;
   document.getElementById('est-preset-strip')?.classList.remove('open');
   if (typeof intakeProfileReset === 'function') intakeProfileReset();

@@ -101,29 +101,34 @@ function psRenderPanes() {
       const v = q / 4;
       wheel += '<button type="button" class="ps-chip" data-v="' + v + '">' + String(v).replace(/\.?0+$/, '') + '</button>';
     }
+    // Ring piece type: ring size / stamping / order-for are captured per-ring
+    // in Step 1's dynamic ring blocks instead — this pane only owns Band.
+    const isRingPiece = document.getElementById('f-piece-type')?.value === 'Ring';
     sizing.innerHTML =
-      '<div class="ps-label">Order For</div>'
-      + '<div class="ps-chips" id="ps-orderfor">'
-      + '<button type="button" class="ps-chip on" data-v="individual">Individual</button>'
-      + '<button type="button" class="ps-chip" data-v="couple">Couple</button>'
-      + '</div>'
-      + '<div class="ps-label" id="ps-ringsize-label">Ring Size (US)</div>'
-      + '<div class="ps-wheel ps-chips" id="ps-ringsize">' + wheel + '</div>'
-      + '<div id="ps-ring2-wrap" style="display:none;">'
-      + '<div class="ps-label">Ring Size (US) — Ring 2</div>'
-      + '<div class="ps-wheel ps-chips" id="ps-ringsize2">' + wheel + '</div>'
-      + '</div>'
+      (isRingPiece ? '' :
+        '<div class="ps-label">Order For</div>'
+        + '<div class="ps-chips" id="ps-orderfor">'
+        + '<button type="button" class="ps-chip on" data-v="individual">Individual</button>'
+        + '<button type="button" class="ps-chip" data-v="couple">Couple</button>'
+        + '</div>'
+        + '<div class="ps-label" id="ps-ringsize-label">Ring Size (US)</div>'
+        + '<div class="ps-wheel ps-chips" id="ps-ringsize">' + wheel + '</div>'
+        + '<div id="ps-ring2-wrap" style="display:none;">'
+        + '<div class="ps-label">Ring Size (US) — Ring 2</div>'
+        + '<div class="ps-wheel ps-chips" id="ps-ringsize2">' + wheel + '</div>'
+        + '</div>')
       + '<div class="ps-label">Band</div>'
       + '<div>'
       + '<span class="ps-step">Width <button type="button" onclick="psStep(\'width\',-0.5)">−</button><span class="ps-step-val" id="ps-width-val">—</span><button type="button" onclick="psStep(\'width\',0.5)">＋</button></span>'
       + '<span class="ps-step">Thickness <button type="button" onclick="psStep(\'thick\',-0.25)">−</button><span class="ps-step-val" id="ps-thick-val">—</span><button type="button" onclick="psStep(\'thick\',0.25)">＋</button></span>'
       + '</div>'
-      + '<div class="ps-label" id="ps-stamping-label">Ring Stamping</div>'
-      + '<input type="text" class="ps-input" id="ps-stamping" placeholder="e.g. Forever &amp; Always" style="width:100%;">'
-      + '<div id="ps-stamping2-wrap" style="display:none;margin-top:8px;">'
-      + '<div class="ps-label">Ring Stamping — Ring 2</div>'
-      + '<input type="text" class="ps-input" id="ps-stamping2" placeholder="e.g. To the moon and back" style="width:100%;">'
-      + '</div>';
+      + (isRingPiece ? '' :
+        '<div class="ps-label" id="ps-stamping-label">Ring Stamping</div>'
+        + '<input type="text" class="ps-input" id="ps-stamping" placeholder="e.g. Forever &amp; Always" style="width:100%;">'
+        + '<div id="ps-stamping2-wrap" style="display:none;margin-top:8px;">'
+        + '<div class="ps-label">Ring Stamping — Ring 2</div>'
+        + '<input type="text" class="ps-input" id="ps-stamping2" placeholder="e.g. To the moon and back" style="width:100%;">'
+        + '</div>');
   }
   const photos = document.getElementById('ps-pane-photos');
   if (photos) {

@@ -1064,7 +1064,7 @@
         <div id="type-custom" class="form-grid mt-3">
           <div class="fg">
             <label>Piece Type</label>
-            <select id="f-piece-type">
+            <select id="f-piece-type" onchange="intakeApplyPieceType(this.value)">
               <option value="">— Select —</option>
               <option value="Ring">Ring</option>
               <option value="Ear Cuff">Ear Cuff</option>
@@ -1075,40 +1075,49 @@
               <option value="Other">Other</option>
             </select>
           </div>
-          <div class="fg" id="materials-fg">
-            <label>Materials / Metal</label>
-            <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
-            <div class="sens-warn" id="sens-warn"></div>
+          <div class="fg" id="ring-count-fg" style="display:none;">
+            <label>Number of Rings</label>
+            <input type="number" id="f-ring-count" min="1" max="8" value="1" oninput="intakeSetRingCount(this.value)">
           </div>
-          <div class="fg" id="sizing-fg">
-            <label>Sizing / Dimensions</label>
-            <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
-            <div class="sens-warn" id="sizing-verify-hint"></div>
+          <div class="fg full" id="rings-dynamic-wrap" style="display:none;">
+            <div id="rings-dynamic-list"></div>
           </div>
-          <div class="fg" id="ringsize2-fg" style="display:none;">
-            <label>2nd Ring Size</label>
-            <input type="text" id="f-ringsize2" placeholder="e.g. ring size 9">
-          </div>
-          <div class="fg" id="stamping-fg">
-            <label>Ring Stamping</label>
-            <input type="text" id="f-stamping" placeholder="e.g. Forever &amp; Always">
-          </div>
-          <div class="fg" id="stamping2-fg" style="display:none;">
-            <label>2nd Ring Stamping</label>
-            <input type="text" id="f-stamping2" placeholder="e.g. To the moon and back">
-          </div>
-          <div class="fg">
-            <label>Texture / Finish</label>
-            <div class="finish-checks" id="f-finish">
-              <label><input type="checkbox" value="Polished"> Polished</label>
-              <label><input type="checkbox" value="Hammered/Textured"> Hammered</label>
-              <label><input type="checkbox" value="Matte"> Matte</label>
-              <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+          <div id="ring-fields-shared" style="display:contents;">
+            <div class="fg" id="materials-fg">
+              <label>Materials / Metal</label>
+              <input type="text" id="f-materials" placeholder="e.g. 14k yellow gold, 2ct oval sapphire" oninput="intakeSensChanged()">
+              <div class="sens-warn" id="sens-warn"></div>
             </div>
-          </div>
-          <div class="fg full">
-            <label>Gemstones / Components</label>
-            <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;" oninput="intakeSensChanged()"></textarea>
+            <div class="fg" id="sizing-fg">
+              <label>Sizing / Dimensions</label>
+              <input type="text" id="f-sizing" placeholder='e.g. ring size 7, 18" chain'>
+              <div class="sens-warn" id="sizing-verify-hint"></div>
+            </div>
+            <div class="fg" id="ringsize2-fg" style="display:none;">
+              <label>2nd Ring Size</label>
+              <input type="text" id="f-ringsize2" placeholder="e.g. ring size 9">
+            </div>
+            <div class="fg" id="stamping-fg">
+              <label>Ring Stamping</label>
+              <input type="text" id="f-stamping" placeholder="e.g. Forever &amp; Always">
+            </div>
+            <div class="fg" id="stamping2-fg" style="display:none;">
+              <label>2nd Ring Stamping</label>
+              <input type="text" id="f-stamping2" placeholder="e.g. To the moon and back">
+            </div>
+            <div class="fg" id="finish-fg">
+              <label>Texture / Finish</label>
+              <div class="finish-checks" id="f-finish">
+                <label><input type="checkbox" value="Polished"> Polished</label>
+                <label><input type="checkbox" value="Hammered/Textured"> Hammered</label>
+                <label><input type="checkbox" value="Matte"> Matte</label>
+                <label><input type="checkbox" value="Oxidized"> Oxidized</label>
+              </div>
+            </div>
+            <div class="fg full" id="gemstones-fg">
+              <label>Gemstones / Components</label>
+              <textarea id="f-gemstones" placeholder="Stones, cuts, settings, beads…" style="min-height:48px;" oninput="intakeSensChanged()"></textarea>
+            </div>
           </div>
         </div>
 
@@ -1541,8 +1550,8 @@
 <script src="js/notion.js?v=20260710a"></script>
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
-<script src="js/intake-sheet.js?v=3"></script>
-<script src="js/intake.js?v=11"></script>
+<script src="js/intake-sheet.js?v=4"></script>
+<script src="js/intake.js?v=12"></script>
 <script src="js/intake-paper.js?v=4"></script>
 </body>
 </html>
