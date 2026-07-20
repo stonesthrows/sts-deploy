@@ -322,11 +322,11 @@ function intakeClampRingCount(el) {
   if (el.value != n) el.value = n;
 }
 
-// Half-size steps from min to max inclusive, e.g. _intakeSizeOptions(4,13)
-// → ["4","4.5","5",…,"13"].
+// Quarter-size steps from min to max inclusive, e.g. _intakeSizeOptions(4,13)
+// → ["4","4.25","4.5","4.75","5",…,"13"].
 function _intakeSizeOptions(min, max) {
   const out = [];
-  for (let q = min * 2; q <= max * 2; q++) out.push(String(q / 2));
+  for (let q = min * 4; q <= max * 4; q++) out.push(String(q / 4));
   return out;
 }
 
