@@ -1,0 +1,56 @@
+{
+  "globals": {
+    "pjPickMetal": "function",
+    "pjBuildRef": "function",
+    "homeTabInit": "function",
+    "sbNav": "function",
+    "sbToggle": "function",
+    "timerTabInit": "function",
+    "openDataMapModal": "function",
+    "switchTab": "function",
+    "switchParent": "function",
+    "_homeRefreshPackages": "function",
+    "calRender": "function",
+    "dashSquareLoad": "function",
+    "notionBackgroundSync": "function",
+    "syncPillClick": "function",
+    "stsStoreGet": "function",
+    "stsStoreSet": "function"
+  },
+  "tabs": {
+    "home": "tab-home",
+    "dashboard": "tab-dashboard",
+    "production": "tab-production",
+    "customers": "tab-customers",
+    "gmail": "tab-gmail",
+    "sales": "tab-sales",
+    "bestsellers": "tab-bestsellers",
+    "notes": "tab-notes",
+    "supplier": "tab-supplier",
+    "order-history": "tab-order-history",
+    "materials": "tab-materials",
+    "to-restock": "tab-to-restock",
+    "inv-adjust": "tab-inv-adjust",
+    "prod-report": "tab-prod-report",
+    "replenish": "tab-replenish",
+    "triplog": "tab-triplog",
+    "pj-calc": "tab-pj-calc",
+    "pj-ref": "tab-pj-ref",
+    "calendar": "tab-calendar",
+    "designs": "tab-designs",
+    "bgab": "NONE"
+  },
+  "styles": {
+    "body": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Inter, sans-serif|rgb(78, 122, 148)|rgb(26, 46, 56)",
+    "nav-tab": null,
+    "topbar": "rgb(30, 61, 80)|fixed|50px",
+    "connPill": "flex|20px",
+    "botnav": "none|fixed",
+    "kanban": "flex",
+    "pj-wrap": "16px 20px 30px|680px",
+    "tl-health": "none|16px"
+  },
+  "_pageErrors": [
+    "Cannot read properties of null (reading 'style')"
+  ]
+}
