@@ -22,6 +22,82 @@ function _noteLocalWrite(order) {
   if (order) order._localEditAt = _lastLocalWriteAt;
 }
 
+// ── Offline write queue ───────────────────────────────────────
+// A push that fails at the NETWORK level (offline, DNS, aborted) is queued
+// here and replayed when connectivity returns — before the next pull, so
+// the pull can't clobber the unsent change. HTTP errors (4xx/5xx) are NOT
+// queued: the server was reachable and rejected the write, so retrying the
+// same payload forever would just loop; the existing failure toast covers
+// those. Entries are keyed by order so repeat failures don't stack, and
+// replay sends the order's CURRENT state, not a stale snapshot.
+// Persisted in IndexedDB ('notion-retry') so a queued write survives a
+// reload; mirrored in-memory for synchronous checks during pull merges.
+const _notionRetry = new Map();   // key (order id or notionId) → entry
+
+function _notionRetryKey(e) { return e.id || e.notionId; }
+
+function _notionRetrySave() {
+  if (typeof stsStoreSet !== 'function') return;
+  stsStoreSet('notion-retry', [..._notionRetry.values()]).catch(() => {});
+}
+
+async function _notionRetryLoad() {
+  if (typeof stsStoreGet !== 'function') return;
+  try {
+    const saved = await stsStoreGet('notion-retry');
+    if (Array.isArray(saved)) saved.forEach(e => {
+      const k = _notionRetryKey(e);
+      if (k && !_notionRetry.has(k)) _notionRetry.set(k, e);
+    });
+  } catch (e) {}
+}
+
+let _lastOfflineToastAt = 0;
+function _queueNotionRetry(entry) {
+  const k = _notionRetryKey(entry);
+  if (!k) return;
+  _notionRetry.set(k, Object.assign(_notionRetry.get(k) || {}, entry));
+  _notionRetrySave();
+  if (typeof toast === 'function' && Date.now() - _lastOfflineToastAt > 30000) {
+    _lastOfflineToastAt = Date.now();
+    toast('Offline — change saved locally, will sync when back online', '📡');
+  }
+}
+
+// Does this local order have a write waiting to be replayed?
+function _notionRetryHas(order) {
+  return _notionRetry.has(order.id) || (order.notionId && _notionRetry.has(order.notionId));
+}
+
+let _replayRunning = false;
+async function notionReplayQueue() {
+  if (_replayRunning || !_notionRetry.size || !navigator.onLine) return;
+  _replayRunning = true;
+  try {
+    let sent = 0;
+    for (const [key, entry] of [..._notionRetry]) {
+      const order = (typeof ORDERS !== 'undefined') &&
+        ORDERS.find(o => o.id === entry.id || (entry.notionId && o.notionId === entry.notionId));
+      let status;
+      if (order && order.notionId) {
+        status = await notionUpdateOrder(order);        // current state, covers stage too
+      } else if (entry.notionId && entry.stage) {
+        status = await notionUpdateStage(entry.notionId, entry.stage);
+      } else {
+        status = 'drop';   // order deleted locally / never reached Notion — nothing to replay
+      }
+      if (status !== 'network-error') { _notionRetry.delete(key); if (status === 'ok') sent++; }
+      else break;          // still offline — keep the rest queued, try later
+    }
+    _notionRetrySave();
+    if (sent && typeof toast === 'function') {
+      toast('✓ Synced ' + sent + ' offline change' + (sent > 1 ? 's' : '') + ' to Notion', '↻');
+    }
+  } finally {
+    _replayRunning = false;
+  }
+}
+
 // ── Stage ID ↔ Notion Stage option name ──────────────────────
 const STAGE_TO_NOTION = {
   'intake-custom':  'Custom Intake',
@@ -138,7 +214,7 @@ async function notionCreateOrder(order) {
 //  No-op if the order has no notionId yet.
 // ════════════════════════════════════════════
 async function notionUpdateOrder(order) {
-  if (!order.notionId) return;
+  if (!order.notionId) return 'skipped';
   _noteLocalWrite(order);
   _notionWritesInFlight++;
   try {
@@ -154,14 +230,19 @@ async function notionUpdateOrder(order) {
       console.error('notionUpdateOrder failed', r.status, err);
       if (typeof setConnStatus === 'function') setConnStatus(false);
       if (typeof toast === 'function') toast('⚠ Notion sync failed: ' + (err.error || r.status) + ' — local change kept, but will be overwritten by the next sync until this is fixed', '⚠', 8000);
-    } else {
-      const d = await r.json().catch(() => ({}));
-      _recordSketchSync(order, d);
-      _recordRefPhotosSync(order, d);
-      if (typeof setConnStatus === 'function') setConnStatus(true);
+      return 'http-error';
     }
+    const d = await r.json().catch(() => ({}));
+    _recordSketchSync(order, d);
+    _recordRefPhotosSync(order, d);
+    if (typeof setConnStatus === 'function') setConnStatus(true);
+    return 'ok';
   } catch(e) {
+    // Network-level failure (offline/DNS/abort) — queue for replay
     console.warn('notionUpdateOrder error', e);
+    _queueNotionRetry({ id: order.id, notionId: order.notionId });
+    if (typeof setConnStatus === 'function') setConnStatus(false);
+    return 'network-error';
   } finally {
     _notionWritesInFlight--;
   }
@@ -173,17 +254,22 @@ async function notionUpdateOrder(order) {
 //  No-op if notionId is missing.
 // ════════════════════════════════════════════
 async function notionUpdateStage(notionId, stageId) {
-  if (!notionId) return;
-  _noteLocalWrite(typeof ORDERS !== 'undefined' && ORDERS.find(o => o.notionId === notionId));
+  if (!notionId) return 'skipped';
+  const order = typeof ORDERS !== 'undefined' && ORDERS.find(o => o.notionId === notionId);
+  _noteLocalWrite(order);
   _notionWritesInFlight++;
   try {
-    await fetch(PIPELINE_PROXY, {
+    const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ notionId, _stageOnly: true, stage: stageId }),
     });
+    return r.ok ? 'ok' : 'http-error';
   } catch(e) {
     console.warn('notionUpdateStage error', e);
+    _queueNotionRetry({ id: order ? order.id : null, notionId, stage: stageId });
+    if (typeof setConnStatus === 'function') setConnStatus(false);
+    return 'network-error';
   } finally {
     _notionWritesInFlight--;
   }
@@ -433,10 +519,12 @@ async function notionStartupSync() {
     for (const no of notionOrders) {
       // A local edit inside the grace window outranks this pull — its push
       // may not have landed in Notion when the GET was issued, so replacing
-      // it would bounce the order back to its pre-edit state.
+      // it would bounce the order back to its pre-edit state. Same for any
+      // order with a queued offline write awaiting replay.
       const localCur = byAppId[no.id] || (no.notionId && byNotionId[no.notionId]) || null;
-      if (localCur && localCur._localEditAt &&
-          Date.now() - localCur._localEditAt < SYNC_EDIT_GRACE_MS) {
+      if (localCur && ((localCur._localEditAt &&
+          Date.now() - localCur._localEditAt < SYNC_EDIT_GRACE_MS) ||
+          _notionRetryHas(localCur))) {
         ORDERS.push(localCur);
         continue;
       }
@@ -520,6 +608,7 @@ async function notionBackgroundSync(force) {
   if (!force && Date.now() - _lastPullAttemptAt < SYNC_MIN_GAP_MS) return;
   if (_syncBlocked()) return;
   _lastPullAttemptAt = Date.now();
+  await notionReplayQueue();   // land queued offline writes BEFORE pulling
   await notionStartupSync();
 }
 
@@ -545,6 +634,8 @@ function _syncPillRefresh() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  _notionRetryLoad();   // restore any offline writes queued before a reload
+
   document.addEventListener('dragstart', function () { _dndActive = true;  });
   document.addEventListener('dragend',   function () { _dndActive = false; });
   document.addEventListener('drop',      function () { _dndActive = false; });
