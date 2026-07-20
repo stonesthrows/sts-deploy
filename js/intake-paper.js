@@ -845,10 +845,18 @@ intakeReviewOpen = async function () {
     // jump back to the Handwriting screen so the gap is visible, not silent.
     if (!getFullName()) { toast('Write the customer name before saving (or tap its chip to type it)', '⚠', 4000); paperGoScreen(1); return; }
     const type = document.getElementById('f-order-type')?.value || 'order';
-    if (type !== 'repair' && !(document.getElementById('f-description')?.value || '').trim()) {
-      toast('Write the item / description before saving', '⚠', 4000);
-      paperGoScreen(1);
-      return;
+    const descField = document.getElementById('f-description');
+    if (type !== 'repair' && !(descField?.value || '').trim()) {
+      // No Materials line was written (that's the only zone that feeds
+      // f-description) — fall back to whatever was written in Notes
+      // rather than blocking on a field Paper mode's page has no zone for.
+      const notes = (document.getElementById('f-notes')?.value || '').trim();
+      if (notes && descField) { descField.value = notes; }
+      else {
+        toast('Write at least one Materials line (or a Note) describing the piece', '⚠', 4000);
+        paperGoScreen(1);
+        return;
+      }
     }
   }
   _ppReviewOpen();
