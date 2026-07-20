@@ -266,16 +266,28 @@ function _intakeCollectRingsFromDom() {
   }));
 }
 
+// Renders a preview of the ring blocks as the user types, WITHOUT writing
+// back into #f-ring-count itself — doing that mid-edit (e.g. while the
+// field is briefly empty from clearing it to type a new number) fights the
+// user's own keystrokes and can trap the field at a clamped value forever.
+// The field's displayed value only gets normalized on blur (see below).
 function intakeSetRingCount(raw) {
   let n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) n = 1;
   if (n > 8) n = 8;
-  const countEl = document.getElementById('f-ring-count');
-  if (countEl && countEl.value != n) countEl.value = n;
   _intakeRings = _intakeCollectRingsFromDom();
   while (_intakeRings.length < n) _intakeRings.push(_intakeBlankRing());
   _intakeRings.length = n;
   intakeRenderRingBlocks();
+}
+
+// On blur, snap the field's own displayed value into 1-8 so it never shows
+// something invalid/out-of-range once the user is done editing it.
+function intakeClampRingCount(el) {
+  let n = parseInt(el.value, 10);
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  if (n > 8) n = 8;
+  if (el.value != n) el.value = n;
 }
 
 function intakeRenderRingBlocks() {

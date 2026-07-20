@@ -1077,7 +1077,7 @@
           </div>
           <div class="fg" id="ring-count-fg" style="display:none;">
             <label>Number of Rings</label>
-            <input type="number" id="f-ring-count" min="1" max="8" value="1" oninput="intakeSetRingCount(this.value)">
+            <input type="number" id="f-ring-count" min="1" max="8" value="1" oninput="intakeSetRingCount(this.value)" onblur="intakeClampRingCount(this)">
           </div>
           <div class="fg full" id="rings-dynamic-wrap" style="display:none;">
             <div id="rings-dynamic-list"></div>
@@ -1551,7 +1551,7 @@
 <script src="js/order-widgets.js?v=20260710a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=12"></script>
+<script src="js/intake.js?v=13"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>
