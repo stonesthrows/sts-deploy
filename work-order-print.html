@@ -190,15 +190,21 @@
     .jd-panel .sec-head, .size-panel .sec-head {
       border-top: none;
     }
-    .jd-panel .sec-head.jd-desc-head { border-top: 1px solid #000; }
     .form-content[data-layout="repair"]  #j-title-row,
     .form-content[data-layout="resize"]  #j-title-row,
     .form-content[data-layout="estimate"] #j-title-row,
     .form-content[data-layout="ecom"]     #j-title-row { display: none !important; }
-    .form-content[data-layout="repair"]  .jd-desc-head,
-    .form-content[data-layout="resize"]  .jd-desc-head,
-    .form-content[data-layout="estimate"] .jd-desc-head,
-    .form-content[data-layout="ecom"]     .jd-desc-head { border-top: none; }
+
+    /* Job Description now lives in its own full-width block below the
+       Job Title / Ring Size row, so it gets the whole 5.5" width instead
+       of sharing space with the size panel. */
+    #jd-full-block {
+      display: flex; flex-direction: column; flex-shrink: 0;
+      border-top: 1px solid #000; min-height: 0;
+    }
+    .form-content[data-jd="small"]  #jd-full-block { flex: 0.5; }
+    .form-content[data-jd="medium"] #jd-full-block { flex: 1;   }
+    .form-content[data-jd="large"]  #jd-full-block { flex: 1.6; }
 
     /* Line items */
     .li-block {
@@ -268,10 +274,10 @@
 
     /* ── Layout setting variants (applied via data-* on .form-content) ── */
 
-    /* Job Description + Size row height */
-    .form-content[data-jd="small"]  .jd-size-row { height: 80px; }
-    .form-content[data-jd="medium"] .jd-size-row { height: 80px; }
-    .form-content[data-jd="large"]  .jd-size-row { height: 80px; }
+    /* Job Title + Ring Size row height — just tall enough for one line of
+       title text; Job Description now lives in its own block below (sized
+       via data-jd on #jd-full-block, see .jd-panel rules above). */
+    .jd-size-row { height: 36px; }
 
     /* Notes height (flex weight) */
     .form-content[data-ns="small"]  .sec-block.grow { flex: 0.4; }
@@ -292,9 +298,10 @@
 
     .src-row, .ship-block { display: none; }
 
-    /* Repair & Resize: taller job panel (item taken in), bigger notes area */
+    /* Repair & Resize: bigger notes area (job/item description lives in
+       #jd-full-block below the row now, same as every other layout) */
     .form-content[data-layout="repair"] .jd-size-row,
-    .form-content[data-layout="resize"] .jd-size-row { height: 110px; }
+    .form-content[data-layout="resize"] .jd-size-row { height: 44px; }
     .form-content[data-layout="repair"] .sec-block.grow,
     .form-content[data-layout="resize"] .sec-block.grow { flex: 1.2; }
     .form-content[data-layout="repair"] .li-row:not(.tot),
@@ -377,6 +384,7 @@
     .form-content[data-layout="ecom"] .date-row,
     .form-content[data-layout="ecom"] .cust-grid,
     .form-content[data-layout="ecom"] .jd-size-row,
+    .form-content[data-layout="ecom"] #jd-full-block,
     .form-content[data-layout="ecom"] .li-block,
     .form-content[data-layout="ecom"] .paid-row { display: none; }
     .form-content[data-layout="ecom"] .ecom-head { display: block; }
@@ -514,18 +522,21 @@
 
   <div class="jd-size-row" id="jd-size-row">
     <div class="jd-panel">
-      <div id="j-title-row" style="display:flex; flex-direction:column; flex:0 0 auto;">
+      <div id="j-title-row" style="display:flex; flex-direction:column; flex:1;">
         <div class="sec-head">Job Title</div>
-        <div class="sec-body" id="j-title" contenteditable="true" style="flex:0 0 auto; min-height:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:left; font-weight:bold; padding:3px 6px;"></div>
+        <div class="sec-body" id="j-title" contenteditable="true" style="flex:1; min-height:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:left; font-weight:bold; padding:3px 6px; display:flex; align-items:center;"></div>
       </div>
-      <div class="sec-head jd-desc-head">Job Description</div>
-      <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden; text-align:left; display:flex; align-items:center; justify-content:flex-start; padding:4px 6px;"></div>
     </div>
     <div class="size-panel">
       <div class="sec-head">Ring Size(s)</div>
       <div class="sec-body" id="j-size" contenteditable="true" style="flex:1; min-height:0; border-bottom: 1px solid #000; text-align:center;"></div>
       <div class="sec-body" id="j-size2" contenteditable="true" style="flex:1; min-height:0; text-align:center;"></div>
     </div>
+  </div>
+
+  <div class="sec-block" id="jd-full-block">
+    <div class="sec-head jd-desc-head">Job Description</div>
+    <div class="sec-body" id="j-desc" contenteditable="true" style="flex:1; min-height:0; overflow:hidden; text-align:left; padding:4px 6px;"></div>
   </div>
 
   <div class="sec-block" id="stamp-block" style="display:none;">
@@ -851,7 +862,7 @@
     document.getElementById('n-notes').textContent = materials ? 'Materials: ' + materials : '';
   }
   if (fc.dataset.layout === 'repair' || fc.dataset.layout === 'resize') {
-    document.querySelector('.jd-panel .jd-desc-head').textContent = 'Item Taken In / Job';
+    document.querySelector('.jd-desc-head').textContent = 'Item Taken In / Job';
   }
   if (fc.dataset.layout === 'resize') {
     document.querySelector('.size-panel .sec-head').textContent = 'Resize';
