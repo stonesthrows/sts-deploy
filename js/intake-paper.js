@@ -333,8 +333,10 @@ function _paperPromptFor(z) {
   switch (z.kind) {
     case 'date':
       return base + 'It is the "' + z.label + '" date field — ignore the printed label and ruled line, read only the handwriting. '
-        + 'Return ONLY valid JSON: {"value":""} with the date formatted YYYY-MM-DD (today is ' + today
-        + ' — if the year is missing assume the next occurrence). Use "" if blank or illegible.';
+        + 'Whatever is written here is always a date — never a name, a note, or anything else — so read it as one even if the '
+        + 'handwriting is messy or the format is unusual (numbers-only, abbreviated month, no year, slashes, etc). Make your best '
+        + 'guess rather than giving up. Return ONLY valid JSON: {"value":""} with the date formatted YYYY-MM-DD (today is ' + today
+        + ' — if the year is missing assume the next occurrence of that month/day). Use "" ONLY if the line has no handwriting on it at all.';
     case 'circle':
       return base + 'It shows these printed options: ' + z.options.join(', ') + '. Staff circle or mark exactly one with a pen. '
         + 'Return ONLY valid JSON: {"value":""} where value is the single circled/marked option copied exactly from the list, or "" if none is clearly marked.';
@@ -397,6 +399,19 @@ function _paperFieldOpen(id) {
   return !cur || cur === (_paperWrote[id] || '');
 }
 
+// Best-effort YYYY-MM-DD normalizer for the date zones — the vision prompt
+// asks for strict YYYY-MM-DD, but a near-miss reply (single-digit month/day,
+// slashes, no zero-padding) shouldn't be silently dropped just because the
+// format didn't land exactly; only bail on something that isn't a date at all.
+function _paperNormalizeDate(val) {
+  if (!val) return '';
+  let m = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
+  return '';
+}
+
 function _paperSetField(id, val) {
   if (!val || !_paperFieldOpen(id)) return false;
   const el = document.getElementById(id);
@@ -441,8 +456,8 @@ function _paperApply(z, parsed) {
       break;
     }
     case 'email': _paperSetField('f-email', val); break;
-    case 'takein':   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) _paperSetField('f-takein', val); break;
-    case 'deadline': if (/^\d{4}-\d{2}-\d{2}$/.test(val)) _paperSetField('f-deadline', val); break;
+    case 'takein':   _paperSetField('f-takein', _paperNormalizeDate(val)); break;
+    case 'deadline': _paperSetField('f-deadline', _paperNormalizeDate(val)); break;
     case 'ringsize': if (val) _paperSetField('f-sizing', /[a-z]/i.test(val) ? val : 'ring size ' + val); break;
     case 'ordertype': _paperApplyOrderType(val); break;
     case 'stamping': _paperSetField('f-stamping', val); break;
@@ -627,8 +642,8 @@ function _paperMergePagePass(p) {
   if (fillIfEmpty('f-phone', (p.phone || '').trim()) && typeof fmtPhoneInput === 'function') {
     fmtPhoneInput(document.getElementById('f-phone'));
   }
-  fillIfEmpty('f-takein',   /^\d{4}-\d{2}-\d{2}$/.test(p.take_in_date || '') ? p.take_in_date : '');
-  fillIfEmpty('f-deadline', /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '');
+  fillIfEmpty('f-takein',   _paperNormalizeDate(p.take_in_date || ''));
+  fillIfEmpty('f-deadline', _paperNormalizeDate(p.deadline || ''));
   if (fillIfEmpty('f-pickup', p.pickup_location || '') && typeof toggleShippingAddress === 'function') toggleShippingAddress();
   fillIfEmpty('f-description', (p.description || '').trim());
   if (p.ring_size) fillIfEmpty('f-sizing', /[a-z]/i.test(p.ring_size) ? p.ring_size : 'ring size ' + p.ring_size);
