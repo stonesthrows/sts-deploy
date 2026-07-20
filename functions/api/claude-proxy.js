@@ -2,7 +2,8 @@
 //  Claude API Proxy  —  /api/claude-proxy
 //  Cloudflare Pages Function
 //  Forwards requests to Anthropic API to avoid browser CORS restrictions.
-//  API key is sent in the request body (stored in client localStorage).
+//  Uses the ANTHROPIC_API_KEY Pages secret by default; a client-supplied
+//  apiKey in the request body (legacy localStorage flow) overrides it.
 // ════════════════════════════════════════════
 
 const CORS = {
@@ -18,7 +19,8 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
-    const { apiKey, ...claudeBody } = body;
+    const { apiKey: clientKey, ...claudeBody } = body;
+    const apiKey = clientKey || context.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
       return new Response(

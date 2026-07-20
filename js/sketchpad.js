@@ -641,8 +641,7 @@ function hwClear() {
 async function hwConvert(btn) {
   if (!HW) return;
   if (!HW.hasInk) { toast('Nothing written on the lines yet', '⚠'); return; }
-  const apiKey = localStorage.getItem('sts-anthropic-key');
-  if (!apiKey) { toast('Anthropic API key not set — save it in the Designs tab first', '⚠'); return; }
+  const apiKey = localStorage.getItem('sts-anthropic-key') || undefined;
   const status = document.getElementById('hw-status');
   if (btn) btn.disabled = true;
   if (status) status.textContent = '⏳ Reading handwriting…';
