@@ -16,7 +16,9 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 
 ## Tech Stack
 - Vanilla HTML, CSS, JavaScript (no framework, no build step)
-- PWA (manifest + service worker sw.js)
+- PWA (manifest + service worker sw.js — network-first, offline shell fallback; never caches /api/*)
+- Orders + hidden set persist in IndexedDB via `js/storage.js` (`stsStoreGet`/`stsStoreSet`), NOT localStorage — localStorage's ~5MB quota chokes on base64 photos/sketches. `saveToStorage()` stays synchronous (debounced async write behind it); call it as before
+- Notion writes that fail offline are queued in IndexedDB (`notion-retry`) and replayed automatically on reconnect (see js/notion.js)
 - Cloudflare Pages hosting
 
 ## Tab Structure (jewelry-workflow.html — active app)
