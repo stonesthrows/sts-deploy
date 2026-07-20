@@ -5,8 +5,10 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 
 ## Project Location
 - Local: `C:\Users\morph\Desktop\STS Workspace\sts-deploy\`
-- **Active app:** `jewelry-workflow.html` — the main Kanban workflow app in daily use
-- JS modules: `js/` folder (app.js, orders.js, customers.js, sales.js, production.js, gmail.js, notes.js, drive.js, notion.js, data.js, supplier-history.js, triplog.js, inventory.js)
+- **Active app:** `jewelry-workflow.html` — the main Kanban workflow app in daily use (markup only — all CSS lives in `css/`, all JS in `js/`)
+- JS modules: `js/` folder (app.js, orders.js, customers.js, sales.js, production.js, gmail.js, notes.js, drive.js, notion.js, data.js, supplier-history.js, triplog.js, inventory.js, home.js, ui-shell.js, pj-calc.js, …)
+- CSS: `css/` folder — app.css (core/shared), plus per-tab files (inventory.css, perm-jewelry.css, triplog.css, print-setup.css, prod-report.css, restock-queue.css). Linked from the HTML at the same document positions the old inline `<style>` blocks occupied — keep that order (cascade depends on it)
+- When editing a `js/` or `css/` file, bump its `?v=` cache-buster on the `<script>`/`<link>` tag in `jewelry-workflow.html` (this also satisfies the deploy-detection rule below)
 - `clickup.js` is **retired** — replaced by `notion.js`. Do not edit or restore it.
 - **Dropped experiment:** `crm.html` + `crm/` folder — started but not in active use
 - Related MCP servers (separate folders, not part of deploy): `triplog-mcp-http` (active), `triplog-mcp` (superseded), `triplog-proxy`

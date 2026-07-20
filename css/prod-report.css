@@ -1,0 +1,165 @@
+/* ── Production Report redesign (scoped to #tab-prod-report only) ──
+   The report markup itself is rendered by js/restock.js into the three
+   container divs above; that file is frozen on a parallel branch, so all
+   styling here is CSS-only, scoped under this tab's id, and where the JS
+   inlines hardcoded colors we out-specific them with [style*=…] hooks. */
+
+/* Header: put the title and sync buttons on one row (the shared
+   .rq-header-bar is block-level; scoped so the Restock tab is untouched) */
+#tab-prod-report .rq-header-bar {
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+}
+#tab-prod-report .rq-header-bar .btn { transition: border-color var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth); }
+#tab-prod-report .rq-header-bar .btn:hover { box-shadow: var(--shadow-sm); }
+#tab-prod-report .btn:focus-visible,
+#tab-prod-report .rq-sbar-act-btn:focus-visible,
+#tab-prod-report .rq-sbar-del:focus-visible,
+#tab-prod-report .rq-adjust-link:focus-visible,
+#tab-prod-report .rq-item-remove:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Panel is an .rq-page flex column (same as the Restock tab): rates +
+   summary stay pinned while the session list scrolls on its own */
+#prod-report-rates { padding: 10px 20px 0; flex-shrink: 0; }
+#prod-report-summary { padding: var(--sp-2) 20px 0; flex-shrink: 0; }
+#prod-report-body {
+  flex: 1; overflow-y: auto;
+  padding: var(--sp-3) 20px 24px;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+#prod-report-body::-webkit-scrollbar { width: 5px; }
+#prod-report-body::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+
+/* "✎ Edit Rates" link sits directly on the page background — lift its
+   contrast there (the in-card "+ Add item" reuse of .rq-adjust-link keeps
+   the base styling) */
+#prod-report-rates > .rq-adjust-link { color: rgba(255,255,255,0.82); font-size: 11px; }
+#prod-report-rates > .rq-adjust-link:hover { color: var(--accent-light); }
+/* Rates editor floats on the page background → full card treatment */
+#prod-report-rates .rq-edit-row { background: var(--card-bg); border-color: var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); margin-top: 0; }
+
+/* Summary strip → stat tiles (label: big tabular value) */
+#tab-prod-report .prod-report-summary {
+  background: none; border: none; padding: 0; border-radius: 0;
+  gap: var(--sp-2); font-size: 10.5px;
+}
+#tab-prod-report .prod-report-summary > span {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: var(--card-bg); border: 1px solid var(--bdr-light);
+  border-radius: var(--rad-sm); padding: 6px 12px 7px;
+  color: var(--text3); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  box-shadow: var(--shadow-sm);
+}
+#tab-prod-report .prod-report-summary b {
+  font-size: 15px; line-height: 1.1; letter-spacing: normal;
+  font-variant-numeric: tabular-nums;
+}
+/* Phones: keep the stat tiles to one swipeable row instead of stacking */
+@media (max-width: 640px) {
+  #tab-prod-report .prod-report-summary { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  #tab-prod-report .prod-report-summary > span { flex-shrink: 0; white-space: nowrap; }
+}
+
+/* Session cards: token radius/shadow + a subtle hover lift */
+#tab-prod-report .rq-session-bar {
+  border-radius: var(--rad-md);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth),
+              transform var(--dur-fast) var(--ease-smooth);
+}
+#tab-prod-report .rq-session-bar:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--bdr);
+  transform: translateY(-1px);
+}
+#tab-prod-report .rq-sbar-name { font-size: 13.5px; }
+/* Times / durations / counts / money all line up */
+#tab-prod-report .rq-sbar-time-val,
+#tab-prod-report .rq-sbar-net,
+#tab-prod-report .rq-sbar-pieces,
+#tab-prod-report .rq-sbar-pcs-inline,
+#tab-prod-report .prod-report-summary,
+#tab-prod-report .rq-edit-input { font-variant-numeric: tabular-nums; }
+/* Footer metrics read as small data chips */
+#tab-prod-report .rq-sbar-footer { gap: 6px; padding-top: 7px; }
+#tab-prod-report .rq-sbar-net,
+#tab-prod-report .rq-sbar-footer .rq-sbar-pieces {
+  background: var(--hover); border-radius: 5px; padding: 2px 8px; line-height: 1.6;
+}
+/* JS inlines a #ccc separator dot between start/stop times */
+#tab-prod-report .rq-sbar-time-row span[style*="#ccc"] { color: var(--bdr) !important; }
+
+/* Inline edit row: swap the hardcoded cream (#F5F0EB) / #fff inputs for
+   theme-aware tokens so midnight inherits correctly */
+#prod-report-body .rq-edit-row { background: var(--hover); border-color: var(--bdr-light); border-radius: var(--rad-sm); }
+#tab-prod-report .rq-edit-input { background: var(--input-bg); color: var(--text); }
+#tab-prod-report .rq-edit-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* Loading / empty placeholders (JS inlines #B0A898 on the page bg) */
+#prod-report-body > div[style*="#B0A898"] { color: rgba(255,255,255,0.78) !important; }
+/* Error placeholder (JS inlines a dark red that vanishes on the blue bg) */
+#prod-report-body > div[style*="#A0402A"] { color: #FAD4CA !important; }
+
+/* ── Midnight ──
+   Shared .btn-outline hardcodes a white background; re-surface it for dark
+   (same scoped fix the Calendar and Adjust Inventory passes used). */
+body.theme-midnight #tab-prod-report .btn-outline { background: var(--card-bg); }
+/* js/restock.js inlines light-theme greens/reds (profit, Save buttons,
+   summary profit <b>) — brighten them for dark via [style*=…] hooks.
+   Post-merge follow-up: move these inline colors to classes in restock.js. */
+body.theme-midnight #tab-prod-report [style*="#3A7A4A"] { color: #7FC79A !important; }
+body.theme-midnight #tab-prod-report button[style*="#3A7A4A"] { border-color: #3F6B4F !important; }
+body.theme-midnight #tab-prod-report [style*="#A0402A"] { color: #E08A80 !important; }
+body.theme-midnight #tab-prod-report .rq-sbar-del:hover { border-color: #E08A80; color: #E08A80; }
+body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A4A50; }
+
+/* ── Report controls: date range + view toggle (one row above the content) ── */
+#prod-report-controls { padding: var(--sp-2) 20px 0; flex-shrink: 0; }
+#prod-report-controls .rq-report-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#prod-report-controls select.rq-report-range {
+  background: var(--input-bg); color: var(--text); border: 1px solid var(--bdr);
+  border-radius: var(--rad-sm); font-size: 12px; padding: 4px 8px;
+}
+#prod-report-controls .rq-report-views { display: flex; gap: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm); overflow: hidden; }
+#prod-report-controls .rq-report-view-btn {
+  background: var(--card-bg); color: var(--text2); border: none; font-size: 12px;
+  padding: 4px 10px; cursor: pointer;
+}
+#prod-report-controls .rq-report-view-btn + .rq-report-view-btn { border-left: 1px solid var(--bdr-light); }
+#prod-report-controls .rq-report-view-btn.rq-view-on { background: var(--accent); color: #fff; font-weight: 600; }
+#prod-report-controls .rq-report-view-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Aggregate (By Design / By Category) table ── */
+#prod-report-body .rq-agg-wrap { overflow-x: auto; background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); }
+#prod-report-body table.rq-agg-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+#prod-report-body .rq-agg-table th {
+  text-align: right; padding: 7px 10px; color: var(--text2); font-weight: 600; white-space: nowrap;
+  border-bottom: 1px solid var(--bdr-light); cursor: pointer; user-select: none;
+}
+#prod-report-body .rq-agg-table th:first-child { text-align: left; }
+#prod-report-body .rq-agg-table td {
+  text-align: right; padding: 6px 10px; color: var(--text); white-space: nowrap;
+  border-bottom: 1px solid var(--bdr-light); font-variant-numeric: tabular-nums;
+}
+#prod-report-body .rq-agg-table tr:last-child td { border-bottom: none; }
+#prod-report-body .rq-agg-table td:first-child { text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+#prod-report-body .rq-agg-table input.rq-mat-input {
+  width: 62px; text-align: right; font-size: 12px; padding: 2px 4px;
+  background: var(--input-bg); color: var(--text); border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+}
+#prod-report-body .rq-agg-note { color: var(--text3); font-size: 11px; padding: 6px 2px; }
+#prod-report-body .rq-sunset-flag { font-size: 11px; margin-left: 4px; cursor: help; }
+
+/* ── Margin quadrant chart ── */
+#prod-report-body .rq-quad-card { background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); padding: 10px 12px 4px; margin-bottom: 10px; position: relative; }
+#prod-report-body .rq-quad-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+#prod-report-body .rq-quad-sub { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+#prod-report-body .rq-quad-tip {
+  position: absolute; pointer-events: none; display: none; z-index: 5;
+  background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+  box-shadow: var(--shadow-sm); padding: 6px 9px; font-size: 11.5px; color: var(--text2); max-width: 220px;
+}
+#prod-report-body .rq-quad-tip b { color: var(--text); font-variant-numeric: tabular-nums; }
+#prod-report-body .rq-quad-hit:focus { outline: none; }
+#prod-report-body .rq-quad-hit:focus + circle { stroke-width: 3; }

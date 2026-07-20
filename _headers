@@ -22,3 +22,7 @@
 # JS files — revalidate on every load
 /js/*
   Cache-Control: no-cache, must-revalidate
+
+# CSS files (extracted from jewelry-workflow.html) — same rule as JS
+/css/*
+  Cache-Control: no-cache, must-revalidate
