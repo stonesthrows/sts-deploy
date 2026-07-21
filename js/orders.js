@@ -1736,15 +1736,18 @@ function _woRingSizeFromSizing(sizing) {
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
-  // Print Setup can flip custom orders to the sketch-canvas prototype
-  // (customLayout: 'sketch'). Only orders that print with the 'custom' bag
-  // layout are affected — repair/resize/estimate/ecom keep their templates.
+  // Print Setup can flip custom orders to the sketch-canvas bag
+  // (customLayout: 'sketch') — gated behind that beta toggle since it's
+  // still opt-in for the 'custom' layout. Resize orders always route to
+  // the same freeform template (compact center, no sketch) regardless of
+  // that toggle — it's their only bag now, not a beta option — since a
+  // resize never had a design sketch to show in the first place.
   try {
     const psAll = Object.assign({ customLayout: 'classic' },
       JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}'));
     const layout = (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
       ? printLayoutFor(inferOrderKind(o)) : 'custom';
-    if (psAll.customLayout === 'sketch' && layout === 'custom') {
+    if ((psAll.customLayout === 'sketch' && layout === 'custom') || layout === 'resize') {
       printOrderSketchBag(o);
       return;
     }
@@ -1859,6 +1862,12 @@ function printOrderSketchBag(o) {
     }))),
   });
   if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
+  // kind drives the center-block mode (compact for resize orders); From/To
+  // sizing comes straight from the raw fields rather than the free-text
+  // o.sizing string so it's never left blank by a formatting mismatch.
+  if (typeof printParamsFor === 'function') p.set('kind', printParamsFor(o).kind);
+  if (o.resizeFrom) p.set('resizeFrom', o.resizeFrom);
+  if (o.resizeTo)   p.set('resizeTo',   o.resizeTo);
   const gift = o.gift || {};
   if (gift.recipient || gift.occasion || gift.surprise) {
     p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
