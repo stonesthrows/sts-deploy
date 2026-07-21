@@ -1755,6 +1755,13 @@ function printOrder(id) {
       JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}'));
     const layout = (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
       ? printLayoutFor(inferOrderKind(o)) : 'custom';
+    // 'variants' (bag-layout-variants.html) covers every non-ecom layout —
+    // it auto-picks its own rings/repair/compact center block per order,
+    // so it takes priority over the sketch/classic split below.
+    if (psAll.customLayout === 'variants' && ['custom', 'estimate', 'repair', 'resize'].includes(layout)) {
+      printOrderVariantBag(o);
+      return;
+    }
     if ((psAll.customLayout === 'sketch' && layout === 'custom') || layout === 'resize') {
       printOrderSketchBag(o);
       return;
@@ -1899,6 +1906,68 @@ function printOrderSketchBag(o) {
   // Cache-bust: see identical comment in printOrder() above.
   p.set('_v', Date.now());
   window.open('custom-sketch-print.html?' + p.toString(), '_blank');
+}
+
+// bag-layout-variants.html — no-sketch alternative to printOrderSketchBag.
+// Auto-picks which of its three center blocks to render: 'repair' for
+// repair orders, 'rings' when the order carries ring[] specs, 'compact'
+// (bench notes only) for everything else (resize, estimate, plain custom).
+const VARIANT_KIND_LABEL = { custom: 'Custom Order', estimate: 'Estimate', repair: 'Repair', resize: 'Resize', 'square-item': 'Custom Order' };
+function printOrderVariantBag(o) {
+  const fmtMD = d => {
+    const p = String(d || '').split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] : '';
+  };
+  const kind = typeof inferOrderKind === 'function' ? inferOrderKind(o) : 'custom';
+  const variant = kind === 'repair' ? 'repair'
+                : (Array.isArray(o.rings) && o.rings.length) ? 'rings'
+                : 'compact';
+  const sa = o.shippingAddress || {};
+  const addrLine = [o.addrStreet || sa.street || o.address || '',
+                    o.addrStreet2 || sa.street2 || ''].filter(Boolean).join(', ');
+  const p = new URLSearchParams({
+    variant:   variant,
+    kindLbl:   VARIANT_KIND_LABEL[kind] || 'Custom Order',
+    name:      o.name  || '',
+    phone:     o.phone || '',
+    email:     o.email || '',
+    address:   addrLine,
+    city:      o.addrCity  || sa.city  || '',
+    state:     o.addrState || sa.state || '',
+    zip:       o.addrZip   || sa.zip   || '',
+    takeIn:    o.takeIn    || '',
+    deadline:  o.deadline  || '',
+    pickup:    o.pickup    || '',
+    pieceType: o.pieceType || '',
+    jobTitle:  o.jobDesc   || '',
+    desc:      o.desc      || '',
+    stones:    o.gemstones || '',
+    finish:    Array.isArray(o.finish) ? o.finish.join(' · ') : (o.finish || ''),
+    notes:     o.notes     || '',
+    materials: o.materials || '',
+    ringSize:  o.ringSize  || '',
+    wrist:     o.wrist     || '',
+    neck:      o.neck      || '',
+    deposit:   o.deposit   || '',
+    shipping:  o.shipping  || '',
+    fullyPaid: o.fullyPaid || '',
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({
+      desc:   oiPrintLabel(it),
+      amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
+    }))),
+  });
+  if (o.repairNotes) p.set('repairNotes', o.repairNotes);
+  if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
+  const gift = o.gift || {};
+  if (gift.recipient || gift.occasion || gift.surprise) {
+    p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
+    p.set('giftDate', [gift.occasion,
+      gift.occasionDate ? 'needed by ' + fmtMD(gift.occasionDate) : '']
+      .filter(Boolean).join(' · '));
+    if (gift.surprise) p.set('giftSurprise', '1');
+  }
+  p.set('_v', Date.now());
+  window.open('bag-layout-variants.html?' + p.toString(), '_blank');
 }
 
 // ════════════════════════════════════════════

@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Work Order Bag — No-Sketch Variants — PROTOTYPE</title>
+  <title>Work Order Bag — No-Sketch Variants</title>
   <!--
     ══════════════════════════════════════════════════════════════
-    PROTOTYPE — not wired into the app. Nothing links here yet.
+    Reached via Print Setup → Custom Order Bag → "Rings/Repair/Compact
+    (beta)" — see printOrderVariantBag() in js/orders.js, which builds
+    the query string below and auto-picks ?variant= per order (repair
+    kind → repair, has rings[] → rings, else → compact).
     Same freeform visual language as custom-sketch-print.html
     (Calibri, uppercase micro-labels, 5.5"×8.5" bag rotated 90° CW
     onto the top half of a letter sheet) but with the center
@@ -160,6 +163,9 @@
     /* compact variant: notes grows to fill the vacated center space */
     body[data-variant="compact"] .notes { flex: 1; display: flex; flex-direction: column; margin-top: 6px; }
     body[data-variant="compact"] .notes .rule { flex: 1; height: auto; min-height: 20px; }
+    /* rings variant (3-Ring Family): each card already shows its own specs —
+       Bench Notes/Materials would just repeat it, so drop the box entirely. */
+    body[data-variant="rings"] .notes { display: none; }
 
     /* ── Items + money strip ── */
     .items { margin-top: 8px; display: none; }
@@ -510,7 +516,23 @@
   }
 
   // ── Items + money ──
+  // Rings variant: staff sometimes track the job's price as one catch-all
+  // "Order Total" line instead of pricing each ring's own item — printing
+  // that alongside two $0.00 ring rows is confusing and the money strip
+  // below already totals everything. Fold it into whichever ring rows are
+  // still at $0 (split evenly) instead of printing it as a separate line.
   const items = (src.items || []).filter(it => it && it.desc);
+  if (variant === 'rings') {
+    const totalIdx = items.findIndex(it => /^order total$/i.test(it.desc.trim()));
+    if (totalIdx !== -1) {
+      const totalItem = items.splice(totalIdx, 1)[0];
+      const zeroItems = items.filter(it => !parseFloat(it.amount));
+      if (zeroItems.length) {
+        const share = (parseFloat(totalItem.amount) || 0) / zeroItems.length;
+        zeroItems.forEach(it => { it.amount = share; });
+      }
+    }
+  }
   if (items.length) {
     const el = document.getElementById('items');
     items.forEach(it => {

@@ -140,7 +140,9 @@ const PS_DEFAULTS = {
   fontSize:    'medium',
   showSizeRow: true,
   // 'classic' = work-order-print.html; 'sketch' = custom-sketch-print.html
-  // prototype. Only affects orders that print with the custom bag layout.
+  // prototype; 'variants' = bag-layout-variants.html prototype (auto-picks
+  // rings/repair/compact). Only affects orders that print with the custom
+  // bag layout.
   customLayout: 'classic'
 };
 
