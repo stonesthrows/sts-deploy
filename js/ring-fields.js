@@ -26,7 +26,105 @@ function _intakeBlankRing() {
     medWidth: '', medTexture: '', medSpinners: '', medSpinnerStyle: '', medSize: '',
     bandWidth: '', bandTexture: '', bandSize: '',
     customSize: '', customWidth: '', customGauge: '', customMetal: '', customTexture: [], customNotes: '',
+    customProfile: 'Flat', customAllowance: '1',
   };
+}
+
+// ── Ring blank length calculator ───────────────────────────────
+// Jewelers cut a straight length of stock, bend it into a circle, and solder
+// the seam. The stock's own thickness sits at the bend, so the flat length
+// needed is the CIRCUMFERENCE AT THE STOCK'S MID-THICKNESS, not at the
+// ring's bare inside diameter — that's why thickness (gauge) is added to
+// diameter before multiplying by π. Same physical reasoning for both
+// profiles: Flat stock's relevant dimension is its thickness (the short
+// axis, perpendicular to the bend), not its face width, so `f-ring-
+// customwidth-N` never factors into this — a wider band with the same
+// gauge needs the same blank length. Round wire has no separate
+// width/thickness distinction, so its own diameter plays both roles.
+//
+// Ring size → inside diameter (mm), standard US/Canada chart, whole and
+// half sizes 3–16; quarters are linearly interpolated between these.
+const RING_SIZE_ID_MM = {
+  3: 14.1, 3.5: 14.5, 4: 14.9, 4.5: 15.3, 5: 15.7, 5.5: 16.1,
+  6: 16.5, 6.5: 16.9, 7: 17.3, 7.5: 17.7, 8: 18.2, 8.5: 18.6,
+  9: 19.0, 9.5: 19.4, 10: 19.8, 10.5: 20.2, 11: 20.6, 11.5: 21.0,
+  12: 21.4, 12.5: 21.8, 13: 22.2, 13.5: 22.6, 14: 23.0, 14.5: 23.4,
+  15: 23.8, 15.5: 24.2, 16: 24.6,
+};
+
+// Gauge → thickness/diameter (mm), standard B&S (Brown & Sharpe / AWG)
+// jewelry gauge scale — the same scale is used to describe both round wire
+// diameter and sheet/flat-stock thickness.
+const RING_GAUGE_MM = {
+  6: 4.115, 8: 3.264, 10: 2.588, 12: 2.053, 14: 1.628, 16: 1.291,
+  18: 1.024, 20: 0.812, 22: 0.643, 24: 0.511, 26: 0.405, 28: 0.320,
+};
+
+// Interpolates inside diameter (mm) for any size (quarters included)
+// between the chart's whole/half-size entries.
+function _ringSizeToIdMm(size) {
+  const s = parseFloat(size);
+  if (!Number.isFinite(s)) return null;
+  const keys = Object.keys(RING_SIZE_ID_MM).map(Number).sort((a, b) => a - b);
+  if (s <= keys[0]) return RING_SIZE_ID_MM[keys[0]];
+  if (s >= keys[keys.length - 1]) return RING_SIZE_ID_MM[keys[keys.length - 1]];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const lo = keys[i], hi = keys[i + 1];
+    if (s >= lo && s <= hi) {
+      const t = (s - lo) / (hi - lo);
+      return RING_SIZE_ID_MM[lo] + t * (RING_SIZE_ID_MM[hi] - RING_SIZE_ID_MM[lo]);
+    }
+  }
+  return null;
+}
+
+// Parses a free-text gauge field ("18ga", "18 gauge", "18") and interpolates
+// thickness (mm) between the standard even-gauge entries above.
+function _ringGaugeToMm(gaugeText) {
+  const m = String(gaugeText || '').match(/(\d+(\.\d+)?)/);
+  if (!m) return null;
+  const g = parseFloat(m[1]);
+  const keys = Object.keys(RING_GAUGE_MM).map(Number).sort((a, b) => a - b);
+  if (g <= keys[0]) return RING_GAUGE_MM[keys[0]];
+  if (g >= keys[keys.length - 1]) return RING_GAUGE_MM[keys[keys.length - 1]];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const lo = keys[i], hi = keys[i + 1];
+    if (g >= lo && g <= hi) {
+      const t = (g - lo) / (hi - lo);
+      return RING_GAUGE_MM[lo] + t * (RING_GAUGE_MM[hi] - RING_GAUGE_MM[lo]);
+    }
+  }
+  return null;
+}
+
+// Blank length = π × (inside diameter + stock thickness) + cut allowance.
+// Returns null if size or gauge isn't parseable yet.
+function ringBlankLengthMm(sizeText, gaugeText, allowanceText) {
+  const id = _ringSizeToIdMm(sizeText);
+  const t = _ringGaugeToMm(gaugeText);
+  if (id === null || t === null) return null;
+  const allowance = parseFloat(allowanceText);
+  const a = Number.isFinite(allowance) ? allowance : 0;
+  return Math.PI * (id + t) + a;
+}
+
+// Recomputes and displays the blank length for one Custom Ring block from
+// its current DOM values (reads live so it works mid-typing, same pattern
+// as ringFieldsRenderStampingSummary).
+function ringFieldsUpdateBlankLength(i) {
+  const g = id => document.getElementById(id);
+  const out = g('f-ring-blanklen-' + i);
+  if (!out) return;
+  const size = g('f-ring-customsize-' + i)?.value;
+  const gauge = g('f-ring-customgauge-' + i)?.value;
+  const allowance = g('f-ring-customallowance-' + i)?.value;
+  const mm = ringBlankLengthMm(size, gauge, allowance);
+  if (mm === null) {
+    out.textContent = 'Enter ring size + gauge to calculate';
+    return;
+  }
+  const inches = mm / 25.4;
+  out.textContent = 'Blank length: ' + mm.toFixed(1) + ' mm (' + inches.toFixed(2) + ' in)';
 }
 let _intakeRings = [_intakeBlankRing()];
 
@@ -84,6 +182,22 @@ function ringFieldsRenderStampingSummary() {
 document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 
+// Live blank-length recalc for Custom Ring blocks — delegated the same way
+// as the stamping summary above, scoped to the size/gauge/profile/allowance
+// inputs so it doesn't run on every keystroke in unrelated fields.
+document.addEventListener('input', e => {
+  const block = e.target.closest?.('.ring-block');
+  if (!block || !e.target.matches('[id^="f-ring-customsize-"], [id^="f-ring-customgauge-"], [id^="f-ring-customallowance-"]')) return;
+  const i = [...block.parentElement.children].indexOf(block);
+  ringFieldsUpdateBlankLength(i);
+});
+document.addEventListener('change', e => {
+  const block = e.target.closest?.('.ring-block');
+  if (!block || !e.target.matches('[id^="f-ring-customprofile-"]')) return;
+  const i = [...block.parentElement.children].indexOf(block);
+  ringFieldsUpdateBlankLength(i);
+});
+
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
   if (!blocks.length) return _intakeRings;
@@ -111,6 +225,8 @@ function _intakeCollectRingsFromDom() {
     customMetal:     g('f-ring-custommetal-' + i)?.value.trim() || '',
     customTexture:   [...block.querySelectorAll('.ring-custom-texture input:checked')].map(c => c.value),
     customNotes:     g('f-ring-customnotes-' + i)?.value.trim() || '',
+    customProfile:   g('f-ring-customprofile-' + i)?.value || 'Flat',
+    customAllowance: g('f-ring-customallowance-' + i)?.value.trim() || '1',
   }));
 }
 
@@ -220,6 +336,18 @@ function _intakeRingCategoryFieldsHtml(i, r) {
         <input type="text" id="f-ring-customgauge-${i}" value="${esc(r.customGauge)}" placeholder="e.g. 18ga">
       </div>
       <div class="fg">
+        <label>Stock Profile</label>
+        ${_intakeSelectHtml('f-ring-customprofile-' + i, ['Flat', 'Round'], r.customProfile || 'Flat')}
+      </div>
+      <div class="fg">
+        <label>Cut Allowance (mm)</label>
+        <input type="number" id="f-ring-customallowance-${i}" value="${esc(r.customAllowance || '1')}" step="0.1" min="0" placeholder="1">
+      </div>
+      <div class="fg full">
+        <label>Ring Blank Length</label>
+        <div id="f-ring-blanklen-${i}" style="font-size:14px;font-weight:600;color:#4A3F2A;padding:6px 0;">Enter ring size + gauge to calculate</div>
+      </div>
+      <div class="fg">
         <label>Metal</label>
         <input type="text" id="f-ring-custommetal-${i}" value="${esc(r.customMetal)}" placeholder="e.g. 14k yellow gold">
       </div>
@@ -270,6 +398,7 @@ function intakeRenderRingBlocks() {
     </div>
   `).join('');
   ringFieldsRenderStampingSummary();
+  _intakeRings.forEach((r, i) => { if (r.category === 'Custom Ring') ringFieldsUpdateBlankLength(i); });
 }
 
 // Normalizes one ring's category-specific fields into the
