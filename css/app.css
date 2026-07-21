@@ -1673,12 +1673,6 @@
     .o-badge.assignee  { background:#FBEFE0; color:#9A5A1A; }
     .o-badge.platform-etsy    { background:#FDEDEB; color:#B5462F; }
     .o-badge.platform-shopify { background:#E9F5EC; color:#1F7A3D; }
-    .o-badge-intake {
-      background: #F0EBE3; color: var(--text2);
-      border: none; cursor: pointer; font-family: inherit;
-      transition: background var(--dur-fast), color var(--dur-fast);
-    }
-    .o-badge-intake:hover { background: #E4DDD4; color: var(--accent); }
     .c-td { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
     .c-muted { color: var(--text2); }
     .active-chip {
@@ -1864,8 +1858,8 @@
     .d-cta-row { display: flex; gap: 8px; padding: 16px 20px 8px; }
     .d-cta-row .btn { flex: 1; justify-content: center; font-size: 12.5px; padding: 8px 10px; }
 
-    /* ── Camera / Photos ────────────────────── */
-    .card-camera-btn {
+    /* ── Kanban card header icon buttons ──────── */
+    .card-intake-btn {
       width: 24px; height: 24px;
       background: #F0EBE3;
       border: 1px solid #DDD5CC;
@@ -1877,8 +1871,7 @@
       transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
       padding: 0;
     }
-    .card-camera-btn:hover  { background: #E4DDD4; border-color: var(--accent); }
-    .card-camera-btn.has-photo { background: #E0EEF8; border-color: #5080C0; }
+    .card-intake-btn:hover { background: #E4DDD4; border-color: var(--accent); }
     .card-print-btn {
       width: 24px; height: 24px;
       background: #F0EBE3;
