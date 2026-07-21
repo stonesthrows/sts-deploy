@@ -53,16 +53,6 @@
       .print-btn { background: #7A5C3A; color: #fff; border: none; padding: 8px 22px;
                    font-size: 13px; border-radius: 5px; cursor: pointer; font-family: inherit; }
       .print-btn:hover { background: #5e4428; }
-      .switcher { max-width: 5.5in; margin: 0 auto 14px; background: #333; border-radius: 6px;
-                  padding: 10px 12px; font-family: Arial, sans-serif; }
-      .switcher .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
-      .switcher .row:first-child { margin-top: 0; }
-      .switcher .cap { color: #bbb; font-size: 10px; font-weight: bold; text-transform: uppercase;
-                        letter-spacing: 1px; width: 60px; flex-shrink: 0; }
-      .switcher a { color: #fff; background: #555; padding: 4px 9px; border-radius: 4px;
-                    font-size: 11.5px; text-decoration: none; }
-      .switcher a:hover { background: #7A5C3A; }
-      .switcher a.on { background: #ffd27a; color: #222; font-weight: bold; }
     }
 
     @media print {
@@ -198,6 +188,13 @@
     /* ── Footer ── */
     .foot { display: flex; gap: 18px; align-items: center; margin-top: 8px; }
     .foot .url { margin-left: auto; }
+
+    /* Preview mode (?preview=1): fill the iframe cleanly — no grey backdrop,
+       no in-iframe Print button (the bag-style picker has its own). */
+    @media screen {
+      body.preview { background: #fff; padding: 0; }
+      body.preview .print-bar, body.preview .screen-note { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -205,8 +202,6 @@
 <div class="print-bar no-print">
   <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
 </div>
-
-<div class="switcher no-print" id="switcher"></div>
 
 <div class="form-content">
 
@@ -293,6 +288,7 @@
   }
 
   const q = new URLSearchParams(window.location.search);
+  if (q.get('preview')) document.body.classList.add('preview');
   const variant = ['rings', 'repair', 'compact'].includes(q.get('variant')) ? q.get('variant') : 'rings';
   const demo = q.get('demo');
   document.body.dataset.variant = variant;
@@ -606,25 +602,6 @@
   document.querySelectorAll('.repair-issues .bx, .repair-warranty .bx').forEach(b => {
     b.addEventListener('click', () => b.classList.toggle('checked'));
   });
-
-  // ── Screen-only switcher bar ──
-  const SW = document.getElementById('switcher');
-  const combos = [
-    { v: 'rings',   d: '1', label: 'Single Custom Ring' },
-    { v: 'rings',   d: '2', label: '3-Ring Family Set' },
-    { v: 'repair',  d: '3', label: 'Prong/Stone Repair' },
-    { v: 'repair',  d: '4', label: 'Chain/Clasp Repair' },
-    { v: 'compact', d: '5', label: 'Resize (no sketch)' },
-  ];
-  const byVariant = { rings: [], repair: [], compact: [] };
-  combos.forEach(c => byVariant[c.v].push(c));
-  const names = { rings: 'Rings', repair: 'Repair', compact: 'Compact' };
-  SW.innerHTML = Object.keys(byVariant).map(v => `
-    <div class="row">
-      <span class="cap">${names[v]}</span>
-      ${byVariant[v].map(c => `<a href="?variant=${c.v}&demo=${c.d}" class="${(variant === c.v && demo === c.d) ? 'on' : ''}">${c.label}</a>`).join('')}
-    </div>
-  `).join('');
 </script>
 </body>
 </html>

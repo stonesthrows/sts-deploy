@@ -426,6 +426,13 @@
     /* Ecom orders print before assignment — no Worked By on the bag.
        (!important: the wrap carries an inline display:flex) */
     .form-content[data-layout="ecom"] #workedby-wrap { display: none !important; }
+
+    /* Preview mode (?preview=1): fill the iframe cleanly — no grey backdrop,
+       no in-iframe Print button (the bag-style picker has its own). */
+    @media screen {
+      body.preview { background: #fff; padding: 0; }
+      body.preview .print-bar, body.preview .screen-note { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -589,6 +596,7 @@
   }
 
   const p = new URLSearchParams(window.location.search);
+  if (p.get('preview')) document.body.classList.add('preview');
   const name      = p.get('name')      || '';
   const email     = p.get('email')     || '';
   const phone     = p.get('phone')     || '';

@@ -5213,6 +5213,44 @@
   .ss-check { font-size: 14px; color: var(--accent); visibility: hidden; }
   .ss-option.ss-current .ss-check { visibility: visible; }
 
+  /* ── Bag style preview picker (in the bag-style bottom sheet) ── */
+  .bag-style-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 12px 18px 10px;
+  }
+  .bag-style-chip {
+    padding: 7px 13px;
+    border: 1px solid var(--bdr); border-radius: 999px;
+    background: var(--card-bg); color: var(--text);
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  .bag-style-chip.is-active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .bag-preview {
+    --bag-scale: 1;
+    display: flex; justify-content: center;
+    padding: 4px 12px 12px;
+    height: calc(816px * var(--bag-scale) + 16px);
+    overflow: hidden;
+  }
+  .bag-preview-frame {
+    width: 528px; height: 816px; border: 0; flex: none;
+    transform: scale(var(--bag-scale)); transform-origin: top center;
+    background: #fff;
+  }
+  .bag-style-actions {
+    display: flex; justify-content: flex-end;
+    padding: 0 18px 6px;
+  }
+  .bag-print-btn {
+    padding: 10px 20px;
+    border: none; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+
   /* ═══════════════════════════════════════════════════
      SIDEBAR NAV REDESIGN (fable-redesign branch)
      ═══════════════════════════════════════════════════ */

@@ -1625,13 +1625,62 @@ function pickStageFromSheet(stageId) {
 // a single order pin its own style (e.g. force Classic for a resize, or try
 // the no-sketch variant on one order without changing everyone else's bag).
 // Local-only field (like o.assignee) — not synced to Notion.
-const BAG_STYLE_OPTIONS = [
-  { id: '',         label: 'Auto (Print Setup default)' },
-  { id: 'classic',  label: 'Classic Form' },
-  { id: 'sketch',   label: 'Sketch Canvas (beta)' },
-  { id: 'variants', label: 'Rings/Repair/Compact (beta)' },
+// ── Bag-layout registry: ONE source of truth per print template ──
+// Adding a new template = write its HTML file (reads params from the query
+// string, honors ?preview=1) + add one row here with its build*BagUrl builder.
+// Dispatch (printOrder), the preview iframe, the picker chips, the labels, and
+// the card badges all derive from this array — no other edits needed.
+//   applies(layout): whether the template is offered for an order whose
+//   kind-layout (printLayoutFor(inferOrderKind(o))) is `layout`.
+//   build(o): returns the print URL (query string) for order `o`.
+// The build fns are hoisted function declarations defined lower in this file.
+const BAG_LAYOUTS = [
+  { id: 'classic',  label: 'Classic Form',                file: 'work-order-print.html',
+    build: buildClassicBagUrl, applies: () => true },
+  { id: 'sketch',   label: 'Sketch Canvas (beta)',        file: 'custom-sketch-print.html',
+    build: buildSketchBagUrl,  applies: l => ['custom', 'resize'].includes(l) },
+  { id: 'variants', label: 'Rings/Repair/Compact (beta)', file: 'bag-layout-variants.html',
+    build: buildVariantBagUrl, applies: l => ['custom', 'estimate', 'repair', 'resize'].includes(l) },
 ];
-const BAG_STYLE_LABELS = Object.fromEntries(BAG_STYLE_OPTIONS.filter(s => s.id).map(s => [s.id, s.label]));
+// Legacy shape kept for anything still reading it; derived from the registry so
+// labels live in one place. The leading '' row = "Auto (Print Setup default)".
+const BAG_STYLE_OPTIONS = [{ id: '', label: 'Auto (Print Setup default)' }, ...BAG_LAYOUTS.map(r => ({ id: r.id, label: r.label }))];
+const BAG_STYLE_LABELS = Object.fromEntries(BAG_LAYOUTS.map(r => [r.id, r.label]));
+
+// The order's kind-derived layout (custom/estimate/repair/resize/ecom).
+function bagKindLayout(o) {
+  return (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
+    ? printLayoutFor(inferOrderKind(o)) : 'custom';
+}
+// Resolve which registry row an order prints/previews with. `effLayout` is the
+// explicit choice (o.printLayout for real prints, or a picked chip id); falsy
+// means "Auto" → fall back to the app-wide Print Setup default, then the
+// resize-defaults-to-sketch rule, then classic.
+function bagLayoutRow(o, effLayout) {
+  const layout = bagKindLayout(o);
+  let eff = effLayout;
+  if (!eff) {
+    try { eff = Object.assign({ customLayout: 'classic' }, JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}')).customLayout; }
+    catch (e) { eff = 'classic'; }
+  }
+  let row = BAG_LAYOUTS.find(r => r.id === eff && r.applies(layout));
+  // Resize orders never had a sketch to show, so with no explicit pick they
+  // default to the no-sketch sketch template rather than the classic form.
+  if (!row && !effLayout && layout === 'resize') row = BAG_LAYOUTS.find(r => r.id === 'sketch');
+  if (!row) row = BAG_LAYOUTS.find(r => r.id === 'classic');
+  return row;
+}
+// Layouts offered for this order (chips): Auto + the applicable templates.
+function applicableBagLayouts(o) {
+  const layout = bagKindLayout(o);
+  return [{ id: '', label: 'Auto (Print Setup default)' }, ...BAG_LAYOUTS.filter(r => r.applies(layout))];
+}
+// Preview URL for a given picked layout id (falsy = Auto). Same resolution as
+// printing, but flagged ?preview=1 so the template fills the iframe cleanly.
+function bagPreviewUrlFor(o, effLayout) {
+  const url = bagLayoutRow(o, effLayout).build(o);
+  return url + (url.includes('?') ? '&' : '?') + 'preview=1';
+}
 let bagStyleSheetOrderId = null;
 
 function openBagStyleSheet(id) {
@@ -1640,16 +1689,26 @@ function openBagStyleSheet(id) {
   bagStyleSheetOrderId = id;
 
   document.getElementById('bagStyleSheetTitle').textContent = `Bag style — "${order.name}"`;
+  const sel = order.printLayout || '';
+  const chips = applicableBagLayouts(order).map(opt => `
+    <button class="bag-style-chip ${sel === opt.id ? 'is-active' : ''}" data-style="${opt.id}"
+            onclick="previewBagStyle('${opt.id}')">${opt.label}</button>`).join('');
   const body = document.getElementById('bagStyleSheetBody');
-  body.innerHTML = BAG_STYLE_OPTIONS.map(opt => `
-    <button class="ss-option ${(order.printLayout || '') === opt.id ? 'ss-current' : ''}"
-            onclick="pickBagStyleFromSheet('${opt.id}')">
-      <span>${opt.label}</span>
-      <span class="ss-check">✓</span>
-    </button>`).join('');
+  body.innerHTML = `
+    <div class="bag-style-chips">${chips}</div>
+    <div class="bag-preview">
+      <iframe id="bagPreviewFrame" class="bag-preview-frame" title="Work order preview"></iframe>
+    </div>
+    <div class="bag-style-actions">
+      <button class="bag-print-btn" onclick="printSelectedBagStyle()">Print this style</button>
+    </div>`;
 
   document.getElementById('bagStyleSheetOverlay').classList.add('active');
   document.getElementById('bagStyleSheet').classList.add('active');
+  // Render the initial preview (current pin, or Auto) once the sheet is visible.
+  const frame = document.getElementById('bagPreviewFrame');
+  frame.src = bagPreviewUrlFor(order, sel);
+  requestAnimationFrame(sizeBagPreview);
 }
 
 function closeBagStyleSheet() {
@@ -1658,15 +1717,33 @@ function closeBagStyleSheet() {
   bagStyleSheetOrderId = null;
 }
 
-function pickBagStyleFromSheet(styleId) {
+// Pick a layout: pin it to the order (persists + drives the card badge) and
+// swap the live preview. Does NOT print — that's the "Print this style" button.
+function previewBagStyle(styleId) {
   const order = ORDERS.find(o => o.id === bagStyleSheetOrderId);
-  if (order) {
-    order.printLayout = styleId || null;
-    renderKanban();
-    saveToStorage();
-  }
+  if (!order) return;
+  order.printLayout = styleId || null;
+  renderKanban();
+  saveToStorage();
+  document.querySelectorAll('#bagStyleSheetBody .bag-style-chip').forEach(c =>
+    c.classList.toggle('is-active', (c.getAttribute('data-style') || '') === (styleId || '')));
+  const frame = document.getElementById('bagPreviewFrame');
+  if (frame) { frame.src = bagPreviewUrlFor(order, styleId); requestAnimationFrame(sizeBagPreview); }
+}
+
+// Scale the 528×816px (5.5×8.5in @96dpi) paper to fit the sheet width.
+function sizeBagPreview() {
+  const pane = document.querySelector('#bagStyleSheetBody .bag-preview');
+  if (!pane) return;
+  const scale = Math.min(1, (pane.clientWidth - 16) / 528);
+  pane.style.setProperty('--bag-scale', scale);
+}
+
+// Print the currently-pinned layout (honors o.printLayout via printOrder).
+function printSelectedBagStyle() {
+  const id = bagStyleSheetOrderId;
   closeBagStyleSheet();
-  if (order) printOrder(order.id);
+  if (id) printOrder(id);
 }
 
 function dropWithPickup(ev, stageId, location) {
@@ -1800,39 +1877,14 @@ function _woRingSizeFromSizing(sizing) {
 function printOrder(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
-  // Print Setup can flip custom orders to the sketch-canvas bag
-  // (customLayout: 'sketch') — gated behind that beta toggle since it's
-  // still opt-in for the 'custom' layout. Resize orders always route to
-  // the same freeform template (compact center, no sketch) regardless of
-  // that toggle — it's their only bag now, not a beta option — since a
-  // resize never had a design sketch to show in the first place.
-  try {
-    const psAll = Object.assign({ customLayout: 'classic' },
-      JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}'));
-    const layout = (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
-      ? printLayoutFor(inferOrderKind(o)) : 'custom';
-    // o.printLayout is a per-order pin (see openBagStyleSheet) that overrides
-    // the app-wide Print Setup default below.
-    const effLayout = o.printLayout || psAll.customLayout;
-    // 'variants' (bag-layout-variants.html) covers every non-ecom layout —
-    // it auto-picks its own rings/repair/compact center block per order,
-    // so it takes priority over the sketch/classic split below.
-    if (effLayout === 'variants' && ['custom', 'estimate', 'repair', 'resize'].includes(layout)) {
-      printOrderVariantBag(o);
-      return;
-    }
-    if (effLayout === 'sketch' && (layout === 'custom' || layout === 'resize')) {
-      printOrderSketchBag(o);
-      return;
-    }
-    // Resize orders default to the no-sketch bag regardless of the app-wide
-    // setting (they never had a design sketch to show) — but an explicit
-    // per-order pin (e.g. 'classic') overrides that fallback too.
-    if (!o.printLayout && layout === 'resize') {
-      printOrderSketchBag(o);
-      return;
-    }
-  } catch (e) {}
+  // Dispatch is driven entirely by the BAG_LAYOUTS registry via bagLayoutRow():
+  // the per-order pin (o.printLayout), else the app-wide Print Setup default,
+  // else the resize→sketch / classic fallbacks. See bagLayoutRow() above.
+  window.open(bagLayoutRow(o, o.printLayout).build(o), '_blank');
+}
+
+// Classic work-order bag (work-order-print.html) — the default template.
+function buildClassicBagUrl(o) {
   // Flat addr* fields are the address of record; shippingAddress{} is the
   // mirror kept for older orders (see order-normalize.js).
   const sa = o.shippingAddress || {};
@@ -1903,13 +1955,13 @@ function printOrder(id) {
   // ?v= script tag to bump), so a stale browser-cached copy can otherwise
   // stick around past a deploy until a manual hard refresh.
   p.set('_v', Date.now());
-  window.open('work-order-print.html?' + p.toString(), '_blank');
+  return 'work-order-print.html?' + p.toString();
 }
 
 // Sketch-canvas custom bag (custom-sketch-print.html, prototype). Maps the
 // intake fields onto that page's params and hands the sketch off through
 // localStorage — a base64 PNG doesn't fit in a URL.
-function printOrderSketchBag(o) {
+function buildSketchBagUrl(o) {
   const fmtMD = d => {
     const p = String(d || '').split('-');
     return p.length === 3 ? p[1] + '/' + p[2] : '';
@@ -1971,15 +2023,16 @@ function printOrderSketchBag(o) {
   } catch (e) { /* storage full — print proceeds with a blank canvas */ }
   // Cache-bust: see identical comment in printOrder() above.
   p.set('_v', Date.now());
-  window.open('custom-sketch-print.html?' + p.toString(), '_blank');
+  return 'custom-sketch-print.html?' + p.toString();
 }
+function printOrderSketchBag(o) { window.open(buildSketchBagUrl(o), '_blank'); }
 
 // bag-layout-variants.html — no-sketch alternative to printOrderSketchBag.
 // Auto-picks which of its three center blocks to render: 'repair' for
 // repair orders, 'rings' when the order carries ring[] specs, 'compact'
 // (bench notes only) for everything else (resize, estimate, plain custom).
 const VARIANT_KIND_LABEL = { custom: 'Custom Order', estimate: 'Estimate', repair: 'Repair', resize: 'Resize', 'square-item': 'Custom Order' };
-function printOrderVariantBag(o) {
+function buildVariantBagUrl(o) {
   const fmtMD = d => {
     const p = String(d || '').split('-');
     return p.length === 3 ? p[1] + '/' + p[2] : '';
@@ -2033,8 +2086,9 @@ function printOrderVariantBag(o) {
     if (gift.surprise) p.set('giftSurprise', '1');
   }
   p.set('_v', Date.now());
-  window.open('bag-layout-variants.html?' + p.toString(), '_blank');
+  return 'bag-layout-variants.html?' + p.toString();
 }
+function printOrderVariantBag(o) { window.open(buildVariantBagUrl(o), '_blank'); }
 
 // ════════════════════════════════════════════
 
