@@ -151,6 +151,14 @@
        whatever follows (items/money strip) sit right underneath. */
     .rings-grid { margin-top: 6px; display: grid; gap: 6px;
                   grid-auto-rows: 1fr; overflow: hidden; }
+    /* Ring cards no longer stretch to fill the page (see .rings-grid
+       above), so this spacer soaks up the freed vertical space instead,
+       anchoring items/money strip/footer back down at the bottom of the
+       bag rather than letting them cluster right under the cards. Only
+       active in rings mode — every other center mode already has its own
+       flex:1 filler (canvas / grown notes). */
+    .bottom-spacer { flex: none; }
+    body[data-center="rings"] .bottom-spacer { flex: 1; }
     .rings-grid.n1 { grid-template-columns: 1fr; }
     .rings-grid.n2, .rings-grid.n3, .rings-grid.n4 { grid-template-columns: 1fr 1fr; }
     .rings-grid.nmany { grid-template-columns: 1fr 1fr 1fr; }
@@ -257,6 +265,8 @@
   </div>
 
   <div class="center" id="center"></div>
+
+  <div class="bottom-spacer"></div>
 
   <div class="meas-strip" id="meas-strip"></div>
 

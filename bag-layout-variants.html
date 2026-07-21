@@ -118,6 +118,14 @@
 
     /* ── Variant: rings — card grid, one per ring ── */
     .rings-grid { display: grid; gap: 6px; height: 100%; grid-auto-rows: 1fr; }
+    /* Ring cards no longer stretch to fill the page (see .center override
+       below), so this spacer soaks up the freed vertical space instead,
+       anchoring items/money strip/footer back down at the bottom of the
+       bag rather than letting them cluster right under the cards. Only
+       active in rings mode — repair/compact already have their own
+       flex:1 filler (repair box / grown notes). */
+    .bottom-spacer { flex: none; }
+    body[data-variant="rings"] .bottom-spacer { flex: 1; }
     /* rings variant: unlike repair's box (which should fill whatever
        vertical space Bench Notes isn't using anymore), the ring cards
        should size to their own square content instead of stretching to
@@ -242,6 +250,8 @@
 
   <!-- CENTER: populated by variant-specific render function -->
   <div class="center" id="center"></div>
+
+  <div class="bottom-spacer"></div>
 
   <div class="notes">
     <span class="lbl">Bench Notes / Materials</span>
