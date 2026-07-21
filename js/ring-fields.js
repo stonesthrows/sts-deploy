@@ -315,11 +315,15 @@ function _intakeRingsLegacyFields(rings) {
   const multi = rings.length > 1;
   const summaries = rings.map(_intakeRingSummary);
   const label = (r, i) => multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : '';
-  const join = key => rings
+  const join = (key, sep = '; ') => rings
     .map((r, i) => summaries[i][key] ? (label(r, i) ? label(r, i) + ': ' + summaries[i][key] : summaries[i][key]) : '')
-    .filter(Boolean).join('; ');
+    .filter(Boolean).join(sep);
   return {
-    materials: join('materials'),
+    // Newline-joined (not '; ') so the desktop Edit Order view's Estimate
+    // Builder (populateEstimateFromOrder in js/order-widgets.js, which
+    // splits o.materials on '\n') gives each ring its own Materials row
+    // instead of showing all rings squashed into one row's description.
+    materials: join('materials', '\n'),
     gemstones: join('gemstones'),
     finish:    [...new Set(summaries.flatMap(s => s.finish || []))],
     sizing:    summaries[0] && summaries[0].size ? ('sz ' + summaries[0].size) : '',
