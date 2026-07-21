@@ -1818,6 +1818,10 @@ function printOrder(id) {
     p.set('font',    ps.fontSize);
     p.set('sizeRow', ps.showSizeRow ? '1' : '0');
   } catch(e) {}
+  // Cache-bust: these print pages are opened directly via window.open (no
+  // ?v= script tag to bump), so a stale browser-cached copy can otherwise
+  // stick around past a deploy until a manual hard refresh.
+  p.set('_v', Date.now());
   window.open('work-order-print.html?' + p.toString(), '_blank');
 }
 
@@ -1884,6 +1888,8 @@ function printOrderSketchBag(o) {
     if (sk) localStorage.setItem('sts-print-sketch', sk);
     else localStorage.removeItem('sts-print-sketch');
   } catch (e) { /* storage full — print proceeds with a blank canvas */ }
+  // Cache-bust: see identical comment in printOrder() above.
+  p.set('_v', Date.now());
   window.open('custom-sketch-print.html?' + p.toString(), '_blank');
 }
 
