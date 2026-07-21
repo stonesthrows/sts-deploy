@@ -145,9 +145,12 @@
     /* ── Center: ring card grid — used instead of the sketch canvas
        whenever the order has more than one ring (js/ring-fields.js
        rings[]), one card per ring. ── */
-    .rings-grid { flex: 1; margin-top: 6px; display: grid; gap: 6px;
-                  min-height: 1.6in; grid-auto-rows: 1fr; overflow: hidden;
-                  align-items: center; }
+    /* No flex:1 here — unlike the sketch canvas, the ring cards shouldn't
+       stretch to swallow whatever vertical space Bench Notes isn't using
+       anymore; they should size to their own square content and let
+       whatever follows (items/money strip) sit right underneath. */
+    .rings-grid { margin-top: 6px; display: grid; gap: 6px;
+                  grid-auto-rows: 1fr; overflow: hidden; }
     .rings-grid.n1 { grid-template-columns: 1fr; }
     .rings-grid.n2, .rings-grid.n3, .rings-grid.n4 { grid-template-columns: 1fr 1fr; }
     .rings-grid.nmany { grid-template-columns: 1fr 1fr 1fr; }
@@ -247,16 +250,13 @@
   <div class="jobline">
     <div class="lbl pt" id="j-piece"></div>
     <div class="t" id="j-title" contenteditable="true"></div>
-  </div>
-
-  <div class="center" id="center"></div>
-
-  <div class="jobline" style="padding-top:0;">
     <div class="d" id="j-desc" contenteditable="true"></div>
     <div class="kvline" id="j-stones-row"><span class="lbl">Stones</span><span id="j-stones" contenteditable="true"></span></div>
     <div class="kvline" id="j-finish-row"><span class="lbl">Finish</span><span id="j-finish" contenteditable="true"></span></div>
     <div class="kvline" id="j-cnotes-row"><span class="lbl">Customer Notes</span><span id="j-cnotes" contenteditable="true"></span></div>
   </div>
+
+  <div class="center" id="center"></div>
 
   <div class="meas-strip" id="meas-strip"></div>
 
