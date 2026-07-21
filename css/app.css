@@ -1673,6 +1673,12 @@
     .o-badge.assignee  { background:#FBEFE0; color:#9A5A1A; }
     .o-badge.platform-etsy    { background:#FDEDEB; color:#B5462F; }
     .o-badge.platform-shopify { background:#E9F5EC; color:#1F7A3D; }
+    .o-badge-intake {
+      background: #F0EBE3; color: var(--text2);
+      border: none; cursor: pointer; font-family: inherit;
+      transition: background var(--dur-fast), color var(--dur-fast);
+    }
+    .o-badge-intake:hover { background: #E4DDD4; color: var(--accent); }
     .c-td { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
     .c-muted { color: var(--text2); }
     .active-chip {

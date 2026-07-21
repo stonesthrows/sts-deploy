@@ -218,6 +218,7 @@ function cardHTML(o) {
         ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         ${o.printLayout ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
+        <button class="o-badge o-badge-intake" title="Open and edit this order in the Intake app" onclick="event.stopPropagation(); editOrderInIntake('${o.id}')">📱 Intake</button>
       </div>
       <div class="o-body">
         ${hasPhoto ? `
@@ -231,14 +232,14 @@ function cardHTML(o) {
             <div class="card-photo-label">✏️ Tap to view sketch</div>
           </div>` : ''}
         <div class="o-desc">${esc(o.desc)}</div>
-        ${(o.pickup || o.contactSource || o.contactedAt || o.assignee || o.printLayout) ? `
         <div class="o-badges">
           ${o.pickup        ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
           ${o.contactSource ? `<span class="o-badge source">💬 ${esc(o.contactSource)}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
           ${o.assignee      ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
           ${o.printLayout   ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
-        </div>` : ''}
+          <button class="o-badge o-badge-intake" title="Open and edit this order in the Intake app" onclick="event.stopPropagation(); editOrderInIntake('${o.id}')">📱 Intake</button>
+        </div>
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
           <span class="o-price">${fmtPrice(o.price)}</span>
