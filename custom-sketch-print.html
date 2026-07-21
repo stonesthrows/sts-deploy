@@ -584,7 +584,19 @@
   // catch-all "Order Total" line instead of pricing each ring's own item —
   // printing that alongside $0.00 ring rows is confusing and the money
   // strip below already totals everything. Fold it into whichever ring
-  // rows are still at $0 (split evenly) instead of printing it separately.
+  // rows are still at $0 instead of printing it separately. The Bench
+  // Notes box is hidden in this mode, but staff often hand-type each
+  // ring's actual price at the end of its materials line (e.g. "Ring 1
+  // (Scott): Simple Band, 6mm, Smooth — $1215.00") — pull those out and
+  // use them so the per-ring split matches what was actually quoted,
+  // falling back to an even split only when that text isn't there.
+  function _ringAmountsFromMaterials(text) {
+    if (!text) return [];
+    return text.split('\n').map(line => {
+      const m = /\$\s*([\d,]+(?:\.\d{1,2})?)\s*$/.exec(line.trim());
+      return m ? parseFloat(m[1].replace(/,/g, '')) : null;
+    });
+  }
   const items = (src.items || []).filter(it => it && it.desc);
   if (centerMode === 'rings') {
     const totalIdx = items.findIndex(it => /^order total$/i.test(it.desc.trim()));
@@ -592,8 +604,13 @@
       const totalItem = items.splice(totalIdx, 1)[0];
       const zeroItems = items.filter(it => !parseFloat(it.amount));
       if (zeroItems.length) {
-        const share = (parseFloat(totalItem.amount) || 0) / zeroItems.length;
-        zeroItems.forEach(it => { it.amount = share; });
+        const ringAmounts = _ringAmountsFromMaterials(materialsText).filter(a => a != null);
+        if (ringAmounts.length === zeroItems.length) {
+          zeroItems.forEach((it, i) => { it.amount = ringAmounts[i]; });
+        } else {
+          const share = (parseFloat(totalItem.amount) || 0) / zeroItems.length;
+          zeroItems.forEach(it => { it.amount = share; });
+        }
       }
     }
   }
