@@ -146,12 +146,14 @@
        whenever the order has more than one ring (js/ring-fields.js
        rings[]), one card per ring. ── */
     .rings-grid { flex: 1; margin-top: 6px; display: grid; gap: 6px;
-                  min-height: 1.6in; grid-auto-rows: 1fr; overflow: hidden; }
+                  min-height: 1.6in; grid-auto-rows: 1fr; overflow: hidden;
+                  align-items: center; }
     .rings-grid.n1 { grid-template-columns: 1fr; }
     .rings-grid.n2, .rings-grid.n3, .rings-grid.n4 { grid-template-columns: 1fr 1fr; }
     .rings-grid.nmany { grid-template-columns: 1fr 1fr 1fr; }
     .ring-card { border: 1px solid #999; border-radius: 3px; padding: 6px 8px;
-                 display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+                 display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+                 aspect-ratio: 1 / 1; width: 100%; }
     .ring-card .rc-head { display: flex; justify-content: space-between; align-items: baseline;
                            border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-bottom: 4px; }
     .ring-card .rc-name { font-size: 12.5px; font-weight: bold; }
