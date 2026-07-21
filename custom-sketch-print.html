@@ -176,6 +176,9 @@
        fill the space the canvas would otherwise have occupied. */
     .notes.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 6px; }
     .notes.grow .rule { flex: 1; height: auto; min-height: 20px; }
+    /* rings center mode (3-Ring Family): each card already shows its own
+       specs — Bench Notes/Materials would just repeat it, so drop the box. */
+    body[data-center="rings"] .notes { display: none; }
 
     /* ── Items + money strip ── */
     .items { margin-top: 8px; display: none; }
@@ -427,6 +430,7 @@
   try { ringsArr = JSON.parse(src.rings || 'null'); } catch (e) {}
   const hasMultiRings = Array.isArray(ringsArr) && ringsArr.length > 1;
   const centerMode = hasMultiRings ? 'rings' : (src.kind === 'resize' ? 'compact' : 'sketch');
+  document.body.dataset.center = centerMode;
   const centerEl = document.getElementById('center');
 
   // ── Measurements strip (Ring/Chain/Wrist/Neck/Resize) — Ring is
@@ -576,7 +580,23 @@
   }
 
   // ── Items + money ──
+  // Rings center mode: staff sometimes track the job's price as one
+  // catch-all "Order Total" line instead of pricing each ring's own item —
+  // printing that alongside $0.00 ring rows is confusing and the money
+  // strip below already totals everything. Fold it into whichever ring
+  // rows are still at $0 (split evenly) instead of printing it separately.
   const items = (src.items || []).filter(it => it && it.desc);
+  if (centerMode === 'rings') {
+    const totalIdx = items.findIndex(it => /^order total$/i.test(it.desc.trim()));
+    if (totalIdx !== -1) {
+      const totalItem = items.splice(totalIdx, 1)[0];
+      const zeroItems = items.filter(it => !parseFloat(it.amount));
+      if (zeroItems.length) {
+        const share = (parseFloat(totalItem.amount) || 0) / zeroItems.length;
+        zeroItems.forEach(it => { it.amount = share; });
+      }
+    }
+  }
   if (items.length) {
     const el = document.getElementById('items');
     items.forEach(it => {
