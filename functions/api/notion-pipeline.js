@@ -113,6 +113,12 @@ const APP_DATA_FIELDS = [
   'stones', 'estimateAlternatives', 'estimate',
   'items', 'jobDescMode', 'fullyPaid', 'shipping',
   'orderFor', 'ringSize2', 'stamping', 'stamping2',
+  // Per-ring Meditation Ring / Simple Band / Custom Ring structured data
+  // (js/ring-fields.js) — was missing here entirely, so it silently never
+  // reached Notion; any device that pulled the order back down only ever
+  // saw the flattened materials/gemstones/sizing text, never the array the
+  // work-order bag's ring-card grid needs.
+  'rings',
 ];
 
 function appDataToProp(o) {

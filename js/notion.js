@@ -351,7 +351,7 @@ async function notionSyncFromNotion() {
       // that live only on-device.
       'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
       'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg',
-      'refPhotos', 'refPhotosSyncedHash'];
+      'refPhotos', 'refPhotosSyncedHash', 'rings'];
 
     for (const no of notionOrders) {
       // Never let a sync un-complete an order marked complete locally
