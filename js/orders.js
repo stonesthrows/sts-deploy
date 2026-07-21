@@ -195,9 +195,14 @@ function cardHTML(o) {
           <button class="card-camera-btn ${hasPhoto ? 'has-photo' : ''}"
                   title="${hasPhoto ? 'View / replace photo' : 'Attach work order photo'}"
                   onclick="event.stopPropagation(); openCamera('${o.id}')">📷</button>
-          <button class="card-print-btn"
-                  title="Print work order"
-                  onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
+          <div class="card-print-split">
+            <button class="card-print-btn"
+                    title="Print work order"
+                    onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
+            <button class="card-print-caret"
+                    title="Choose bag style for this order"
+                    onclick="event.stopPropagation(); openBagStyleSheet('${o.id}')">▾</button>
+          </div>
           <button class="card-move-btn"
                   title="Move to another stage"
                   onclick="event.stopPropagation(); openStageSheet('${o.id}')">↪</button>
@@ -211,6 +216,7 @@ function cardHTML(o) {
           : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
           : o.pickup ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
         ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
+        ${o.printLayout ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
@@ -225,12 +231,13 @@ function cardHTML(o) {
             <div class="card-photo-label">✏️ Tap to view sketch</div>
           </div>` : ''}
         <div class="o-desc">${esc(o.desc)}</div>
-        ${(o.pickup || o.contactSource || o.contactedAt || o.assignee) ? `
+        ${(o.pickup || o.contactSource || o.contactedAt || o.assignee || o.printLayout) ? `
         <div class="o-badges">
           ${o.pickup        ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
           ${o.contactSource ? `<span class="o-badge source">💬 ${esc(o.contactSource)}</span>` : ''}
           ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
           ${o.assignee      ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
+          ${o.printLayout   ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
@@ -1613,6 +1620,55 @@ function pickStageFromSheet(stageId) {
   closeStageSheet();
 }
 
+// ── Per-order bag style override ──
+// Print Setup's Custom Order Bag toggle sets the app-wide default; this lets
+// a single order pin its own style (e.g. force Classic for a resize, or try
+// the no-sketch variant on one order without changing everyone else's bag).
+// Local-only field (like o.assignee) — not synced to Notion.
+const BAG_STYLE_OPTIONS = [
+  { id: '',         label: 'Auto (Print Setup default)' },
+  { id: 'classic',  label: 'Classic Form' },
+  { id: 'sketch',   label: 'Sketch Canvas (beta)' },
+  { id: 'variants', label: 'Rings/Repair/Compact (beta)' },
+];
+const BAG_STYLE_LABELS = Object.fromEntries(BAG_STYLE_OPTIONS.filter(s => s.id).map(s => [s.id, s.label]));
+let bagStyleSheetOrderId = null;
+
+function openBagStyleSheet(id) {
+  const order = ORDERS.find(o => o.id === id);
+  if (!order) return;
+  bagStyleSheetOrderId = id;
+
+  document.getElementById('bagStyleSheetTitle').textContent = `Bag style — "${order.name}"`;
+  const body = document.getElementById('bagStyleSheetBody');
+  body.innerHTML = BAG_STYLE_OPTIONS.map(opt => `
+    <button class="ss-option ${(order.printLayout || '') === opt.id ? 'ss-current' : ''}"
+            onclick="pickBagStyleFromSheet('${opt.id}')">
+      <span>${opt.label}</span>
+      <span class="ss-check">✓</span>
+    </button>`).join('');
+
+  document.getElementById('bagStyleSheetOverlay').classList.add('active');
+  document.getElementById('bagStyleSheet').classList.add('active');
+}
+
+function closeBagStyleSheet() {
+  document.getElementById('bagStyleSheetOverlay').classList.remove('active');
+  document.getElementById('bagStyleSheet').classList.remove('active');
+  bagStyleSheetOrderId = null;
+}
+
+function pickBagStyleFromSheet(styleId) {
+  const order = ORDERS.find(o => o.id === bagStyleSheetOrderId);
+  if (order) {
+    order.printLayout = styleId || null;
+    renderKanban();
+    saveToStorage();
+  }
+  closeBagStyleSheet();
+  if (order) printOrder(order.id);
+}
+
 function dropWithPickup(ev, stageId, location) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('drag-over');
@@ -1755,14 +1811,24 @@ function printOrder(id) {
       JSON.parse(localStorage.getItem('workOrderPrintSettings') || '{}'));
     const layout = (typeof printLayoutFor === 'function' && typeof inferOrderKind === 'function')
       ? printLayoutFor(inferOrderKind(o)) : 'custom';
+    // o.printLayout is a per-order pin (see openBagStyleSheet) that overrides
+    // the app-wide Print Setup default below.
+    const effLayout = o.printLayout || psAll.customLayout;
     // 'variants' (bag-layout-variants.html) covers every non-ecom layout —
     // it auto-picks its own rings/repair/compact center block per order,
     // so it takes priority over the sketch/classic split below.
-    if (psAll.customLayout === 'variants' && ['custom', 'estimate', 'repair', 'resize'].includes(layout)) {
+    if (effLayout === 'variants' && ['custom', 'estimate', 'repair', 'resize'].includes(layout)) {
       printOrderVariantBag(o);
       return;
     }
-    if ((psAll.customLayout === 'sketch' && layout === 'custom') || layout === 'resize') {
+    if (effLayout === 'sketch' && (layout === 'custom' || layout === 'resize')) {
+      printOrderSketchBag(o);
+      return;
+    }
+    // Resize orders default to the no-sketch bag regardless of the app-wide
+    // setting (they never had a design sketch to show) — but an explicit
+    // per-order pin (e.g. 'classic') overrides that fallback too.
+    if (!o.printLayout && layout === 'resize') {
       printOrderSketchBag(o);
       return;
     }

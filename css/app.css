@@ -1876,6 +1876,23 @@
       padding: 0;
     }
     .card-print-btn:hover { background: #E4DDD4; border-color: var(--accent); }
+    .card-print-split { display: flex; flex-shrink: 0; }
+    .card-print-split .card-print-btn { border-radius: 5px 0 0 5px; }
+    .card-print-caret {
+      width: 14px; height: 24px;
+      background: #F0EBE3;
+      border: 1px solid #DDD5CC;
+      border-left: none;
+      border-radius: 0 5px 5px 0;
+      cursor: pointer;
+      font-size: 8px;
+      color: #888;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      padding: 0;
+      transition: background var(--dur-fast), border-color var(--dur-fast);
+    }
+    .card-print-caret:hover { background: #E4DDD4; border-color: var(--accent); }
     .card-move-btn {
       display: none; /* shown only on mobile — drag-and-drop doesn't work via touch */
       width: 24px; height: 24px;
