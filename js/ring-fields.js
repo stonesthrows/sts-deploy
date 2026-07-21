@@ -47,6 +47,7 @@ function ringFieldsApplyPieceType(pieceType) {
   } else {
     const summary = document.getElementById('est-ring-stamping-summary');
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
+    if (typeof oiSyncRingItems === 'function') oiSyncRingItems([]);
   }
 }
 
@@ -81,8 +82,20 @@ function ringFieldsRenderStampingSummary() {
   el.innerHTML = rows;
   el.style.display = rows ? '' : 'none';
 }
-document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
-document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
+document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) { ringFieldsRenderStampingSummary(); ringFieldsSyncOrderItems(); } });
+document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) { ringFieldsRenderStampingSummary(); ringFieldsSyncOrderItems(); } });
+
+// Mirrors the currently-configured rings into the shared Order Items list
+// (js/order-widgets.js, oiSyncRingItems) — one line item per ring — so a
+// multi-ring order prices/syncs each ring separately. Only kicks in for 2+
+// rings; a single ring keeps the old flat-field-only behavior (and clears
+// any previously-synced rows, e.g. after dropping back from 2 rings to 1).
+function ringFieldsSyncOrderItems() {
+  if (typeof oiSyncRingItems !== 'function') return;
+  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
+  if (blocks.length < 2) { oiSyncRingItems([]); return; }
+  oiSyncRingItems(_intakeCollectRingsFromDom());
+}
 
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
@@ -270,6 +283,7 @@ function intakeRenderRingBlocks() {
     </div>
   `).join('');
   ringFieldsRenderStampingSummary();
+  ringFieldsSyncOrderItems();
 }
 
 // Normalizes one ring's category-specific fields into the
@@ -337,4 +351,5 @@ function ringFieldsReset() {
   _intakeRings = [_intakeBlankRing()];
   const summary = document.getElementById('est-ring-stamping-summary');
   if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
+  if (typeof oiSyncRingItems === 'function') oiSyncRingItems([]);
 }

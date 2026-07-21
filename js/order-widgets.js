@@ -259,6 +259,48 @@ function oiDeriveRingSizesText(items) {
   return sizes.filter(Boolean).join(', ');
 }
 
+// Ring piece type → Order Items sync — js/ring-fields.js calls this whenever
+// 2+ rings are configured, mirroring each ring into its own manual line item
+// here (tagged fromRing) instead of folding every ring's detail into the
+// order-level materials/gemstones/sizing text fields, which only ever
+// surfaced rings 1-2 (see _intakeRingsLegacyFields in ring-fields.js). A
+// single ring keeps the old flat-field-only behavior — the caller passes []
+// in that case, which just clears out any previously-synced rows.
+// Re-syncing only touches fromRing rows (any Square/manual items added by
+// hand are left alone) and carries price/qty/sku over positionally so
+// editing one ring's fields doesn't wipe a price already entered on another
+// ring's line item — only the name and ringSize (derived fresh each time)
+// change.
+function _oiRingItemName(r, i, count) {
+  const summary = (typeof _intakeRingSummary === 'function') ? _intakeRingSummary(r) : { materials: '' };
+  const label = 'Ring ' + (i + 1) + (count > 1 && r.name ? ' (' + r.name + ')' : '');
+  const desc = r.category === 'Custom Ring'
+    ? [r.category, summary.materials].filter(Boolean).join(': ')
+    : (summary.materials || '');
+  const parts = [label, desc].filter(Boolean);
+  if (r.stamping) parts.push('"' + r.stamping + '"');
+  return parts.join(' — ');
+}
+
+function oiSyncRingItems(rings) {
+  const kept         = _oiItems.filter(it => !it.fromRing);
+  const prevRingItems = _oiItems.filter(it => it.fromRing);
+  const ringItems = (rings || []).map((r, i) => {
+    const prev = prevRingItems[i] || {};
+    return {
+      type:     'manual',
+      fromRing: true,
+      name:     _oiRingItemName(r, i, rings.length),
+      sku:      prev.sku || '',
+      price:    prev.price || 0,
+      quantity: prev.quantity || 1,
+      ringSize: (typeof _intakeRingSummary === 'function') ? _intakeRingSummary(r).size : '',
+    };
+  });
+  _oiItems = [...kept, ...ringItems];
+  oiRender();
+}
+
 function oiSerialize() {
   return JSON.stringify(_oiItems);
 }
