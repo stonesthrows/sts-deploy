@@ -623,6 +623,18 @@
     .rv-row.rv-strong { background: #F8F3EC; }
     .rv-row.rv-strong span:last-child { font-size: 17px; font-weight: 800; }
 
+    /* ═══ Past-orders list rows ═══ */
+    .iol-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 12px 4px; border-bottom: 1px solid var(--bdr-light); cursor: pointer;
+    }
+    .iol-row:last-child { border-bottom: none; }
+    .iol-row:active { background: #F8F3EC; }
+    .iol-name { font-weight: 700; }
+    .iol-meta { color: var(--text3); font-size: 12.5px; margin-top: 2px; }
+    .iol-price { font-weight: 700; white-space: nowrap; }
+    .iol-empty { padding: 24px 4px; text-align: center; color: var(--text3); font-size: 14px; }
+
     /* ═══ Estimate adjustment controls (3.2) + variant strip (3.4) ═══ */
     .est-adj-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .est-adj-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
@@ -801,6 +813,8 @@
       </div>
     </div>
     <div class="flex-1"></div>
+    <button type="button" id="intake-orders-btn" onclick="intakeOrdersListOpen()" title="View past orders"
+            class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">📋</button>
     <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
             class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
@@ -1544,8 +1558,45 @@
     <div id="intake-done-title" class="text-lg font-bold">Order saved</div>
     <div id="intake-done-sub" class="mt-1 text-sm text-slate-500"></div>
     <div class="mt-6 flex flex-col gap-2">
+      <button type="button" onclick="intakeViewOrder(_lastSavedOrderId)" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">👁 View Order</button>
       <button type="button" onclick="intakeNew()" class="rounded-xl bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-3.5 text-[15px] font-bold text-white active:scale-95">＋ New Intake</button>
       <button type="button" onclick="location.href='jewelry-workflow.html'" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">↩ Return to App</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Order history list (read-only) — reachable any time via the 📋 header
+     button, independent of the current form state ═══ -->
+<div id="intake-orders-list" class="fixed inset-0 z-[195] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-lg font-bold">Past Orders</div>
+      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeOrdersListClose()">Close ✕</button>
+    </div>
+    <div id="iol-list"></div>
+  </div>
+</div>
+
+<!-- ═══ Read-only order view — opened from the list above or the "Saved"
+     overlay's View Order button. Never editable from here (brief: editing
+     stays in the main app's Edit Order modal) ═══ -->
+<div id="intake-view-order" class="fixed inset-0 z-[196] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
+    <div class="flex items-center justify-between">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]" id="vo-type">Order</div>
+      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeViewOrderClose()">Close ✕</button>
+    </div>
+    <div id="vo-name" class="mt-1 text-xl font-bold"></div>
+    <div id="vo-piece" class="mt-1 text-[15px] text-slate-600"></div>
+    <img id="vo-sketch" alt="Design sketch" class="mt-3 w-full rounded-xl border border-slate-200" style="display:none;max-height:220px;object-fit:contain;background:#fff;">
+    <div id="vo-photos" class="mt-2" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    <div class="rv-rows mt-4" id="vo-rows"></div>
+    <div class="mt-4" id="vo-notes-wrap" style="display:none;">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Notes</div>
+      <div id="vo-notes" class="text-sm text-slate-700" style="white-space:pre-wrap;"></div>
+    </div>
+    <div class="mt-5 flex gap-2">
+      <button type="button" class="btn btn-outline" style="flex:1;" id="vo-back-btn" onclick="intakeViewOrderClose()">‹ Back</button>
     </div>
   </div>
 </div>

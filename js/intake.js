@@ -19,6 +19,7 @@
 // ── Local store bootstrap (this page never renders the kanban) ──
 let ORDERS = [];
 try { ORDERS = JSON.parse(localStorage.getItem('sts-orders') || '[]'); } catch (e) { ORDERS = []; }
+let _lastSavedOrderId = null;
 
 // Set while this page is editing an existing order (loaded via
 // intakeLoadOrderForEdit) rather than creating a new one.
@@ -755,6 +756,7 @@ async function intakeSubmit() {
     ORDERS.push(order);
     saveToStorage();
   }
+  _lastSavedOrderId = order.id;
   // Upsert the Client Profile as a side effect — no separate data-entry chore
   if (typeof stsCustUpsertFromOrder === 'function') stsCustUpsertFromOrder(order);
 
@@ -846,6 +848,106 @@ function intakeNew() {
   const done = document.getElementById('intake-done');
   if (done) { done.classList.add('hidden'); done.classList.remove('flex'); }
   intakeReset();
+}
+
+// ── Order history (read-only view) ───────────────────────────
+//    Lets a saved custom order be reopened and reviewed on this iPad
+//    without leaving the intake PWA. Editing still only lives in the
+//    main app's Edit Order modal — this is presentation-only.
+let _voFromList = false;
+const _voEsc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const _voMoney = n => '$' + (parseFloat(n) || 0).toFixed(2);
+
+function intakeOrdersListOpen() {
+  const list = document.getElementById('iol-list');
+  if (list) {
+    const rows = [...ORDERS].sort((a, b) => {
+      const ta = parseInt(String(a.id).replace(/\D/g, ''), 10) || 0;
+      const tb = parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
+      return tb - ta;
+    });
+    list.innerHTML = rows.length
+      ? rows.map(o => {
+          const label = (ORDER_TYPE_STAGES[o.orderType] || ORDER_TYPE_STAGES.order).label;
+          const ts = parseInt(String(o.id).replace(/\D/g, ''), 10);
+          const when = ts ? new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          return '<div class="iol-row" onclick="intakeViewOrder(\'' + _voEsc(o.id) + '\', true)">'
+               + '<div><div class="iol-name">' + (_voEsc(o.name) || '(no name)') + '</div>'
+               + '<div class="iol-meta">' + _voEsc(label) + (when ? ' · ' + when : '') + (!o.notionId ? ' · ⚠ not synced' : '') + '</div></div>'
+               + '<div class="iol-price">' + _voMoney(o.price) + '</div>'
+               + '</div>';
+        }).join('')
+      : '<div class="iol-empty">No orders saved on this device yet.</div>';
+  }
+  document.getElementById('intake-orders-list')?.classList.remove('hidden');
+}
+
+function intakeOrdersListClose() {
+  document.getElementById('intake-orders-list')?.classList.add('hidden');
+}
+
+function intakeViewOrder(id, fromList) {
+  const order = ORDERS.find(o => o.id === id);
+  if (!order) { toast('Order not found', '⚠'); return; }
+  _voFromList = !!fromList;
+
+  const label = (ORDER_TYPE_STAGES[order.orderType] || ORDER_TYPE_STAGES.order).label;
+  document.getElementById('vo-type').textContent = label;
+  document.getElementById('vo-name').textContent = order.name || '(no name)';
+
+  const pieceBits = [order.jobDesc, order.pieceType, order.desc].filter(Boolean);
+  document.getElementById('vo-piece').textContent = pieceBits.join(' — ');
+
+  const sketchEl = document.getElementById('vo-sketch');
+  if (sketchEl) {
+    if (order.sketchImg) { sketchEl.src = order.sketchImg; sketchEl.style.display = ''; }
+    else sketchEl.style.display = 'none';
+  }
+
+  const photosEl = document.getElementById('vo-photos');
+  if (photosEl) {
+    const photos = Array.isArray(order.refPhotos) ? order.refPhotos : [];
+    photosEl.innerHTML = photos.map(src =>
+      '<img src="' + src + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #E4D8C4;">'
+    ).join('');
+  }
+
+  const balance = Math.max((parseFloat(order.price) || 0) + (parseFloat(order.shipping) || 0) - (parseFloat(order.deposit) || 0), 0);
+  const rows = [
+    ['Take-in', order.takeIn || '—'],
+    ['Deadline', order.deadline || '—'],
+    ['Pickup', order.pickup || '—'],
+    ['Materials', order.materials || '—'],
+    ['Sizing', order.sizing || '—'],
+    ['Price', _voMoney(order.price)],
+    ['Deposit', _voMoney(order.deposit)],
+    ['Balance due', _voMoney(balance)],
+    ['Contact', [order.email, order.phone].filter(Boolean).join(' · ') || '—'],
+    ['Synced to Notion', order.notionId ? '✓ Yes' : '⚠ Not yet'],
+  ];
+  document.getElementById('vo-rows').innerHTML = rows.map(([k, v], i) =>
+    '<div class="rv-row' + (i === rows.length - 3 ? ' rv-strong' : '') + '"><span>' + _voEsc(k) + '</span><span>' + _voEsc(v) + '</span></div>'
+  ).join('');
+
+  const notesWrap = document.getElementById('vo-notes-wrap');
+  const notesEl = document.getElementById('vo-notes');
+  const noteText = [order.notes, order.customerNotes].filter(Boolean).join('\n\n');
+  if (notesWrap && notesEl) {
+    notesEl.textContent = noteText;
+    notesWrap.style.display = noteText ? '' : 'none';
+  }
+
+  const backBtn = document.getElementById('vo-back-btn');
+  if (backBtn) backBtn.textContent = _voFromList ? '‹ Back to list' : 'Close';
+
+  document.getElementById('intake-done')?.classList.add('hidden');
+  document.getElementById('intake-done')?.classList.remove('flex');
+  document.getElementById('intake-view-order')?.classList.remove('hidden');
+}
+
+function intakeViewOrderClose() {
+  document.getElementById('intake-view-order')?.classList.add('hidden');
+  if (_voFromList) document.getElementById('intake-orders-list')?.classList.remove('hidden');
 }
 
 // ── Anthropic key for the handwriting converter — the standalone PWA has
