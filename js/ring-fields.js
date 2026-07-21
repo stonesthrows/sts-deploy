@@ -47,7 +47,6 @@ function ringFieldsApplyPieceType(pieceType) {
   } else {
     const summary = document.getElementById('est-ring-stamping-summary');
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
-    if (typeof oiSyncRingItems === 'function') oiSyncRingItems([]);
   }
 }
 
@@ -82,20 +81,8 @@ function ringFieldsRenderStampingSummary() {
   el.innerHTML = rows;
   el.style.display = rows ? '' : 'none';
 }
-document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) { ringFieldsRenderStampingSummary(); ringFieldsSyncOrderItems(); } });
-document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) { ringFieldsRenderStampingSummary(); ringFieldsSyncOrderItems(); } });
-
-// Mirrors the currently-configured rings into the shared Order Items list
-// (js/order-widgets.js, oiSyncRingItems) — one line item per ring — so a
-// multi-ring order prices/syncs each ring separately. Only kicks in for 2+
-// rings; a single ring keeps the old flat-field-only behavior (and clears
-// any previously-synced rows, e.g. after dropping back from 2 rings to 1).
-function ringFieldsSyncOrderItems() {
-  if (typeof oiSyncRingItems !== 'function') return;
-  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
-  if (blocks.length < 2) { oiSyncRingItems([]); return; }
-  oiSyncRingItems(_intakeCollectRingsFromDom());
-}
+document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
+document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
@@ -283,7 +270,6 @@ function intakeRenderRingBlocks() {
     </div>
   `).join('');
   ringFieldsRenderStampingSummary();
-  ringFieldsSyncOrderItems();
 }
 
 // Normalizes one ring's category-specific fields into the
@@ -329,11 +315,15 @@ function _intakeRingsLegacyFields(rings) {
   const multi = rings.length > 1;
   const summaries = rings.map(_intakeRingSummary);
   const label = (r, i) => multi ? ('Ring ' + (i + 1) + (r.name ? ' (' + r.name + ')' : '')) : '';
-  const join = key => rings
+  const join = (key, sep = '; ') => rings
     .map((r, i) => summaries[i][key] ? (label(r, i) ? label(r, i) + ': ' + summaries[i][key] : summaries[i][key]) : '')
-    .filter(Boolean).join('; ');
+    .filter(Boolean).join(sep);
   return {
-    materials: join('materials'),
+    // Newline-joined (not '; ') so the desktop Edit Order view's Estimate
+    // Builder (populateEstimateFromOrder in js/order-widgets.js, which
+    // splits o.materials on '\n') gives each ring its own Materials row
+    // instead of showing all rings squashed into one row's description.
+    materials: join('materials', '\n'),
     gemstones: join('gemstones'),
     finish:    [...new Set(summaries.flatMap(s => s.finish || []))],
     sizing:    summaries[0] && summaries[0].size ? ('sz ' + summaries[0].size) : '',
@@ -351,5 +341,4 @@ function ringFieldsReset() {
   _intakeRings = [_intakeBlankRing()];
   const summary = document.getElementById('est-ring-stamping-summary');
   if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
-  if (typeof oiSyncRingItems === 'function') oiSyncRingItems([]);
 }
