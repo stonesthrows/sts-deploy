@@ -799,13 +799,11 @@ function calcEstimate() {
   }
 }
 
-async function saveEstimateToNotion() {
-  const editingId = document.getElementById('f-editing-id')?.value;
-  if (!editingId) return;
-  const o = ORDERS.find(x => x.id === editingId);
-  if (!o || !o.notionId) return;
-
-  // Build materials text from rows
+// Serializes the Materials Description/Cost rows (#est-materials) into the
+// "desc — $cost" text format stored in o.materials — shared by the
+// dedicated Save Estimate button and the main Save Changes button so
+// entered Cost values persist either way.
+function estCollectMaterialsText() {
   const rows = document.querySelectorAll('#est-materials .est-row');
   const lines = [];
   rows.forEach(row => {
@@ -814,7 +812,16 @@ async function saveEstimateToNotion() {
     const cost = parseFloat(inputs[1]?.value) || 0;
     if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
   });
-  const materialsText = lines.join('\n');
+  return lines.join('\n');
+}
+
+async function saveEstimateToNotion() {
+  const editingId = document.getElementById('f-editing-id')?.value;
+  if (!editingId) return;
+  const o = ORDERS.find(x => x.id === editingId);
+  if (!o || !o.notionId) return;
+
+  const materialsText = estCollectMaterialsText();
   const finalEl = document.getElementById('est-final');
   const finalPrice = parseFloat(finalEl?.textContent?.replace('$', '')) || 0;
 

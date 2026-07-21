@@ -1063,6 +1063,14 @@ function saveOrderEdit() {
       multiplier: estMultiplier,
       adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
     };
+    // Materials Cost($) rows live in #est-materials, separate from the
+    // f-materials textarea read above — without this, a plain Save Changes
+    // silently dropped every Cost value the user typed (only the dedicated
+    // Save Estimate button used to persist them).
+    if (typeof estCollectMaterialsText === 'function') {
+      const estMaterialsText = estCollectMaterialsText();
+      if (estMaterialsText) o.materials = estMaterialsText;
+    }
   }
 
   updateCompletedToggle();
