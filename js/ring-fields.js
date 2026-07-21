@@ -318,12 +318,25 @@ function _intakeRingsLegacyFields(rings) {
   const join = (key, sep = '; ') => rings
     .map((r, i) => summaries[i][key] ? (label(r, i) ? label(r, i) + ': ' + summaries[i][key] : summaries[i][key]) : '')
     .filter(Boolean).join(sep);
+  // Each ring's Materials line also carries its own Size and Inside Ring
+  // Stamping (not just the base material/width/texture description) — so
+  // that info rides along on the per-ring Estimate Builder row instead of
+  // only living in the sizing/stamping/stamping2 fields below, which cap
+  // out at rings 1-2.
+  const materialsLine = (r, i) => {
+    const base  = summaries[i].materials;
+    const lbl   = label(r, i);
+    const parts = [lbl ? (lbl + (base ? ': ' + base : '')) : base];
+    if (summaries[i].size) parts.push('Size ' + summaries[i].size);
+    if (r.stamping) parts.push('"' + r.stamping + '"');
+    return parts.filter(Boolean).join(' — ');
+  };
   return {
     // Newline-joined (not '; ') so the desktop Edit Order view's Estimate
     // Builder (populateEstimateFromOrder in js/order-widgets.js, which
     // splits o.materials on '\n') gives each ring its own Materials row
     // instead of showing all rings squashed into one row's description.
-    materials: join('materials', '\n'),
+    materials: rings.map(materialsLine).filter(Boolean).join('\n'),
     gemstones: join('gemstones'),
     finish:    [...new Set(summaries.flatMap(s => s.finish || []))],
     sizing:    summaries[0] && summaries[0].size ? ('sz ' + summaries[0].size) : '',
