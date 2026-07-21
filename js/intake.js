@@ -1,17 +1,28 @@
 // ════════════════════════════════════════════
 //  INTAKE  —  js/intake.js
 //  Standalone iPad order-intake PWA (intake.html).
-//  Creates orders only — editing lives in the main app's Edit Order
-//  modal (jewelry-workflow.html + js/orders.js).
-//  Depends on: js/sketchpad.js, js/notion.js, js/order-widgets.js.
-//  Orders are saved to localStorage ('sts-orders') first, then pushed
+//  Mainly creates new orders, but can also load an existing order for
+//  edit (?editId=<id>, opened via the Customers tab's "Edit in Intake"
+//  button — see intakeLoadOrderForEdit/intakePopulateFromOrder below).
+//  The full-featured alternative is still the main app's Edit Order
+//  modal (jewelry-workflow.html + js/orders.js), which covers fields
+//  this page's edit mode intentionally leaves untouched (sketch/
+//  signature/ref photos, sensitivities, gift & style registry, stones).
+//  Depends on: js/storage.js, js/sketchpad.js, js/notion.js, js/order-widgets.js.
+//  New orders are saved to localStorage ('sts-orders') first, then pushed
 //  to Notion via /api/notion-pipeline; anything that fails to push is
-//  retried on the next launch / when the network comes back.
+//  retried on the next launch / when the network comes back. Edits to an
+//  existing order instead write straight to the shared IndexedDB order
+//  store (js/storage.js) that the main app reads from, then patch Notion.
 // ════════════════════════════════════════════
 
 // ── Local store bootstrap (this page never renders the kanban) ──
 let ORDERS = [];
 try { ORDERS = JSON.parse(localStorage.getItem('sts-orders') || '[]'); } catch (e) { ORDERS = []; }
+
+// Set while this page is editing an existing order (loaded via
+// intakeLoadOrderForEdit) rather than creating a new one.
+let _editingOrder = null;
 
 function saveToStorage() {
   try { localStorage.setItem('sts-orders', JSON.stringify(ORDERS)); }
@@ -440,6 +451,119 @@ function _intakeValidate() {
 
 // ── Save & Close — builds the same order object shape as the old
 //    submitOrder() so Notion sync and the desktop app see no difference ──
+// ── Edit an existing order ──────────────────────────────────────
+// Reads the order from the shared IndexedDB store (js/storage.js) that
+// the main app writes to — intake's own `ORDERS`/localStorage is just its
+// offline creation queue and won't have orders it didn't create itself.
+async function intakeLoadOrderForEdit(id) {
+  let list = [];
+  try { list = (typeof stsStoreGet === 'function') ? (await stsStoreGet('orders')) || [] : []; }
+  catch (e) { list = []; }
+  const order = list.find(o => o.id === id);
+  if (!order) {
+    toast('Order not found on this device — try again once it has synced, or edit it from the desktop app.', '⚠', 7000);
+    return;
+  }
+  _editingOrder = order;
+  intakePopulateFromOrder(order);
+
+  const banner = document.getElementById('intake-edit-banner');
+  if (banner) banner.classList.remove('hidden');
+  const saveBtn = document.getElementById('intake-save-btn');
+  if (saveBtn) saveBtn.textContent = '✓ Save Changes';
+  // Reclassifying the type here would silently reset the order's pipeline
+  // stage back to "just taken in" — lock it; use the desktop Edit Order
+  // modal for that.
+  const typeSel = document.getElementById('f-order-type');
+  if (typeSel) typeSel.disabled = true;
+}
+
+// Reverse of the field collection in intakeSubmit() — fills the form from
+// an existing order so it can be edited and saved back in place. Covers
+// the fields staff most commonly need to fix (contact info, dates, price/
+// deposit/shipping, description, materials/items, piece details, address,
+// notes). Deliberately does NOT touch sketch/signature/ref-photo images,
+// sensitivities, the gift/style/ring-size registry, or the stone editor —
+// those have no safe "reload into this page's canvas/session state"
+// path yet, so intakeSubmit() preserves them untouched instead (see the
+// preserveKeys list there). Edit those via the desktop Edit Order modal.
+function intakePopulateFromOrder(o) {
+  const g = id => document.getElementById(id);
+  const set = (id, val) => { const el = g(id); if (el) el.value = val || ''; };
+
+  setNameFields(o.name);
+  set('f-email', o.email);
+  set('f-phone', fmtPhone(o.phone || ''));
+
+  const typeVal = (o.orderType && _TYPE_BLOCKS[o.orderType]) ? o.orderType : 'order';
+  intakeApplyTypeLayout(typeVal);
+
+  set('f-job-desc',     o.jobDesc);
+  set('f-description',  o.desc);
+  set('f-deadline',     o.deadline);
+  set('f-takein',       o.takeIn);
+  set('f-pickup',       o.pickup);
+  set('f-price',        o.price);
+  set('f-deposit',      o.deposit);
+  set('f-shipping',     o.shipping);
+  set('f-source',       o.contactSource);
+  set('f-assignee',     o.assignee);
+  set('f-paid-by',      o.paidBy);
+  set('f-notes',        o.notes);
+  set('f-customer-notes', o.customerNotes);
+  set('f-wrist',        o.wrist);
+  set('f-neck',         o.neck);
+  set('f-repair-notes', o.repairNotes);
+  set('f-resize-from',  o.resizeFrom);
+  set('f-resize-to',    o.resizeTo);
+
+  if (typeof oiLoadFromOrder === 'function') oiLoadFromOrder(o);
+
+  const isRingPiece = o.pieceType === 'Ring';
+  if (isRingPiece && typeof _intakeBlankRing === 'function') {
+    if (Array.isArray(o.rings) && o.rings.length) {
+      _intakeRings = o.rings.map(r => Object.assign(_intakeBlankRing(), r));
+    } else {
+      // Pre-per-ring orders never had rings[] — synthesize a single Ring 1
+      // entry from the legacy flat fields (mirrors orders.js _eoPopulateRings).
+      _intakeRings = [Object.assign(_intakeBlankRing(), {
+        category:     'Custom Ring',
+        customSize:   (o.sizing || '').replace(/^sz\s+/i, ''),
+        customMetal:  o.materials || '',
+        customTexture: o.finish || [],
+        customNotes:  o.gemstones || '',
+        stamping:     o.stamping || '',
+      })];
+    }
+    if (g('f-ring-count')) g('f-ring-count').value = _intakeRings.length;
+  } else {
+    set('f-sizing',    o.sizing);
+    set('f-materials', o.materials);
+    set('f-gemstones', o.gemstones);
+    set('f-stamping',  o.stamping);
+    document.querySelectorAll('#f-finish input').forEach(c => c.checked = (o.finish || []).includes(c.value));
+  }
+  set('f-piece-type', o.pieceType);
+  if (typeof intakeApplyPieceType === 'function') intakeApplyPieceType(o.pieceType || '');
+
+  if (typeof intakeSetOrderFor === 'function') intakeSetOrderFor(o.orderFor === 'couple' ? 'couple' : 'individual');
+  set('f-ringsize2', o.ringSize2);
+  set('f-stamping2', o.stamping2);
+
+  const sa = o.shippingAddress || {};
+  set('f-addr-street',  sa.street  || o.addrStreet  || '');
+  set('f-addr-street2', sa.street2 || o.addrStreet2 || '');
+  set('f-addr-city',    sa.city    || o.addrCity    || '');
+  set('f-addr-state',   sa.state   || o.addrState   || '');
+  set('f-addr-zip',     sa.zip     || o.addrZip     || '');
+  set('f-addr-country', sa.country || o.addrCountry || 'United States');
+  if (typeof toggleShippingAddress === 'function') toggleShippingAddress();
+
+  if (typeVal === 'order' && typeof populateEstimateFromOrder === 'function') populateEstimateFromOrder(o);
+  if (typeof calcEstimate === 'function') calcEstimate();
+  intakeUpdateShippingField();
+}
+
 async function intakeSubmit() {
   const btn = document.getElementById('intake-save-btn');
   if (btn && btn.disabled) return;
@@ -592,25 +716,71 @@ async function intakeSubmit() {
     } : null,
   };
 
-  ORDERS.push(order);
-  saveToStorage();
+  const isEdit = !!(_editingOrder && _editingOrder.id);
+  if (isEdit) {
+    // Merge onto a clone of the original order rather than saving `order`
+    // as-is — `order` above only ever holds the ~55 keys this form knows
+    // about, so a bare save would silently drop anything else the order
+    // carries (fullyPaid, square-sync metadata, older/newer fields, …).
+    // The keys below are ones intakeSubmit() *does* always recompute, but
+    // from session state this page never reloaded for an edit (sketch
+    // canvas, signature pad, sensitivities picker, gift/style registry,
+    // stone editor, declined-tier list) — left alone, those would compute
+    // as blank and wipe real data, so pull the original values back in.
+    const merged = Object.assign({}, _editingOrder, order);
+    ['sensitivities', 'ringSizes', 'styleProfile', 'gift', 'stones',
+     'estimateAlternatives', 'sketchImg', 'sketchInkImg', 'signatureImg',
+     'paperPageImg', 'refPhotos', 'trackingNumber', 'trackingCarrier',
+     'contactMethod'].forEach(k => { merged[k] = _editingOrder[k]; });
+    merged.id        = _editingOrder.id;
+    merged.notionId  = _editingOrder.notionId;
+    merged.stage     = _editingOrder.stage;     // don't reset pipeline stage
+    merged.orderType = _editingOrder.orderType; // type is locked while editing
+    Object.assign(order, merged);
+  }
+
+  if (isEdit) {
+    // Shared IndexedDB store the desktop app reads from — re-read first so
+    // this merges onto the latest copy instead of clobbering changes made
+    // elsewhere since this page loaded.
+    if (typeof stsStoreGet === 'function' && typeof stsStoreSet === 'function') {
+      try {
+        const all = (await stsStoreGet('orders')) || [];
+        const idx = all.findIndex(x => x.id === order.id);
+        if (idx >= 0) all[idx] = order; else all.push(order);
+        await stsStoreSet('orders', all);
+      } catch (e) { console.warn('Order save to IndexedDB failed', e); }
+    }
+  } else {
+    ORDERS.push(order);
+    saveToStorage();
+  }
   // Upsert the Client Profile as a side effect — no separate data-entry chore
   if (typeof stsCustUpsertFromOrder === 'function') stsCustUpsertFromOrder(order);
 
   const doneSub = document.getElementById('intake-done-sub');
   const doneTitle = document.getElementById('intake-done-title');
-  if (doneTitle) doneTitle.textContent = name + ' — ' + typeMap.label;
-  if (doneSub) doneSub.textContent = 'Syncing to Notion…';
+  if (doneTitle) doneTitle.textContent = name + ' — ' + (isEdit ? 'Updated' : typeMap.label);
+  if (doneSub) doneSub.textContent = isEdit ? 'Saving changes…' : 'Syncing to Notion…';
   const done = document.getElementById('intake-done');
   if (done) { done.classList.remove('hidden'); done.classList.add('flex'); }
 
-  const notionId = await notionCreateOrder(order);
-  if (notionId) {
-    order.notionId = notionId;
-    saveToStorage();
-    if (doneSub) doneSub.textContent = '✓ Synced to Notion' + (order.sketchImg ? ' (sketch attached)' : '');
+  if (isEdit) {
+    const result = await notionUpdateOrder(order);
+    if (doneSub) {
+      doneSub.textContent = result === 'ok'      ? '✓ Changes saved to Notion'
+                           : result === 'skipped' ? '✓ Saved — this order has no Notion link yet'
+                           : '⚠ Saved on this device — will retry syncing to Notion automatically.';
+    }
   } else {
-    if (doneSub) doneSub.textContent = '⚠ Saved on this iPad — will sync to Notion when back online. It won\'t appear on other devices until then.';
+    const notionId = await notionCreateOrder(order);
+    if (notionId) {
+      order.notionId = notionId;
+      saveToStorage();
+      if (doneSub) doneSub.textContent = '✓ Synced to Notion' + (order.sketchImg ? ' (sketch attached)' : '');
+    } else {
+      if (doneSub) doneSub.textContent = '⚠ Saved on this iPad — will sync to Notion when back online. It won\'t appear on other devices until then.';
+    }
   }
   intakeUpdateUnsynced();
   if (btn) btn.disabled = false;
@@ -618,6 +788,13 @@ async function intakeSubmit() {
 
 // ── Reset for the next customer (no reload — must work offline) ──
 function intakeReset() {
+  _editingOrder = null;
+  const typeSel = document.getElementById('f-order-type');
+  if (typeSel) typeSel.disabled = false;
+  document.getElementById('intake-edit-banner')?.classList.add('hidden');
+  const saveBtn = document.getElementById('intake-save-btn');
+  if (saveBtn) saveBtn.textContent = 'Save & Close';
+
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
    'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
@@ -1630,13 +1807,20 @@ eoUpdateBalanceDue = function () {
   intakeSizeSketchStage();
   intakeUpdateUnsynced();
 
-  // Prefill via query params (main app's "New Order for <customer>" links).
-  // Only the 4 intake-supported types apply — anything else (e.g. a synced
-  // order's 'etsy-order') falls back to Custom Design.
   const params = new URLSearchParams(location.search);
-  if (params.get('name'))  setNameFields(params.get('name'));
-  if (params.get('email')) { const el = document.getElementById('f-email'); if (el) el.value = params.get('email'); }
-  if (params.get('type')  && _TYPE_BLOCKS[params.get('type')]) intakeApplyTypeLayout(params.get('type'));
+
+  if (params.get('editId')) {
+    // Load an existing order for edit (Customers tab's "Edit in Intake"
+    // button) — this fully replaces the name/email/type prefill below.
+    intakeLoadOrderForEdit(params.get('editId'));
+  } else {
+    // Prefill via query params (main app's "New Order for <customer>" links).
+    // Only the 4 intake-supported types apply — anything else (e.g. a synced
+    // order's 'etsy-order') falls back to Custom Design.
+    if (params.get('name'))  setNameFields(params.get('name'));
+    if (params.get('email')) { const el = document.getElementById('f-email'); if (el) el.value = params.get('email'); }
+    if (params.get('type')  && _TYPE_BLOCKS[params.get('type')]) intakeApplyTypeLayout(params.get('type'));
+  }
 
   // Client Profile store: fold local orders in (idempotent), then enrich
   // from Notion when online — read-only, never touches ORDERS.

@@ -435,6 +435,7 @@ function buildCustomerExpandHtml(idx) {
         <div class="ct-prev-order-top">
           <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
           <span class="ct-open-order-hint">Open in New Order →</span>
+          <button class="ct-prev-edit-btn" onclick="editOrderInIntake('${o.id}');event.stopPropagation()" title="Open and edit this order in the Intake app">📱 Edit in Intake</button>
         </div>
         <div class="ct-prev-meta">
           <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
@@ -448,6 +449,7 @@ function buildCustomerExpandHtml(idx) {
       <div class="ct-prev-order-top">
         <div class="ct-prev-desc">${esc(o.desc||'(no description)')}</div>
         <button class="ct-prev-edit-btn" onclick="openOrderCard('${o.id}');event.stopPropagation()">✏ Edit</button>
+        <button class="ct-prev-edit-btn" onclick="editOrderInIntake('${o.id}');event.stopPropagation()" title="Open and edit this order in the Intake app">📱 Edit in Intake</button>
       </div>
       <div class="ct-prev-meta">
         <span class="ct-prev-stage" style="background:${stageBg};color:${stageClr}">${stageLabel(o.stage)}</span>
@@ -746,6 +748,14 @@ function prefillFromOrder(orderId) {
 // Start a new order for a past customer
 function prefillFromCustomer(name, email, type) {
   _openIntakePrefilled(name, email, type);
+}
+
+// Open an existing order in the Intake app, pre-loaded for editing —
+// js/intake.js reads ?editId=<id> from the shared IndexedDB order store
+// (see storage.js) and lets the change be saved back to that same order
+// instead of creating a new one.
+function editOrderInIntake(orderId) {
+  window.open('intake.html?editId=' + encodeURIComponent(orderId), '_blank');
 }
 
 // ════════════════════════════════════════════
