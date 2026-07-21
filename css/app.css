@@ -1426,7 +1426,7 @@
     }
     .ct-head {
       display: grid;
-      grid-template-columns: 1.6fr 120px 130px 100px 90px 28px;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px 34px 28px;
       padding: 10px 20px;
       background: #F8F3EC;
       border-bottom: 1px solid #E4DDD4;
@@ -1434,7 +1434,7 @@
     .ct-th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
     .ct-row {
       display: grid;
-      grid-template-columns: 1.6fr 120px 130px 100px 90px 28px;
+      grid-template-columns: 1.6fr 120px 130px 100px 90px 34px 28px;
       padding: 12px 20px;
       align-items: center;
       cursor: pointer;
@@ -1458,6 +1458,16 @@
     .ct-row:hover .ct-chevron { color: var(--accent); transform: translateX(2px); }
     .ct-open .ct-chevron,
     .ct-open .ct-row:hover .ct-chevron { transform: rotate(90deg); color: var(--accent); }
+
+    /* ── Outside-the-card "Edit in Intake" button (main/most-recent order) ── */
+    .ct-row-intake-btn {
+      font-size: 15px; line-height: 1; text-align: center;
+      background: none; border: none; cursor: pointer; padding: 4px;
+      border-radius: var(--rad-sm); color: var(--text3); opacity: 0.6;
+    }
+    .ct-row-intake-btn:hover { opacity: 1; background: #F2EDE6; color: var(--accent); }
+    .ct-row-intake-btn:disabled { opacity: 0.25; cursor: default; }
+    .ct-row-intake-btn:disabled:hover { background: none; color: var(--text3); }
 
     /* ── Inline expand panel ─────────────────── */
     .ct-expand {
@@ -4991,7 +5001,7 @@
     /* Customer table: scrollable */
     .cust-table { overflow-x: auto; }
     .ct-head,
-    .ct-row { min-width: 620px; }
+    .ct-row { min-width: 650px; }
 
     /* Customer bar: stack search + button */
     .cust-bar { flex-direction: column; align-items: stretch; gap: 10px; }

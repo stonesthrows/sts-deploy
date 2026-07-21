@@ -233,8 +233,9 @@ function renderCustomers() {
   }
 
   body.innerHTML = filteredCust.map((c, i) => {
-    const idx    = CUSTOMERS.indexOf(c);
-    const active = ORDERS.filter(o => o.name === c.name && !['complete','delivered'].includes(o.stage)).length;
+    const idx       = CUSTOMERS.indexOf(c);
+    const active    = ORDERS.filter(o => o.name === c.name && !['complete','delivered'].includes(o.stage)).length;
+    const mainOrder = customerMainOrder(c);
     return `
       <div class="ct-row-wrap" id="ct-wrap-${idx}">
         <div class="ct-row" onclick="toggleCustomerRow(${idx})">
@@ -251,11 +252,27 @@ function renderCustomers() {
           <div class="c-td c-muted">${fmtDate(c.lastContact)}</div>
           <div class="c-td">${c.totalOrders}</div>
           <div class="c-td c-muted">$${c.totalValue.toLocaleString()}</div>
+          <div class="c-td">
+            <button class="ct-row-intake-btn" ${mainOrder ? `onclick="editOrderInIntake('${mainOrder.id}');event.stopPropagation()"` : 'disabled'}
+              title="${mainOrder ? 'Open ' + (active > 0 ? 'their active order' : 'their most recent order') + ' in the Intake app' : 'No orders on file'}">📱</button>
+          </div>
           <div class="c-td ct-chevron">›</div>
         </div>
         <div class="ct-expand" id="ct-expand-${idx}"></div>
       </div>`;
   }).join('');
+}
+
+// Picks the customer's "main" order for the outside-the-card Intake
+// button: their most recently active order, or (if none are active)
+// their most recent order overall.
+function customerMainOrder(c) {
+  const orders = ORDERS.filter(o => o.name === c.name);
+  if (!orders.length) return null;
+  const activityDate = o => o.takeIn || o.deadline || '';
+  const active = orders.filter(o => !['complete','delivered'].includes(o.stage));
+  const pool   = active.length ? active : orders;
+  return pool.reduce((best, o) => (!best || activityDate(o) > activityDate(best)) ? o : best, null);
 }
 
 function filterCustomers(q) {
