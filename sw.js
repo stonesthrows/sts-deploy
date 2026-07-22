@@ -14,7 +14,7 @@
 //  the offline write queue handles API failures at the app layer.
 // ════════════════════════════════════════════
 
-const CACHE = 'sts-shell-v2';
+const CACHE = 'sts-shell-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -34,16 +34,13 @@ self.addEventListener('fetch', event => {
   if (url.origin !== location.origin) return;        // CDNs etc. — browser default
   if (url.pathname.startsWith('/api/')) return;      // never cache API responses
 
-  // Page navigations (the HTML shell) have stable URLs — unlike CSS/JS, which
-  // carry ?v= cache-busters — so the browser's HTTP disk cache can shadow a
-  // fresh deploy even though we're network-first. Fetch navigations with
-  // cache:'no-store' so every online page load gets the newest shell.
-  const netReq = (req.mode === 'navigate')
-    ? new Request(req.url, { cache: 'no-store', credentials: 'same-origin' })
-    : req;
-
+  // NETWORK-FIRST: fetch the original request untouched. Do NOT reconstruct
+  // navigation requests — a rebuilt Request loses the navigation's
+  // redirect:'manual' mode, so a redirected navigation (e.g. Cloudflare's
+  // 308 from /intake.html → /intake) yields a redirected response the browser
+  // refuses to render, hanging the page. The original request preserves that.
   event.respondWith(
-    fetch(netReq)
+    fetch(req)
       .then(res => {
         if (res.ok) {
           const copy = res.clone();
