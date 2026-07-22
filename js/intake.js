@@ -477,6 +477,38 @@ function _apGenToken() {
   return 'ap' + rnd;
 }
 
+// An image attached on the Approval step, used in place of a hand-drawn
+// sketch in the customer-facing snapshot. Session-scoped: it feeds
+// sendForApproval() and the Step-4 preview, but isn't persisted onto the
+// order (the sketch canvas remains the order's own record).
+let _apAttachedImg = null;
+
+// Read a chosen image file → dataURL → show it as the approval preview.
+function apAttachImage(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { toast('Please choose an image file', '⚠'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    _apAttachedImg = e.target.result;
+    const nameEl = document.getElementById('ap-attach-name');
+    if (nameEl) nameEl.textContent = file.name;
+    if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+    if (typeof toast === 'function') toast('Image attached — it will be sent in place of the sketch', '📎');
+  };
+  reader.onerror = () => toast('Could not read that image', '⚠');
+  reader.readAsDataURL(file);
+  input.value = '';   // allow re-selecting the same file later
+}
+
+// Drop the attached image and fall back to the order's sketch (if any).
+function apClearAttachedImage() {
+  _apAttachedImg = null;
+  const nameEl = document.getElementById('ap-attach-name');
+  if (nameEl) nameEl.textContent = '';
+  if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+}
+
 // Render the Step-4 preview each time it's opened, and refresh any existing
 // approval's live status from KV.
 function intakeRenderApproval() {
@@ -487,16 +519,24 @@ function intakeRenderApproval() {
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
 
-  // Sketch preview
+  // Design preview — an attached image wins over the hand-drawn sketch.
   const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
   const img = g('ap-sketch'), empty = g('ap-sketch-empty');
-  if (hasInk && typeof sketchExport === 'function') {
+  if (_apAttachedImg) {
+    if (img) { img.src = _apAttachedImg; img.classList.remove('hidden'); }
+    if (empty) empty.classList.add('hidden');
+  } else if (hasInk && typeof sketchExport === 'function') {
     if (img) { img.src = sketchExport(); img.classList.remove('hidden'); }
     if (empty) empty.classList.add('hidden');
   } else {
     if (img) img.classList.add('hidden');
     if (empty) empty.classList.remove('hidden');
   }
+  // Toggle the "Remove image" control + button label to match state.
+  const clearBtn = g('ap-attach-clear');
+  if (clearBtn) clearBtn.classList.toggle('hidden', !_apAttachedImg);
+  const attachBtn = g('ap-attach-btn');
+  if (attachBtn) attachBtn.textContent = _apAttachedImg ? '📎 Replace image' : '📎 Attach image';
 
   // Estimate summary
   const fin = _apReadFinancials();
@@ -584,7 +624,9 @@ async function sendForApproval() {
   if (status) status.textContent = 'Creating link…';
 
   const token = (window._intakeApproval && window._intakeApproval.token) || _apGenToken();
-  const sketch = (typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? sketchExport() : '';
+  // An attached image is sent in place of the hand-drawn sketch when present.
+  const sketch = _apAttachedImg
+    || ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? sketchExport() : '');
   const snapshot = {
     kind: 'create',
     token,
@@ -1018,6 +1060,7 @@ function intakeReset() {
   if (saveBtn) saveBtn.textContent = 'Save & Close';
 
   if (typeof window !== 'undefined') window._intakeApproval = null;
+  apClearAttachedImage();
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes', 'f-approval-note', 'f-approval-email',
    'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
