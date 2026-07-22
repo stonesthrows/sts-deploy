@@ -13,7 +13,8 @@ let _designsCurrentFull = null; // full design currently loaded for editing
 let _designsEditId   = null;    // null = new, string = editing existing
 let _designsView     = 'library';
 let _designsCatFilter = 'all';
-let _designsSubTab   = 'families'; // library sub-tab: 'families' (landing) | 'all'
+let _designsSubTab   = 'families'; // library sub-tab: 'families' (landing) | 'all' | 'stackable'
+const DSN_STACK_FAMILY = 'Stackable Rings'; // collection backing the Stackable Rings sub-tab
 let _designsSearch   = '';      // library search query, lowercased (empty = no search)
 let _dsnSearchTimer  = null;
 let _designsFamilyOpen = null;  // design-family drill-in (null = top level)
@@ -310,7 +311,7 @@ function _dsnRenderFamiliesGrid() {
 }
 
 function designsSetSubTab(tab) {
-  _designsSubTab = tab === 'all' ? 'all' : 'families';
+  _designsSubTab = (tab === 'all' || tab === 'stackable') ? tab : 'families';
   _designsFamilyOpen = null;
   document.querySelectorAll('.dsn-subtab').forEach(b => {
     b.classList.toggle('active', b.dataset.subtab === _designsSubTab);
@@ -339,7 +340,8 @@ function designsRenderLibrary() {
   const subtabs = document.getElementById('dsn-subtabs');
   if (subtabs) subtabs.style.display = _designsFamilyOpen ? 'none' : '';
   const catBar = document.getElementById('dsn-filter-bar');
-  if (catBar) catBar.style.display = famGridView ? 'none' : '';
+  // Stackable Rings is a single-collection view — the category filter is redundant there.
+  if (catBar) catBar.style.display = (famGridView || _designsSubTab === 'stackable') ? 'none' : '';
   const famWrap = document.getElementById('dsn-family-grid-wrap');
   if (famWrap) famWrap.style.display = famGridView ? '' : 'none';
   list.style.display = famGridView ? 'none' : '';
@@ -354,7 +356,11 @@ function designsRenderLibrary() {
   if (famGridView) { _dsnRenderFamiliesGrid(); return; }
 
   let filtered = _designs;
-  if (_designsCatFilter !== 'all') filtered = filtered.filter(d => d.category === _designsCatFilter);
+  if (_designsSubTab === 'stackable') {
+    filtered = filtered.filter(d => _dsnFamiliesOf(d).includes(DSN_STACK_FAMILY));
+  } else if (_designsCatFilter !== 'all') {
+    filtered = filtered.filter(d => d.category === _designsCatFilter);
+  }
   if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen));
   if (_designsSearch) filtered = filtered.filter(_dsnMatchesSearch);
 
