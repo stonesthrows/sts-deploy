@@ -8,7 +8,7 @@
   <style>
     :root {
       --gold:#C9983A; --gold-dk:#8a6d1f; --ink:#2e2818; --dim:#6a6250;
-      --line:#e6ddc8; --card:#ffffff; --bg:#f5efe2; --ok:#2f8f4e; --changes:#b06a1f;
+      --line:#E4E2DD; --card:#FAFAF9; --bg:#4E7A94; --ok:#2f8f4e; --changes:#b06a1f;
     }
     * { box-sizing:border-box; }
     html,body { margin:0; }
@@ -20,11 +20,11 @@
     }
     .wrap { max-width:600px; margin:0 auto; padding:22px 16px 60px; }
     header { text-align:center; margin-bottom:18px; }
-    header .shop { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dk); font-weight:700; }
-    header h1 { font-size:22px; margin:6px 0 0; font-weight:700; }
+    header .shop { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:#E8C878; font-weight:700; }
+    header h1 { font-size:22px; margin:6px 0 0; font-weight:700; color:#ffffff; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
     .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 12px; font-weight:700; }
-    .sketch { width:100%; border-radius:10px; display:block; background:#faf7ef; border:1px solid var(--line); }
+    .sketch { width:100%; border-radius:10px; display:block; background:#F4F4F2; border:1px solid var(--line); }
     table { width:100%; border-collapse:collapse; font-size:15.5px; }
     td { padding:5px 0; }
     td.r { text-align:right; }
@@ -35,7 +35,7 @@
     label.fld { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); font-weight:700; margin:0 0 8px; }
     textarea {
       width:100%; min-height:96px; border:1px solid var(--line); border-radius:10px;
-      padding:12px; font:inherit; font-size:16px; background:#fffdf8; resize:vertical; color:var(--ink);
+      padding:12px; font:inherit; font-size:16px; background:#FCFCFB; resize:vertical; color:var(--ink);
     }
     textarea:focus { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,152,58,.18); }
     .btns { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
@@ -43,7 +43,7 @@
       flex:1 1 180px; border:none; border-radius:12px; padding:16px; font:inherit;
       font-weight:700; font-size:16px; cursor:pointer; -webkit-tap-highlight-color:transparent;
     }
-    .approve { background:var(--gold); color:#201A0A; }
+    .approve { background:linear-gradient(135deg,#C9983A,#A87C28); color:#fff; }
     .approve:active { background:#b78829; }
     .changes { background:#fff; color:var(--changes); border:1.5px solid var(--changes); }
     .changes:active { background:#fdf3e7; }
@@ -52,7 +52,7 @@
     .state .big { font-size:44px; line-height:1; }
     .state h2 { border:0; text-transform:none; letter-spacing:0; font-size:20px; color:var(--ink); margin:12px 0 6px; }
     .state p { color:var(--dim); margin:0; }
-    .muted { color:var(--dim); font-size:13px; text-align:center; margin-top:20px; }
+    .muted { color:rgba(255,255,255,.8); font-size:13px; text-align:center; margin-top:20px; }
     .banner { border-radius:12px; padding:14px 16px; margin-bottom:16px; font-weight:600; }
     .banner.ok { background:#eaf6ee; color:var(--ok); }
     .banner.changes { background:#fbf0e2; color:var(--changes); }
