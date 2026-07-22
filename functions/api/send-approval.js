@@ -65,30 +65,32 @@ async function gmailAccessToken(env) {
 }
 
 function buildHtml(rec, link) {
+  // Colors match the webapp's "Coast" blue theme (css/app.css body.theme-coast):
+  //   accent #3A70C0 · navy header #1C2A48 · light-blue border #C8D8EE
   const rows = (Array.isArray(rec.lines) ? rec.lines : []).map(ln =>
-    `<tr><td style="padding:4px 0;color:#3a3320">${esc(ln.label)}</td>`
-    + `<td style="padding:4px 0;text-align:right;color:#3a3320">${money(ln.amount)}</td></tr>`
+    `<tr><td style="padding:4px 0;color:#2b3648">${esc(ln.label)}</td>`
+    + `<td style="padding:4px 0;text-align:right;color:#2b3648">${money(ln.amount)}</td></tr>`
   ).join('');
   const title = rec.title
-    ? `<p style="margin:0 0 10px;font-weight:700;color:#3a3320">${esc(rec.title)}</p>` : '';
+    ? `<p style="margin:0 0 10px;font-weight:700;color:#1C2A48">${esc(rec.title)}</p>` : '';
   const note = rec.notesForCustomer
-    ? `<p style="margin:18px 0 0;color:#4a4230;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
+    ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
 
-  return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#3a3320">
-    <h2 style="color:#8a6d1f;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
-    <p style="margin:0 0 18px;color:#6a6250">Hi ${esc(rec.customerName || 'there')}, here's the estimate for your piece. Take a look and let me know if it's good to go.</p>
+  return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#2b3648">
+    <h2 style="color:#3A70C0;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
+    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, here's the estimate for your piece. Take a look and let me know if it's good to go.</p>
     ${title}
     <table style="width:100%;border-collapse:collapse;font-size:15px">
       ${rows}
-      <tr><td style="padding:10px 0 0;border-top:1px solid #e6ddc8;font-weight:700">Total</td>
-          <td style="padding:10px 0 0;border-top:1px solid #e6ddc8;text-align:right;font-weight:700">${money(rec.total)}</td></tr>
+      <tr><td style="padding:10px 0 0;border-top:1px solid #C8D8EE;font-weight:700">Total</td>
+          <td style="padding:10px 0 0;border-top:1px solid #C8D8EE;text-align:right;font-weight:700">${money(rec.total)}</td></tr>
     </table>
     ${note}
     <p style="margin:26px 0;text-align:center">
-      <a href="${esc(link)}" style="display:inline-block;background:#C9983A;color:#201A0A;text-decoration:none;font-weight:700;padding:14px 30px;border-radius:10px">Review &amp; Approve →</a>
+      <a href="${esc(link)}" style="display:inline-block;background:#3A70C0;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 30px;border-radius:10px">Review &amp; Approve →</a>
     </p>
-    <p style="margin:0;color:#8a7f6a;font-size:13px">Or paste this link into your browser:<br>${esc(link)}</p>
-    <p style="margin:22px 0 0;color:#8a7f6a;font-size:13px">— Kyle Gross · Stones Throw Studio · stonesthrowjewelry.com</p>
+    <p style="margin:0;color:#7a8698;font-size:13px">Or paste this link into your browser:<br>${esc(link)}</p>
+    <p style="margin:22px 0 0;color:#7a8698;font-size:13px">— Kyle Gross · Stones Throw Studio · stonesthrowjewelry.com</p>
   </div>`;
 }
 
