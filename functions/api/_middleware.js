@@ -26,6 +26,8 @@ const PUBLIC = new Set([
   'square-sync',     // pinged by the external square-sync-trigger worker
   'sync-orders',     // idempotent scheduled Shopify/Etsy → Notion sync
   'timer-ping',      // trivial liveness probe, exposes nothing
+  'approval',        // customer estimate-approval page — auth is the unguessable KV token
+  'send-approval',   // called from intake (no api-auth); only mails the address on file for the token
 ]);
 
 // Only our own deploys (prod + Pages previews) and local dev may read

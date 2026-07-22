@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Your Estimate · Stones Throw Studio</title>
+  <style>
+    :root {
+      --gold:#C9983A; --gold-dk:#8a6d1f; --ink:#2e2818; --dim:#6a6250;
+      --line:#e6ddc8; --card:#ffffff; --bg:#f5efe2; --ok:#2f8f4e; --changes:#b06a1f;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; }
+    body {
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+      background:var(--bg); color:var(--ink);
+      padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      line-height:1.45;
+    }
+    .wrap { max-width:600px; margin:0 auto; padding:22px 16px 60px; }
+    header { text-align:center; margin-bottom:18px; }
+    header .shop { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dk); font-weight:700; }
+    header h1 { font-size:22px; margin:6px 0 0; font-weight:700; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 12px; font-weight:700; }
+    .sketch { width:100%; border-radius:10px; display:block; background:#faf7ef; border:1px solid var(--line); }
+    table { width:100%; border-collapse:collapse; font-size:15.5px; }
+    td { padding:5px 0; }
+    td.r { text-align:right; }
+    .qty { color:#9a8f75; }
+    .divider td { border-top:1px solid var(--line); padding-top:10px; }
+    .total td { font-weight:700; font-size:18px; padding-top:10px; border-top:2px solid var(--ink); }
+    .note { white-space:pre-wrap; color:#4a4230; margin:0; }
+    label.fld { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); font-weight:700; margin:0 0 8px; }
+    textarea {
+      width:100%; min-height:96px; border:1px solid var(--line); border-radius:10px;
+      padding:12px; font:inherit; font-size:16px; background:#fffdf8; resize:vertical; color:var(--ink);
+    }
+    textarea:focus { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,152,58,.18); }
+    .btns { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+    button {
+      flex:1 1 180px; border:none; border-radius:12px; padding:16px; font:inherit;
+      font-weight:700; font-size:16px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    }
+    .approve { background:var(--gold); color:#201A0A; }
+    .approve:active { background:#b78829; }
+    .changes { background:#fff; color:var(--changes); border:1.5px solid var(--changes); }
+    .changes:active { background:#fdf3e7; }
+    button:disabled { opacity:.5; }
+    .state { text-align:center; padding:30px 16px; }
+    .state .big { font-size:44px; line-height:1; }
+    .state h2 { border:0; text-transform:none; letter-spacing:0; font-size:20px; color:var(--ink); margin:12px 0 6px; }
+    .state p { color:var(--dim); margin:0; }
+    .muted { color:var(--dim); font-size:13px; text-align:center; margin-top:20px; }
+    .banner { border-radius:12px; padding:14px 16px; margin-bottom:16px; font-weight:600; }
+    .banner.ok { background:#eaf6ee; color:var(--ok); }
+    .banner.changes { background:#fbf0e2; color:var(--changes); }
+    .hidden { display:none; }
+    .err { color:#b03030; text-align:center; padding:40px 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="shop" id="shop">Stones Throw Studio</div>
+      <h1>Your Custom Estimate</h1>
+    </header>
+
+    <div id="loading" class="muted" style="padding:50px 0;">Loading your estimate…</div>
+    <div id="error" class="err hidden"></div>
+
+    <main id="content" class="hidden">
+      <div id="responded-banner" class="hidden"></div>
+
+      <div class="card" id="sketch-card">
+        <h2>Design</h2>
+        <img id="sketch" class="sketch" alt="Design sketch">
+      </div>
+
+      <div class="card">
+        <h2>Estimate</h2>
+        <div id="est-title" class="hidden" style="font-weight:700;font-size:16px;margin-bottom:10px;"></div>
+        <table id="est-table"></table>
+      </div>
+
+      <div class="card hidden" id="note-card">
+        <h2>A note from Kyle</h2>
+        <p class="note" id="cust-note"></p>
+      </div>
+
+      <div class="card" id="respond-card">
+        <h2>Your response</h2>
+        <label class="fld" for="resp">Notes or questions (optional)</label>
+        <textarea id="resp" placeholder="Anything you'd like changed, or just say it looks great…"></textarea>
+        <div class="btns">
+          <button class="approve" id="btn-approve" onclick="respond('approved')">✓ Approve estimate</button>
+          <button class="changes" id="btn-changes" onclick="respond('changes')">Request changes</button>
+        </div>
+      </div>
+
+      <p class="muted">Questions? Reply to the email or text Kyle at 512-217-3455.</p>
+    </main>
+  </div>
+
+  <script>
+    var TOKEN = new URLSearchParams(location.search).get('token') || '';
+    var REC = null;
+    var $ = function (id) { return document.getElementById(id); };
+    function money(n) { return '$' + (Number(n) || 0).toFixed(2); }
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+    function showError(msg) {
+      $('loading').classList.add('hidden');
+      var e = $('error'); e.textContent = msg; e.classList.remove('hidden');
+    }
+
+    function renderEstimate(r) {
+      if (r.title) { var t = $('est-title'); t.textContent = r.title; t.classList.remove('hidden'); }
+      var lines = Array.isArray(r.lines) ? r.lines : [];
+      var rows = '';
+      lines.forEach(function (ln) {
+        rows += '<tr><td>' + esc(ln.label) + '</td><td class="r">' + money(ln.amount) + '</td></tr>';
+      });
+      rows += '<tr class="total"><td>Total</td><td class="r">' + money(r.total) + '</td></tr>';
+      $('est-table').innerHTML = rows;
+    }
+
+    function renderRespondedState(r) {
+      var approved = r.status === 'approved';
+      var b = $('responded-banner');
+      b.className = 'banner ' + (approved ? 'ok' : 'changes');
+      var when = r.respondedAt ? new Date(r.respondedAt).toLocaleDateString(undefined, { month:'long', day:'numeric', year:'numeric' }) : '';
+      b.innerHTML = (approved ? '✓ You approved this estimate' : '✎ You requested changes')
+        + (when ? ' on ' + when : '')
+        + (r.response ? '<div style="font-weight:400;margin-top:6px;white-space:pre-wrap">“' + esc(r.response) + '”</div>' : '');
+      b.classList.remove('hidden');
+      // Lock the form
+      $('resp').value = r.response || '';
+      $('resp').disabled = true;
+      $('btn-approve').disabled = true;
+      $('btn-changes').disabled = true;
+      $('respond-card').classList.add('hidden');
+    }
+
+    function render(r) {
+      REC = r;
+      if (r.shopName) $('shop').textContent = r.shopName;
+      if (r.sketch) { $('sketch').src = r.sketch; }
+      else { $('sketch-card').classList.add('hidden'); }
+      renderEstimate(r);
+      if (r.notesForCustomer) { $('cust-note').textContent = r.notesForCustomer; $('note-card').classList.remove('hidden'); }
+      $('loading').classList.add('hidden');
+      $('content').classList.remove('hidden');
+      if (r.status === 'approved' || r.status === 'changes') renderRespondedState(r);
+    }
+
+    function respond(decision) {
+      $('btn-approve').disabled = true;
+      $('btn-changes').disabled = true;
+      var notes = $('resp').value.trim();
+      fetch('/api/approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'respond', token: TOKEN, decision: decision, notes: notes }),
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.d.error || 'Could not save your response');
+          REC.status = decision; REC.response = notes; REC.respondedAt = new Date().toISOString();
+          renderRespondedState(REC);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        })
+        .catch(function (e) {
+          $('btn-approve').disabled = false;
+          $('btn-changes').disabled = false;
+          alert(e.message || 'Something went wrong — please try again.');
+        });
+    }
+
+    (function init() {
+      if (!TOKEN) { showError('This link is missing its estimate code. Please use the link from your email.'); return; }
+      fetch('/api/approval?token=' + encodeURIComponent(TOKEN))
+        .then(function (r) {
+          if (r.status === 404) throw new Error('We couldn’t find this estimate. It may have been removed — please contact Kyle.');
+          return r.json();
+        })
+        .then(function (d) {
+          if (!d.approval) throw new Error(d.error || 'Estimate not available.');
+          render(d.approval);
+        })
+        .catch(function (e) { showError(e.message || 'Unable to load this estimate.'); });
+    })();
+  </script>
+</body>
+</html>

@@ -810,6 +810,7 @@
         <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#C9983A] scale-125"></span>
         <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#35576D]"></span>
         <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#35576D]"></span>
+        <span class="intake-dot h-[9px] w-[9px] rounded-full bg-[#35576D]"></span>
       </div>
     </div>
     <div class="flex-1"></div>
@@ -1434,6 +1435,48 @@
       </div>
     </section>
 
+    <!-- ── Step 4 · Send for Approval ── -->
+    <section id="step-4" class="absolute inset-0 hidden step-scroll px-3 py-4 md:px-6">
+      <div class="mx-auto max-w-4xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Send for Approval</div>
+        <p class="text-[13px] text-slate-500 mb-4">Email the customer the sketch + estimate for their sign-off. Their approval or requested changes come back onto this order automatically.</p>
+
+        <!-- Response banner (shown once the customer has responded) -->
+        <div id="ap-response" class="hidden mb-4 rounded-xl px-4 py-3 text-[14px] font-semibold"></div>
+
+        <!-- Design preview -->
+        <div id="ap-sketch-wrap" class="mb-4">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A] mb-2">Design</div>
+          <img id="ap-sketch" alt="Design sketch" class="w-full max-w-sm rounded-lg border border-slate-200 bg-slate-50">
+          <div id="ap-sketch-empty" class="hidden text-[13px] text-slate-400 italic">No sketch on this order — the estimate will be sent on its own.</div>
+        </div>
+
+        <!-- Estimate summary -->
+        <div class="mb-4">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A] mb-2">Estimate</div>
+          <table class="w-full text-[15px]" id="ap-est-summary"></table>
+        </div>
+
+        <!-- Note to customer (prefilled from the Items & Price step) -->
+        <div class="fg mt-3">
+          <label>Notes for the customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown on the approval page</span></label>
+          <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…"></textarea>
+        </div>
+
+        <!-- Recipient -->
+        <div class="fg mt-3" style="max-width:340px;">
+          <label>Customer email</label>
+          <input type="email" id="f-approval-email" placeholder="name@example.com" autocomplete="off">
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="sendForApproval()">✉ Send for Approval</button>
+          <button type="button" class="btn btn-ghost hidden" id="ap-copy-btn" onclick="apCopyLink()">🔗 Copy link</button>
+          <span id="ap-status" style="margin-left:auto;font-size:13px;color:var(--accent);"></span>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Paper mode Screen 1 — Handwriting. A single full-page work-order
          page (printed template + transparent ink + ghost-chip layer) —
          order type / piece type / pickup circles, ruled fields, a
@@ -1479,6 +1522,7 @@
       <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="1" onclick="intakeStep(1)"><span class="tab-glyph g-empty" id="tab-glyph-1">○</span>Customer</button>
       <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="2" onclick="intakeStep(2)"><span class="tab-glyph g-empty" id="tab-glyph-2">○</span>Design</button>
       <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="3" onclick="intakeStep(3)"><span class="tab-glyph g-empty" id="tab-glyph-3">○</span>Items &amp; Price</button>
+      <button type="button" class="intake-tab rounded-lg px-4 py-2 text-[12px] font-bold uppercase tracking-wide" data-step="4" onclick="intakeStep(4)"><span class="tab-glyph g-empty" id="tab-glyph-4">○</span>Approval</button>
     </div>
     <button type="button" id="intake-next-btn" onclick="intakeStep(_intakeStep + 1)"
             class="rounded-lg bg-[#2A4F65] px-5 py-2.5 text-sm font-bold text-[#DCE6EE] active:bg-[#35576D]">Next ›</button>
@@ -1608,12 +1652,12 @@
 <input type="file" id="rp-file" accept="image/*" multiple style="display:none;" onchange="rpFilesChosen(this)">
 <script src="js/storage.js?v=20260720a"></script>
 <script src="js/sketchpad.js?v=5"></script>
-<script src="js/notion.js?v=20260721a"></script>
+<script src="js/notion.js?v=20260722a"></script>
 <script src="js/order-widgets.js?v=20260722a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=17"></script>
+<script src="js/intake.js?v=18"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>

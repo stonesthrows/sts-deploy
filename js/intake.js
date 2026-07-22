@@ -67,15 +67,15 @@ let _intakeStep = 1;
 
 function _intakeMaxStep() {
   const type = document.getElementById('f-order-type')?.value || 'order';
-  return type === 'order' ? 3 : 1;
+  return type === 'order' ? 4 : 1;
 }
 
 function intakeStep(n) {
   const maxStep = _intakeMaxStep();
   _intakeStep = Math.min(maxStep, Math.max(1, n));
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 4; i++) {
     const panel = document.getElementById('step-' + i);
-    // Step 2 is a flex column (drawer + canvas); 1 and 3 are scroll panels
+    // Step 2 is a flex column (drawer + canvas); 1, 3 and 4 are scroll panels
     if (panel) panel.style.display = (i === _intakeStep) ? (i === 2 ? 'flex' : 'block') : 'none';
   }
   document.querySelectorAll('.intake-tab').forEach(b => {
@@ -98,6 +98,7 @@ function intakeStep(n) {
   if (next) next.classList.toggle('invisible', _intakeStep === maxStep);
   document.querySelectorAll('.step-scroll').forEach(p => { p.scrollTop = 0; });
   if (_intakeStep === 2) intakeSizeSketchStage();
+  if (_intakeStep === 4 && typeof intakeRenderApproval === 'function') intakeRenderApproval();
   if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh(); // sketch ink has no input event — catch it on step changes
 }
 
@@ -434,6 +435,215 @@ function _intakeEstMaterialLines() {
   return lines.join('\n');
 }
 
+// ══════════════════════════════════════════════
+//  Step 4 · Send for Approval
+//  Assembles a customer-facing snapshot (sketch + presentable price lines,
+//  never the raw material cost basis), stores it in KV via /api/approval,
+//  and emails the customer a link via /api/send-approval. The unguessable
+//  token is stashed on window._intakeApproval so it persists onto the order
+//  at Save & Close (App Data 'approval' field) and the response can be
+//  pulled back later. See functions/api/approval.js + send-approval.js.
+// ══════════════════════════════════════════════
+window._intakeApproval = window._intakeApproval || null;
+let _apLink = '';
+
+function _apMoney(n) { return '$' + (Number(n) || 0).toFixed(2); }
+function _apNum(s) { return parseFloat(String(s == null ? '' : s).replace(/[^0-9.\-]/g, '')) || 0; }
+function _apEsc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+
+// Customer-facing breakdown derived from the DISPLAYED estimate totals
+// (which already include markup, adjustment, tax) — no cost basis leaks.
+function _apReadFinancials() {
+  const g = id => document.getElementById(id);
+  const total    = _apNum(g('est-final')?.textContent);
+  const shipping = _apNum(g('est-shipping')?.value);
+  const taxOn    = g('est-tax-toggle')?.checked || false;
+  const tax      = taxOn ? _apNum(g('est-tax-display')?.textContent) : 0;
+  const work     = Math.max(0, Math.round((total - shipping - tax) * 100) / 100);
+  const lines = [{ label: 'Design & labor', amount: work }];
+  if (shipping > 0) lines.push({ label: 'Shipping', amount: shipping });
+  if (tax > 0)      lines.push({ label: 'Sales tax (8.25%)', amount: tax });
+  return { total, shipping, tax, work, lines };
+}
+
+function _apTitle() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  return g('f-job-desc') || g('f-description') || 'Custom piece';
+}
+
+function _apGenToken() {
+  const rnd = (self.crypto && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g, '')
+            : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+  return 'ap' + rnd;
+}
+
+// Render the Step-4 preview each time it's opened, and refresh any existing
+// approval's live status from KV.
+function intakeRenderApproval() {
+  const g = id => document.getElementById(id);
+  // Prefill note + email from earlier steps if still blank
+  const noteEl = g('f-approval-note');
+  if (noteEl && !noteEl.value.trim()) noteEl.value = (g('f-customer-notes')?.value || '').trim();
+  const emailEl = g('f-approval-email');
+  if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
+
+  // Sketch preview
+  const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
+  const img = g('ap-sketch'), empty = g('ap-sketch-empty');
+  if (hasInk && typeof sketchExport === 'function') {
+    if (img) { img.src = sketchExport(); img.classList.remove('hidden'); }
+    if (empty) empty.classList.add('hidden');
+  } else {
+    if (img) img.classList.add('hidden');
+    if (empty) empty.classList.remove('hidden');
+  }
+
+  // Estimate summary
+  const fin = _apReadFinancials();
+  const tbl = g('ap-est-summary');
+  if (tbl) {
+    let rows = '<tr><td colspan="2" style="font-weight:700;padding-bottom:6px">' + _apEsc(_apTitle()) + '</td></tr>';
+    fin.lines.forEach(ln => {
+      rows += '<tr><td style="padding:3px 0">' + _apEsc(ln.label) + '</td>'
+           +  '<td style="padding:3px 0;text-align:right">' + _apMoney(ln.amount) + '</td></tr>';
+    });
+    rows += '<tr><td style="padding:8px 0 0;border-top:1px solid #e2e8f0;font-weight:700">Total</td>'
+         +  '<td style="padding:8px 0 0;border-top:1px solid #e2e8f0;text-align:right;font-weight:700">' + _apMoney(fin.total) + '</td></tr>';
+    tbl.innerHTML = rows;
+  }
+
+  // Existing approval? show status + refresh from KV
+  const ap = window._intakeApproval;
+  const status = g('ap-status');
+  if (ap && ap.token) {
+    _apLink = ap.link || (location.origin + '/approval?token=' + ap.token);
+    g('ap-copy-btn')?.classList.remove('hidden');
+    if (status) status.textContent = ap.status === 'sent' ? 'Sent — awaiting response' : '';
+    _apRenderResponse(ap);
+    _apFetchStatus(ap.token);
+  } else {
+    if (status) status.textContent = '';
+    g('ap-copy-btn')?.classList.add('hidden');
+    const r = g('ap-response'); if (r) r.classList.add('hidden');
+  }
+}
+
+function _apRenderResponse(ap) {
+  const box = document.getElementById('ap-response');
+  if (!box) return;
+  if (!ap || (ap.status !== 'approved' && ap.status !== 'changes')) { box.classList.add('hidden'); return; }
+  const approved = ap.status === 'approved';
+  const when = ap.respondedAt ? new Date(ap.respondedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  box.style.background = approved ? '#eaf6ee' : '#fbf0e2';
+  box.style.color      = approved ? '#2f8f4e' : '#b06a1f';
+  box.innerHTML = (approved ? '✓ Customer approved' : '✎ Customer requested changes')
+    + (when ? ' · ' + when : '')
+    + (ap.response ? '<div style="font-weight:400;margin-top:4px;white-space:pre-wrap">“' + _apEsc(ap.response) + '”</div>' : '');
+  box.classList.remove('hidden');
+}
+
+function _apFetchStatus(token) {
+  fetch('/api/approval?token=' + encodeURIComponent(token))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d || !d.approval) return;
+      const a = d.approval;
+      if (window._intakeApproval && window._intakeApproval.token === token) {
+        window._intakeApproval.status      = a.status;
+        window._intakeApproval.response    = a.response;
+        window._intakeApproval.respondedAt = a.respondedAt;
+        _apRenderResponse(window._intakeApproval);
+        if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+      }
+    })
+    .catch(() => {});
+}
+
+function apCopyLink() {
+  if (!_apLink) return;
+  const done = () => toast('Approval link copied', '🔗');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(_apLink).then(done).catch(() => prompt('Copy this link:', _apLink));
+  } else { prompt('Copy this link:', _apLink); }
+}
+
+async function sendForApproval() {
+  const g = id => document.getElementById(id);
+  const email = (g('f-approval-email')?.value || '').trim();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast('Add a valid customer email first', '⚠');
+    g('f-approval-email')?.focus();
+    return;
+  }
+  const fin = _apReadFinancials();
+  if (!fin.total) { toast('Build the estimate first (Items & Price)', '⚠'); intakeStep(3); return; }
+
+  const btn = g('ap-send-btn');
+  const status = g('ap-status');
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Creating link…';
+
+  const token = (window._intakeApproval && window._intakeApproval.token) || _apGenToken();
+  const sketch = (typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? sketchExport() : '';
+  const snapshot = {
+    kind: 'create',
+    token,
+    orderId:      (_editingOrder && _editingOrder.id) || '',
+    notionPageId: (_editingOrder && _editingOrder.notionId) || '',
+    customerName:  getFullName() || 'Customer',
+    customerEmail: email,
+    sketch,
+    title: _apTitle(),
+    lines: fin.lines,
+    total: fin.total,
+    notesForCustomer: (g('f-approval-note')?.value || '').trim(),
+    shopName: 'Stones Throw Studio',
+  };
+
+  try {
+    const cr = await fetch('/api/approval', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshot),
+    });
+    if (!cr.ok) { const e = await cr.json().catch(() => ({})); throw new Error(e.error || 'Could not create approval'); }
+  } catch (e) {
+    if (status) status.textContent = '⚠ ' + (e.message || 'Failed to create link');
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  // Stash the pointer so Save & Close persists it onto the order.
+  _apLink = location.origin + '/approval?token=' + token;
+  window._intakeApproval = { token, status: 'sent', sentAt: new Date().toISOString(),
+                             notesForCustomer: snapshot.notesForCustomer, link: _apLink };
+  if (_editingOrder) _editingOrder.approval = window._intakeApproval;
+  g('ap-copy-btn')?.classList.remove('hidden');
+  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+
+  // Send the email server-side.
+  if (status) status.textContent = 'Sending email…';
+  try {
+    const sr = await fetch('/api/send-approval', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const sd = await sr.json().catch(() => ({}));
+    if (sr.ok) {
+      if (status) status.textContent = '✓ Emailed to ' + email + ' — Save & Close to keep it on the order';
+      toast('Estimate emailed to ' + email, '✅');
+    } else if (sd.error === 'email-not-configured') {
+      if (status) status.textContent = '🔗 Link ready — email setup pending. Use “Copy link”.';
+      toast('Link ready — copy it to send (email not set up yet)', '🔗', 6000);
+    } else {
+      if (status) status.textContent = '⚠ Link ready, email failed: ' + (sd.error || sr.status) + ' — use “Copy link”.';
+    }
+  } catch (e) {
+    if (status) status.textContent = '⚠ Link ready, email failed — use “Copy link”.';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // Required-field validation shared by the review screen and the save
 // itself — flags the first gap and deep-links to it (toast + red border).
 function _intakeValidate() {
@@ -466,6 +676,9 @@ async function intakeLoadOrderForEdit(id) {
     return;
   }
   _editingOrder = order;
+  // Carry any prior estimate-approval into the session so Step 4 shows its
+  // status (and re-sending reuses the same token/link).
+  window._intakeApproval = (order.approval && order.approval.token) ? order.approval : null;
   intakePopulateFromOrder(order);
 
   const banner = document.getElementById('intake-edit-banner');
@@ -667,6 +880,10 @@ async function intakeSubmit() {
     gemstones:     ringLegacy ? ringLegacy.gemstones : g('f-gemstones').value.trim(),
     finish:        ringLegacy ? ringLegacy.finish : [...document.querySelectorAll('#f-finish input:checked')].map(c => c.value),
     rings:         rings || undefined,
+    // Estimate-approval pointer (token + status). Heavy snapshot lives in
+    // KV under the token; this small pointer round-trips via App Data so the
+    // order remembers it was sent for approval. See sendForApproval().
+    approval:      (typeof window !== 'undefined' && window._intakeApproval) || null,
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
     sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
     // Client-shown reference photos (Photos tab in the bottom sheet) —
@@ -738,6 +955,9 @@ async function intakeSubmit() {
     merged.stage     = _editingOrder.stage;     // don't reset pipeline stage
     merged.orderType = _editingOrder.orderType; // type is locked while editing
     Object.assign(order, merged);
+    // A newly-sent approval this session wins; otherwise keep the one already
+    // on the order so re-saving an edit never wipes a prior approval.
+    order.approval = (typeof window !== 'undefined' && window._intakeApproval) || _editingOrder.approval || null;
   }
 
   if (isEdit) {
@@ -797,8 +1017,9 @@ function intakeReset() {
   const saveBtn = document.getElementById('intake-save-btn');
   if (saveBtn) saveBtn.textContent = 'Save & Close';
 
+  if (typeof window !== 'undefined') window._intakeApproval = null;
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
-   'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes',
+   'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes', 'f-approval-note', 'f-approval-email',
    'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
    'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
    'f-sensitivity-note',
@@ -1706,17 +1927,21 @@ function _intakeTabStates() {
   const price = parseFloat(v('f-price')) || 0;
   const s3any = !!(price || v('f-notes') || v('f-deposit') || _estReadDom().marked > 0);
   const state = (done, any) => done ? 'done' : any ? 'partial' : 'empty';
+  const ap = (typeof window !== 'undefined' && window._intakeApproval) || null;
+  const s4done = !!(ap && (ap.status === 'approved' || ap.status === 'changes'));
+  const s4any  = !!ap; // an estimate has been sent
   return {
     1: state(s1done, s1any),
     2: state(sketch && params, sketch || params),
     3: state(price > 0, s3any),
+    4: state(s4done, s4any),
   };
 }
 
 function intakeTabsRefresh() {
   const states = _intakeTabStates();
   const GLYPH = { done: '✓', partial: '●', empty: '○' };
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 4; i++) {
     const el = document.getElementById('tab-glyph-' + i);
     if (!el) continue;
     el.textContent = GLYPH[states[i]];

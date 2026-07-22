@@ -350,7 +350,7 @@ async function notionSyncFromNotion() {
       // never let an older/blank Notion copy erase a local value) + images
       // that live only on-device.
       'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
-      'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg',
+      'stones', 'estimateAlternatives', 'estimate', 'approval', 'sketchInkImg', 'signatureImg',
       'refPhotos', 'refPhotosSyncedHash', 'rings'];
 
     for (const no of notionOrders) {
@@ -497,7 +497,7 @@ async function notionStartupSync() {
       // Structured intake fields + on-device images — same rule as above:
       // a Notion copy without them must not erase the local ones.
       ['sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
-       'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg'].forEach(f => {
+       'stones', 'estimateAlternatives', 'estimate', 'approval', 'sketchInkImg', 'signatureImg'].forEach(f => {
         const v = o[f];
         if (v == null) return;
         if (Array.isArray(v) && !v.length) return;
@@ -552,7 +552,7 @@ async function notionStartupSync() {
       if (!no.orderSource     && lf.orderSource)     no.orderSource     = lf.orderSource;
       if (!no.sourceOrderNumber && lf.sourceOrderNumber) no.sourceOrderNumber = lf.sourceOrderNumber;
       ['sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
-       'stones', 'estimateAlternatives', 'estimate', 'sketchInkImg', 'signatureImg'].forEach(f => {
+       'stones', 'estimateAlternatives', 'estimate', 'approval', 'sketchInkImg', 'signatureImg'].forEach(f => {
         if (lf[f] == null) return;
         const nv = no[f];
         if (nv == null || (Array.isArray(nv) && !nv.length)) no[f] = lf[f];

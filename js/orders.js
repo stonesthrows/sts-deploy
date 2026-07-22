@@ -399,6 +399,7 @@ function _eoPopulateFieldsInner(o) {
   _orderFormLegacyFields(o);
   eoRenderViewIdentity(o);
   eoLoadSketch(o);
+  eoRenderApproval(o);
   eoLoadRefPhotos(o);
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
@@ -575,6 +576,48 @@ function _eoSetSketchSectionVisible(visible) {
   const box = document.getElementById('eo-sketch-view');
   if (sec) sec.classList.toggle('eo-no-sketch', !visible);
   if (box) box.classList.toggle('eo-no-sketch', !visible);
+}
+
+// Read-only estimate-approval status in the desktop Edit Order modal.
+// Sending happens in the intake app; here we just show where the customer
+// landed. Fetches the latest from KV and, if it changed, writes it back
+// onto the order so Notion + the card reflect the response too.
+function eoRenderApproval(o) {
+  const box = document.getElementById('eo-approval-badge');
+  if (!box) return;
+  const ap = o && o.approval;
+  if (!ap || !ap.token) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  const esc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const paint = (a) => {
+    const map = {
+      sent:     { bg: '#FBF6E9', fg: '#8A6D1F', icon: '⏳', label: 'Sent for approval' },
+      approved: { bg: '#EAF6EE', fg: '#2F8F4E', icon: '✓',  label: 'Customer approved' },
+      changes:  { bg: '#FBF0E2', fg: '#B06A1F', icon: '✎',  label: 'Changes requested' },
+    };
+    const m = map[a.status] || map.sent;
+    const when = a.respondedAt ? ' · ' + new Date(a.respondedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+               : (a.sentAt ? ' · sent ' + new Date(a.sentAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+    box.style.cssText = 'display:block;background:' + m.bg + ';color:' + m.fg + ';border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;font-weight:600;';
+    box.innerHTML = m.icon + ' ' + m.label + when
+      + (a.response ? '<div style="font-weight:400;margin-top:4px;white-space:pre-wrap;">“' + esc(a.response) + '”</div>' : '');
+  };
+  paint(ap);
+
+  // Refresh from KV; persist back if the customer has since responded.
+  fetch('/api/approval?token=' + encodeURIComponent(ap.token))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d || !d.approval) return;
+      const a = d.approval;
+      if (a.status !== ap.status || a.response !== ap.response) {
+        o.approval = { ...ap, status: a.status, response: a.response, respondedAt: a.respondedAt };
+        paint(o.approval);
+        if (typeof saveToStorage === 'function') saveToStorage();
+        if (o.notionId && typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
+      }
+    })
+    .catch(() => {});
 }
 
 function eoLoadSketch(o) {

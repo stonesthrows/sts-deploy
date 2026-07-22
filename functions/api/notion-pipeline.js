@@ -113,6 +113,11 @@ const APP_DATA_FIELDS = [
   'stones', 'estimateAlternatives', 'estimate',
   'items', 'jobDescMode', 'fullyPaid', 'shipping',
   'orderFor', 'ringSize2', 'stamping', 'stamping2',
+  // Estimate-approval pointer (token + status + customer response). The
+  // heavy snapshot (sketch image, line items) lives in KV under the token;
+  // this is just the small pointer so the order remembers it was sent and
+  // shows the latest status/response across devices. See functions/api/approval.js.
+  'approval',
   // Per-ring Meditation Ring / Simple Band / Custom Ring structured data
   // (js/ring-fields.js) — was missing here entirely, so it silently never
   // reached Notion; any device that pulled the order back down only ever
