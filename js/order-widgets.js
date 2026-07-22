@@ -732,15 +732,12 @@ function addMaterialRow(desc = '', cost = '', qty = '') {
     // StullerSearch (js/stuller.js) is only loaded by the main app — guarded so intake.html doesn't throw
     '<button class="est-stuller-btn eo-edit-only" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
     '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" onfocus="estCostFocus(this)" oninput="estCostInput(this)" onblur="estCostBlur(this)">' +
-    // Per-row cost multiplier (× qty). Blank = 1×; enter 2 to double this material's cost.
-    '<input class="est-input est-qty-input eo-edit-only" type="number" placeholder="×1" step="1" min="0" title="Multiply this material\'s cost" oninput="calcEstimate()">' +
     '<button class="est-remove-btn eo-edit-only" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
   const inputs = div.querySelectorAll('input');
   if (desc) inputs[0].value = desc;
   // `cost` is the raw pre-markup base; store it and display base × multiplier.
   if (cost !== '' && cost != null) { inputs[1].dataset.base = String(cost); estRebakeCost(inputs[1]); }
-  if (qty && parseFloat(qty) !== 1) inputs[2].value = qty;
   calcEstimate();
 }
 
@@ -802,9 +799,7 @@ function calcEstimate() {
   let matTotal = 0;
   rows.forEach(row => {
     const ins  = row.querySelectorAll('input');
-    const cost = estCostBase(ins[1]);             // raw, pre-markup
-    const qty  = parseFloat(ins[2]?.value) || 1;  // blank = 1×
-    matTotal += cost * qty;
+    matTotal += estCostBase(ins[1]);   // raw, pre-markup
   });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
@@ -869,10 +864,7 @@ function estCollectMaterialsText() {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
     const cost = estCostBase(inputs[1]);   // persist the raw base, not the marked display
-    const qty  = parseFloat(inputs[2]?.value) || 1;
-    // "desc ×N — $cost" (cost is per-unit); ×N is omitted when the multiplier is 1.
-    const qtyTag = qty !== 1 ? ' ×' + qty : '';
-    if (desc || cost) lines.push(desc + qtyTag + (cost ? ' — $' + cost.toFixed(2) : ''));
+    if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
   });
   return lines.join('\n');
 }
@@ -957,8 +949,7 @@ function approveEstimate() {
     const inputs = row.querySelectorAll('input');
     const desc   = inputs[0]?.value.trim() || '';
     const cost   = estCostBase(inputs[1]) * estMultiplier;  // marked (customer-facing) price
-    const qty    = parseFloat(inputs[2]?.value) || 1;
-    if (desc && cost > 0) items.push({ name: qty !== 1 ? desc + ' (×' + qty + ')' : desc, price: cost * qty });
+    if (desc && cost > 0) items.push({ name: desc, price: cost });
   });
 
   const labor    = parseFloat(document.getElementById('est-labor')?.value)    || 0;
