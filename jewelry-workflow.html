@@ -945,7 +945,7 @@
                 <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
               </div>
               <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
-                (Materials + Labor) × 2.5
+                Materials × 2.5 + Labor
               </div>
             </div>
 
@@ -992,7 +992,8 @@
                 <span>Subtotal</span>
                 <span id="est-subtotal">$0.00</span>
               </div>
-              <div class="est-total-row" style="margin-top:2px;">
+              <!-- Markup is now baked into each material's Cost; no separate markup line -->
+              <div class="est-total-row" style="margin-top:2px;display:none;">
                 <span id="est-mult-label">× 2.5 markup</span>
                 <span></span>
               </div>
@@ -3474,7 +3475,7 @@
 <script src="js/customers.js?v=20260721b"></script>
 <script src="js/app.js?v=20260720c"></script>
 <script src="js/sketchpad.js?v=5"></script>
-<script src="js/order-widgets.js?v=20260722a"></script>
+<script src="js/order-widgets.js?v=20260722b"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/orders.js?v=20260722a"></script>
 <script src="js/stuller.js?v=20260616a"></script>

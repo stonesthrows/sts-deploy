@@ -200,10 +200,6 @@ function orderToProps(o) {
   if (o.addrCountry != null) props['Country']        = { rich_text: [{ text: { content: (o.addrCountry || '').slice(0, 2000) } }] };
 
   // Estimate / job fields
-  // Markup multiplier from the estimate builder — (Materials + Labor) × this.
-  // Also lives inside the App Data blob, but surfaced as its own number column
-  // so it's visible/sortable in the Notion DB.
-  if (o.estimate && o.estimate.multiplier != null) props['Estimate Multiplier'] = { number: o.estimate.multiplier || null };
   if (o.jobDesc        != null) props['Job Description']    = { rich_text: [{ text: { content: (o.jobDesc        || '').slice(0, 2000) } }] };
   if (o.customerNotes  != null) props['Notes for Customer'] = { rich_text: [{ text: { content: (o.customerNotes  || '').slice(0, 2000) } }] };
 
@@ -339,7 +335,6 @@ const NEW_SCHEMA_PROPS = {
   'Preferred Contact':      { select: {} },
   'Piece Type':             { select: {} },
   'Sizing / Dimensions':    { rich_text: {} },
-  'Estimate Multiplier':    { number: {} },
   'Gemstones / Components': { rich_text: {} },
   'Texture / Finish':       { multi_select: {} },
   'Sketch':                 { files: {} },

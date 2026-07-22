@@ -405,7 +405,7 @@ function intakeUseEstimate() {
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
-    const cost = parseFloat(inputs[1]?.value) || 0;
+    const cost = estCostBase(inputs[1]);
     if (desc) intakePresetHarvest(desc, cost ? String(cost) : ''); // feed the preset chips (3.3)
   });
   const idx = _oiItems.findIndex(it => it.type === 'manual' && it.name === 'Estimate Total');
@@ -429,7 +429,7 @@ function _intakeEstMaterialLines() {
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
-    const cost = parseFloat(inputs[1]?.value) || 0;
+    const cost = estCostBase(inputs[1]);   // persist raw base, not the marked display
     if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
   });
   return lines.join('\n');
@@ -1223,8 +1223,8 @@ function intakeMiniTotalUpdate() {
     const money = n => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
     const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
     const taxOn = document.getElementById('est-tax-toggle')?.checked || false;
-    crumb.textContent = '= (materials ' + money(num('est-mat-total')) + ' + labor ' + money(num('est-labor-display'))
-      + ') × ' + estMultiplier + (shipping > 0 ? ' + shipping' : '') + (taxOn ? ' + tax' : '');
+    crumb.textContent = '= materials ' + money(num('est-mat-total')) + ' + labor ' + money(num('est-labor-display'))
+      + (shipping > 0 ? ' + shipping' : '') + (taxOn ? ' + tax' : '');
   }
   // ~200ms count animation toward the new total
   const totalEl = document.getElementById('est-mini-total');
@@ -1349,7 +1349,7 @@ function intakePresetRenderStrip() {
     if (!row) return;
     const inputs = row.querySelectorAll('input');
     const desc = (inputs[0] ? inputs[0].value : '').trim();
-    if (desc) intakePresetTogglePin(desc, inputs[1] ? inputs[1].value : '');
+    if (desc) intakePresetTogglePin(desc, inputs[1] ? String(estCostBase(inputs[1]) || '') : '');
   });
 })();
 
@@ -1532,14 +1532,15 @@ function _estReadDom() {
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim() || '';
-    const cost = parseFloat(inputs[1]?.value) || 0;
+    const cost = estCostBase(inputs[1]);   // raw, pre-markup
     matTotal += cost;
     if (desc || cost) rows.push({ desc, cost });
   });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
   const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
-  return { rows, matTotal, labor, shipping, taxOn, r: taxOn ? 0.0825 : 0, marked: (matTotal + labor) * estMultiplier };
+  // Markup applies to materials only; labor added un-marked (matches order-widgets calcEstimate).
+  return { rows, matTotal, labor, shipping, taxOn, r: taxOn ? 0.0825 : 0, marked: matTotal * estMultiplier + labor };
 }
 
 // Re-derives tax + final with the adjustment in place and overwrites the
@@ -1618,7 +1619,7 @@ function estStateApply(s) {
 
 function _estStateTotal(s) {
   const mat = s.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
-  const adjusted = (mat + s.labor) * (s.multiplier || 2.5) + (s.adjustment || 0);
+  const adjusted = mat * (s.multiplier || 2.5) + s.labor + (s.adjustment || 0);
   return adjusted * (s.taxOn ? 1.0825 : 1) + (s.shipping || 0);
 }
 

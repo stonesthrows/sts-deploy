@@ -676,6 +676,44 @@ let estSaveTimer  = null;
 // price from whatever estimate state this device happened to have.
 let _estPopulating = false;
 
+// ── Markup baked into each material row's Cost box ──────────────
+// The markup multiplier no longer marks up the subtotal; instead each
+// material row's Cost box DISPLAYS base × estMultiplier, while the raw
+// (pre-markup) cost lives in input.dataset.base — the canonical value every
+// calculator/serializer reads via estCostBase(). Labor is never marked up.
+// (2026-07 — replaces the old "(materials + labor) × mult" subtotal markup.)
+function estCostBase(inp) {
+  if (!inp) return 0;
+  const b = inp.dataset ? inp.dataset.base : undefined;
+  if (b !== undefined && b !== '') return parseFloat(b) || 0;
+  return parseFloat(inp.value) || 0;   // legacy row with no dataset.base yet
+}
+function estRebakeCost(inp) {
+  if (!inp) return;
+  const b = parseFloat(inp.dataset.base);
+  inp.value = (b > 0) ? (b * estMultiplier).toFixed(2) : (inp.dataset.base ? inp.dataset.base : '');
+}
+function estRebakeAllCosts() {
+  document.querySelectorAll('#est-materials .est-cost-input').forEach(inp => {
+    if (inp !== document.activeElement) estRebakeCost(inp);
+  });
+}
+// Cost box shows the raw base while focused (so you edit the pre-markup cost),
+// and the marked amount when it loses focus.
+function estCostFocus(inp) {
+  if (inp.dataset.base !== undefined && inp.dataset.base !== '') inp.value = inp.dataset.base;
+}
+function estCostInput(inp) {
+  inp.dataset.base = inp.value;
+  // Programmatic fills (e.g. Stuller) dispatch 'input' without focusing —
+  // bake the markup in immediately so the box shows the marked amount.
+  if (inp !== document.activeElement) estRebakeCost(inp);
+  calcEstimate();
+}
+function estCostBlur(inp) {
+  estRebakeCost(inp);
+}
+
 function addMaterialRow(desc = '', cost = '', qty = '') {
   const container = document.getElementById('est-materials');
   if (!container) return;
@@ -687,14 +725,15 @@ function addMaterialRow(desc = '', cost = '', qty = '') {
     '<input class="est-input" type="text" placeholder="e.g. 14k Yellow Gold Sheet" oninput="calcEstimate()">' +
     // StullerSearch (js/stuller.js) is only loaded by the main app — guarded so intake.html doesn't throw
     '<button class="est-stuller-btn eo-edit-only" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
-    '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()">' +
+    '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" onfocus="estCostFocus(this)" oninput="estCostInput(this)" onblur="estCostBlur(this)">' +
     // Per-row cost multiplier (× qty). Blank = 1×; enter 2 to double this material's cost.
     '<input class="est-input est-qty-input eo-edit-only" type="number" placeholder="×1" step="1" min="0" title="Multiply this material\'s cost" oninput="calcEstimate()">' +
     '<button class="est-remove-btn eo-edit-only" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
   const inputs = div.querySelectorAll('input');
   if (desc) inputs[0].value = desc;
-  if (cost) inputs[1].value = cost;
+  // `cost` is the raw pre-markup base; store it and display base × multiplier.
+  if (cost !== '' && cost != null) { inputs[1].dataset.base = String(cost); estRebakeCost(inputs[1]); }
   if (qty && parseFloat(qty) !== 1) inputs[2].value = qty;
   calcEstimate();
 }
@@ -757,7 +796,7 @@ function calcEstimate() {
   let matTotal = 0;
   rows.forEach(row => {
     const ins  = row.querySelectorAll('input');
-    const cost = parseFloat(ins[1]?.value) || 0;
+    const cost = estCostBase(ins[1]);             // raw, pre-markup
     const qty  = parseFloat(ins[2]?.value) || 1;  // blank = 1×
     matTotal += cost * qty;
   });
@@ -768,15 +807,16 @@ function calcEstimate() {
   // on the iPad reproduces exactly here. The #est-adjustment input only
   // exists in the desktop module; intake keeps its own wrapper (_estAdj).
   const adjustment = parseFloat(document.getElementById('est-adjustment')?.value) || 0;
-  const subtotal = matTotal + labor;
-  const marked   = subtotal * estMultiplier;
-  const adjusted = marked + adjustment;
+  // Markup applies to materials ONLY; labor is added un-marked on top.
+  const matMarked = matTotal * estMultiplier;
+  const subtotal  = matMarked + labor;
+  const adjusted  = subtotal + adjustment;
   const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
   const tax      = taxOn ? adjusted * 0.0825 : 0;
   const final    = adjusted + shipping + tax;
   const fmt = n => '$' + n.toFixed(2);
   const g = id => document.getElementById(id);
-  if (g('est-mat-total'))     g('est-mat-total').textContent     = fmt(matTotal);
+  if (g('est-mat-total'))     g('est-mat-total').textContent     = fmt(matMarked);
   if (g('est-labor-display')) g('est-labor-display').textContent = fmt(labor);
   if (g('est-subtotal'))      g('est-subtotal').textContent      = fmt(subtotal);
   if (g('est-final'))         g('est-final').textContent         = fmt(final);
@@ -822,7 +862,7 @@ function estCollectMaterialsText() {
   rows.forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
-    const cost = parseFloat(inputs[1]?.value) || 0;
+    const cost = estCostBase(inputs[1]);   // persist the raw base, not the marked display
     const qty  = parseFloat(inputs[2]?.value) || 1;
     // "desc ×N — $cost" (cost is per-unit); ×N is omitted when the multiplier is 1.
     const qtyTag = qty !== 1 ? ' ×' + qty : '';
@@ -882,7 +922,8 @@ function setMultiplier(val) {
   const btn = document.getElementById('mult-' + String(val).replace('.', '-'));
   if (btn) btn.classList.add('selected');
   const hint = document.getElementById('est-formula-hint');
-  if (hint) hint.textContent = '(Materials + Labor) × ' + val;
+  if (hint) hint.textContent = 'Materials × ' + val + ' + Labor';
+  estRebakeAllCosts();
   calcEstimate();
 }
 
@@ -903,7 +944,7 @@ function approveEstimate() {
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc   = inputs[0]?.value.trim() || '';
-    const cost   = parseFloat(inputs[1]?.value) || 0;
+    const cost   = estCostBase(inputs[1]) * estMultiplier;  // marked (customer-facing) price
     const qty    = parseFloat(inputs[2]?.value) || 1;
     if (desc && cost > 0) items.push({ name: qty !== 1 ? desc + ' (×' + qty + ')' : desc, price: cost * qty });
   });
