@@ -752,6 +752,12 @@
        would otherwise outlive a Form→Paper mode switch mid-order. */
     body.paper-on #items-price-grid, body.paper-on #est-mini-bar { display: none !important; }
 
+    /* Ring Blank Length is surfaced in the Step-3 Estimate Builder
+       (#est-ring-blanklen-summary) instead of inline in each Custom Ring block —
+       hide the in-block readout on intake only (the shared desktop Edit Order
+       modal in jewelry-workflow.html keeps its inline readout). */
+    #rings-dynamic-list .fg.full:has(> [id^="f-ring-blanklen-"]) { display: none; }
+
     #paper-mode { display: none; position: absolute; inset: 0; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
     body.paper-on #paper-mode { display: flex; }
     .paper-stage {
@@ -1375,6 +1381,10 @@
           <!-- Ring size + Inside Ring Stamping glance list — populated by
                js/ring-fields.js whenever Piece Type is Ring; hidden otherwise. -->
           <div id="est-ring-stamping-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#FBF3E0;font-size:13px;line-height:1.6;color:#4A3F2A;"></div>
+          <!-- Ring Blank Length readout — moved here from the Custom Ring block
+               in Design Details (Step 1); populated by intakeRenderBlankLenSummary()
+               in js/intake.js. Hidden until a Custom Ring has a computable length. -->
+          <div id="est-ring-blanklen-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#EAF1F6;font-size:13px;line-height:1.6;color:#2A3A46;"></div>
           <!-- Good/Better/Best variant strip (brief 3.4) — hidden until ⧉ Compare -->
           <div class="est-variants" id="est-variants" style="display:none;"></div>
           <div class="est-preset-strip" id="est-preset-strip"></div>
@@ -1681,7 +1691,7 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=20"></script>
+<script src="js/intake.js?v=21"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>
