@@ -76,16 +76,16 @@ function buildHtml(rec, link) {
   const note = rec.notesForCustomer
     ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
 
-  return `<div style="background:#E4EBEF;padding:32px 16px;font-family:-apple-system,Segoe UI,Arial,sans-serif">
-   <div style="background:#ffffff;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #C1D0DA">
+  return `<div style="background:#4E7A94;padding:32px 16px;font-family:-apple-system,Segoe UI,Arial,sans-serif">
+   <div style="background:#FAFAF9;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #E4E2DD">
     <div style="max-width:560px;margin:0 auto;color:#2b3648">
     <h2 style="color:#4E7A94;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
     <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, here's the estimate for your piece. Take a look and let me know if it's good to go.</p>
     ${title}
     <table style="width:100%;border-collapse:collapse;font-size:15px">
       ${rows}
-      <tr><td style="padding:10px 0 0;border-top:1px solid #C1D0DA;font-weight:700">Total</td>
-          <td style="padding:10px 0 0;border-top:1px solid #C1D0DA;text-align:right;font-weight:700">${money(rec.total)}</td></tr>
+      <tr><td style="padding:10px 0 0;border-top:1px solid #E4E2DD;font-weight:700">Total</td>
+          <td style="padding:10px 0 0;border-top:1px solid #E4E2DD;text-align:right;font-weight:700">${money(rec.total)}</td></tr>
     </table>
     ${note}
     <p style="margin:26px 0;text-align:center">
