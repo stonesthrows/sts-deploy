@@ -566,6 +566,20 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-subtab:hover { color:var(--text); background:var(--accent-bg); }
 .dsn-subtab:focus-visible { outline:none; box-shadow:var(--focus-ring); }
 .dsn-subtab.active { color:var(--accent); border-bottom-color:var(--accent); }
+/* Second-level tabs shown under All Designs (pill style, to read as nested) */
+.dsn-subtabs2 { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:var(--sp-4); }
+.dsn-subtab2 {
+  padding:5px 12px; font-size:12px; font-weight:700; font-family:inherit;
+  color:var(--text3); background:var(--card-head-bg);
+  border:1px solid var(--bdr); border-radius:999px;
+  cursor:pointer; display:flex; align-items:center; gap:5px;
+  transition:color var(--dur-fast) var(--ease-smooth),
+             background var(--dur-fast) var(--ease-smooth),
+             border-color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-subtab2:hover { color:var(--text); }
+.dsn-subtab2:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-subtab2.active { color:var(--accent); border-color:var(--accent); background:var(--accent-bg); }
 .dsn-family-grid-head { display:flex; align-items:baseline; gap:8px; margin-bottom:var(--sp-2); }
 .dsn-family-grid-title { font-size:11px; font-weight:800; color:var(--text2); letter-spacing:.4px; text-transform:uppercase; }
 .dsn-family-grid-count { font-size:11px; font-weight:600; color:var(--text3); }

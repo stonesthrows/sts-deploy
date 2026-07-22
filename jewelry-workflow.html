@@ -2114,7 +2114,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260720a">
+<link rel="stylesheet" href="css/inventory.css?v=20260722a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2175,7 +2175,11 @@
               onclick="designsSetSubTab('families')">📁 Design Families</button>
       <button type="button" class="dsn-subtab" role="tab" aria-selected="false" data-subtab="all"
               onclick="designsSetSubTab('all')">💎 All Designs</button>
-      <button type="button" class="dsn-subtab" role="tab" aria-selected="false" data-subtab="stackable"
+    </div>
+    <div class="dsn-subtabs2" id="dsn-subtabs2" role="tablist" aria-label="All Designs views" style="display:none">
+      <button type="button" class="dsn-subtab2 active" role="tab" aria-selected="true" data-subtab="all"
+              onclick="designsSetSubTab('all')">💎 All</button>
+      <button type="button" class="dsn-subtab2" role="tab" aria-selected="false" data-subtab="stackable"
               onclick="designsSetSubTab('stackable')">💍 Stackable Rings</button>
     </div>
     <div class="dsn-search-wrap">
@@ -3567,7 +3571,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=13"></script>
+<script src="js/designs.js?v=14"></script>
 <script src="js/triplog.js?v=20260711a"></script>
 <script src="js/inventory.js?v=12"></script>
 <script src="js/inv-manager.js?v=2"></script>
