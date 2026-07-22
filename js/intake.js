@@ -722,6 +722,21 @@ async function intakeLoadOrderForEdit(id) {
   // Carry any prior estimate-approval into the session so Step 4 shows its
   // status (and re-sending reuses the same token/link).
   window._intakeApproval = (order.approval && order.approval.token) ? order.approval : null;
+  // Restore any image attached on the Approval step so it survives reopen
+  // (intakeRenderApproval() picks _apAttachedImg up when Step 4 is shown).
+  _apAttachedImg = order.approvalImg || null;
+  { const nm = document.getElementById('ap-attach-name'); if (nm) nm.textContent = _apAttachedImg ? 'Attached image' : ''; }
+  // Rehydrate the Photos-tab reference images into session state so they
+  // (a) show in the bottom sheet on reopen and (b) are no longer force-
+  // restored from the original by intakeSubmit() — which meant photos
+  // newly attached while editing were silently dropped on save. Because
+  // _refPhotos is now authoritative, 'refPhotos' is intentionally NOT in
+  // intakeSubmit()'s preserve list.
+  if (typeof _refPhotos !== 'undefined') {
+    _refPhotos = Array.isArray(order.refPhotos) ? [...order.refPhotos] : [];
+    if (typeof rpRenderGrid === 'function') rpRenderGrid();
+    if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+  }
   intakePopulateFromOrder(order);
 
   const banner = document.getElementById('intake-edit-banner');
@@ -927,6 +942,10 @@ async function intakeSubmit() {
     // KV under the token; this small pointer round-trips via App Data so the
     // order remembers it was sent for approval. See sendForApproval().
     approval:      (typeof window !== 'undefined' && window._intakeApproval) || null,
+    // Image attached on the Approval step — persisted on the order (local,
+    // like sketchImg) so it survives Save & Close → reopen. Restored into
+    // _apAttachedImg by intakeLoadOrderForEdit().
+    approvalImg:   (typeof _apAttachedImg !== 'undefined') ? (_apAttachedImg || null) : null,
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
     sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
     // Client-shown reference photos (Photos tab in the bottom sheet) —
@@ -989,9 +1008,14 @@ async function intakeSubmit() {
     // stone editor, declined-tier list) — left alone, those would compute
     // as blank and wipe real data, so pull the original values back in.
     const merged = Object.assign({}, _editingOrder, order);
+    // Note: 'refPhotos' is deliberately absent — intakeLoadOrderForEdit()
+    // rehydrates _refPhotos from the order, so the freshly-built value is
+    // authoritative and includes any photos added during this edit. The
+    // remaining image keys (sketch/signature/paper) have no reload path
+    // yet, so they stay here to avoid a blank canvas wiping stored data.
     ['sensitivities', 'ringSizes', 'styleProfile', 'gift', 'stones',
      'estimateAlternatives', 'sketchImg', 'sketchInkImg', 'signatureImg',
-     'paperPageImg', 'refPhotos', 'trackingNumber', 'trackingCarrier',
+     'paperPageImg', 'trackingNumber', 'trackingCarrier',
      'contactMethod'].forEach(k => { merged[k] = _editingOrder[k]; });
     merged.id        = _editingOrder.id;
     merged.notionId  = _editingOrder.notionId;
@@ -1077,6 +1101,7 @@ function intakeReset() {
   intakeSensChanged();
   intakeSetOrderFor('individual');
   ringFieldsReset();
+  if (typeof apClearAttachedImage === 'function') apClearAttachedImage();
   const ringCountEl = document.getElementById('f-ring-count');
   if (ringCountEl) ringCountEl.value = 1;
   intakeRenderRingBlocks();
