@@ -667,6 +667,12 @@ function oiSetModifier(idx, listId, modifierId) {
 //  Price for Custom/Etsy/Website order types and is not reachable otherwise.
 // ════════════════════════════════════════════
 let estMultiplier = 2.5;
+// Markup slider steps (desktop estimate builder): slider index → multiplier.
+const EST_MULT_STEPS = [1, 1.5, 2, 2.5, 3];
+function setMultiplierFromSlider(idx) {
+  const val = EST_MULT_STEPS[parseInt(idx, 10)];
+  setMultiplier(val != null ? val : 2.5);
+}
 let estRowCount   = 0;
 let estSaveTimer  = null;
 // True while populateEstimateFromOrder() rebuilds the module from a saved
@@ -918,9 +924,15 @@ async function saveEstimateToNotion() {
 
 function setMultiplier(val) {
   estMultiplier = val;
+  // Legacy button toggle (intake still uses buttons) — harmless where absent.
   document.querySelectorAll('.mult-btn').forEach(b => b.classList.remove('selected'));
   const btn = document.getElementById('mult-' + String(val).replace('.', '-'));
   if (btn) btn.classList.add('selected');
+  // Slider (desktop estimate builder): sync thumb position + readout.
+  const slider = document.getElementById('est-mult-slider');
+  if (slider) { const i = EST_MULT_STEPS.indexOf(val); if (i >= 0) slider.value = i; }
+  const valEl = document.getElementById('est-mult-value');
+  if (valEl) valEl.textContent = val + '×';
   const hint = document.getElementById('est-formula-hint');
   if (hint) hint.textContent = 'Materials × ' + val + ' + Labor';
   estRebakeAllCosts();

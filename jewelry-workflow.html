@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="css/app.css?v=20260722a">
+  <link rel="stylesheet" href="css/app.css?v=20260722b">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -939,10 +939,16 @@
             <!-- Multiplier -->
             <div class="form-sec">
               <div class="form-sec-label">Markup Multiplier</div>
-              <div class="mult-toggle">
-                <button class="mult-btn"           id="mult-1"   onclick="setMultiplier(1)">None</button>
-                <button class="mult-btn selected"  id="mult-2-5" onclick="setMultiplier(2.5)">2.5×</button>
-                <button class="mult-btn"           id="mult-3"   onclick="setMultiplier(3)">3×</button>
+              <div class="mult-slider-wrap eo-edit-only">
+                <div class="mult-slider-head">
+                  <span class="mult-slider-value" id="est-mult-value">2.5×</span>
+                </div>
+                <input type="range" class="mult-slider" id="est-mult-slider"
+                       min="0" max="4" step="1" value="3"
+                       oninput="setMultiplierFromSlider(this.value)">
+                <div class="mult-slider-ticks">
+                  <span>1×</span><span>1.5×</span><span>2×</span><span>2.5×</span><span>3×</span>
+                </div>
               </div>
               <div style="font-size:11.5px;color:var(--text3);margin-top:8px;" id="est-formula-hint">
                 Materials × 2.5 + Labor
@@ -3475,7 +3481,7 @@
 <script src="js/customers.js?v=20260721b"></script>
 <script src="js/app.js?v=20260720c"></script>
 <script src="js/sketchpad.js?v=5"></script>
-<script src="js/order-widgets.js?v=20260722b"></script>
+<script src="js/order-widgets.js?v=20260722c"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/orders.js?v=20260722a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
