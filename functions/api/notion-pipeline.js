@@ -601,6 +601,45 @@ export async function onRequestPost(context) {
     }
   }
 
+  // Name fallback — the App-ID lookup missed, but an *open* page may already
+  // exist for this customer with a blank App ID (a legacy/pre-App-ID page, or
+  // one imported without one). Without this, a fresh intake for a repeat
+  // customer always mints a brand-new page → duplicate cards on every sync.
+  // Scope is deliberately tight to avoid collapsing two genuinely-separate
+  // orders for the same person:
+  //   • terminal pages (Completed/Delivered/Cancelled) are never matched, so a
+  //     new order never resurrects or merges onto a finished one;
+  //   • only pages whose App ID is blank are claimed — a page that already
+  //     carries a *different* App ID is owned by another local order and is
+  //     left alone. Claiming stamps this order's App ID (self-healing backfill).
+  const TERMINAL_STAGES = new Set(['Completed', 'Delivered', 'Cancelled']);
+  if (order.id && order.name) {
+    const q = await fetch(`${NOTION_API}/databases/${PIPELINE_DB}/query`, {
+      method: 'POST', headers: hdrs,
+      body: JSON.stringify({
+        filter: { property: 'Customer Name', title: { equals: order.name } },
+        page_size: 25,
+      }),
+    });
+    if (q.ok) {
+      const qd = await q.json();
+      const match = (qd.results || []).find(p => {
+        const appId = (p.properties?.['App ID']?.rich_text?.[0]?.plain_text || '').trim();
+        const stage = p.properties?.['Stage']?.select?.name || '';
+        return !appId && !TERMINAL_STAGES.has(stage);
+      });
+      if (match) {
+        const r = await writePage(hdrs, `${NOTION_API}/pages/${match.id}`, 'PATCH',
+          { properties: props, archived: false });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          return json({ error: err.message || 'update failed' }, r.status);
+        }
+        return json({ notionId: match.id, matchedBy: 'name', sketchSynced, sketchError, refPhotosSynced, refPhotosError });
+      }
+    }
+  }
+
   // Create new Notion page
   const r = await writePage(hdrs, `${NOTION_API}/pages`, 'POST',
     { parent: { database_id: PIPELINE_DB }, properties: props });

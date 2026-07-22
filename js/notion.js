@@ -340,6 +340,20 @@ async function notionSyncFromNotion() {
 
     let added = 0, updated = 0;
 
+    // Name-fallback support (mirrors the server guard in notion-pipeline.js):
+    // a Notion page that matches neither App ID nor notionId may still be the
+    // same order as a not-yet-pushed local card. Collapse onto it instead of
+    // adding a duplicate — but only for OPEN orders (never terminal), and only
+    // claim each local card once.
+    const TERMINAL_STAGES = new Set(['complete', 'delivered', 'cancelled']);
+    const claimedLocal = new Set();
+    const openLocalByName = {};
+    ORDERS.forEach(o => {
+      if (!o.notionId && o.name && !TERMINAL_STAGES.has(o.stage)) {
+        (openLocalByName[o.name] = openLocalByName[o.name] || []).push(o);
+      }
+    });
+
     // Fields that are local-only or should never be overwritten with empty Notion
     // values. items/jobDescMode/shippingAddress/fullyPaid/shipping don't
     // round-trip through Notion at all, so the local copy is the only copy.
@@ -368,6 +382,16 @@ async function notionSyncFromNotion() {
       } else if (no.notionId && byNotionId[no.notionId]) {
         // Match by Notion page ID — update in place
         const existing = byNotionId[no.notionId];
+        preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
+        if (typeof normalizeOrder === 'function') normalizeOrder(no);
+        Object.assign(existing, no);
+        updated++;
+      } else if (no.name && !TERMINAL_STAGES.has(no.stage) &&
+                 (openLocalByName[no.name] || []).some(o => !claimedLocal.has(o))) {
+        // Name fallback — adopt an unpushed local card of the same open order
+        // rather than adding a second one for the same customer.
+        const existing = (openLocalByName[no.name] || []).find(o => !claimedLocal.has(o));
+        claimedLocal.add(existing);
         preserveIfEmpty.forEach(f => { if (!no[f] && existing[f]) no[f] = existing[f]; });
         if (typeof normalizeOrder === 'function') normalizeOrder(no);
         Object.assign(existing, no);
@@ -508,10 +532,24 @@ async function notionStartupSync() {
     // Keep any locally-created orders (id starts with 'u') not yet in Notion
     const notionIds    = new Set(notionOrders.map(o => o.id).filter(Boolean));
     const notionPageIds = new Set(notionOrders.map(o => o.notionId).filter(Boolean));
+    // Name fallback (mirrors the server guard): if an OPEN Notion page already
+    // carries this customer's name, that page is this order — don't also keep a
+    // stray unpushed local twin, which is exactly what surfaced as a duplicate
+    // card on every sync. In-flight local edits (grace window / queued retry)
+    // are still protected so a pending push is never dropped.
+    const REPL_TERMINAL = new Set(['complete', 'delivered', 'cancelled']);
+    const openNotionNames = new Set(
+      notionOrders.filter(o => o.name && !REPL_TERMINAL.has(o.stage)).map(o => o.name)
+    );
     const localOnly = ORDERS.filter(o =>
       !notionIds.has(o.id) &&
       !notionPageIds.has(o.notionId) &&
-      String(o.id).startsWith('u')
+      String(o.id).startsWith('u') &&
+      (
+        !openNotionNames.has(o.name) ||
+        (o._localEditAt && Date.now() - o._localEditAt < SYNC_EDIT_GRACE_MS) ||
+        _notionRetryHas(o)
+      )
     );
 
     // Full replacement — Notion is the source of truth
