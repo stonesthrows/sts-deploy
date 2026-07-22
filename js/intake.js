@@ -483,6 +483,11 @@ function _apGenToken() {
 // sendForApproval() and the Step-4 preview, but isn't persisted onto the
 // order (the sketch canvas remains the order's own record).
 let _apAttachedImg = null;
+// The downscaled copy this approval attachment folded into the order's
+// reference photos (so it actually persists to Notion + the desktop order
+// viewer — approvalImg on its own is a local field nothing syncs or shows).
+// Tracked so a Replace/Remove in the same session pulls the right one back out.
+let _apRefPhoto = null;
 
 // Read a chosen image file → dataURL → show it as the approval preview.
 function apAttachImage(input) {
@@ -495,11 +500,39 @@ function apAttachImage(input) {
     const nameEl = document.getElementById('ap-attach-name');
     if (nameEl) nameEl.textContent = file.name;
     if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
-    if (typeof toast === 'function') toast('Image attached — it will be sent in place of the sketch', '📎');
+    if (typeof toast === 'function') toast('Image attached — saved to the order photos and sent in place of the sketch', '📎');
   };
   reader.onerror = () => toast('Could not read that image', '⚠');
   reader.readAsDataURL(file);
+  // Fold a downscaled copy into the order's Reference Photos so the image is
+  // persisted, synced to Notion, and visible in the desktop order viewer.
+  apMergeAttachmentIntoRefPhotos(file);
   input.value = '';   // allow re-selecting the same file later
+}
+
+// Add (or replace) this attachment's copy inside the shared reference-photo
+// array, reusing the same downscale + de-dupe the Photos tab uses.
+async function apMergeAttachmentIntoRefPhotos(file) {
+  if (typeof _refPhotos === 'undefined' || typeof _rpResizeFile !== 'function') return;
+  let resized;
+  try { resized = await _rpResizeFile(file); } catch (e) { return; }
+  // Remove the copy a previous attach (this session) contributed, if any.
+  if (_apRefPhoto) {
+    const prev = _refPhotos.indexOf(_apRefPhoto);
+    if (prev >= 0) _refPhotos.splice(prev, 1);
+    _apRefPhoto = null;
+  }
+  const cap = (typeof RP_MAX_PHOTOS !== 'undefined') ? RP_MAX_PHOTOS : 6;
+  if (_refPhotos.includes(resized)) {
+    _apRefPhoto = resized;                 // already present — just claim it
+  } else if (_refPhotos.length < cap) {
+    _refPhotos.push(resized);
+    _apRefPhoto = resized;
+  } else if (typeof toast === 'function') {
+    toast('Photo list is full — approval image not added to order photos', '⚠', 3000);
+  }
+  if (typeof rpRenderGrid === 'function') rpRenderGrid();
+  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
 }
 
 // Drop the attached image and fall back to the order's sketch (if any).
@@ -507,6 +540,14 @@ function apClearAttachedImage() {
   _apAttachedImg = null;
   const nameEl = document.getElementById('ap-attach-name');
   if (nameEl) nameEl.textContent = '';
+  // Pull this attachment's copy back out of the reference photos.
+  if (_apRefPhoto && typeof _refPhotos !== 'undefined') {
+    const i = _refPhotos.indexOf(_apRefPhoto);
+    if (i >= 0) _refPhotos.splice(i, 1);
+    _apRefPhoto = null;
+    if (typeof rpRenderGrid === 'function') rpRenderGrid();
+    if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
+  }
   if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
 }
 
