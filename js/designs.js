@@ -313,15 +313,7 @@ function _dsnRenderFamiliesGrid() {
 function designsSetSubTab(tab) {
   _designsSubTab = (tab === 'all' || tab === 'stackable') ? tab : 'families';
   _designsFamilyOpen = null;
-  // Top row is families vs. the All Designs group; 'all' and 'stackable' both
-  // live under All Designs, so the top "All Designs" tab stays lit for either.
-  const primary = _designsSubTab === 'families' ? 'families' : 'all';
   document.querySelectorAll('.dsn-subtab').forEach(b => {
-    const on = b.dataset.subtab === primary;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-selected', on ? 'true' : 'false');
-  });
-  document.querySelectorAll('.dsn-subtab2').forEach(b => {
     const on = b.dataset.subtab === _designsSubTab;
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -348,9 +340,6 @@ function designsRenderLibrary() {
 
   const subtabs = document.getElementById('dsn-subtabs');
   if (subtabs) subtabs.style.display = _designsFamilyOpen ? 'none' : '';
-  // Nested All Designs tabs (All / Stackable Rings) only while in that group.
-  const subtabs2 = document.getElementById('dsn-subtabs2');
-  if (subtabs2) subtabs2.style.display = (!_designsFamilyOpen && _designsSubTab !== 'families') ? '' : 'none';
   const catBar = document.getElementById('dsn-filter-bar');
   // Stackable Rings is a single-collection view — the category filter is redundant there.
   if (catBar) catBar.style.display = (famGridView || _designsSubTab === 'stackable') ? 'none' : '';
