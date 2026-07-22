@@ -676,7 +676,7 @@ let estSaveTimer  = null;
 // price from whatever estimate state this device happened to have.
 let _estPopulating = false;
 
-function addMaterialRow(desc = '', cost = '') {
+function addMaterialRow(desc = '', cost = '', qty = '') {
   const container = document.getElementById('est-materials');
   if (!container) return;
   const rowId = 'est-row-' + (++estRowCount);
@@ -688,11 +688,14 @@ function addMaterialRow(desc = '', cost = '') {
     // StullerSearch (js/stuller.js) is only loaded by the main app — guarded so intake.html doesn't throw
     '<button class="est-stuller-btn eo-edit-only" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
     '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" oninput="calcEstimate()">' +
+    // Per-row cost multiplier (× qty). Blank = 1×; enter 2 to double this material's cost.
+    '<input class="est-input est-qty-input eo-edit-only" type="number" placeholder="×1" step="1" min="0" title="Multiply this material\'s cost" oninput="calcEstimate()">' +
     '<button class="est-remove-btn eo-edit-only" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
   const inputs = div.querySelectorAll('input');
   if (desc) inputs[0].value = desc;
   if (cost) inputs[1].value = cost;
+  if (qty && parseFloat(qty) !== 1) inputs[2].value = qty;
   calcEstimate();
 }
 
@@ -709,8 +712,13 @@ function populateEstimateFromOrder(o) {
     if (lines.length) {
       lines.forEach(line => {
         const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
-        if (match) addMaterialRow(match[1].trim(), match[2]);
-        else        addMaterialRow(line.trim(), '');
+        if (match) {
+          // Split an optional "×N" cost-multiplier suffix off the description.
+          const qm = match[1].trim().match(/^(.*?)\s*×\s*(\d+\.?\d*)$/);
+          if (qm) addMaterialRow(qm[1].trim(), match[2], qm[2]);
+          else    addMaterialRow(match[1].trim(), match[2]);
+        }
+        else addMaterialRow(line.trim(), '');
       });
     } else {
       addMaterialRow();
@@ -747,7 +755,12 @@ function removeMaterialRow(id) {
 function calcEstimate() {
   const rows = document.querySelectorAll('#est-materials .est-row');
   let matTotal = 0;
-  rows.forEach(row => { matTotal += parseFloat(row.querySelectorAll('input')[1]?.value) || 0; });
+  rows.forEach(row => {
+    const ins  = row.querySelectorAll('input');
+    const cost = parseFloat(ins[1]?.value) || 0;
+    const qty  = parseFloat(ins[2]?.value) || 1;  // blank = 1×
+    matTotal += cost * qty;
+  });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
   // Adjustment ($, negative = discount) folds in AFTER markup, BEFORE tax —
@@ -810,7 +823,10 @@ function estCollectMaterialsText() {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
     const cost = parseFloat(inputs[1]?.value) || 0;
-    if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
+    const qty  = parseFloat(inputs[2]?.value) || 1;
+    // "desc ×N — $cost" (cost is per-unit); ×N is omitted when the multiplier is 1.
+    const qtyTag = qty !== 1 ? ' ×' + qty : '';
+    if (desc || cost) lines.push(desc + qtyTag + (cost ? ' — $' + cost.toFixed(2) : ''));
   });
   return lines.join('\n');
 }
@@ -888,7 +904,8 @@ function approveEstimate() {
     const inputs = row.querySelectorAll('input');
     const desc   = inputs[0]?.value.trim() || '';
     const cost   = parseFloat(inputs[1]?.value) || 0;
-    if (desc && cost > 0) items.push({ name: desc, price: cost });
+    const qty    = parseFloat(inputs[2]?.value) || 1;
+    if (desc && cost > 0) items.push({ name: qty !== 1 ? desc + ' (×' + qty + ')' : desc, price: cost * qty });
   });
 
   const labor    = parseFloat(document.getElementById('est-labor')?.value)    || 0;

@@ -268,7 +268,7 @@
     /* 3 visible columns — the Stuller search button is display:none here,
        so its grid track is dropped (hidden elements create no grid items) */
     .est-row {
-      display: grid; grid-template-columns: 1fr 130px 44px;
+      display: grid; grid-template-columns: 1fr 130px 56px 44px;
       gap: 6px; align-items: center; margin-bottom: 7px;
     }
     .est-input {
@@ -286,7 +286,7 @@
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       font-family: inherit; padding: 0;
     }
-    .est-col-labels { display: grid; grid-template-columns: 1fr 130px 44px; gap: 6px; margin-bottom: 6px; }
+    .est-col-labels { display: grid; grid-template-columns: 1fr 130px 56px 44px; gap: 6px; margin-bottom: 6px; }
     .est-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
     .mult-toggle {
       display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
@@ -1369,6 +1369,7 @@
           <div class="est-col-labels">
             <div class="est-col-label">Description</div>
             <div class="est-col-label">Cost ($)</div>
+            <div class="est-col-label" style="text-align:center;">×</div>
             <div class="est-col-label"></div>
           </div>
           <div id="est-materials"></div>
@@ -1608,7 +1609,7 @@
 <script src="js/storage.js?v=20260720a"></script>
 <script src="js/sketchpad.js?v=5"></script>
 <script src="js/notion.js?v=20260721a"></script>
-<script src="js/order-widgets.js?v=20260721b"></script>
+<script src="js/order-widgets.js?v=20260722a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/intake-sheet.js?v=4"></script>

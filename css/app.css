@@ -2273,7 +2273,7 @@
     /* ── Estimate Builder ───────────────────── */
     .est-row {
       display: grid;
-      grid-template-columns: 1fr 28px 110px 28px;
+      grid-template-columns: 1fr 28px 110px 52px 28px;
       gap: 6px;
       align-items: center;
       margin-bottom: 7px;
@@ -2332,7 +2332,7 @@
     .est-remove-btn:hover { background: #FCDAD6; }
     .est-col-labels {
       display: grid;
-      grid-template-columns: 1fr 28px 110px 28px;
+      grid-template-columns: 1fr 28px 110px 52px 28px;
       gap: 6px;
       margin-bottom: 6px;
     }
