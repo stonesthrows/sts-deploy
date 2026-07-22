@@ -76,7 +76,9 @@ function buildHtml(rec, link) {
   const note = rec.notesForCustomer
     ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
 
-  return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#2b3648">
+  return `<div style="background:#EBF0F8;padding:32px 16px;font-family:-apple-system,Segoe UI,Arial,sans-serif">
+   <div style="background:#ffffff;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #C8D8EE">
+    <div style="max-width:560px;margin:0 auto;color:#2b3648">
     <h2 style="color:#3A70C0;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
     <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, here's the estimate for your piece. Take a look and let me know if it's good to go.</p>
     ${title}
@@ -91,6 +93,8 @@ function buildHtml(rec, link) {
     </p>
     <p style="margin:0;color:#7a8698;font-size:13px">Or paste this link into your browser:<br>${esc(link)}</p>
     <p style="margin:22px 0 0;color:#7a8698;font-size:13px">— Kyle Gross · Stones Throw Studio · stonesthrowjewelry.com</p>
+    </div>
+   </div>
   </div>`;
 }
 
