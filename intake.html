@@ -209,6 +209,13 @@
     }
     .dock-preset:hover { background: rgba(255,255,255,0.13); }
     .dock-preset.active { background: rgba(201,152,58,0.22); border-color: var(--accent); color: #F1DFB6; }
+    .dock-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+    .dock-swatch {
+      width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; padding: 0;
+      border: 2px solid rgba(255,255,255,0.18); cursor: pointer; transition: all .14s;
+    }
+    .dock-swatch:hover { transform: translateY(-1px); }
+    .dock-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
     .dock-hint { font-size: 9px; color: #63788A; text-align: center; letter-spacing: .2px; line-height: 1.5; }
     .dock-reopen {
       position: absolute; top: 12px; right: 12px; z-index: 2;
@@ -1218,6 +1225,14 @@
               <button type="button" class="dock-btn tool"        id="sk-smudge" onclick="sketchSetTool('smudge',this)" title="Smudge">👆</button>
               <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
             </div>
+            <div class="dock-row dock-swatches" id="sk-color-row">
+              <button type="button" class="dock-swatch active" style="background:#1A1A1A" data-color="#1A1A1A" onclick="sketchSetColor('#1A1A1A',this)" title="Black"></button>
+              <button type="button" class="dock-swatch"        style="background:#3D7EC2" data-color="#3D7EC2" onclick="sketchSetColor('#3D7EC2',this)" title="Blue"></button>
+              <button type="button" class="dock-swatch"        style="background:#C0392B" data-color="#C0392B" onclick="sketchSetColor('#C0392B',this)" title="Red"></button>
+              <button type="button" class="dock-swatch"        style="background:#2E8B57" data-color="#2E8B57" onclick="sketchSetColor('#2E8B57',this)" title="Green"></button>
+              <button type="button" class="dock-swatch"        style="background:#C9983A" data-color="#C9983A" onclick="sketchSetColor('#C9983A',this)" title="Gold"></button>
+              <button type="button" class="dock-swatch"        style="background:#FFD400" data-color="#FFD400" onclick="sketchSetColor('#FFD400',this)" title="Yellow"></button>
+            </div>
             <div class="dock-size">
               <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
               <div class="dock-slider-wrap">
@@ -1697,7 +1712,7 @@
 <input type="file" id="rp-file" accept="image/*" multiple style="display:none;" onchange="rpFilesChosen(this)">
 <script src="js/api-auth.js?v=1"></script>
 <script src="js/storage.js?v=20260720a"></script>
-<script src="js/sketchpad.js?v=6"></script>
+<script src="js/sketchpad.js?v=7"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/order-widgets.js?v=20260722d"></script>
 <script src="js/intake-profiles.js?v=2"></script>

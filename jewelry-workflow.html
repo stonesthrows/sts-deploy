@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="css/app.css?v=20260723a">
+  <link rel="stylesheet" href="css/app.css?v=20260723b">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -1120,6 +1120,14 @@
             <button type="button" class="dock-btn tool"        id="sk-water"  onclick="sketchSetTool('water',this)"  title="Watercolor">💧</button>
             <button type="button" class="dock-btn tool"        id="sk-smudge" onclick="sketchSetTool('smudge',this)" title="Smudge">👆</button>
             <button type="button" class="dock-btn tool"        id="sk-eraser" onclick="sketchSetTool('eraser',this)" title="Eraser">🧽</button>
+          </div>
+          <div class="dock-row dock-swatches" id="sk-color-row">
+            <button type="button" class="dock-swatch active" style="background:#1A1A1A" data-color="#1A1A1A" onclick="sketchSetColor('#1A1A1A',this)" title="Black"></button>
+            <button type="button" class="dock-swatch"        style="background:#3D7EC2" data-color="#3D7EC2" onclick="sketchSetColor('#3D7EC2',this)" title="Blue"></button>
+            <button type="button" class="dock-swatch"        style="background:#C0392B" data-color="#C0392B" onclick="sketchSetColor('#C0392B',this)" title="Red"></button>
+            <button type="button" class="dock-swatch"        style="background:#2E8B57" data-color="#2E8B57" onclick="sketchSetColor('#2E8B57',this)" title="Green"></button>
+            <button type="button" class="dock-swatch"        style="background:#C9983A" data-color="#C9983A" onclick="sketchSetColor('#C9983A',this)" title="Gold"></button>
+            <button type="button" class="dock-swatch"        style="background:#FFD400" data-color="#FFD400" onclick="sketchSetColor('#FFD400',this)" title="Yellow"></button>
           </div>
           <div class="dock-size">
             <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
@@ -3483,7 +3491,7 @@
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260721b"></script>
 <script src="js/app.js?v=20260722d"></script>
-<script src="js/sketchpad.js?v=6"></script>
+<script src="js/sketchpad.js?v=7"></script>
 <script src="js/order-widgets.js?v=20260722d"></script>
 <script src="js/ring-fields.js?v=6"></script>
 <script src="js/orders.js?v=20260723a"></script>

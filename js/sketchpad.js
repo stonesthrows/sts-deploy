@@ -51,6 +51,9 @@ function _padCreate(canvasId, opts) {
     opacities: { pen: 1, pencil: 0.55, marker: 0.35, water: 0.3, smudge: 0.45, eraser: 1 },
     // Independent line-smoothing strength per tool (0–1, 1 = fully smoothed)
     flows: { pen: 1, pencil: 1, marker: 1, water: 1, smudge: 1, eraser: 1 },
+    // User-choosable ink color, Pen/Marker only (dock swatch row) — Pencil/
+    // Watercolor/Eraser keep their fixed tool colors, so no entry here.
+    colors: { pen: '#1A1A1A', marker: '#FFD400' },
     penOnly: !!(opts && opts.penOnly), // true → ignore finger/touch, Apple Pencil only
     drawing: false,
     hasInk: false,          // anything drawn/loaded — drives export-null-if-blank
@@ -202,7 +205,8 @@ function _padDown(pad, e) {
                                 : 'source-over';
   ctx.strokeStyle = pad.tool === 'eraser' ? '#fff'
                   : pad.tool === 'pencil' ? '#4A4A4A'
-                  : pad.tool === 'marker' ? '#FFD400'
+                  : pad.tool === 'marker' ? (pad.colors.marker || '#FFD400')
+                  : pad.tool === 'pen'    ? (pad.colors.pen || '#1A1A1A')
                   : '#1A1A1A';
   ctx.lineWidth   = pad.widths[pad.tool] || 5;
   const p = _padPoint(pad, e);
@@ -535,6 +539,28 @@ function sketchSetTool(tool, btn) {
   sketchSyncSizeUI();    // reflect this tool's own stored weight
   sketchSyncOpacityUI(); // reflect this tool's own stored opacity
   sketchSyncFlowUI();    // reflect this tool's own stored smoothing
+  sketchSyncColorUI();   // show/hide the swatch row, reflect this tool's color
+}
+
+// Swatch row only applies to Pen/Marker — Pencil/Watercolor/Eraser keep
+// their fixed tool colors (see pad.colors in _padCreate).
+function sketchSetColor(hex, btn) {
+  if (!SK || (SK.tool !== 'pen' && SK.tool !== 'marker')) return;
+  SK.colors[SK.tool] = hex;
+  sketchSyncColorUI();
+  sketchSyncSizeUI(); // the size-preview dot mirrors the active color too
+}
+
+function sketchSyncColorUI() {
+  if (!SK) return;
+  const row = document.getElementById('sk-color-row');
+  const show = SK.tool === 'pen' || SK.tool === 'marker';
+  if (row) row.style.display = show ? '' : 'none';
+  if (!show) return;
+  const cur = SK.colors[SK.tool];
+  document.querySelectorAll('#sketchpad-fg .dock-swatch').forEach(b => {
+    b.classList.toggle('active', b.dataset.color === cur);
+  });
 }
 
 // Accepts a numeric weight OR a preset label ('S'|'M'|'L'), resolved against
@@ -613,9 +639,9 @@ function sketchSyncSizeUI() {
     dot.style.height = d + 'px';
     dot.style.background = SK.tool === 'eraser' ? '#C7D4DE'
                          : SK.tool === 'pencil' ? '#9AA6B0'
-                         : SK.tool === 'marker' ? '#FFD400'
+                         : SK.tool === 'marker' ? (SK.colors.marker || '#FFD400')
                          : SK.tool === 'water'  ? '#3D7EC2'
-                         : SK.tool === 'smudge' ? '#B98D6F' : '#E8EEF2';
+                         : SK.tool === 'smudge' ? '#B98D6F' : (SK.colors.pen || '#E8EEF2');
   }
   const table = SK_PRESETS[SK.tool] || SK_PRESETS.pen;
   document.querySelectorAll('#sketchpad-fg .dock-preset').forEach(b => {
@@ -843,5 +869,6 @@ function sketchInit() {
   sketchSyncSizeUI();         // prime the dock controls to the default weight
   sketchSyncOpacityUI();      // prime the dock controls to the default opacity
   sketchSyncFlowUI();         // prime the dock controls to the default smoothing
+  sketchSyncColorUI();        // prime the swatch row for the default tool (Pen)
 }
 sketchInit();
