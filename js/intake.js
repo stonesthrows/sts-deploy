@@ -483,6 +483,11 @@ function _apGenToken() {
 // sendForApproval() and the Step-4 preview, but isn't persisted onto the
 // order (the sketch canvas remains the order's own record).
 let _apAttachedImg = null;
+// Tracks an in-flight apLoadApprovalFromNotion() fetch so Save & Close can
+// wait for it — without this, saving before the cross-device rehydrate
+// resolves would build the order snapshot with approvalImg still blank and
+// push that over the real image, wiping it from Notion.
+let _apLoadPromise = null;
 
 // Read a chosen image file → dataURL → show it as the approval preview.
 // The image is persisted on the order as order.approvalImg and synced to
@@ -763,8 +768,11 @@ async function intakeLoadOrderForEdit(id) {
   { const nm = document.getElementById('ap-attach-name'); if (nm) nm.textContent = _apAttachedImg ? 'Attached image' : ''; }
   // No local copy but the order has a Notion page → the approval image was
   // attached on another device; stream it back so the Send-for-Approval page
-  // shows it here too. Fire-and-forget: it re-renders the preview on arrival.
-  if (!_apAttachedImg && order.notionId) apLoadApprovalFromNotion(order);
+  // shows it here too. Tracked via _apLoadPromise so Save & Close (below)
+  // can wait for it instead of racing it.
+  if (!_apAttachedImg && order.notionId) {
+    _apLoadPromise = apLoadApprovalFromNotion(order).finally(() => { _apLoadPromise = null; });
+  }
   // Rehydrate the Photos-tab reference images into session state so they
   // (a) show in the bottom sheet on reopen and (b) are no longer force-
   // restored from the original by intakeSubmit() — which meant photos
@@ -878,6 +886,10 @@ function intakePopulateFromOrder(o) {
 async function intakeSubmit() {
   const btn = document.getElementById('intake-save-btn');
   if (btn && btn.disabled) return;
+  // Don't let a fast Save & Close race the cross-device Approval Image
+  // rehydrate — finish it first so the snapshot below never carries a
+  // still-blank approvalImg over the real one already sitting in Notion.
+  if (_apLoadPromise) { try { await _apLoadPromise; } catch (e) {} }
 
   const g = id => document.getElementById(id);
   const typeVal = (g('f-order-type') || {}).value || 'order';
