@@ -88,11 +88,24 @@ function optionCards(options) {
     </div>`).join('');
 }
 
+// The Design gallery attached on the Approval step (sketch + any extra
+// reference photos — e.g. the chosen stone) — separate from the per-option
+// images inside optionCards(), which illustrate each Compare choice.
+function galleryImages(images) {
+  const list = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (!list.length) return '';
+  const imgs = list.map(src =>
+    `<img src="${esc(src)}" alt="Design reference" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 10px;border:1px solid #E4E2DD">`
+  ).join('');
+  return `<div style="margin:0 0 18px">${imgs}</div>`;
+}
+
 function buildHtml(rec, link) {
   // Stones Throw Studio brand colors: blue #4E7A94 · gold #C9983A
   // (match the webapp's --bg / --accent in css/app.css and the New Order button gradient)
   const hasOptions = Array.isArray(rec.options) && rec.options.length > 1;
   const estimate = hasOptions ? optionCards(rec.options) : estimateTable(rec.lines, rec.total);
+  const gallery = galleryImages(rec.images);
   const title = rec.title
     ? `<p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(rec.title)}</p>` : '';
   // In Compare mode each option carries its own note (rendered inside its
@@ -109,6 +122,7 @@ function buildHtml(rec, link) {
     <h2 style="color:#4E7A94;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
     <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, ${intro}</p>
     ${title}
+    ${gallery}
     ${estimate}
     ${note}
     <p style="margin:26px 0;text-align:center">
