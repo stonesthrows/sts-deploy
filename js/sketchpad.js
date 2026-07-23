@@ -26,6 +26,16 @@ const SK_PRESETS = {
   eraser: { S: 16,  M: 28,  L: 48 },
 };
 
+// ── Shape-snap: pause the pointer mid-stroke (without lifting) to straighten
+// a line, or clean up a circle/oval/rectangle — QuickShape-style. Only makes
+// sense for the path tools (pen/pencil/marker); water/smudge/eraser aren't
+// path strokes. HOLD_MS is how long the pointer must sit still (movement
+// under HOLD_JITTER doesn't count as movement, since touch/pencil input jitters).
+const SHAPE_TOOLS = new Set(['pen', 'pencil', 'marker']);
+const HOLD_MS = 450;
+const HOLD_JITTER = 4;
+const SHAPE_MIN_SPAN = 18; // px bounding-box diagonal below which a hold is just a pause, not a shape
+
 function _padCreate(canvasId, opts) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return null;
@@ -48,6 +58,9 @@ function _padCreate(canvasId, opts) {
     undo: [], redo: [],     // {url, ink} snapshots, capped at 20
     background: (opts && opts.background) || null,
     smudgeBuf: document.createElement('canvas'), // reused scratch canvas for _padSmudgeDab
+    shapes: !(opts && opts.shapes === false), // false → never shape-snap on this pad (e.g. handwriting strip)
+    _strokePts: null,  // raw (unsmoothed) points of the in-progress stroke, for shape classification
+    _holdTimer: null,  // fires _padSnapToShape after the pointer sits still for HOLD_MS
   };
   _padBlank(pad);
   canvas.addEventListener('pointerdown',   e => _padDown(pad, e));
@@ -214,6 +227,13 @@ function _padDown(pad, e) {
   }
   pad._last = p;    // anchor for the quadratic-through-midpoints smoothing in _padMove
   pad._pathPos = p; // actual path endpoint so far — lets _padMove stroke only new segments
+  if (pad.shapes && SHAPE_TOOLS.has(pad.tool)) {
+    pad._strokePts = [p];
+    pad._holdAnchor = p;
+    _padScheduleHold(pad);
+  } else {
+    pad._strokePts = null;
+  }
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
   ctx.lineTo(p.x + 0.01, p.y + 0.01); // a tap leaves a dot
@@ -382,17 +402,125 @@ function _padMove(pad, e) {
     ctx.quadraticCurveTo(pad._last.x, pad._last.y, endX, endY);
     pad._pathPos = { x: endX, y: endY };
     pad._last = p;
+    if (pad._strokePts) {
+      pad._strokePts.push(p);
+      // Only a real move resets the hold-still timer — coalesced touch/pencil
+      // jitter under HOLD_JITTER would otherwise keep re-arming it forever
+      // and a genuine pause-to-snap would never fire.
+      if (Math.hypot(p.x - pad._holdAnchor.x, p.y - pad._holdAnchor.y) > HOLD_JITTER) {
+        pad._holdAnchor = p;
+        _padScheduleHold(pad);
+      }
+    }
   }
   ctx.stroke();
 }
 
 function _padUp(pad, e) {
+  _padCancelHold(pad);
+  pad._strokePts = null;
   if (!pad.drawing) return;
   pad.drawing = false;
   pad.ctx.globalAlpha = 1; // reset so snapshots/other paints stay opaque
   pad.ctx.globalCompositeOperation = 'source-over'; // reset after marker's 'multiply' / eraser's 'destination-out'
   pad.hasInk = true;
   pad.dirty = true;
+}
+
+// ── Shape-snap ─────────────────────────────────────────────────
+function _padScheduleHold(pad) {
+  clearTimeout(pad._holdTimer);
+  pad._holdTimer = setTimeout(() => _padSnapToShape(pad), HOLD_MS);
+}
+
+function _padCancelHold(pad) {
+  clearTimeout(pad._holdTimer);
+  pad._holdTimer = null;
+}
+
+function _padBBox(pts) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+
+// Classifies an accumulated stroke as a line, ellipse, or rectangle. A
+// closed stroke (end near start) is an ellipse or a rectangle — decided by
+// checking, per point, whether it sits closer to the bounding box's edges
+// (rectangle) or to the inscribed ellipse's boundary (circle/oval). That
+// per-point vote is simple and robust; angle-based corner-counting is the
+// usual alternative but misfires easily on a shaky hand. An open stroke
+// (end far from start) becomes a straight line between its true endpoints.
+function _padClassifyStroke(pts) {
+  const box = _padBBox(pts);
+  const diag = Math.hypot(box.w, box.h);
+  if (diag < SHAPE_MIN_SPAN) return null; // too small to be worth snapping
+  const start = pts[0], end = pts[pts.length - 1];
+  const closeGap = Math.hypot(end.x - start.x, end.y - start.y);
+
+  if (closeGap < diag * 0.3 && pts.length > 8) {
+    const cx = (box.minX + box.maxX) / 2, cy = (box.minY + box.maxY) / 2;
+    const rx = Math.max(box.w / 2, 4), ry = Math.max(box.h / 2, 4);
+    let rectScore = 0, ellipseScore = 0;
+    for (const p of pts) {
+      const dRect = Math.min(p.x - box.minX, box.maxX - p.x, p.y - box.minY, box.maxY - p.y);
+      const nx = (p.x - cx) / rx, ny = (p.y - cy) / ry;
+      const dEllipse = Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry);
+      if (dRect < dEllipse) rectScore++; else ellipseScore++;
+    }
+    return rectScore > ellipseScore
+      ? { type: 'rect', x: box.minX, y: box.minY, w: box.w, h: box.h }
+      : { type: 'ellipse', cx, cy, rx, ry };
+  }
+  return { type: 'line', x1: start.x, y1: start.y, x2: end.x, y2: end.y };
+}
+
+// Fired when the pointer holds still mid-stroke. Wipes the freehand attempt
+// back to the pre-stroke snapshot _padDown already pushed onto pad.undo (so
+// a single Undo still removes the whole shape, same as any other stroke)
+// and redraws it clean using the tool style already live on ctx.
+function _padSnapToShape(pad) {
+  pad._holdTimer = null;
+  if (!pad.drawing || !pad._strokePts || pad._strokePts.length < 2) return;
+  const shape = _padClassifyStroke(pad._strokePts);
+  if (!shape) return; // too small — keep drawing freehand, don't lock the stroke
+  pad.drawing = false; // lock the stroke; further movement from this touch is ignored
+
+  const redraw = () => {
+    const ctx = pad.ctx;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (shape.type === 'line') {
+      ctx.moveTo(shape.x1, shape.y1);
+      ctx.lineTo(shape.x2, shape.y2);
+    } else if (shape.type === 'ellipse') {
+      ctx.ellipse(shape.cx, shape.cy, shape.rx, shape.ry, 0, 0, Math.PI * 2);
+    } else {
+      ctx.rect(shape.x, shape.y, shape.w, shape.h);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    pad.hasInk = true;
+    pad.dirty = true;
+    toast(shape.type === 'line' ? 'Snapped to line'
+        : shape.type === 'ellipse' ? 'Snapped to circle'
+        : 'Snapped to rectangle', '◇');
+  };
+
+  const snap = pad.undo[pad.undo.length - 1];
+  if (snap) {
+    const img = new Image();
+    img.onload = () => { _padBlank(pad); pad.ctx.drawImage(img, 0, 0); redraw(); };
+    img.src = snap.url;
+  } else {
+    redraw();
+  }
 }
 
 // ── Design sketch toolbar handlers ────────────────────────────
@@ -701,7 +829,7 @@ async function hwConvert(btn) {
 // ── Init (scripts load at end of body — canvases already exist) ──
 function sketchInit() {
   SK = _padCreate('sketch-canvas', { penOnly: true }); // Apple Pencil only
-  HW = _padCreate('hw-canvas', { background: _hwBackground });
+  HW = _padCreate('hw-canvas', { background: _hwBackground, shapes: false });
   if (HW) HW.widths.pen = 6; // handwriting pen is fixed medium
   // A #sketch-grid element means the host page uses the layered stage
   // (white .sketch-stage, DOM layers beneath the ink) — flip the ink canvas
