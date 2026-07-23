@@ -78,11 +78,20 @@ function estimateTable(lines, total) {
 
 // Email can't toggle between options, so Compare (Option A/B/C) versions
 // are laid out as stacked cards, each with its own image + line items.
-function optionCards(options) {
-  return options.map(o => `
+// Points at a real https:// URL (served by /api/approval-image) instead of
+// embedding the photo inline as a base64 data: URI. Inline data: images get
+// stripped by most email clients on receipt, and building + re-encoding a
+// multi-MB MIME string for a handful of embedded photos risks exceeding the
+// Worker's CPU time limit — which is what was surfacing as an opaque 503.
+function imgUrl(origin, token, kind, i) {
+  return origin + '/api/approval-image?token=' + encodeURIComponent(token) + '&kind=' + kind + '&i=' + i;
+}
+
+function optionCards(options, origin, token) {
+  return options.map((o, i) => `
     <div style="margin:0 0 18px;padding:16px;border:1px solid #E4E2DD;border-radius:10px;background:#fff">
       <p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(o.label)}${o.crowned ? ' <span style="font-weight:400;color:#8A7238;font-size:12px">★ recommended</span>' : ''}</p>
-      ${o.image ? `<img src="${esc(o.image)}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 12px;border:1px solid #E4E2DD">` : ''}
+      ${o.image ? `<img src="${esc(imgUrl(origin, token, 'option', i))}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 12px;border:1px solid #E4E2DD">` : ''}
       ${estimateTable(o.lines, o.total)}
       ${o.notes ? `<p style="margin:12px 0 0;color:#3a4656;white-space:pre-wrap;font-size:14px">${esc(o.notes)}</p>` : ''}
     </div>`).join('');
@@ -91,11 +100,13 @@ function optionCards(options) {
 // The Design gallery attached on the Approval step (sketch + any extra
 // reference photos — e.g. the chosen stone) — separate from the per-option
 // images inside optionCards(), which illustrate each Compare choice.
-function galleryImages(images) {
-  const list = Array.isArray(images) ? images.filter(Boolean) : [];
+// (Already deduped against option images at storage time — see approval.js.)
+function galleryImages(images, origin, token) {
+  const list = Array.isArray(images) ? images : [];
   if (!list.length) return '';
-  const imgs = list.map(src =>
-    `<img src="${esc(src)}" alt="Design reference" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 10px;border:1px solid #E4E2DD">`
+  const imgs = list.map((src, i) => src
+    ? `<img src="${esc(imgUrl(origin, token, 'gallery', i))}" alt="Design reference" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 10px;border:1px solid #E4E2DD">`
+    : ''
   ).join('');
   return `<div style="margin:0 0 18px">${imgs}</div>`;
 }
@@ -103,13 +114,10 @@ function galleryImages(images) {
 function buildHtml(rec, link) {
   // Stones Throw Studio brand colors: blue #4E7A94 · gold #C9983A
   // (match the webapp's --bg / --accent in css/app.css and the New Order button gradient)
+  const origin = new URL(link).origin;
   const hasOptions = Array.isArray(rec.options) && rec.options.length > 1;
-  const estimate = hasOptions ? optionCards(rec.options) : estimateTable(rec.lines, rec.total);
-  // Skip any general-gallery photo that's byte-identical to an option's
-  // image — it already shows inside that option's card, no need to repeat it.
-  const optionImages = hasOptions ? new Set(rec.options.map(o => o.image).filter(Boolean)) : new Set();
-  const galleryOnly = (Array.isArray(rec.images) ? rec.images : []).filter(src => !optionImages.has(src));
-  const gallery = galleryImages(galleryOnly);
+  const estimate = hasOptions ? optionCards(rec.options, origin, rec.token) : estimateTable(rec.lines, rec.total);
+  const gallery = galleryImages(rec.images, origin, rec.token);
   const title = rec.title
     ? `<p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(rec.title)}</p>` : '';
   // In Compare mode each option carries its own note (rendered inside its
