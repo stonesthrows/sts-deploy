@@ -467,6 +467,22 @@ function _apReadFinancials() {
   return { total, shipping, tax, work, lines };
 }
 
+// Same breakdown as _apReadFinancials(), but derived from a captured
+// Compare-mode snapshot (v from _estVariants) instead of the live DOM —
+// used to build the per-option lines sent to the approval record/email.
+function _apOptionFinancials(v) {
+  const total = Math.round(_estStateTotal(v) * 100) / 100;
+  const shipping = v.shipping || 0;
+  const mat = v.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const adjusted = (mat + (v.labor || 0)) * (v.multiplier || 2.5) + (v.adjustment || 0);
+  const tax = v.taxOn ? Math.round(adjusted * 0.0825 * 100) / 100 : 0;
+  const work = Math.max(0, Math.round((total - shipping - tax) * 100) / 100);
+  const lines = [{ label: 'Design & labor', amount: work }];
+  if (shipping > 0) lines.push({ label: 'Shipping', amount: shipping });
+  if (tax > 0)      lines.push({ label: 'Sales tax (8.25%)', amount: tax });
+  return { total, lines };
+}
+
 function _apTitle() {
   const g = id => (document.getElementById(id)?.value || '').trim();
   return g('f-job-desc') || g('f-description') || 'Custom piece';
@@ -694,6 +710,20 @@ async function sendForApproval() {
   // when present; otherwise the sketch (if any) is sent as the sole image.
   const images = (_apAttachedImgs && _apAttachedImgs.length) ? [..._apAttachedImgs]
     : ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? [sketchExport()] : []);
+
+  // Compare mode (2-3 versions) → send every option so the customer can
+  // toggle between them on the approval page and in the email. Keep the
+  // crowned option's lines/total on the record too, for older callers.
+  let options = null;
+  if (_estVariants && _estVariants.length > 1) {
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
+    options = _estVariants.map((v, i) => {
+      const f = _apOptionFinancials(v);
+      return { label: v.label, lines: f.lines, total: f.total, image: v.image || null, crowned: i === _estCrowned };
+    });
+  }
+  const crowned = options ? options.find(o => o.crowned) || options[0] : null;
+
   const snapshot = {
     kind: 'create',
     token,
@@ -703,8 +733,9 @@ async function sendForApproval() {
     customerEmail: email,
     images,
     title: _apTitle(),
-    lines: fin.lines,
-    total: fin.total,
+    lines: crowned ? crowned.lines : fin.lines,
+    total: crowned ? crowned.total : fin.total,
+    options,
     notesForCustomer: (g('f-approval-note')?.value || '').trim(),
     shopName: 'Stones Throw Studio',
   };
@@ -1769,10 +1800,10 @@ function intakeEstAdjClear() {
 }
 
 // ── Variant (tier) plumbing ───────────────────────────────────
-function estStateCapture(label) {
+function estStateCapture(label, prevImage) {
   const n = _estReadDom();
   return { label, rows: n.rows.map(r => ({ ...r })), labor: n.labor, shipping: n.shipping,
-           taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj };
+           taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj, image: prevImage || null };
 }
 
 function estStateApply(s) {
@@ -1809,7 +1840,7 @@ function intakeEstCompare() {
     _estActive = 1;
     _estCrowned = 0;
   } else {
-    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
     _estVariants.push(estStateCapture(label));
     _estActive = _estVariants.length - 1;
   }
@@ -1819,10 +1850,27 @@ function intakeEstCompare() {
 
 function intakeEstSwitchVariant(i) {
   if (!_estVariants || i === _estActive) return;
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
   _estActive = i;
   estStateApply(_estVariants[i]);
   intakeEstRenderVariants();
+}
+
+function intakeEstAttachImage(i) {
+  if (!_estVariants || !_estVariants[i]) return;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      _estVariants[i].image = e.target.result;
+      intakeEstRenderVariants();
+    };
+    reader.readAsDataURL(f);
+  };
+  inp.click();
 }
 
 function intakeEstRemoveVariant(i) {
@@ -1845,13 +1893,15 @@ function intakeEstRenderVariants() {
   if (!bar) return;
   if (!_estVariants) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
   // keep the active variant's snapshot fresh so inactive totals are honest
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   bar.style.display = '';
   bar.innerHTML = _estVariants.map((v, i) =>
     '<span class="est-var-chip' + (i === _estActive ? ' active' : '') + '" onclick="intakeEstSwitchVariant(' + i + ')">'
+    + (v.image ? '<img class="ev-thumb" src="' + v.image + '" alt="">' : '')
     + (i === _estCrowned ? '★ ' : '') + esc(v.label)
     + ' <span class="ev-total">$' + Math.round(_estStateTotal(v)).toLocaleString('en-US') + '</span>'
+    + '<button type="button" class="ev-img" onclick="event.stopPropagation();intakeEstAttachImage(' + i + ')" aria-label="' + (v.image ? 'Change image' : 'Attach image') + '">🖼</button>'
     + (_estVariants.length > 1 ? '<button type="button" class="ev-x" onclick="event.stopPropagation();intakeEstRemoveVariant(' + i + ')" aria-label="Remove version">✕</button>' : '')
     + '</span>'
   ).join('');

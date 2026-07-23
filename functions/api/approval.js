@@ -13,7 +13,8 @@
 //      customerName, customerEmail,          ← never returned by GET
 //      images,                               ← array of data: URLs (sketch and/or attached photos)
 //      title,                                ← what the piece is
-//      lines:[{label,amount}], total,        ← customer-facing charges (no cost basis)
+//      lines:[{label,amount}], total,        ← customer-facing charges (no cost basis) for the crowned/only option
+//      options,                              ← optional [{label,lines,total,image,crowned}] from Compare (Option A/B/C)
 //      notesForCustomer,
 //      status: 'sent' | 'approved' | 'changes',
 //      response, sentAt, respondedAt
@@ -91,6 +92,13 @@ export async function onRequestPost(context) {
       title:         body.title          || '',
       lines:         Array.isArray(body.lines) ? body.lines : [],
       total:         Number(body.total)   || 0,
+      options:       Array.isArray(body.options) ? body.options.map(o => ({
+                       label: String(o.label || ''),
+                       lines: Array.isArray(o.lines) ? o.lines : [],
+                       total: Number(o.total) || 0,
+                       image: o.image || null,
+                       crowned: !!o.crowned,
+                     })) : null,
       notesForCustomer: body.notesForCustomer || '',
       shopName:      body.shopName || 'Stones Throw Studio',
       status:        'sent',
@@ -118,6 +126,7 @@ export async function onRequestPost(context) {
     rec.status      = decision;
     rec.response    = String(body.notes || '').slice(0, 4000);
     rec.respondedAt = new Date().toISOString();
+    if (body.selectedOption) rec.selectedOption = String(body.selectedOption).slice(0, 200);
     await kv.put(KEY(token), JSON.stringify(rec));
     return json({ ok: true, status: decision });
   }

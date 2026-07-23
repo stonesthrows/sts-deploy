@@ -29,6 +29,14 @@
     .gallery img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:#F4F4F2; border:1px solid var(--line); cursor:zoom-in; }
     .gallery.single { grid-template-columns:1fr; }
     .gallery.single img { aspect-ratio:auto; cursor:zoom-in; }
+    .opt-toggle { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .opt-btn {
+      flex:1 1 100px; border:1.5px solid var(--line); background:#fff; color:var(--ink);
+      border-radius:10px; padding:10px 8px; font:inherit; font-weight:700; font-size:14px; cursor:pointer;
+    }
+    .opt-btn.active { border-color:var(--gold); background:#FBF3E2; color:var(--gold-dk); }
+    .opt-btn .star { color:var(--gold-dk); }
+    .opt-image { width:100%; border-radius:10px; display:block; margin-bottom:14px; background:#F4F4F2; border:1px solid var(--line); cursor:zoom-in; }
     .lightbox {
       position:fixed; inset:0; background:rgba(20,20,18,.92); z-index:100;
       display:flex; align-items:center; justify-content:center; padding:24px; cursor:zoom-out;
@@ -88,8 +96,10 @@
       </div>
 
       <div class="card">
-        <h2>Estimate</h2>
+        <h2 id="est-heading">Estimate</h2>
         <div id="est-title" class="hidden" style="font-weight:700;font-size:16px;margin-bottom:10px;"></div>
+        <div id="opt-toggle" class="opt-toggle hidden"></div>
+        <img id="opt-image" class="opt-image hidden" onclick="zoomImage(this.src)">
         <table id="est-table"></table>
       </div>
 
@@ -124,15 +134,45 @@
       var e = $('error'); e.textContent = msg; e.classList.remove('hidden');
     }
 
-    function renderEstimate(r) {
-      if (r.title) { var t = $('est-title'); t.textContent = r.title; t.classList.remove('hidden'); }
-      var lines = Array.isArray(r.lines) ? r.lines : [];
+    var SELECTED_OPTION = 0;
+
+    function renderOptionTable(opt) {
+      var lines = Array.isArray(opt.lines) ? opt.lines : [];
       var rows = '';
       lines.forEach(function (ln) {
         rows += '<tr><td>' + esc(ln.label) + '</td><td class="r">' + money(ln.amount) + '</td></tr>';
       });
-      rows += '<tr class="total"><td>Total</td><td class="r">' + money(r.total) + '</td></tr>';
+      rows += '<tr class="total"><td>Total</td><td class="r">' + money(opt.total) + '</td></tr>';
       $('est-table').innerHTML = rows;
+      var img = $('opt-image');
+      if (opt.image) { img.src = opt.image; img.classList.remove('hidden'); }
+      else { img.classList.add('hidden'); }
+    }
+
+    function selectOption(i) {
+      SELECTED_OPTION = i;
+      var opts = REC.options;
+      renderOptionTable(opts[i]);
+      var btns = document.querySelectorAll('#opt-toggle .opt-btn');
+      btns.forEach(function (b, bi) { b.classList.toggle('active', bi === i); });
+    }
+
+    function renderEstimate(r) {
+      if (r.title) { var t = $('est-title'); t.textContent = r.title; t.classList.remove('hidden'); }
+      var options = Array.isArray(r.options) ? r.options : [];
+      if (options.length > 1) {
+        $('est-heading').textContent = 'Choose your option';
+        var toggle = $('opt-toggle');
+        toggle.innerHTML = options.map(function (o, i) {
+          return '<button type="button" class="opt-btn" onclick="selectOption(' + i + ')">'
+            + (o.crowned ? '<span class="star">★</span> ' : '') + esc(o.label) + '</button>';
+        }).join('');
+        toggle.classList.remove('hidden');
+        var startAt = options.findIndex(function (o) { return o.crowned; });
+        selectOption(startAt >= 0 ? startAt : 0);
+        return;
+      }
+      renderOptionTable({ lines: r.lines, total: r.total, image: null });
     }
 
     function renderRespondedState(r) {
@@ -141,6 +181,7 @@
       b.className = 'banner ' + (approved ? 'ok' : 'changes');
       var when = r.respondedAt ? new Date(r.respondedAt).toLocaleDateString(undefined, { month:'long', day:'numeric', year:'numeric' }) : '';
       b.innerHTML = (approved ? '✓ You approved this estimate' : '✎ You requested changes')
+        + (r.selectedOption ? ' — ' + esc(r.selectedOption) : '')
         + (when ? ' on ' + when : '')
         + (r.response ? '<div style="font-weight:400;margin-top:6px;white-space:pre-wrap">“' + esc(r.response) + '”</div>' : '');
       b.classList.remove('hidden');
@@ -150,6 +191,7 @@
       $('btn-approve').disabled = true;
       $('btn-changes').disabled = true;
       $('respond-card').classList.add('hidden');
+      document.querySelectorAll('#opt-toggle .opt-btn').forEach(function (b2) { b2.disabled = true; });
     }
 
     function renderGallery(r) {
@@ -188,14 +230,17 @@
       $('btn-approve').disabled = true;
       $('btn-changes').disabled = true;
       var notes = $('resp').value.trim();
+      var options = Array.isArray(REC.options) ? REC.options : [];
+      var selectedOption = options.length > 1 ? options[SELECTED_OPTION].label : '';
       fetch('/api/approval', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'respond', token: TOKEN, decision: decision, notes: notes }),
+        body: JSON.stringify({ kind: 'respond', token: TOKEN, decision: decision, notes: notes, selectedOption: selectedOption }),
       }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           if (!res.ok) throw new Error(res.d.error || 'Could not save your response');
           REC.status = decision; REC.response = notes; REC.respondedAt = new Date().toISOString();
+          REC.selectedOption = selectedOption;
           renderRespondedState(REC);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         })

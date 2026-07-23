@@ -64,29 +64,49 @@ async function gmailAccessToken(env) {
   return d.access_token;
 }
 
-function buildHtml(rec, link) {
-  // Stones Throw Studio brand colors: blue #4E7A94 · gold #C9983A
-  // (match the webapp's --bg / --accent in css/app.css and the New Order button gradient)
-  const rows = (Array.isArray(rec.lines) ? rec.lines : []).map(ln =>
+function estimateTable(lines, total) {
+  const rows = (Array.isArray(lines) ? lines : []).map(ln =>
     `<tr><td style="padding:4px 0;color:#2b3648">${esc(ln.label)}</td>`
     + `<td style="padding:4px 0;text-align:right;color:#2b3648">${money(ln.amount)}</td></tr>`
   ).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-size:15px">
+      ${rows}
+      <tr><td style="padding:10px 0 0;border-top:1px solid #E4E2DD;font-weight:700">Total</td>
+          <td style="padding:10px 0 0;border-top:1px solid #E4E2DD;text-align:right;font-weight:700">${money(total)}</td></tr>
+    </table>`;
+}
+
+// Email can't toggle between options, so Compare (Option A/B/C) versions
+// are laid out as stacked cards, each with its own image + line items.
+function optionCards(options) {
+  return options.map(o => `
+    <div style="margin:0 0 18px;padding:16px;border:1px solid #E4E2DD;border-radius:10px;background:#fff">
+      <p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(o.label)}${o.crowned ? ' <span style="font-weight:400;color:#8A7238;font-size:12px">★ recommended</span>' : ''}</p>
+      ${o.image ? `<img src="${esc(o.image)}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 12px;border:1px solid #E4E2DD">` : ''}
+      ${estimateTable(o.lines, o.total)}
+    </div>`).join('');
+}
+
+function buildHtml(rec, link) {
+  // Stones Throw Studio brand colors: blue #4E7A94 · gold #C9983A
+  // (match the webapp's --bg / --accent in css/app.css and the New Order button gradient)
+  const hasOptions = Array.isArray(rec.options) && rec.options.length > 1;
+  const estimate = hasOptions ? optionCards(rec.options) : estimateTable(rec.lines, rec.total);
   const title = rec.title
     ? `<p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(rec.title)}</p>` : '';
   const note = rec.notesForCustomer
     ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
+  const intro = hasOptions
+    ? "here are the design options for your piece — take a look at each and let me know which one you'd like, or if it's good to go."
+    : "here's the estimate for your piece. Take a look and let me know if it's good to go.";
 
   return `<div style="background:#4E7A94;padding:32px 16px;font-family:-apple-system,Segoe UI,Arial,sans-serif">
    <div style="background:#FAFAF9;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #E4E2DD">
     <div style="max-width:560px;margin:0 auto;color:#2b3648">
     <h2 style="color:#4E7A94;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
-    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, here's the estimate for your piece. Take a look and let me know if it's good to go.</p>
+    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, ${intro}</p>
     ${title}
-    <table style="width:100%;border-collapse:collapse;font-size:15px">
-      ${rows}
-      <tr><td style="padding:10px 0 0;border-top:1px solid #E4E2DD;font-weight:700">Total</td>
-          <td style="padding:10px 0 0;border-top:1px solid #E4E2DD;text-align:right;font-weight:700">${money(rec.total)}</td></tr>
-    </table>
+    ${estimate}
     ${note}
     <p style="margin:26px 0;text-align:center">
       <a href="${esc(link)}" style="display:inline-block;background:linear-gradient(135deg,#C9983A,#A87C28);color:#ffffff;text-decoration:none;font-weight:700;padding:14px 30px;border-radius:10px">Review &amp; Approve →</a>
