@@ -1228,10 +1228,16 @@ async function intakeSubmit() {
     styleProfile:  s1 ? s1.styleProfile : null,
     gift:          s1 ? s1.gift : null,
     stones:        (typeof _psStones !== 'undefined') ? _psStones.map(st => ({ ...st })) : [],
-    // Declined tier alternatives — upsell memory (3.4)
+    // Declined tier alternatives — upsell memory (3.4). Notes + line-item
+    // breakdown ride along (small text, safe for the Notion "App Data" JSON
+    // property); images don't — they're far too large for that property
+    // and stay in the approval KV record / emailed link only.
     estimateAlternatives: (_estVariants && _estVariants.length > 1)
-      ? _estVariants.map((v, i) => ({ label: v.label, total: Math.round(_estStateTotal(v) * 100) / 100, crowned: i === _estCrowned }))
-                    .filter(v => !v.crowned)
+      ? _estVariants.map((v, i) => {
+          const f = _apOptionFinancials(v);
+          return { label: v.label, total: Math.round(_estStateTotal(v) * 100) / 100,
+                    crowned: i === _estCrowned, notes: v.notes || '', lines: f.lines };
+        }).filter(v => !v.crowned)
       : [],
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
