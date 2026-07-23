@@ -201,6 +201,15 @@
       // `sketch` string for any link created before the gallery rework.
       var images = Array.isArray(r.images) && r.images.length ? r.images
                  : (r.sketch ? [r.sketch] : []);
+      // Skip any general-gallery photo that's byte-identical to an option's
+      // image — it already shows inside that option's card below, no need
+      // to repeat it up top.
+      var options = Array.isArray(r.options) ? r.options : [];
+      if (options.length > 1) {
+        var optionImages = {};
+        options.forEach(function (o) { if (o.image) optionImages[o.image] = true; });
+        images = images.filter(function (src) { return !optionImages[src]; });
+      }
       if (!images.length) { $('sketch-card').classList.add('hidden'); return; }
       var g = $('gallery');
       g.classList.toggle('single', images.length === 1);

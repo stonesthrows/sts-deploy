@@ -105,7 +105,11 @@ function buildHtml(rec, link) {
   // (match the webapp's --bg / --accent in css/app.css and the New Order button gradient)
   const hasOptions = Array.isArray(rec.options) && rec.options.length > 1;
   const estimate = hasOptions ? optionCards(rec.options) : estimateTable(rec.lines, rec.total);
-  const gallery = galleryImages(rec.images);
+  // Skip any general-gallery photo that's byte-identical to an option's
+  // image — it already shows inside that option's card, no need to repeat it.
+  const optionImages = hasOptions ? new Set(rec.options.map(o => o.image).filter(Boolean)) : new Set();
+  const galleryOnly = (Array.isArray(rec.images) ? rec.images : []).filter(src => !optionImages.has(src));
+  const gallery = galleryImages(galleryOnly);
   const title = rec.title
     ? `<p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(rec.title)}</p>` : '';
   // In Compare mode each option carries its own note (rendered inside its
