@@ -401,6 +401,7 @@ function _eoPopulateFieldsInner(o) {
   eoLoadSketch(o);
   eoRenderApproval(o);
   eoLoadRefPhotos(o);
+  eoLoadApprovalImgs(o);
   const sa = o.shippingAddress || {};
   document.getElementById('f-addr-street').value   = sa.street  || o.addrStreet  || o.address || '';
   document.getElementById('f-addr-street2').value  = sa.street2 || o.addrStreet2 || '';
@@ -745,6 +746,73 @@ function eoLoadRefPhotos(o) {
   }
   box.innerHTML = '<div class="eo-refphotos-empty">No reference photos on this order</div>';
   _eoSetRefPhotosSectionVisible(false);
+}
+
+// Approval-Image gallery viewer for the modal — the image(s) attached on the
+// Intake app's Approval step and sent to the client on the hosted approval
+// page. Same local-first / Notion-proxy-fallback pattern as eoLoadRefPhotos:
+// o.approvalImgs only has data on the device that ran intake; every other
+// device streams thumbnails through the pipeline proxy. View-only, since the
+// iPad is the only attach point.
+function _eoSetApprovalImgsSectionVisible(visible) {
+  const sec = document.getElementById('eo-approvalimgs-sec');
+  const box = document.getElementById('eo-approvalimgs-view');
+  if (sec) sec.classList.toggle('eo-no-refphotos', !visible);
+  if (box) box.classList.toggle('eo-no-refphotos', !visible);
+}
+
+function eoLoadApprovalImgs(o) {
+  const box = document.getElementById('eo-approvalimgs-view');
+  if (!box) return;
+  box.innerHTML = '';
+  if (o.approvalImgs && o.approvalImgs.length) {
+    o.approvalImgs.forEach(src => {
+      const thumb = document.createElement('div');
+      thumb.className = 'eo-refphoto-thumb';
+      const img = document.createElement('img');
+      img.alt = 'Approval image';
+      img.src = src;
+      img.onclick = () => _eoOpenViewLightbox(src, o.name + ' — approval image');
+      thumb.appendChild(img);
+      box.appendChild(thumb);
+    });
+    _eoSetApprovalImgsSectionVisible(true);
+    return;
+  }
+  if (o.notionId) {
+    box.innerHTML = '<div class="eo-sketch-spinner" title="Loading approval images from Notion…"></div>';
+    _eoSetApprovalImgsSectionVisible(true); // assume yes until the count fetch proves otherwise
+    const base = '/api/notion-pipeline?sketch=' + encodeURIComponent(o.notionId) + '&prop=' + encodeURIComponent('Approval Image');
+    fetch(base + '&list=1')
+      .then(r => r.json())
+      .then(d => {
+        box.innerHTML = '';
+        const count = (d && d.count) || 0;
+        if (!count) {
+          box.innerHTML = '<div class="eo-refphotos-empty">No approval images on this order</div>';
+          _eoSetApprovalImgsSectionVisible(false);
+          return;
+        }
+        for (let i = 0; i < count; i++) {
+          const src = base + '&idx=' + i;
+          const thumb = document.createElement('div');
+          thumb.className = 'eo-refphoto-thumb';
+          const img = document.createElement('img');
+          img.alt = 'Approval image';
+          img.src = src;
+          img.onclick = () => window.open(src, '_blank');
+          thumb.appendChild(img);
+          box.appendChild(thumb);
+        }
+      })
+      .catch(() => {
+        box.innerHTML = '<div class="eo-refphotos-empty">No approval images on this order</div>';
+        _eoSetApprovalImgsSectionVisible(false);
+      });
+    return;
+  }
+  box.innerHTML = '<div class="eo-refphotos-empty">No approval images on this order</div>';
+  _eoSetApprovalImgsSectionVisible(false);
 }
 
 function eoUpdateSketchBtnLabel(o) {

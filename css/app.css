@@ -957,7 +957,7 @@
     /* Reference Photos gallery — client-shown inspiration/existing-piece
        photos captured in the intake app's Photos tab (distinct from the
        Design Sketch above). View-only here too; added from the iPad only. */
-    #eo-refphotos-view {
+    #eo-refphotos-view, #eo-approvalimgs-view {
       display: flex; flex-wrap: wrap; gap: 10px;
     }
     .eo-refphoto-thumb {
@@ -968,7 +968,9 @@
     .eo-refphotos-empty { font-size: 12.5px; color: var(--text3); }
     .eo-modal.eo-view-mode .eo-refphoto-thumb { width: 76px; height: 76px; }
     .eo-modal.eo-view-mode #eo-refphotos-sec.eo-no-refphotos,
-    .eo-modal.eo-view-mode #eo-refphotos-view.eo-no-refphotos { display: none; }
+    .eo-modal.eo-view-mode #eo-refphotos-view.eo-no-refphotos,
+    .eo-modal.eo-view-mode #eo-approvalimgs-sec.eo-no-refphotos,
+    .eo-modal.eo-view-mode #eo-approvalimgs-view.eo-no-refphotos { display: none; }
     /* Estimate builder + invoice compose live inside the modal now */
     .eo-body #eo-estimate-module {
       margin-top: 16px; border: 1px solid var(--accent-border);
