@@ -579,6 +579,42 @@ function apClearAttachedImage() {
   if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
 }
 
+// The image array backing the Approval step's gallery for whichever
+// option is currently active — Compare mode (2-3 options) gets its own
+// images per option; the plain single-estimate case is just the one
+// implicit option, reusing _apAttachedImgs (kept as its own variable, not
+// read fresh here, so callers must re-fetch rather than cache the result —
+// apClearAttachedImage() etc. reassign it to a new array).
+function _apOptImages() {
+  if (_estVariants && _estVariants.length > 1) {
+    if (!_estVariants[_apActiveOpt].images) _estVariants[_apActiveOpt].images = [];
+    return _estVariants[_apActiveOpt].images;
+  }
+  return _apAttachedImgs;
+}
+
+async function apOptAttachImage(input) {
+  const files = [...((input && input.files) || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length) { toast('Please choose an image file', '⚠'); if (input) input.value = ''; return; }
+  input.value = '';
+  const results = await Promise.all(files.map(f => _apCompressImage(f, 1600, 0.82)));
+  let added = 0;
+  const target = _apOptImages();
+  results.forEach(dataUrl => { if (dataUrl) { target.push(dataUrl); added++; } });
+  if (!added) { toast('Could not read that image', '⚠'); return; }
+  if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+  if (typeof toast === 'function') {
+    toast(added > 1 ? added + ' images attached' : 'Image attached', '📎');
+  }
+}
+
+function apOptRemoveImage(idx) {
+  const target = _apOptImages();
+  if (idx < 0 || idx >= target.length) return;
+  target.splice(idx, 1);
+  if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+}
+
 // Cross-device rehydrate: when editing an order whose approval images were
 // attached on another device, the local base64 copies (order.approvalImgs)
 // are absent here. Stream the bytes back from Notion's 'Approval Image'
@@ -632,35 +668,9 @@ function intakeRenderApproval() {
   const noteEl = g('f-approval-note');
   if (!compareOn && noteEl && !noteEl.value.trim()) noteEl.value = (g('f-customer-notes')?.value || '').trim();
 
-  // Design preview — attached images (gallery) win over the hand-drawn sketch.
-  const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
-  const img = g('ap-sketch'), gallery = g('ap-gallery'), empty = g('ap-sketch-empty');
-  if (_apAttachedImgs && _apAttachedImgs.length) {
-    if (img) img.classList.add('hidden');
-    if (empty) empty.classList.add('hidden');
-    if (gallery) {
-      gallery.innerHTML = _apAttachedImgs.map((src, i) =>
-        '<div class="rp-thumb"><img src="' + src + '" alt="Attached image ' + (i + 1) + '">'
-        + '<button type="button" class="rp-x" onclick="apRemoveAttachedImage(' + i + ')" aria-label="Remove image">✕</button></div>'
-      ).join('');
-      gallery.classList.remove('hidden');
-    }
-  } else if (hasInk && typeof sketchExport === 'function') {
-    if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
-    if (img) { img.src = sketchExport(); img.classList.remove('hidden'); }
-    if (empty) empty.classList.add('hidden');
-  } else {
-    if (img) img.classList.add('hidden');
-    if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
-    if (empty) empty.classList.remove('hidden');
-  }
-  // Button label reflects whether there's already a gallery to add to.
-  const attachBtn = g('ap-attach-btn');
-  if (attachBtn) attachBtn.textContent = (_apAttachedImgs && _apAttachedImgs.length) ? '📎 Add more images' : '📎 Attach image';
-
   // Option toggle (Compare mode only) — lets Kyle preview/edit each
-  // option's estimate summary and its own "notes for the customer" before
-  // sending. Defaults to the crowned option.
+  // option's estimate summary, its own images, and its own "notes for the
+  // customer" before sending. Defaults to the crowned option.
   const toggle = g('ap-opt-toggle');
   if (toggle) {
     if (compareOn) {
@@ -675,6 +685,63 @@ function intakeRenderApproval() {
       toggle.innerHTML = '';
       toggle.classList.add('hidden');
     }
+  }
+
+  // Images for whichever option is active — every estimate is at least
+  // one implicit option, so this is the single place photos live now
+  // (the old standalone "Design" section is gone). Compare mode (2-3
+  // options) gets its own multi-image gallery per option; the plain
+  // single-estimate case reuses the existing _apAttachedImgs plumbing
+  // (and its hand-drawn-sketch fallback) unchanged.
+  const singleWrap = g('ap-sketch-wrap'), optWrap = g('ap-opt-wrap');
+  if (compareOn) {
+    if (singleWrap) singleWrap.classList.add('hidden');
+    if (optWrap) optWrap.classList.remove('hidden');
+    const images = _estVariants[_apActiveOpt].images || [];
+    const optGallery = g('ap-opt-gallery'), optEmpty = g('ap-opt-gallery-empty');
+    if (images.length) {
+      if (optGallery) {
+        optGallery.innerHTML = images.map((src, i) =>
+          '<div class="rp-thumb"><img src="' + src + '" alt="Option image ' + (i + 1) + '">'
+          + '<button type="button" class="rp-x" onclick="apOptRemoveImage(' + i + ')" aria-label="Remove image">✕</button></div>'
+        ).join('');
+        optGallery.classList.remove('hidden');
+      }
+      if (optEmpty) optEmpty.classList.add('hidden');
+    } else {
+      if (optGallery) { optGallery.innerHTML = ''; optGallery.classList.add('hidden'); }
+      if (optEmpty) optEmpty.classList.remove('hidden');
+    }
+    const optAttachBtn = g('ap-opt-attach-btn');
+    if (optAttachBtn) optAttachBtn.textContent = images.length ? '📎 Add more images' : '📎 Attach image';
+  } else {
+    if (optWrap) optWrap.classList.add('hidden');
+    if (singleWrap) singleWrap.classList.remove('hidden');
+    // Attached images (gallery) win over the hand-drawn sketch.
+    const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
+    const img = g('ap-sketch'), gallery = g('ap-gallery'), empty = g('ap-sketch-empty');
+    if (_apAttachedImgs && _apAttachedImgs.length) {
+      if (img) img.classList.add('hidden');
+      if (empty) empty.classList.add('hidden');
+      if (gallery) {
+        gallery.innerHTML = _apAttachedImgs.map((src, i) =>
+          '<div class="rp-thumb"><img src="' + src + '" alt="Attached image ' + (i + 1) + '">'
+          + '<button type="button" class="rp-x" onclick="apRemoveAttachedImage(' + i + ')" aria-label="Remove image">✕</button></div>'
+        ).join('');
+        gallery.classList.remove('hidden');
+      }
+    } else if (hasInk && typeof sketchExport === 'function') {
+      if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
+      if (img) { img.src = sketchExport(); img.classList.remove('hidden'); }
+      if (empty) empty.classList.add('hidden');
+    } else {
+      if (img) img.classList.add('hidden');
+      if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
+      if (empty) empty.classList.remove('hidden');
+    }
+    // Button label reflects whether there's already a gallery to add to.
+    const attachBtn = g('ap-attach-btn');
+    if (attachBtn) attachBtn.textContent = (_apAttachedImgs && _apAttachedImgs.length) ? '📎 Add more images' : '📎 Attach image';
   }
   const noteLabel = g('ap-note-label');
   if (noteLabel) noteLabel.textContent = compareOn
@@ -777,27 +844,32 @@ async function sendForApproval() {
   if (status) status.textContent = 'Creating link…';
 
   const token = (window._intakeApproval && window._intakeApproval.token) || _apGenToken();
-  // Attached images are sent as a gallery in place of the hand-drawn sketch
-  // when present; otherwise the sketch (if any) is sent as the sole image.
-  const images = (_apAttachedImgs && _apAttachedImgs.length) ? [..._apAttachedImgs]
-    : ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? [sketchExport()] : []);
+  const compareOn = _estVariants && _estVariants.length > 1;
 
   // Compare mode (2-3 versions) → send every option, each with its own
-  // notes, so the customer can toggle between them on the approval page
-  // and in the email. Keep the crowned option's lines/total/notes on the
-  // top-level record too, for older callers.
+  // images + notes, so the customer can toggle between them on the
+  // approval page and in the email. Keep the crowned option's lines/total
+  // on the top-level record too, for older callers.
   let options = null;
-  if (_estVariants && _estVariants.length > 1) {
+  if (compareOn) {
     // Capture whatever's currently in the notes box onto the option it belongs to.
     const noteEl = g('f-approval-note');
     if (noteEl) _estVariants[_apActiveOpt].notes = noteEl.value.trim();
-    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
     options = _estVariants.map((v, i) => {
       const f = _apOptionFinancials(v);
-      return { label: v.label, lines: f.lines, total: f.total, image: v.image || null, notes: v.notes || '', crowned: i === _estCrowned };
+      return { label: v.label, lines: f.lines, total: f.total, images: v.images || [], notes: v.notes || '', crowned: i === _estCrowned };
     });
   }
   const crowned = options ? options.find(o => o.crowned) || options[0] : null;
+
+  // The plain single-estimate case (no Compare) is the one implicit
+  // option, still backed by _apAttachedImgs — attached images win over
+  // the hand-drawn sketch when present. Compare mode sends images purely
+  // per-option (above), no separate top-level gallery.
+  const images = compareOn ? []
+    : (_apAttachedImgs && _apAttachedImgs.length) ? [..._apAttachedImgs]
+    : ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? [sketchExport()] : []);
 
   const snapshot = {
     kind: 'create',
@@ -1875,11 +1947,11 @@ function intakeEstAdjClear() {
 }
 
 // ── Variant (tier) plumbing ───────────────────────────────────
-function estStateCapture(label, prevImage, prevNotes) {
+function estStateCapture(label, prevImages, prevNotes) {
   const n = _estReadDom();
   return { label, rows: n.rows.map(r => ({ ...r })), labor: n.labor, shipping: n.shipping,
            taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj,
-           image: prevImage || null, notes: prevNotes || '' };
+           images: prevImages || [], notes: prevNotes || '' };
 }
 
 function estStateApply(s) {
@@ -1916,7 +1988,7 @@ function intakeEstCompare() {
     _estActive = 1;
     _estCrowned = 0;
   } else {
-    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
     _estVariants.push(estStateCapture(label));
     _estActive = _estVariants.length - 1;
   }
@@ -1926,25 +1998,10 @@ function intakeEstCompare() {
 
 function intakeEstSwitchVariant(i) {
   if (!_estVariants || i === _estActive) return;
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
   _estActive = i;
   estStateApply(_estVariants[i]);
   intakeEstRenderVariants();
-}
-
-function intakeEstAttachImage(i) {
-  if (!_estVariants || !_estVariants[i]) return;
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'image/*';
-  inp.onchange = async () => {
-    const f = inp.files && inp.files[0];
-    if (!f) return;
-    const dataUrl = await _apCompressImage(f, 1600, 0.82);
-    if (!dataUrl) { toast('Could not read that image', '⚠'); return; }
-    _estVariants[i].image = dataUrl;
-    intakeEstRenderVariants();
-  };
-  inp.click();
 }
 
 function intakeEstRemoveVariant(i) {
@@ -1967,15 +2024,14 @@ function intakeEstRenderVariants() {
   if (!bar) return;
   if (!_estVariants) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
   // keep the active variant's snapshot fresh so inactive totals are honest
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   bar.style.display = '';
   bar.innerHTML = _estVariants.map((v, i) =>
     '<span class="est-var-chip' + (i === _estActive ? ' active' : '') + '" onclick="intakeEstSwitchVariant(' + i + ')">'
-    + (v.image ? '<img class="ev-thumb" src="' + v.image + '" alt="">' : '')
+    + (v.images && v.images[0] ? '<img class="ev-thumb" src="' + v.images[0] + '" alt="">' : '')
     + (i === _estCrowned ? '★ ' : '') + esc(v.label)
     + ' <span class="ev-total">$' + Math.round(_estStateTotal(v)).toLocaleString('en-US') + '</span>'
-    + '<button type="button" class="ev-img" onclick="event.stopPropagation();intakeEstAttachImage(' + i + ')" aria-label="' + (v.image ? 'Change image' : 'Attach image') + '">🖼</button>'
     + (_estVariants.length > 1 ? '<button type="button" class="ev-x" onclick="event.stopPropagation();intakeEstRemoveVariant(' + i + ')" aria-label="Remove version">✕</button>' : '')
     + '</span>'
   ).join('');

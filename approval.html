@@ -36,7 +36,6 @@
     }
     .opt-btn.active { border-color:var(--gold); background:#FBF3E2; color:var(--gold-dk); }
     .opt-btn .star { color:var(--gold-dk); }
-    .opt-image { width:100%; border-radius:10px; display:block; margin-bottom:14px; background:#F4F4F2; border:1px solid var(--line); cursor:zoom-in; }
     .lightbox {
       position:fixed; inset:0; background:rgba(20,20,18,.92); z-index:100;
       display:flex; align-items:center; justify-content:center; padding:24px; cursor:zoom-out;
@@ -99,7 +98,7 @@
         <h2 id="est-heading">Estimate</h2>
         <div id="est-title" class="hidden" style="font-weight:700;font-size:16px;margin-bottom:10px;"></div>
         <div id="opt-toggle" class="opt-toggle hidden"></div>
-        <img id="opt-image" class="opt-image hidden" onclick="zoomImage(this.src)">
+        <div id="opt-gallery" class="gallery hidden" style="margin-bottom:14px;"></div>
         <table id="est-table"></table>
       </div>
 
@@ -144,9 +143,18 @@
       });
       rows += '<tr class="total"><td>Total</td><td class="r">' + money(opt.total) + '</td></tr>';
       $('est-table').innerHTML = rows;
-      var img = $('opt-image');
-      if (opt.image) { img.src = opt.image; img.classList.remove('hidden'); }
-      else { img.classList.add('hidden'); }
+      var images = Array.isArray(opt.images) ? opt.images.filter(Boolean) : [];
+      var og = $('opt-gallery');
+      if (images.length) {
+        og.classList.toggle('single', images.length === 1);
+        og.innerHTML = images.map(function (src, i) {
+          return '<img src="' + src + '" alt="Option image ' + (i + 1) + '" onclick="zoomImage(this.src)">';
+        }).join('');
+        og.classList.remove('hidden');
+      } else {
+        og.innerHTML = '';
+        og.classList.add('hidden');
+      }
       if (opt.notes) { $('cust-note').textContent = opt.notes; $('note-card').classList.remove('hidden'); }
       else { $('note-card').classList.add('hidden'); }
     }
@@ -174,7 +182,7 @@
         selectOption(startAt >= 0 ? startAt : 0);
         return;
       }
-      renderOptionTable({ lines: r.lines, total: r.total, image: null });
+      renderOptionTable({ lines: r.lines, total: r.total, images: [] });
     }
 
     function renderRespondedState(r) {
@@ -201,13 +209,14 @@
       // `sketch` string for any link created before the gallery rework.
       var images = Array.isArray(r.images) && r.images.length ? r.images
                  : (r.sketch ? [r.sketch] : []);
-      // Skip any general-gallery photo that's byte-identical to an option's
-      // image — it already shows inside that option's card below, no need
-      // to repeat it up top.
+      // Skip any general-gallery photo that's byte-identical to one already
+      // attached to an option — it already shows inside that option's card
+      // below, no need to repeat it up top. (Compare mode sends no shared
+      // gallery at all now, so this only matters for older approval links.)
       var options = Array.isArray(r.options) ? r.options : [];
       if (options.length > 1) {
         var optionImages = {};
-        options.forEach(function (o) { if (o.image) optionImages[o.image] = true; });
+        options.forEach(function (o) { (o.images || []).forEach(function (src) { optionImages[src] = true; }); });
         images = images.filter(function (src) { return !optionImages[src]; });
       }
       if (!images.length) { $('sketch-card').classList.add('hidden'); return; }

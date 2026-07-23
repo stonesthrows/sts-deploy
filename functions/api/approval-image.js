@@ -13,7 +13,8 @@
 //       time limit, which surfaces to the studio as an opaque 503 with no
 //       useful error text.
 //
-//  GET /api/approval-image?token=...&kind=gallery|option&i=<index>
+//  GET /api/approval-image?token=...&kind=gallery&i=<index>
+//  GET /api/approval-image?token=...&kind=option&i=<option index>&j=<image index>
 //  Public — same trust boundary as approval.html (the unguessable token
 //  IS the capability), so no auth gate here either.
 // ════════════════════════════════════════════
@@ -38,6 +39,7 @@ export async function onRequestGet(context) {
   const token = url.searchParams.get('token');
   const kind = url.searchParams.get('kind');
   const i = parseInt(url.searchParams.get('i'), 10);
+  const j = url.searchParams.has('j') ? parseInt(url.searchParams.get('j'), 10) : null;
   if (!token || !kind || Number.isNaN(i)) return new Response('Bad request', { status: 400 });
 
   const raw = await kv.get(KEY(token));
@@ -45,8 +47,11 @@ export async function onRequestGet(context) {
   let rec; try { rec = JSON.parse(raw); } catch (e) { return new Response('Corrupt record', { status: 500 }); }
 
   let dataUrl = null;
-  if (kind === 'gallery' && Array.isArray(rec.images))  dataUrl = rec.images[i];
-  if (kind === 'option'  && Array.isArray(rec.options)) dataUrl = rec.options[i] && rec.options[i].image;
+  if (kind === 'gallery' && Array.isArray(rec.images)) dataUrl = rec.images[i];
+  if (kind === 'option' && Array.isArray(rec.options) && rec.options[i]) {
+    const opt = rec.options[i];
+    dataUrl = Array.isArray(opt.images) ? opt.images[j == null || Number.isNaN(j) ? 0 : j] : null;
+  }
   if (!dataUrl) return new Response('Not found', { status: 404 });
 
   const parsed = parseDataUrl(dataUrl);

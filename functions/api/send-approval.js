@@ -83,18 +83,26 @@ function estimateTable(lines, total) {
 // stripped by most email clients on receipt, and building + re-encoding a
 // multi-MB MIME string for a handful of embedded photos risks exceeding the
 // Worker's CPU time limit — which is what was surfacing as an opaque 503.
-function imgUrl(origin, token, kind, i) {
-  return origin + '/api/approval-image?token=' + encodeURIComponent(token) + '&kind=' + kind + '&i=' + i;
+function imgUrl(origin, token, kind, i, j) {
+  let u = origin + '/api/approval-image?token=' + encodeURIComponent(token) + '&kind=' + kind + '&i=' + i;
+  if (j != null) u += '&j=' + j;
+  return u;
 }
 
 function optionCards(options, origin, token) {
-  return options.map((o, i) => `
+  return options.map((o, i) => {
+    const images = Array.isArray(o.images) ? o.images : [];
+    const imgs = images.map((_, j) =>
+      `<img src="${esc(imgUrl(origin, token, 'option', i, j))}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 10px;border:1px solid #E4E2DD">`
+    ).join('');
+    return `
     <div style="margin:0 0 18px;padding:16px;border:1px solid #E4E2DD;border-radius:10px;background:#fff">
       <p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(o.label)}${o.crowned ? ' <span style="font-weight:400;color:#8A7238;font-size:12px">★ recommended</span>' : ''}</p>
-      ${o.image ? `<img src="${esc(imgUrl(origin, token, 'option', i))}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 12px;border:1px solid #E4E2DD">` : ''}
+      ${imgs}
       ${estimateTable(o.lines, o.total)}
       ${o.notes ? `<p style="margin:12px 0 0;color:#3a4656;white-space:pre-wrap;font-size:14px">${esc(o.notes)}</p>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // The Design gallery attached on the Approval step (sketch + any extra

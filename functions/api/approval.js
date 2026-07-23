@@ -86,14 +86,14 @@ export async function onRequestPost(context) {
       label: String(o.label || ''),
       lines: Array.isArray(o.lines) ? o.lines : [],
       total: Number(o.total) || 0,
-      image: o.image || null,
+      images: Array.isArray(o.images) ? o.images.filter(Boolean) : [],
       notes: String(o.notes || ''),
       crowned: !!o.crowned,
     })) : null;
     // Don't store a gallery photo twice if it's byte-identical to one
     // already attached to an option — keeps the KV value (and email/page
     // payload) smaller and avoids the customer seeing it twice over.
-    const optionImages = new Set((options || []).map(o => o.image).filter(Boolean));
+    const optionImages = new Set((options || []).flatMap(o => o.images));
     const images = rawImages.filter(src => !optionImages.has(src));
 
     const rec = {
