@@ -499,6 +499,9 @@ function _apGenToken() {
 // on the order as order.approvalImgs and synced to Notion — see the comment
 // on apAttachImage() below.
 let _apAttachedImgs = [];
+// Which Compare option (index into _estVariants) the Approval step's
+// estimate summary + "Notes for the customer" field is currently showing.
+let _apActiveOpt = 0;
 // Tracks an in-flight apLoadApprovalFromNotion() fetch so Save & Close can
 // wait for it — without this, saving before the cross-device rehydrate
 // resolves would build the order snapshot with approvalImgs still empty and
@@ -588,11 +591,14 @@ async function apLoadApprovalFromNotion(order) {
 // approval's live status from KV.
 function intakeRenderApproval() {
   const g = id => document.getElementById(id);
-  // Prefill note + email from earlier steps if still blank
-  const noteEl = g('f-approval-note');
-  if (noteEl && !noteEl.value.trim()) noteEl.value = (g('f-customer-notes')?.value || '').trim();
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
+  const compareOn = _estVariants && _estVariants.length > 1;
+
+  // Prefill note from earlier step if still blank — single-option only;
+  // compare mode gets per-option notes below.
+  const noteEl = g('f-approval-note');
+  if (!compareOn && noteEl && !noteEl.value.trim()) noteEl.value = (g('f-customer-notes')?.value || '').trim();
 
   // Design preview — attached images (gallery) win over the hand-drawn sketch.
   const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
@@ -620,8 +626,33 @@ function intakeRenderApproval() {
   const attachBtn = g('ap-attach-btn');
   if (attachBtn) attachBtn.textContent = (_apAttachedImgs && _apAttachedImgs.length) ? '📎 Add more images' : '📎 Attach image';
 
-  // Estimate summary
-  const fin = _apReadFinancials();
+  // Option toggle (Compare mode only) — lets Kyle preview/edit each
+  // option's estimate summary and its own "notes for the customer" before
+  // sending. Defaults to the crowned option.
+  const toggle = g('ap-opt-toggle');
+  if (toggle) {
+    if (compareOn) {
+      if (_apActiveOpt >= _estVariants.length) _apActiveOpt = _estCrowned || 0;
+      const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      toggle.innerHTML = _estVariants.map((v, i) =>
+        '<button type="button" class="btn ' + (i === _apActiveOpt ? 'btn-gold' : 'btn-outline') + '" style="padding:6px 14px;font-size:13px;" onclick="apSwitchOption(' + i + ')">'
+        + (i === _estCrowned ? '★ ' : '') + esc(v.label) + '</button>'
+      ).join('');
+      toggle.classList.remove('hidden');
+    } else {
+      toggle.innerHTML = '';
+      toggle.classList.add('hidden');
+    }
+  }
+  const noteLabel = g('ap-note-label');
+  if (noteLabel) noteLabel.textContent = compareOn
+    ? 'Notes for ' + _estVariants[_apActiveOpt].label + ' → shown when the customer views this option'
+    : 'Notes for the customer → shown on the approval page';
+  if (noteEl && compareOn) noteEl.value = _estVariants[_apActiveOpt].notes || '';
+
+  // Estimate summary — active option's numbers in Compare mode, else the
+  // live DOM totals from the Items & Price step.
+  const fin = compareOn ? _apOptionFinancials(_estVariants[_apActiveOpt]) : _apReadFinancials();
   const tbl = g('ap-est-summary');
   if (tbl) {
     let rows = '<tr><td colspan="2" style="font-weight:700;padding-bottom:6px">' + _apEsc(_apTitle()) + '</td></tr>';
@@ -681,6 +712,14 @@ function _apFetchStatus(token) {
     .catch(() => {});
 }
 
+function apSwitchOption(i) {
+  if (!_estVariants || !_estVariants[i] || i === _apActiveOpt) return;
+  const noteEl = document.getElementById('f-approval-note');
+  if (noteEl) _estVariants[_apActiveOpt].notes = noteEl.value;
+  _apActiveOpt = i;
+  intakeRenderApproval();
+}
+
 function apCopyLink() {
   if (!_apLink) return;
   const done = () => toast('Approval link copied', '🔗');
@@ -711,15 +750,19 @@ async function sendForApproval() {
   const images = (_apAttachedImgs && _apAttachedImgs.length) ? [..._apAttachedImgs]
     : ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? [sketchExport()] : []);
 
-  // Compare mode (2-3 versions) → send every option so the customer can
-  // toggle between them on the approval page and in the email. Keep the
-  // crowned option's lines/total on the record too, for older callers.
+  // Compare mode (2-3 versions) → send every option, each with its own
+  // notes, so the customer can toggle between them on the approval page
+  // and in the email. Keep the crowned option's lines/total/notes on the
+  // top-level record too, for older callers.
   let options = null;
   if (_estVariants && _estVariants.length > 1) {
-    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
+    // Capture whatever's currently in the notes box onto the option it belongs to.
+    const noteEl = g('f-approval-note');
+    if (noteEl) _estVariants[_apActiveOpt].notes = noteEl.value.trim();
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
     options = _estVariants.map((v, i) => {
       const f = _apOptionFinancials(v);
-      return { label: v.label, lines: f.lines, total: f.total, image: v.image || null, crowned: i === _estCrowned };
+      return { label: v.label, lines: f.lines, total: f.total, image: v.image || null, notes: v.notes || '', crowned: i === _estCrowned };
     });
   }
   const crowned = options ? options.find(o => o.crowned) || options[0] : null;
@@ -736,7 +779,7 @@ async function sendForApproval() {
     lines: crowned ? crowned.lines : fin.lines,
     total: crowned ? crowned.total : fin.total,
     options,
-    notesForCustomer: (g('f-approval-note')?.value || '').trim(),
+    notesForCustomer: crowned ? (crowned.notes || '') : (g('f-approval-note')?.value || '').trim(),
     shopName: 'Stones Throw Studio',
   };
 
@@ -1800,10 +1843,11 @@ function intakeEstAdjClear() {
 }
 
 // ── Variant (tier) plumbing ───────────────────────────────────
-function estStateCapture(label, prevImage) {
+function estStateCapture(label, prevImage, prevNotes) {
   const n = _estReadDom();
   return { label, rows: n.rows.map(r => ({ ...r })), labor: n.labor, shipping: n.shipping,
-           taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj, image: prevImage || null };
+           taxOn: n.taxOn, multiplier: estMultiplier, adjustment: _estAdj,
+           image: prevImage || null, notes: prevNotes || '' };
 }
 
 function estStateApply(s) {
@@ -1840,7 +1884,7 @@ function intakeEstCompare() {
     _estActive = 1;
     _estCrowned = 0;
   } else {
-    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
+    _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
     _estVariants.push(estStateCapture(label));
     _estActive = _estVariants.length - 1;
   }
@@ -1850,7 +1894,7 @@ function intakeEstCompare() {
 
 function intakeEstSwitchVariant(i) {
   if (!_estVariants || i === _estActive) return;
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
   _estActive = i;
   estStateApply(_estVariants[i]);
   intakeEstRenderVariants();
@@ -1893,7 +1937,7 @@ function intakeEstRenderVariants() {
   if (!bar) return;
   if (!_estVariants) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
   // keep the active variant's snapshot fresh so inactive totals are honest
-  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image);
+  _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].image, _estVariants[_estActive].notes);
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   bar.style.display = '';
   bar.innerHTML = _estVariants.map((v, i) =>
@@ -1912,6 +1956,7 @@ function intakeEstReset() {
   _estVariants = null;
   _estActive = 0;
   _estCrowned = 0;
+  _apActiveOpt = 0;
   intakeEstRenderVariants();
 }
 

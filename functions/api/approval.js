@@ -97,6 +97,7 @@ export async function onRequestPost(context) {
                        lines: Array.isArray(o.lines) ? o.lines : [],
                        total: Number(o.total) || 0,
                        image: o.image || null,
+                       notes: String(o.notes || ''),
                        crowned: !!o.crowned,
                      })) : null,
       notesForCustomer: body.notesForCustomer || '',

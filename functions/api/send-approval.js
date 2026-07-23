@@ -84,6 +84,7 @@ function optionCards(options) {
       <p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(o.label)}${o.crowned ? ' <span style="font-weight:400;color:#8A7238;font-size:12px">★ recommended</span>' : ''}</p>
       ${o.image ? `<img src="${esc(o.image)}" alt="${esc(o.label)}" style="width:100%;max-width:520px;border-radius:8px;display:block;margin:0 0 12px;border:1px solid #E4E2DD">` : ''}
       ${estimateTable(o.lines, o.total)}
+      ${o.notes ? `<p style="margin:12px 0 0;color:#3a4656;white-space:pre-wrap;font-size:14px">${esc(o.notes)}</p>` : ''}
     </div>`).join('');
 }
 
@@ -94,7 +95,9 @@ function buildHtml(rec, link) {
   const estimate = hasOptions ? optionCards(rec.options) : estimateTable(rec.lines, rec.total);
   const title = rec.title
     ? `<p style="margin:0 0 10px;font-weight:700;color:#1E3D50">${esc(rec.title)}</p>` : '';
-  const note = rec.notesForCustomer
+  // In Compare mode each option carries its own note (rendered inside its
+  // card above) — the shared note only applies to the single-option case.
+  const note = (!hasOptions && rec.notesForCustomer)
     ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
   const intro = hasOptions
     ? "here are the design options for your piece — take a look at each and let me know which one you'd like, or if it's good to go."

@@ -1489,13 +1489,15 @@
         <!-- Estimate summary -->
         <div class="mb-4">
           <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A] mb-2">Estimate</div>
+          <!-- Option toggle (Compare mode only) — pick which option's summary + notes to preview/edit -->
+          <div id="ap-opt-toggle" class="hidden mb-3 flex flex-wrap gap-2"></div>
           <table class="w-full text-[15px]" id="ap-est-summary"></table>
         </div>
 
-        <!-- Note to customer (prefilled from the Items & Price step) -->
+        <!-- Note to customer (prefilled from the Items & Price step; per-option in Compare mode) -->
         <div class="fg mt-3">
-          <label>Notes for the customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown on the approval page</span></label>
-          <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…"></textarea>
+          <label id="ap-note-label">Notes for the customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown on the approval page</span></label>
+          <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…" oninput="if (_estVariants && _estVariants.length > 1) _estVariants[_apActiveOpt].notes = this.value;"></textarea>
         </div>
 
         <!-- Recipient -->
@@ -1693,7 +1695,7 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=28"></script>
+<script src="js/intake.js?v=29"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>

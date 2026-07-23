@@ -147,6 +147,8 @@
       var img = $('opt-image');
       if (opt.image) { img.src = opt.image; img.classList.remove('hidden'); }
       else { img.classList.add('hidden'); }
+      if (opt.notes) { $('cust-note').textContent = opt.notes; $('note-card').classList.remove('hidden'); }
+      else { $('note-card').classList.add('hidden'); }
     }
 
     function selectOption(i) {
@@ -220,7 +222,11 @@
       if (r.shopName) $('shop').textContent = r.shopName;
       renderGallery(r);
       renderEstimate(r);
-      if (r.notesForCustomer) { $('cust-note').textContent = r.notesForCustomer; $('note-card').classList.remove('hidden'); }
+      // Compare mode shows a per-option note (set inside renderOptionTable /
+      // selectOption above) — the shared note only applies when there's a
+      // single option.
+      var multiOption = Array.isArray(r.options) && r.options.length > 1;
+      if (!multiOption && r.notesForCustomer) { $('cust-note').textContent = r.notesForCustomer; $('note-card').classList.remove('hidden'); }
       $('loading').classList.add('hidden');
       $('content').classList.remove('hidden');
       if (r.status === 'approved' || r.status === 'changes') renderRespondedState(r);
