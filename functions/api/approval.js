@@ -40,6 +40,106 @@ function json(data, status = 200) {
 
 const KEY = (token) => `approval:${token}`;
 
+// ── Square invoice draft, created the moment a customer approves ──
+// Mirrors square-sync.js's location/API constants (same single-location
+// business). Draft only — never calls the /publish endpoint, so nothing
+// is ever sent to the customer or charged without a human reviewing it
+// in Square first.
+const SQUARE_API  = 'https://connect.squareup.com';
+const SQUARE_VER  = '2025-01-23';
+const SQ_LOCATION = 'D7EZ98V48F79A';
+
+function sqHeaders(token) {
+  return {
+    'Authorization':  'Bearer ' + token,
+    'Content-Type':   'application/json',
+    'Square-Version': SQUARE_VER,
+  };
+}
+
+async function sqFindOrCreateCustomer(token, email, name) {
+  const search = await fetch(SQUARE_API + '/v2/customers/search', {
+    method: 'POST', headers: sqHeaders(token),
+    body: JSON.stringify({ query: { filter: { email_address: { exact: email } } } }),
+  });
+  const sd = await search.json().catch(() => ({}));
+  if (!search.ok) throw new Error('Customer search failed: ' + (sd.errors?.[0]?.detail || search.status));
+  if (sd.customers && sd.customers.length) return sd.customers[0].id;
+
+  const create = await fetch(SQUARE_API + '/v2/customers', {
+    method: 'POST', headers: sqHeaders(token),
+    body: JSON.stringify({ given_name: name || 'Customer', email_address: email }),
+  });
+  const cd = await create.json().catch(() => ({}));
+  if (!create.ok) throw new Error('Customer create failed: ' + (cd.errors?.[0]?.detail || create.status));
+  return cd.customer.id;
+}
+
+// Which option the customer actually approved — its lines/total, matched
+// by the label they picked; falls back to the record's top-level (single-
+// estimate, no Compare) lines/total when there's nothing to match against.
+function pickApprovedLines(rec) {
+  const options = Array.isArray(rec.options) ? rec.options : [];
+  const picked = rec.selectedOption && options.find(o => o.label === rec.selectedOption);
+  const opt = picked || options.find(o => o.crowned) || options[0];
+  if (opt) return { lines: opt.lines, total: opt.total };
+  return { lines: rec.lines, total: rec.total };
+}
+
+async function createSquareInvoiceDraft(env, rec) {
+  const token = env.SQUARE_TOKEN;
+  if (!token) return { status: 'skipped', reason: 'Square not configured' };
+  if (!rec.customerEmail) return { status: 'skipped', reason: 'No customer email on file' };
+
+  const { lines } = pickApprovedLines(rec);
+  if (!Array.isArray(lines) || !lines.length) return { status: 'skipped', reason: 'No line items to invoice' };
+
+  const customerId = await sqFindOrCreateCustomer(token, rec.customerEmail, rec.customerName);
+
+  const orderRes = await fetch(SQUARE_API + '/v2/orders', {
+    method: 'POST', headers: sqHeaders(token),
+    body: JSON.stringify({
+      idempotency_key: rec.token + '-order',
+      order: {
+        location_id: SQ_LOCATION,
+        customer_id: customerId,
+        line_items: lines.map(ln => ({
+          name: ln.label,
+          quantity: '1',
+          base_price_money: { amount: Math.round((ln.amount || 0) * 100), currency: 'USD' },
+        })),
+      },
+    }),
+  });
+  const orderData = await orderRes.json().catch(() => ({}));
+  if (!orderRes.ok) throw new Error('Order create failed: ' + (orderData.errors?.[0]?.detail || orderRes.status));
+
+  const invRes = await fetch(SQUARE_API + '/v2/invoices', {
+    method: 'POST', headers: sqHeaders(token),
+    body: JSON.stringify({
+      idempotency_key: rec.token + '-invoice',
+      invoice: {
+        order_id: orderData.order.id,
+        location_id: SQ_LOCATION,
+        primary_recipient: { customer_id: customerId },
+        payment_requests: [{ request_type: 'BALANCE' }],
+        title: rec.title || 'Custom order',
+        description: 'Draft created automatically from the approved estimate — review before sending.',
+      },
+    }),
+  });
+  const invData = await invRes.json().catch(() => ({}));
+  if (!invRes.ok) throw new Error('Invoice create failed: ' + (invData.errors?.[0]?.detail || invRes.status));
+
+  return {
+    status: 'created',
+    invoiceId: invData.invoice.id,
+    invoiceNumber: invData.invoice.invoice_number || null,
+    orderId: orderData.order.id,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 // Strip fields the customer's browser must never see.
 function publicView(rec) {
   if (!rec) return null;
@@ -146,6 +246,19 @@ export async function onRequestPost(context) {
     rec.response    = String(body.notes || '').slice(0, 4000);
     rec.respondedAt = new Date().toISOString();
     if (body.selectedOption) rec.selectedOption = String(body.selectedOption).slice(0, 200);
+
+    // Best-effort: draft a Square invoice the moment the customer approves.
+    // Never lets a Square hiccup block the customer's own approval action —
+    // failures are recorded on the record for the studio to see and handle
+    // manually, not surfaced to the customer.
+    if (decision === 'approved' && !rec.squareInvoice) {
+      try {
+        rec.squareInvoice = await createSquareInvoiceDraft(context.env, rec);
+      } catch (e) {
+        rec.squareInvoice = { status: 'failed', error: String(e.message || e), failedAt: new Date().toISOString() };
+      }
+    }
+
     await kv.put(KEY(token), JSON.stringify(rec));
     return json({ ok: true, status: decision });
   }

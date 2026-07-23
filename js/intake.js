@@ -787,9 +787,17 @@ function _apRenderResponse(ap) {
   const when = ap.respondedAt ? new Date(ap.respondedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
   box.style.background = approved ? '#eaf6ee' : '#fbf0e2';
   box.style.color      = approved ? '#2f8f4e' : '#b06a1f';
+  const inv = ap.squareInvoice;
+  const invLine = !approved || !inv ? '' :
+    inv.status === 'created'
+      ? '<div style="font-weight:400;margin-top:6px;font-size:13px;">🧾 Square invoice draft created' + (inv.invoiceNumber ? ' (#' + _apEsc(inv.invoiceNumber) + ')' : '') + ' — review &amp; send it from Square.</div>'
+    : inv.status === 'skipped'
+      ? '<div style="font-weight:400;margin-top:6px;font-size:13px;">🧾 No Square invoice created: ' + _apEsc(inv.reason || 'skipped') + '.</div>'
+    : '<div style="font-weight:400;margin-top:6px;font-size:13px;color:#b03030;">🧾 Square invoice draft failed: ' + _apEsc(inv.error || 'unknown error') + ' — create it manually in Square.</div>';
   box.innerHTML = (approved ? '✓ Customer approved' : '✎ Customer requested changes')
     + (when ? ' · ' + when : '')
-    + (ap.response ? '<div style="font-weight:400;margin-top:4px;white-space:pre-wrap">“' + _apEsc(ap.response) + '”</div>' : '');
+    + (ap.response ? '<div style="font-weight:400;margin-top:4px;white-space:pre-wrap">“' + _apEsc(ap.response) + '”</div>' : '')
+    + invLine;
   box.classList.remove('hidden');
 }
 
@@ -800,9 +808,10 @@ function _apFetchStatus(token) {
       if (!d || !d.approval) return;
       const a = d.approval;
       if (window._intakeApproval && window._intakeApproval.token === token) {
-        window._intakeApproval.status      = a.status;
-        window._intakeApproval.response    = a.response;
-        window._intakeApproval.respondedAt = a.respondedAt;
+        window._intakeApproval.status        = a.status;
+        window._intakeApproval.response      = a.response;
+        window._intakeApproval.respondedAt   = a.respondedAt;
+        window._intakeApproval.squareInvoice = a.squareInvoice || null;
         _apRenderResponse(window._intakeApproval);
         if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
       }
