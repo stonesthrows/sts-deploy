@@ -61,9 +61,13 @@ function _padCreate(canvasId, opts) {
     undo: [], redo: [],     // {url, ink} snapshots, capped at 20
     background: (opts && opts.background) || null,
     smudgeBuf: document.createElement('canvas'), // reused scratch canvas for _padSmudgeDab
+    lassoBuf: document.createElement('canvas'),  // "background" the lasso tool lifts/drops pixels against
     shapes: !(opts && opts.shapes === false), // false → never shape-snap on this pad (e.g. handwriting strip)
     _strokePts: null,  // raw (unsmoothed) points of the in-progress stroke, for shape classification
     _holdTimer: null,  // fires _padSnapToShape after the pointer sits still for HOLD_MS
+    _lassoPts: null,   // raw points of the loop currently being traced
+    _lassoSel: null,   // { canvas, x, y, w, h } — floating selection lifted out by a completed loop
+    _lassoDragOff: null,
   };
   _padBlank(pad);
   canvas.addEventListener('pointerdown',   e => _padDown(pad, e));
@@ -168,6 +172,10 @@ function _padSnapshot(pad) {
 }
 
 function _padRestore(pad, snap) {
+  // A pending lasso loop/selection refers to pixels that may no longer
+  // exist once undo/redo swaps the canvas out from under it.
+  pad._lassoPts = null;
+  pad._lassoSel = null;
   const img = new Image();
   img.onload = () => {
     _padBlank(pad);
@@ -175,6 +183,7 @@ function _padRestore(pad, snap) {
   };
   img.src = snap.url;
   pad.hasInk = snap.ink;
+  if (pad === SK) sketchSyncLassoUI();
 }
 
 function _padDown(pad, e) {
@@ -182,6 +191,7 @@ function _padDown(pad, e) {
   if (!_padAccepts(pad, e)) return; // finger/touch ignored on pen-only pads
   e.preventDefault();
   pad.canvas.setPointerCapture(e.pointerId);
+  if (pad.tool === 'lasso') { _lassoDown(pad, e); return; } // manages its own undo pushes
   pad.undo.push(_padSnapshot(pad));
   if (pad.undo.length > 20) pad.undo.shift();
   pad.redo.length = 0;
@@ -336,6 +346,7 @@ function _padSmudgeTo(pad, x, y) {
 // — already-drawn segments would get re-composited on every move, darkening
 // the start of a stroke far more than its end.
 function _padMove(pad, e) {
+  if (pad.tool === 'lasso') { _lassoMove(pad, e); return; }
   if (!pad.drawing) return;
   const flow = pad.flows[pad.tool] != null ? pad.flows[pad.tool] : 1;
   const events = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
@@ -421,6 +432,7 @@ function _padMove(pad, e) {
 }
 
 function _padUp(pad, e) {
+  if (pad.tool === 'lasso') { _lassoUp(pad, e); return; }
   _padCancelHold(pad);
   pad._strokePts = null;
   if (!pad.drawing) return;
@@ -429,6 +441,175 @@ function _padUp(pad, e) {
   pad.ctx.globalCompositeOperation = 'source-over'; // reset after marker's 'multiply' / eraser's 'destination-out'
   pad.hasInk = true;
   pad.dirty = true;
+}
+
+// ── Lasso select ───────────────────────────────────────────────
+// Freehand loop select-and-move. Draws a live dashed preview while the loop
+// is open; releasing auto-closes it (no need to trace back to the start)
+// and lifts the enclosed pixels into a floating selection the user can drag.
+// Tapping outside the floating selection commits it in place and
+// immediately starts a new loop (Procreate-style chaining); switching tools
+// away from Lasso also commits whatever is still floating (see
+// sketchSetTool). One undo entry per loop, same as any other stroke —
+// dragging the same floating selection around doesn't add more.
+const LASSO_MIN_SPAN = 12; // px bbox diagonal below which a loop is a mis-tap, not a selection
+
+// pad.lassoBuf mirrors pad.canvas outside of a lasso gesture. It's what gets
+// redrawn under the live dashed preview / dragged selection so the real ink
+// layer is only touched once (on commit), not on every pointermove.
+function _lassoBufPrep(pad) {
+  pad.lassoBuf.width = pad.canvas.width;
+  pad.lassoBuf.height = pad.canvas.height;
+  pad.lassoBuf.getContext('2d').drawImage(pad.canvas, 0, 0);
+}
+
+// Copies lassoBuf onto the real canvas wholesale, including its transparent
+// holes. Plain 'source-over' won't do this: a fully-transparent source
+// pixel leaves the destination untouched under source-over (it composites
+// "on top of", contributing nothing), so a hole would never actually erase
+// whatever ink is still sitting on the canvas from before the lift. 'copy'
+// replaces the destination outright, hole and all.
+function _lassoBlitBase(pad) {
+  const ctx = pad.ctx;
+  ctx.globalCompositeOperation = 'copy';
+  ctx.drawImage(pad.lassoBuf, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function _lassoRedraw(pad) {
+  const ctx = pad.ctx;
+  _lassoBlitBase(pad);
+  const sel = pad._lassoSel;
+  ctx.save();
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(80,140,255,0.9)';
+  if (sel) {
+    ctx.drawImage(sel.canvas, sel.x, sel.y);
+    ctx.strokeRect(sel.x + 0.5, sel.y + 0.5, sel.w - 1, sel.h - 1);
+  } else if (pad._lassoPts && pad._lassoPts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(pad._lassoPts[0].x, pad._lassoPts[0].y);
+    for (let i = 1; i < pad._lassoPts.length; i++) ctx.lineTo(pad._lassoPts[i].x, pad._lassoPts[i].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Cuts the closed pad._lassoPts loop out of pad.lassoBuf into a new
+// offscreen canvas (transparent outside the loop, sized to the loop's
+// bbox) and punches the matching hole in pad.lassoBuf, so dragging never
+// leaves a ghost of the original behind. Returns null for a too-small loop.
+function _lassoLift(pad) {
+  const pts = pad._lassoPts;
+  const box = _padBBox(pts);
+  if (Math.hypot(box.w, box.h) < LASSO_MIN_SPAN) return null;
+  const minX = Math.max(0, Math.floor(box.minX)), minY = Math.max(0, Math.floor(box.minY));
+  const w = Math.min(pad.canvas.width, Math.ceil(box.maxX)) - minX;
+  const h = Math.min(pad.canvas.height, Math.ceil(box.maxY)) - minY;
+  if (w < 1 || h < 1) return null;
+
+  const sel = document.createElement('canvas');
+  sel.width = w; sel.height = h;
+  const sctx = sel.getContext('2d');
+  sctx.drawImage(pad.lassoBuf, -minX, -minY);
+  sctx.globalCompositeOperation = 'destination-in';
+  sctx.beginPath();
+  sctx.moveTo(pts[0].x - minX, pts[0].y - minY);
+  for (let i = 1; i < pts.length; i++) sctx.lineTo(pts[i].x - minX, pts[i].y - minY);
+  sctx.closePath();
+  sctx.fill();
+
+  const bctx = pad.lassoBuf.getContext('2d');
+  bctx.save();
+  // Same white-vs-transparent split as the eraser in _padDown: a
+  // transparent-backed pad (photo underlay / layered stage) punches a real
+  // hole, everything else paints white so no black shows through.
+  if (pad.transparent) {
+    bctx.globalCompositeOperation = 'destination-out';
+  } else {
+    bctx.fillStyle = '#fff';
+  }
+  bctx.beginPath();
+  bctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) bctx.lineTo(pts[i].x, pts[i].y);
+  bctx.closePath();
+  bctx.fill();
+  bctx.restore();
+
+  return { canvas: sel, x: minX, y: minY, w, h };
+}
+
+// Merges the floating selection down onto pad.lassoBuf at its current
+// position and repaints — used when the user taps away, switches tools, or
+// hits the dock's ✓ Done button.
+function _lassoCommit(pad) {
+  const sel = pad._lassoSel;
+  if (!sel) return;
+  pad.lassoBuf.getContext('2d').drawImage(sel.canvas, sel.x, sel.y);
+  pad._lassoSel = null;
+  _lassoBlitBase(pad);
+  pad.hasInk = true;
+  pad.dirty = true;
+  if (pad === SK) sketchSyncLassoUI();
+}
+
+// Drops the floating selection entirely (the hole it was lifted from stays)
+// — the dock's 🗑 Delete button.
+function _lassoDiscard(pad) {
+  if (!pad._lassoSel) return;
+  pad._lassoSel = null;
+  _lassoBlitBase(pad);
+  pad.hasInk = true;
+  pad.dirty = true;
+  if (pad === SK) sketchSyncLassoUI();
+}
+
+function _lassoDown(pad, e) {
+  const p = _padPoint(pad, e);
+  if (pad._lassoSel) {
+    const sel = pad._lassoSel;
+    if (p.x >= sel.x && p.x <= sel.x + sel.w && p.y >= sel.y && p.y <= sel.y + sel.h) {
+      pad.drawing = true;
+      pad._lassoDragOff = { x: p.x - sel.x, y: p.y - sel.y };
+      return; // dragging an existing selection — no new undo entry
+    }
+    _lassoCommit(pad); // tapped outside it — lock it in, then start a fresh loop below
+  }
+  pad.undo.push(_padSnapshot(pad));
+  if (pad.undo.length > 20) pad.undo.shift();
+  pad.redo.length = 0;
+  pad.drawing = true;
+  _lassoBufPrep(pad);
+  pad._lassoPts = [p];
+}
+
+function _lassoMove(pad, e) {
+  if (!pad.drawing) return;
+  const p = _padPoint(pad, e);
+  if (pad._lassoSel) {
+    pad._lassoSel.x = p.x - pad._lassoDragOff.x;
+    pad._lassoSel.y = p.y - pad._lassoDragOff.y;
+  } else {
+    pad._lassoPts.push(p);
+  }
+  _lassoRedraw(pad);
+}
+
+function _lassoUp(pad, e) {
+  if (!pad.drawing) return;
+  pad.drawing = false;
+  if (pad._lassoSel) return; // was just a drag — selection stays floating for further edits
+  const sel = _lassoLift(pad);
+  pad._lassoPts = null;
+  if (!sel) {
+    pad.undo.pop(); // too small to be a real selection — undo the snapshot push above
+    _lassoRedraw(pad); // clears the dashed preview back to the untouched base
+    return;
+  }
+  pad._lassoSel = sel;
+  _lassoRedraw(pad);
+  if (pad === SK) sketchSyncLassoUI();
 }
 
 // ── Shape-snap ─────────────────────────────────────────────────
@@ -531,15 +712,44 @@ function _padSnapToShape(pad) {
 
 function sketchSetTool(tool, btn) {
   if (!SK) return;
+  // Leaving Lasso with a selection still floating locks it in place first —
+  // otherwise it'd sit invisible (no longer redrawn) until Lasso is picked
+  // again, which reads as the drawing having silently lost pixels.
+  if (SK.tool === 'lasso' && tool !== 'lasso' && SK._lassoSel) _lassoCommit(SK);
   SK.tool = tool;
-  ['pen', 'pencil', 'marker', 'water', 'smudge', 'eraser'].forEach(t => {
+  ['pen', 'pencil', 'marker', 'water', 'smudge', 'eraser', 'lasso'].forEach(t => {
     const b = document.getElementById('sk-' + t);
     if (b) b.classList.toggle('active', t === tool);
   });
-  sketchSyncSizeUI();    // reflect this tool's own stored weight
-  sketchSyncOpacityUI(); // reflect this tool's own stored opacity
-  sketchSyncFlowUI();    // reflect this tool's own stored smoothing
-  sketchSyncColorUI();   // show/hide the swatch row, reflect this tool's color
+  sketchSyncSizeUI();          // reflect this tool's own stored weight
+  sketchSyncOpacityUI();       // reflect this tool's own stored opacity
+  sketchSyncFlowUI();          // reflect this tool's own stored smoothing
+  sketchSyncColorUI();         // show/hide the swatch row, reflect this tool's color
+  sketchSyncStrokeControlsUI(); // hide Size/Opacity/Smooth/presets — meaningless for Lasso
+  sketchSyncLassoUI();         // show/hide the Done/Delete row
+}
+
+function sketchLassoCommit() { if (SK) _lassoCommit(SK); }
+function sketchLassoDelete() { if (SK) _lassoDiscard(SK); }
+
+function sketchSyncLassoUI() {
+  if (!SK) return;
+  const row = document.getElementById('sk-lasso-actions');
+  if (row) row.style.display = (SK.tool === 'lasso' && SK._lassoSel) ? '' : 'none';
+}
+
+// Size/Opacity/Smooth sliders and the S/M/L presets don't apply to Lasso —
+// hide them rather than leave a stale, unused value on screen.
+function sketchSyncStrokeControlsUI() {
+  if (!SK) return;
+  const hide = SK.tool === 'lasso';
+  ['sk-size-slider', 'sk-opacity-slider', 'sk-flow-slider'].forEach(id => {
+    const el = document.getElementById(id);
+    const row = el && el.closest('.dock-size');
+    if (row) row.style.display = hide ? 'none' : '';
+  });
+  const presets = document.querySelector('#sketchpad-fg .dock-presets');
+  if (presets) presets.style.display = hide ? 'none' : '';
 }
 
 // Swatch row only applies to Pen/Marker — Pencil/Watercolor/Eraser keep
@@ -678,6 +888,9 @@ function sketchClear() {
   _padBlank(SK);
   SK.hasInk = false;
   SK.dirty = true; // a deliberate clear counts as a change so edit-save deletes the sketch
+  SK._lassoPts = null;
+  SK._lassoSel = null;
+  sketchSyncLassoUI();
 }
 
 // ── Sketch state for orders.js ────────────────────────────────
@@ -690,6 +903,7 @@ function sketchClear() {
 // reference-photo underlay.)
 function sketchExport() {
   if (!SK || !SK.hasInk) return null;
+  if (SK._lassoSel) _lassoCommit(SK); // don't bake the floating-selection marquee into the export
   const c = document.createElement('canvas');
   c.width = SK.canvas.width; c.height = SK.canvas.height;
   const ctx = c.getContext('2d');
@@ -708,9 +922,12 @@ function sketchLoad(dataURL) {
   if (!SK) return;
   SK.undo.length = 0;
   SK.redo.length = 0;
+  SK._lassoPts = null;
+  SK._lassoSel = null;
   _padBlank(SK);
   SK.hasInk = true;
   SK.dirty = false;
+  sketchSyncLassoUI();
   const img = new Image();
   img.onload = () => {
     const s = Math.min(SK.canvas.width / img.width, SK.canvas.height / img.height, 1);
@@ -726,7 +943,10 @@ function sketchReset() {
   SK.redo.length = 0;
   SK.hasInk = false;
   SK.dirty = false;
+  SK._lassoPts = null;
+  SK._lassoSel = null;
   _padBlank(SK);
+  sketchSyncLassoUI();
 }
 
 // Sampled djb2 over the dataURL — cheap change-detection fingerprint used
@@ -866,9 +1086,11 @@ function sketchInit() {
     SK.transparent = true;
     _padBlank(SK);
   }
-  sketchSyncSizeUI();         // prime the dock controls to the default weight
-  sketchSyncOpacityUI();      // prime the dock controls to the default opacity
-  sketchSyncFlowUI();         // prime the dock controls to the default smoothing
-  sketchSyncColorUI();        // prime the swatch row for the default tool (Pen)
+  sketchSyncSizeUI();          // prime the dock controls to the default weight
+  sketchSyncOpacityUI();       // prime the dock controls to the default opacity
+  sketchSyncFlowUI();          // prime the dock controls to the default smoothing
+  sketchSyncColorUI();         // prime the swatch row for the default tool (Pen)
+  sketchSyncStrokeControlsUI();
+  sketchSyncLassoUI();
 }
 sketchInit();
