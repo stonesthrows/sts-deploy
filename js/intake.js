@@ -513,25 +513,57 @@ let _apLoadPromise = null;
 // synced to Notion's 'Approval Image' file property (see js/notion.js + the
 // pipeline), so it survives reopen on any device (apLoadApprovalFromNotion
 // streams it back where the local base64 copies are absent).
-function apAttachImage(input) {
-  const files = [...((input && input.files) || [])].filter(f => /^image\//.test(f.type));
-  if (!files.length) { toast('Please choose an image file', '⚠'); if (input) input.value = ''; return; }
-  let pending = files.length;
-  files.forEach(file => {
+// Downscales + re-encodes a photo as JPEG so full-res camera shots don't
+// blow up the approval KV record (25MiB cap) or the email payload. Skips
+// non-photo/already-small sources (SVG, tiny files) unchanged.
+function _apCompressImage(file, maxDim, quality) {
+  return new Promise((resolve) => {
+    if (file.size < 300 * 1024 || file.type === 'image/svg+xml') {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = e => {
-      _apAttachedImgs.push(e.target.result);
-      if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(e.target.result);   // fall back to the raw read
+      img.src = e.target.result;
     };
-    reader.onerror = () => toast('Could not read that image', '⚠');
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
+}
+
+async function apAttachImage(input) {
+  const files = [...((input && input.files) || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length) { toast('Please choose an image file', '⚠'); if (input) input.value = ''; return; }
+  input.value = '';   // allow re-selecting the same file(s) later, right away
+  const results = await Promise.all(files.map(f => _apCompressImage(f, 1600, 0.82)));
+  let added = 0;
+  results.forEach(dataUrl => {
+    if (dataUrl) { _apAttachedImgs.push(dataUrl); added++; }
+  });
+  if (!added) { toast('Could not read that image', '⚠'); return; }
+  if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
   if (typeof toast === 'function') {
-    toast(files.length > 1
-      ? files.length + ' images attached — saved to the order and sent with the estimate'
+    toast(added > 1
+      ? added + ' images attached — saved to the order and sent with the estimate'
       : 'Image attached — saved to the order and sent with the estimate', '📎');
   }
-  input.value = '';   // allow re-selecting the same file(s) later
 }
 
 // Remove one attached image by gallery index.
@@ -1904,15 +1936,13 @@ function intakeEstAttachImage(i) {
   if (!_estVariants || !_estVariants[i]) return;
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
-  inp.onchange = () => {
+  inp.onchange = async () => {
     const f = inp.files && inp.files[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      _estVariants[i].image = e.target.result;
-      intakeEstRenderVariants();
-    };
-    reader.readAsDataURL(f);
+    const dataUrl = await _apCompressImage(f, 1600, 0.82);
+    if (!dataUrl) { toast('Could not read that image', '⚠'); return; }
+    _estVariants[i].image = dataUrl;
+    intakeEstRenderVariants();
   };
   inp.click();
 }

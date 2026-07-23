@@ -80,8 +80,22 @@ export async function onRequestPost(context) {
     // Accept the current array shape, but fall back to a legacy single
     // `sketch` string so any in-flight link created before the gallery
     // rework still overwrites cleanly.
-    const images = Array.isArray(body.images) ? body.images.filter(Boolean)
-                  : (body.sketch ? [body.sketch] : []);
+    const rawImages = Array.isArray(body.images) ? body.images.filter(Boolean)
+                     : (body.sketch ? [body.sketch] : []);
+    const options = Array.isArray(body.options) ? body.options.map(o => ({
+      label: String(o.label || ''),
+      lines: Array.isArray(o.lines) ? o.lines : [],
+      total: Number(o.total) || 0,
+      image: o.image || null,
+      notes: String(o.notes || ''),
+      crowned: !!o.crowned,
+    })) : null;
+    // Don't store a gallery photo twice if it's byte-identical to one
+    // already attached to an option — keeps the KV value (and email/page
+    // payload) smaller and avoids the customer seeing it twice over.
+    const optionImages = new Set((options || []).map(o => o.image).filter(Boolean));
+    const images = rawImages.filter(src => !optionImages.has(src));
+
     const rec = {
       token,
       orderId:       body.orderId       || '',
@@ -92,14 +106,7 @@ export async function onRequestPost(context) {
       title:         body.title          || '',
       lines:         Array.isArray(body.lines) ? body.lines : [],
       total:         Number(body.total)   || 0,
-      options:       Array.isArray(body.options) ? body.options.map(o => ({
-                       label: String(o.label || ''),
-                       lines: Array.isArray(o.lines) ? o.lines : [],
-                       total: Number(o.total) || 0,
-                       image: o.image || null,
-                       notes: String(o.notes || ''),
-                       crowned: !!o.crowned,
-                     })) : null,
+      options,
       notesForCustomer: body.notesForCustomer || '',
       shopName:      body.shopName || 'Stones Throw Studio',
       status:        'sent',
@@ -107,7 +114,18 @@ export async function onRequestPost(context) {
       sentAt:        new Date().toISOString(),
       respondedAt:   '',
     };
-    await kv.put(KEY(token), JSON.stringify(rec));
+
+    const payload = JSON.stringify(rec);
+    // KV values cap at 25MiB; stay well clear of that so the failure mode
+    // is a clear message instead of an opaque platform error page.
+    if (payload.length > 20 * 1024 * 1024) {
+      return json({ error: 'Attached photos are too large (' + Math.round(payload.length / 1024 / 1024) + 'MB) — remove one or attach smaller/fewer images and try again.' }, 413);
+    }
+    try {
+      await kv.put(KEY(token), payload);
+    } catch (e) {
+      return json({ error: 'Could not save the estimate: ' + String(e.message || e) }, 500);
+    }
     return json({ ok: true, token });
   }
 
