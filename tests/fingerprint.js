@@ -24,7 +24,7 @@ const { chromium } = require('playwright-core');
 const { startServer } = require('./lib/server');
 
 const SNAPSHOT_PATH = path.join(__dirname, 'fixtures', 'fingerprint.json');
-const CHROMIUM_PATH = '/opt/pw-browsers/chromium';
+const CHROMIUM_PATH = require('./lib/chromium-path')();
 
 // Globals that must keep existing after any refactor — pulled from every
 // corner of the app (home dashboard, sidebar nav, perm jewelry calc,

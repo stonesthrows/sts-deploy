@@ -19,7 +19,7 @@
 const { chromium } = require('playwright-core');
 const { startServer } = require('./lib/server');
 
-const CHROMIUM_PATH = '/opt/pw-browsers/chromium';
+const CHROMIUM_PATH = require('./lib/chromium-path')();
 
 async function run({ baseUrl } = {}) {
   let server = null;
