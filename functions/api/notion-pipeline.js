@@ -124,6 +124,11 @@ const APP_DATA_FIELDS = [
   // saw the flattened materials/gemstones/sizing text, never the array the
   // work-order bag's ring-card grid needs.
   'rings',
+  // R2 object keys for the intake app's Reference Photos gallery (see
+  // /api/images and STS_IMAGES bucket) — a tiny pointer array, same idea as
+  // 'approval'. The actual JPEG bytes never touch this property; only the
+  // keys needed to re-fetch them from R2 on another device.
+  'refPhotoKeys',
 ];
 
 function appDataToProp(o) {
@@ -400,6 +405,19 @@ async function uploadSketchToNotion(token, dataURL, filename = 'sketch.png') {
   return cu.id;
 }
 
+// Uploads a base64 dataURL's raw bytes straight into the STS_IMAGES R2
+// bucket under the given key. Counterpart to uploadSketchToNotion above,
+// but for image types migrated off Notion's Files property — see
+// /api/images.js. Throws on any failure; the caller isolates it the same
+// way sketch/signature uploads are isolated (an image problem never breaks
+// the order save itself).
+async function uploadImageToR2(r2, dataURL, key) {
+  const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/.exec(dataURL || '');
+  if (!m) throw new Error('bad image dataURL');
+  const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  await r2.put(key, bytes, { httpMetadata: { contentType: m[1] } });
+}
+
 // ── Sketch / Reference Photos fetch-on-view ───────────────────
 // GET ?sketch=<notionPageId> streams the current sketch PNG for a page
 // (also doubles as the Signature and Reference Photos viewer via ?prop=).
@@ -517,6 +535,37 @@ export async function onRequestPost(context) {
     return json({ ok: true });
   }
 
+  // Reference photo gallery from the intake app → Cloudflare R2 (STS_IMAGES
+  // bucket), replacing the old Notion Files upload (which capped out at
+  // Notion's 180KB App Data limit and needed an hourly-refreshed proxy to
+  // view cross-device). Runs BEFORE orderToProps() so the resulting
+  // refPhotoKeys array rides out through the normal App Data JSON blob (see
+  // APP_DATA_FIELDS) like any other structured field — no dedicated Notion
+  // property or fetch-on-view route needed for this image type anymore.
+  let refPhotosSynced = false, refPhotosError = null;
+  if (order._refPhotosChanged) {
+    try {
+      const r2 = context.env.STS_IMAGES;
+      if (!r2) throw new Error('R2 binding STS_IMAGES not configured');
+      if (!order.id) throw new Error('missing order.id for image key');
+      const photos = Array.isArray(order.refPhotos) ? order.refPhotos : [];
+      const keys = [];
+      for (let i = 0; i < photos.length; i++) {
+        const key = 'orders/' + order.id + '/ref-' + (i + 1) + '.jpg';
+        await uploadImageToR2(r2, photos[i], key);
+        keys.push(key);
+      }
+      // Delete any now-orphaned slots from a previously longer gallery (e.g.
+      // 5 photos trimmed to 3) so they don't linger in R2 forever.
+      const prevCount = Array.isArray(order.refPhotoKeys) ? order.refPhotoKeys.length : 0;
+      for (let i = keys.length; i < prevCount; i++) {
+        await r2.delete('orders/' + order.id + '/ref-' + (i + 1) + '.jpg').catch(() => {});
+      }
+      order.refPhotoKeys = keys;
+      refPhotosSynced = true;
+    } catch (e) { refPhotosError = e.message || String(e); }
+  }
+
   const props = orderToProps(order);
 
   // Sketch image → Notion File Upload API. Only when the client says the
@@ -543,26 +592,6 @@ export async function onRequestPost(context) {
       const fid = await uploadSketchToNotion(token, order.signatureImg, 'signature.png');
       props['Signature'] = { files: [{ name: 'signature.png', type: 'file_upload', file_upload: { id: fid } }] };
     } catch (e) { /* best-effort */ }
-  }
-
-  // Reference photo gallery from the intake app — same dirty-hash gate and
-  // isolation as the sketch. All photos re-upload together on any change
-  // (add/remove/reorder), since Notion files properties are set wholesale.
-  let refPhotosSynced = false, refPhotosError = null;
-  if (order._refPhotosChanged && Array.isArray(order.refPhotos) && order.refPhotos.length) {
-    try {
-      const fileRefs = [];
-      for (let i = 0; i < order.refPhotos.length; i++) {
-        const name = 'reference-' + (i + 1) + '.jpg';
-        const fid = await uploadSketchToNotion(token, order.refPhotos[i], name);
-        fileRefs.push({ name, type: 'file_upload', file_upload: { id: fid } });
-      }
-      props['Reference Photos'] = { files: fileRefs };
-      refPhotosSynced = true;
-    } catch (e) { refPhotosError = e.message || String(e); }
-  } else if (order._refPhotosChanged && (!order.refPhotos || !order.refPhotos.length)) {
-    props['Reference Photos'] = { files: [] }; // last photo was removed — empty the property
-    refPhotosSynced = true;
   }
 
   // Approval-step attached images → Notion 'Approval Image' file property.
@@ -594,7 +623,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'update failed' }, r.status);
     }
-    return json({ notionId: order.notionId, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
+    return json({ notionId: order.notionId, sketchSynced, sketchError, refPhotosSynced, refPhotosError, refPhotoKeys: order.refPhotoKeys, approvalImgSynced, approvalImgError });
   }
 
   // Idempotency guard — if a page with this App ID already exists (e.g. a
@@ -618,7 +647,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
+        return json({ notionId: match.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, refPhotoKeys: order.refPhotoKeys, approvalImgSynced, approvalImgError });
       }
     }
   }
@@ -657,7 +686,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id, matchedBy: 'name', sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
+        return json({ notionId: match.id, matchedBy: 'name', sketchSynced, sketchError, refPhotosSynced, refPhotosError, refPhotoKeys: order.refPhotoKeys, approvalImgSynced, approvalImgError });
       }
     }
   }
@@ -667,5 +696,5 @@ export async function onRequestPost(context) {
     { parent: { database_id: PIPELINE_DB }, properties: props });
   const d = await r.json();
   if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
-  return json({ notionId: d.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
+  return json({ notionId: d.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, refPhotoKeys: order.refPhotoKeys, approvalImgSynced, approvalImgError });
 }

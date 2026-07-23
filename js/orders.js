@@ -684,9 +684,13 @@ function _eoOpenViewLightbox(src, title) {
 // Reference-photos viewer for the modal — client-shown inspiration/existing-
 // piece photos captured in the intake app's Photos tab (js/intake-sheet.js).
 // View-only: the iPad is the only capture point, so unlike the sketch there's
-// no draw/upload fallback here. Same local-first / Notion-proxy-fallback
-// pattern as eoLoadSketch — o.refPhotos only has data on the device that ran
-// intake; every other device streams thumbnails through the pipeline proxy.
+// no draw/upload fallback here. Local-first: o.refPhotos (base64 dataURLs)
+// only has data on the device that ran intake. Every other device reads
+// o.refPhotoKeys — R2 object keys synced via notion-pipeline.js/App Data —
+// and streams thumbnails straight from /api/images (see functions/api/images.js).
+// The old Notion-Files-proxy path is kept as a last-resort fallback for any
+// order whose reference photos were uploaded before this R2 migration
+// (2026-07-23) and never re-synced since, so they don't just vanish.
 function _eoSetRefPhotosSectionVisible(visible) {
   const sec = document.getElementById('eo-refphotos-sec');
   const box = document.getElementById('eo-refphotos-view');
@@ -712,6 +716,22 @@ function eoLoadRefPhotos(o) {
     _eoSetRefPhotosSectionVisible(true);
     return;
   }
+  if (o.refPhotoKeys && o.refPhotoKeys.length) {
+    o.refPhotoKeys.forEach(key => {
+      const src = '/api/images?key=' + encodeURIComponent(key);
+      const thumb = document.createElement('div');
+      thumb.className = 'eo-refphoto-thumb';
+      const img = document.createElement('img');
+      img.alt = 'Reference photo';
+      img.src = src;
+      img.onclick = () => _eoOpenViewLightbox(src, o.name + ' — reference photo');
+      thumb.appendChild(img);
+      box.appendChild(thumb);
+    });
+    _eoSetRefPhotosSectionVisible(true);
+    return;
+  }
+  // Legacy fallback — pre-migration orders with no refPhotoKeys.
   if (o.notionId) {
     box.innerHTML = '<div class="eo-sketch-spinner" title="Loading reference photos from Notion…"></div>';
     _eoSetRefPhotosSectionVisible(true); // assume yes until the count fetch proves otherwise

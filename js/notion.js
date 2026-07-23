@@ -162,6 +162,8 @@ function _recordSketchSync(order, d) {
 // Same change-detection as the sketch, for the intake app's Reference
 // Photos gallery (order.refPhotos, an array of base64 dataURLs). Hashed as
 // one JSON blob since the whole array re-uploads together on any change.
+// The pipeline proxy uploads each dataURL to the STS_IMAGES R2 bucket and
+// returns the resulting keys as order.refPhotoKeys (see _recordRefPhotosSync).
 function _markRefPhotosChanged(order) {
   if (typeof sketchHash !== 'function') return;
   const cur = (order.refPhotos && order.refPhotos.length) ? sketchHash(JSON.stringify(order.refPhotos)) : null;
@@ -172,6 +174,10 @@ function _markRefPhotosChanged(order) {
 function _recordRefPhotosSync(order, d) {
   if (d && d.refPhotosSynced && typeof sketchHash === 'function') {
     order.refPhotosSyncedHash = (order.refPhotos && order.refPhotos.length) ? sketchHash(JSON.stringify(order.refPhotos)) : null;
+    // R2 object keys (see /api/images) — lets this device display the
+    // gallery via the same path as any other device once local dataURLs
+    // eventually age out, and lets orders.js fall back to them immediately.
+    order.refPhotoKeys = Array.isArray(d.refPhotoKeys) ? d.refPhotoKeys : [];
     if (typeof saveToStorage === 'function') saveToStorage();
   }
   delete order._refPhotosChanged;
