@@ -478,74 +478,92 @@ function _apGenToken() {
   return 'ap' + rnd;
 }
 
-// An image attached on the Approval step, used in place of a hand-drawn
-// sketch in the customer-facing snapshot. Session-scoped: it feeds
-// sendForApproval() and the Step-4 preview, but isn't persisted onto the
-// order (the sketch canvas remains the order's own record).
-let _apAttachedImg = null;
+// Images attached on the Approval step, shown as a gallery alongside (or in
+// place of) a hand-drawn sketch in the customer-facing snapshot. Persisted
+// on the order as order.approvalImgs and synced to Notion — see the comment
+// on apAttachImage() below.
+let _apAttachedImgs = [];
 // Tracks an in-flight apLoadApprovalFromNotion() fetch so Save & Close can
 // wait for it — without this, saving before the cross-device rehydrate
-// resolves would build the order snapshot with approvalImg still blank and
-// push that over the real image, wiping it from Notion.
+// resolves would build the order snapshot with approvalImgs still empty and
+// push that over the real images, wiping them from Notion.
 let _apLoadPromise = null;
 
-// Read a chosen image file → dataURL → show it as the approval preview.
-// The image is persisted on the order as order.approvalImg and synced to
-// Notion's 'Approval Image' file property (see js/notion.js + the pipeline),
-// so it survives reopen on any device (apLoadApprovalFromNotion streams it
-// back where the local base64 copy is absent).
+// Read chosen image file(s) → dataURL → append to the approval gallery.
+// The gallery is persisted on the order as order.approvalImgs (array) and
+// synced to Notion's 'Approval Image' file property (see js/notion.js + the
+// pipeline), so it survives reopen on any device (apLoadApprovalFromNotion
+// streams it back where the local base64 copies are absent).
 function apAttachImage(input) {
-  const file = input && input.files && input.files[0];
-  if (!file) return;
-  if (!/^image\//.test(file.type)) { toast('Please choose an image file', '⚠'); input.value = ''; return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    _apAttachedImg = e.target.result;
-    const nameEl = document.getElementById('ap-attach-name');
-    if (nameEl) nameEl.textContent = file.name;
-    if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
-    if (typeof toast === 'function') toast('Image attached — saved to the order and sent in place of the sketch', '📎');
-  };
-  reader.onerror = () => toast('Could not read that image', '⚠');
-  reader.readAsDataURL(file);
-  input.value = '';   // allow re-selecting the same file later
+  const files = [...((input && input.files) || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length) { toast('Please choose an image file', '⚠'); if (input) input.value = ''; return; }
+  let pending = files.length;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      _apAttachedImgs.push(e.target.result);
+      if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+    };
+    reader.onerror = () => toast('Could not read that image', '⚠');
+    reader.readAsDataURL(file);
+  });
+  if (typeof toast === 'function') {
+    toast(files.length > 1
+      ? files.length + ' images attached — saved to the order and sent with the estimate'
+      : 'Image attached — saved to the order and sent with the estimate', '📎');
+  }
+  input.value = '';   // allow re-selecting the same file(s) later
 }
 
-// Drop the attached image and fall back to the order's sketch (if any).
-function apClearAttachedImage() {
-  _apAttachedImg = null;
-  const nameEl = document.getElementById('ap-attach-name');
-  if (nameEl) nameEl.textContent = '';
+// Remove one attached image by gallery index.
+function apRemoveAttachedImage(idx) {
+  if (idx < 0 || idx >= _apAttachedImgs.length) return;
+  _apAttachedImgs.splice(idx, 1);
   if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
 }
 
-// Cross-device rehydrate: when editing an order whose approval image was
-// attached on another device, the local base64 (order.approvalImg) is absent
-// here. Stream the bytes back from Notion's 'Approval Image' property through
-// the pipeline proxy (its S3 URLs expire hourly + block CORS, so we proxy the
-// bytes and convert to a dataURL), then treat it as the local copy. Marks the
-// synced hash so a subsequent save doesn't needlessly re-upload the same image.
+// Drop all attached images and fall back to the order's sketch (if any).
+function apClearAttachedImage() {
+  _apAttachedImgs = [];
+  if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+}
+
+// Cross-device rehydrate: when editing an order whose approval images were
+// attached on another device, the local base64 copies (order.approvalImgs)
+// are absent here. Stream the bytes back from Notion's 'Approval Image'
+// property through the pipeline proxy (its S3 URLs expire hourly + block
+// CORS, so we proxy the bytes and convert to dataURLs), then treat them as
+// the local copies. Marks the synced hash so a subsequent save doesn't
+// needlessly re-upload the same images.
 async function apLoadApprovalFromNotion(order) {
-  if (!order || !order.notionId || _apAttachedImg) return;
+  if (!order || !order.notionId || (_apAttachedImgs && _apAttachedImgs.length)) return;
   try {
-    const url = '/api/notion-pipeline?sketch=' + encodeURIComponent(order.notionId)
-              + '&prop=' + encodeURIComponent('Approval Image') + '&idx=0';
-    const r = await fetch(url);
-    if (!r.ok) return;                       // 404 no-sketch → nothing to show
-    const blob = await r.blob();
-    if (!blob || !/^image\//.test(blob.type || '')) return;
-    const dataUrl = await new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(fr.result);
-      fr.onerror = rej;
-      fr.readAsDataURL(blob);
-    });
-    if (_apAttachedImg) return;              // a live attach won the race
-    _apAttachedImg = dataUrl;
-    order.approvalImg = dataUrl;             // seed this device's local copy
-    if (typeof sketchHash === 'function') order.approvalImgSyncedHash = sketchHash(dataUrl);
-    const nm = document.getElementById('ap-attach-name');
-    if (nm) nm.textContent = 'Attached image';
+    const countUrl = '/api/notion-pipeline?sketch=' + encodeURIComponent(order.notionId)
+                    + '&prop=' + encodeURIComponent('Approval Image') + '&list=1';
+    const cr = await fetch(countUrl);
+    if (!cr.ok) return;
+    const { count } = await cr.json().catch(() => ({ count: 0 }));
+    if (!count) return;
+    const dataUrls = [];
+    for (let i = 0; i < count; i++) {
+      const url = '/api/notion-pipeline?sketch=' + encodeURIComponent(order.notionId)
+                + '&prop=' + encodeURIComponent('Approval Image') + '&idx=' + i;
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const blob = await r.blob();
+      if (!blob || !/^image\//.test(blob.type || '')) continue;
+      const dataUrl = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(fr.result);
+        fr.onerror = rej;
+        fr.readAsDataURL(blob);
+      });
+      dataUrls.push(dataUrl);
+    }
+    if (_apAttachedImgs && _apAttachedImgs.length) return;   // a live attach won the race
+    _apAttachedImgs = dataUrls;
+    order.approvalImgs = [...dataUrls];      // seed this device's local copy
+    if (typeof sketchHash === 'function') order.approvalImgsSyncedHash = sketchHash(JSON.stringify(dataUrls));
     if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
   } catch (e) { /* best-effort — falls back to the sketch preview */ }
 }
@@ -560,24 +578,31 @@ function intakeRenderApproval() {
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
 
-  // Design preview — an attached image wins over the hand-drawn sketch.
+  // Design preview — attached images (gallery) win over the hand-drawn sketch.
   const hasInk = (typeof SK !== 'undefined' && SK && SK.hasInk);
-  const img = g('ap-sketch'), empty = g('ap-sketch-empty');
-  if (_apAttachedImg) {
-    if (img) { img.src = _apAttachedImg; img.classList.remove('hidden'); }
+  const img = g('ap-sketch'), gallery = g('ap-gallery'), empty = g('ap-sketch-empty');
+  if (_apAttachedImgs && _apAttachedImgs.length) {
+    if (img) img.classList.add('hidden');
     if (empty) empty.classList.add('hidden');
+    if (gallery) {
+      gallery.innerHTML = _apAttachedImgs.map((src, i) =>
+        '<div class="rp-thumb"><img src="' + src + '" alt="Attached image ' + (i + 1) + '">'
+        + '<button type="button" class="rp-x" onclick="apRemoveAttachedImage(' + i + ')" aria-label="Remove image">✕</button></div>'
+      ).join('');
+      gallery.classList.remove('hidden');
+    }
   } else if (hasInk && typeof sketchExport === 'function') {
+    if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
     if (img) { img.src = sketchExport(); img.classList.remove('hidden'); }
     if (empty) empty.classList.add('hidden');
   } else {
     if (img) img.classList.add('hidden');
+    if (gallery) { gallery.innerHTML = ''; gallery.classList.add('hidden'); }
     if (empty) empty.classList.remove('hidden');
   }
-  // Toggle the "Remove image" control + button label to match state.
-  const clearBtn = g('ap-attach-clear');
-  if (clearBtn) clearBtn.classList.toggle('hidden', !_apAttachedImg);
+  // Button label reflects whether there's already a gallery to add to.
   const attachBtn = g('ap-attach-btn');
-  if (attachBtn) attachBtn.textContent = _apAttachedImg ? '📎 Replace image' : '📎 Attach image';
+  if (attachBtn) attachBtn.textContent = (_apAttachedImgs && _apAttachedImgs.length) ? '📎 Add more images' : '📎 Attach image';
 
   // Estimate summary
   const fin = _apReadFinancials();
@@ -665,9 +690,10 @@ async function sendForApproval() {
   if (status) status.textContent = 'Creating link…';
 
   const token = (window._intakeApproval && window._intakeApproval.token) || _apGenToken();
-  // An attached image is sent in place of the hand-drawn sketch when present.
-  const sketch = _apAttachedImg
-    || ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? sketchExport() : '');
+  // Attached images are sent as a gallery in place of the hand-drawn sketch
+  // when present; otherwise the sketch (if any) is sent as the sole image.
+  const images = (_apAttachedImgs && _apAttachedImgs.length) ? [..._apAttachedImgs]
+    : ((typeof SK !== 'undefined' && SK && SK.hasInk && typeof sketchExport === 'function') ? [sketchExport()] : []);
   const snapshot = {
     kind: 'create',
     token,
@@ -675,7 +701,7 @@ async function sendForApproval() {
     notionPageId: (_editingOrder && _editingOrder.notionId) || '',
     customerName:  getFullName() || 'Customer',
     customerEmail: email,
-    sketch,
+    images,
     title: _apTitle(),
     lines: fin.lines,
     total: fin.total,
@@ -762,15 +788,14 @@ async function intakeLoadOrderForEdit(id) {
   // Carry any prior estimate-approval into the session so Step 4 shows its
   // status (and re-sending reuses the same token/link).
   window._intakeApproval = (order.approval && order.approval.token) ? order.approval : null;
-  // Restore any image attached on the Approval step so it survives reopen
-  // (intakeRenderApproval() picks _apAttachedImg up when Step 4 is shown).
-  _apAttachedImg = order.approvalImg || null;
-  { const nm = document.getElementById('ap-attach-name'); if (nm) nm.textContent = _apAttachedImg ? 'Attached image' : ''; }
-  // No local copy but the order has a Notion page → the approval image was
-  // attached on another device; stream it back so the Send-for-Approval page
-  // shows it here too. Tracked via _apLoadPromise so Save & Close (below)
-  // can wait for it instead of racing it.
-  if (!_apAttachedImg && order.notionId) {
+  // Restore any images attached on the Approval step so they survive reopen
+  // (intakeRenderApproval() picks _apAttachedImgs up when Step 4 is shown).
+  _apAttachedImgs = Array.isArray(order.approvalImgs) ? [...order.approvalImgs] : [];
+  // No local copies but the order has a Notion page → the approval images
+  // were attached on another device; stream them back so the Send-for-Approval
+  // page shows them here too. Tracked via _apLoadPromise so Save & Close
+  // (below) can wait for it instead of racing it.
+  if (!_apAttachedImgs.length && order.notionId) {
     _apLoadPromise = apLoadApprovalFromNotion(order).finally(() => { _apLoadPromise = null; });
   }
   // Rehydrate the Photos-tab reference images into session state so they
@@ -993,10 +1018,10 @@ async function intakeSubmit() {
     // KV under the token; this small pointer round-trips via App Data so the
     // order remembers it was sent for approval. See sendForApproval().
     approval:      (typeof window !== 'undefined' && window._intakeApproval) || null,
-    // Image attached on the Approval step — persisted on the order (local,
-    // like sketchImg) so it survives Save & Close → reopen. Restored into
-    // _apAttachedImg by intakeLoadOrderForEdit().
-    approvalImg:   (typeof _apAttachedImg !== 'undefined') ? (_apAttachedImg || null) : null,
+    // Images attached on the Approval step — persisted on the order (local,
+    // like sketchImg) so they survive Save & Close → reopen. Restored into
+    // _apAttachedImgs by intakeLoadOrderForEdit().
+    approvalImgs:  (typeof _apAttachedImgs !== 'undefined') ? [..._apAttachedImgs] : [],
     sketchImg:     (typeof sketchExport === 'function') ? sketchExport() : null, // composite: underlay + ink (2.3)
     sketchInkImg:  (_ul.img && typeof sketchExportInkOnly === 'function') ? sketchExportInkOnly() : null, // ink-only for the bag print
     // Client-shown reference photos (Photos tab in the bottom sheet) —

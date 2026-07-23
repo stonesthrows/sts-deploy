@@ -1474,15 +1474,14 @@
         <!-- Design preview -->
         <div id="ap-sketch-wrap" class="mb-4">
           <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A5A3A] mb-2">Design</div>
-          <img id="ap-sketch" alt="Design preview" class="w-full max-w-sm rounded-lg border border-slate-200 bg-slate-50">
-          <div id="ap-sketch-empty" class="hidden text-[13px] text-slate-400 italic">No sketch on this order — attach an image below, or the estimate will be sent on its own.</div>
-          <!-- Attach an image to use in place of a hand-drawn sketch -->
+          <img id="ap-sketch" alt="Design preview" class="hidden w-full max-w-sm rounded-lg border border-slate-200 bg-slate-50">
+          <div id="ap-gallery" class="hidden rp-grid"></div>
+          <div id="ap-sketch-empty" class="hidden text-[13px] text-slate-400 italic">No sketch on this order — attach image(s) below, or the estimate will be sent on its own.</div>
+          <!-- Attach image(s) to send alongside (or in place of) a hand-drawn sketch -->
           <div class="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" class="btn btn-outline" id="ap-attach-btn" onclick="document.getElementById('ap-attach-input').click()">📎 Attach image</button>
-            <button type="button" class="btn btn-ghost hidden" id="ap-attach-clear" onclick="apClearAttachedImage()">Remove image</button>
-            <span id="ap-attach-name" class="text-[12px] text-slate-500"></span>
           </div>
-          <input type="file" id="ap-attach-input" accept="image/*" class="hidden" onchange="apAttachImage(this)">
+          <input type="file" id="ap-attach-input" accept="image/*" multiple class="hidden" onchange="apAttachImage(this)">
         </div>
 
         <!-- Estimate summary -->
@@ -1687,12 +1686,12 @@
 <script src="js/api-auth.js?v=1"></script>
 <script src="js/storage.js?v=20260720a"></script>
 <script src="js/sketchpad.js?v=5"></script>
-<script src="js/notion.js?v=20260722c"></script>
+<script src="js/notion.js?v=20260722d"></script>
 <script src="js/order-widgets.js?v=20260722d"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=5"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=26"></script>
+<script src="js/intake.js?v=27"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>

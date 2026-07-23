@@ -177,20 +177,22 @@ function _recordRefPhotosSync(order, d) {
   delete order._refPhotosChanged;
 }
 
-// Same change-detection as the sketch, for the intake app's Approval-step
-// attached image (order.approvalImg, a single base64 dataURL). Synced to
-// Notion's 'Approval Image' file property so the Send-for-Approval page can
-// stream it back on any device (see apLoadApprovalFromNotion in js/intake.js).
+// Same change-detection as Reference Photos, for the intake app's
+// Approval-step attached image gallery (order.approvalImgs, an array of
+// base64 dataURLs). Hashed as one JSON blob since the whole array re-uploads
+// together on any change. Synced to Notion's 'Approval Image' file property
+// so the Send-for-Approval page can stream it back on any device (see
+// apLoadApprovalFromNotion in js/intake.js).
 function _markApprovalImgChanged(order) {
   if (typeof sketchHash !== 'function') return;
-  const cur = order.approvalImg ? sketchHash(order.approvalImg) : null;
-  if (cur !== (order.approvalImgSyncedHash || null)) order._approvalImgChanged = true;
+  const cur = (order.approvalImgs && order.approvalImgs.length) ? sketchHash(JSON.stringify(order.approvalImgs)) : null;
+  if (cur !== (order.approvalImgsSyncedHash || null)) order._approvalImgChanged = true;
   else delete order._approvalImgChanged;
 }
 
 function _recordApprovalImgSync(order, d) {
   if (d && d.approvalImgSynced && typeof sketchHash === 'function') {
-    order.approvalImgSyncedHash = order.approvalImg ? sketchHash(order.approvalImg) : null;
+    order.approvalImgsSyncedHash = (order.approvalImgs && order.approvalImgs.length) ? sketchHash(JSON.stringify(order.approvalImgs)) : null;
     if (typeof saveToStorage === 'function') saveToStorage();
   }
   delete order._approvalImgChanged;
@@ -388,7 +390,7 @@ async function notionSyncFromNotion() {
       // that live only on-device.
       'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
       'stones', 'estimateAlternatives', 'estimate', 'approval', 'sketchInkImg', 'signatureImg',
-      'approvalImg', 'approvalImgSyncedHash',
+      'approvalImgs', 'approvalImgsSyncedHash',
       'refPhotos', 'refPhotosSyncedHash', 'rings'];
 
     for (const no of notionOrders) {
@@ -526,8 +528,8 @@ async function notionStartupSync() {
       if (o.sketchSyncedHash) localFields[o.id].sketchSyncedHash = o.sketchSyncedHash;
       if (o.refPhotos && o.refPhotos.length) localFields[o.id].refPhotos = o.refPhotos;
       if (o.refPhotosSyncedHash) localFields[o.id].refPhotosSyncedHash = o.refPhotosSyncedHash;
-      if (o.approvalImg) localFields[o.id].approvalImg = o.approvalImg;
-      if (o.approvalImgSyncedHash) localFields[o.id].approvalImgSyncedHash = o.approvalImgSyncedHash;
+      if (o.approvalImgs && o.approvalImgs.length) localFields[o.id].approvalImgs = o.approvalImgs;
+      if (o.approvalImgsSyncedHash) localFields[o.id].approvalImgsSyncedHash = o.approvalImgsSyncedHash;
       if (o.pickup)      localFields[o.id].pickup      = o.pickup;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
@@ -601,8 +603,8 @@ async function notionStartupSync() {
       if (!no.sketchSyncedHash && lf.sketchSyncedHash) no.sketchSyncedHash = lf.sketchSyncedHash;
       if ((!no.refPhotos || !no.refPhotos.length) && lf.refPhotos) no.refPhotos = lf.refPhotos;
       if (!no.refPhotosSyncedHash && lf.refPhotosSyncedHash) no.refPhotosSyncedHash = lf.refPhotosSyncedHash;
-      if (!no.approvalImg && lf.approvalImg) no.approvalImg = lf.approvalImg;
-      if (!no.approvalImgSyncedHash && lf.approvalImgSyncedHash) no.approvalImgSyncedHash = lf.approvalImgSyncedHash;
+      if ((!no.approvalImgs || !no.approvalImgs.length) && lf.approvalImgs) no.approvalImgs = lf.approvalImgs;
+      if (!no.approvalImgsSyncedHash && lf.approvalImgsSyncedHash) no.approvalImgsSyncedHash = lf.approvalImgsSyncedHash;
       if (!no.pickup      && lf.pickup)      no.pickup      = lf.pickup;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;

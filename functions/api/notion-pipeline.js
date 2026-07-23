@@ -565,18 +565,24 @@ export async function onRequestPost(context) {
     refPhotosSynced = true;
   }
 
-  // Approval-step attached image → Notion 'Approval Image' file property.
-  // Same dirty-hash gate + isolation as the sketch; lets the intake app's
-  // Send-for-Approval page stream the image back on any device.
+  // Approval-step attached images → Notion 'Approval Image' file property.
+  // Same dirty-hash gate + all-at-once re-upload as Reference Photos; lets
+  // the intake app's Send-for-Approval page stream the gallery back on any
+  // device.
   let approvalImgSynced = false, approvalImgError = null;
-  if (order._approvalImgChanged && order.approvalImg) {
+  if (order._approvalImgChanged && Array.isArray(order.approvalImgs) && order.approvalImgs.length) {
     try {
-      const fid = await uploadSketchToNotion(token, order.approvalImg, 'approval.png');
-      props['Approval Image'] = { files: [{ name: 'approval.png', type: 'file_upload', file_upload: { id: fid } }] };
+      const fileRefs = [];
+      for (let i = 0; i < order.approvalImgs.length; i++) {
+        const name = 'approval-' + (i + 1) + '.png';
+        const fid = await uploadSketchToNotion(token, order.approvalImgs[i], name);
+        fileRefs.push({ name, type: 'file_upload', file_upload: { id: fid } });
+      }
+      props['Approval Image'] = { files: fileRefs };
       approvalImgSynced = true;
     } catch (e) { approvalImgError = e.message || String(e); }
-  } else if (order._approvalImgChanged && !order.approvalImg) {
-    props['Approval Image'] = { files: [] }; // approval image was cleared — empty the property
+  } else if (order._approvalImgChanged && (!order.approvalImgs || !order.approvalImgs.length)) {
+    props['Approval Image'] = { files: [] }; // last approval image was removed — empty the property
     approvalImgSynced = true;
   }
 

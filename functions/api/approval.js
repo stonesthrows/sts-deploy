@@ -11,7 +11,7 @@
 //    {
 //      token, orderId, notionPageId,
 //      customerName, customerEmail,          ← never returned by GET
-//      sketch,                               ← data: URL (composited sketch)
+//      images,                               ← array of data: URLs (sketch and/or attached photos)
 //      title,                                ← what the piece is
 //      lines:[{label,amount}], total,        ← customer-facing charges (no cost basis)
 //      notesForCustomer,
@@ -76,13 +76,18 @@ export async function onRequestPost(context) {
     const token = String(body.token || '').trim();
     if (!token || token.length < 12) return json({ error: 'Invalid token' }, 400);
 
+    // Accept the current array shape, but fall back to a legacy single
+    // `sketch` string so any in-flight link created before the gallery
+    // rework still overwrites cleanly.
+    const images = Array.isArray(body.images) ? body.images.filter(Boolean)
+                  : (body.sketch ? [body.sketch] : []);
     const rec = {
       token,
       orderId:       body.orderId       || '',
       notionPageId:  body.notionPageId  || '',
       customerName:  body.customerName   || '',
       customerEmail: body.customerEmail  || '',
-      sketch:        body.sketch         || '',
+      images,
       title:         body.title          || '',
       lines:         Array.isArray(body.lines) ? body.lines : [],
       total:         Number(body.total)   || 0,

@@ -25,6 +25,15 @@
     .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
     .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 12px; font-weight:700; }
     .sketch { width:100%; border-radius:10px; display:block; background:#F4F4F2; border:1px solid var(--line); }
+    .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:8px; }
+    .gallery img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:#F4F4F2; border:1px solid var(--line); cursor:zoom-in; }
+    .gallery.single { grid-template-columns:1fr; }
+    .gallery.single img { aspect-ratio:auto; cursor:zoom-in; }
+    .lightbox {
+      position:fixed; inset:0; background:rgba(20,20,18,.92); z-index:100;
+      display:flex; align-items:center; justify-content:center; padding:24px; cursor:zoom-out;
+    }
+    .lightbox img { max-width:100%; max-height:100%; border-radius:8px; }
     table { width:100%; border-collapse:collapse; font-size:15.5px; }
     td { padding:5px 0; }
     td.r { text-align:right; }
@@ -75,7 +84,7 @@
 
       <div class="card" id="sketch-card">
         <h2>Design</h2>
-        <img id="sketch" class="sketch" alt="Design sketch">
+        <div id="gallery" class="gallery"></div>
       </div>
 
       <div class="card">
@@ -143,11 +152,31 @@
       $('respond-card').classList.add('hidden');
     }
 
+    function renderGallery(r) {
+      // Accept the current array shape, but fall back to a legacy single
+      // `sketch` string for any link created before the gallery rework.
+      var images = Array.isArray(r.images) && r.images.length ? r.images
+                 : (r.sketch ? [r.sketch] : []);
+      if (!images.length) { $('sketch-card').classList.add('hidden'); return; }
+      var g = $('gallery');
+      g.classList.toggle('single', images.length === 1);
+      g.innerHTML = images.map(function (src, i) {
+        return '<img src="' + src + '" alt="Design image ' + (i + 1) + '" onclick="zoomImage(this.src)">';
+      }).join('');
+    }
+
+    function zoomImage(src) {
+      var box = document.createElement('div');
+      box.className = 'lightbox';
+      box.innerHTML = '<img src="' + src + '" alt="Design image, full size">';
+      box.onclick = function () { box.remove(); };
+      document.body.appendChild(box);
+    }
+
     function render(r) {
       REC = r;
       if (r.shopName) $('shop').textContent = r.shopName;
-      if (r.sketch) { $('sketch').src = r.sketch; }
-      else { $('sketch-card').classList.add('hidden'); }
+      renderGallery(r);
       renderEstimate(r);
       if (r.notesForCustomer) { $('cust-note').textContent = r.notesForCustomer; $('note-card').classList.remove('hidden'); }
       $('loading').classList.add('hidden');
