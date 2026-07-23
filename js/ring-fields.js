@@ -145,6 +145,8 @@ function ringFieldsApplyPieceType(pieceType) {
   } else {
     const summary = document.getElementById('est-ring-stamping-summary');
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }
+    const blanklen = document.getElementById('est-ring-blanklen-summary');
+    if (blanklen) { blanklen.innerHTML = ''; blanklen.style.display = 'none'; }
   }
 }
 
@@ -179,6 +181,35 @@ function ringFieldsRenderStampingSummary() {
   el.innerHTML = rows;
   el.style.display = rows ? '' : 'none';
 }
+
+// Estimate Builder mirror of the blank-length readout — one line per Custom
+// Ring block (Meditation/Simple Band have no gauge field, so they're skipped,
+// same as the inline per-block readout). Shared by both apps so a single
+// container id (#est-ring-blanklen-summary) works wherever it's present.
+function ringFieldsRenderBlankLenSummary() {
+  const el = document.getElementById('est-ring-blanklen-summary');
+  if (!el) return;
+  const g = id => document.getElementById(id);
+  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
+  const multi = blocks.length > 1;
+  const esc = v => String(v || '').replace(/</g, '&lt;');
+  const rows = [...blocks].map((block, i) => {
+    if ((g('f-ring-category-' + i)?.value || '') !== 'Custom Ring') return '';
+    const mm = ringBlankLengthMm(
+      g('f-ring-customsize-' + i)?.value,
+      g('f-ring-customgauge-' + i)?.value,
+      g('f-ring-customallowance-' + i)?.value,
+    );
+    if (mm === null) return '';
+    const inches = mm / 25.4;
+    const name = g('f-ring-name-' + i)?.value || '';
+    const label = multi ? ('Ring ' + (i + 1) + (name ? ' (' + name + ')' : '')) : 'Ring';
+    return '<div><strong>' + esc(label) + '</strong> — Blank length: '
+      + mm.toFixed(1) + ' mm (' + inches.toFixed(2) + ' in)</div>';
+  }).filter(Boolean).join('');
+  el.innerHTML = rows;
+  el.style.display = rows ? '' : 'none';
+}
 document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderStampingSummary(); });
 
@@ -197,6 +228,8 @@ document.addEventListener('change', e => {
   const i = [...block.parentElement.children].indexOf(block);
   ringFieldsUpdateBlankLength(i);
 });
+document.addEventListener('input',  e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderBlankLenSummary(); });
+document.addEventListener('change', e => { if (e.target.closest?.('#rings-dynamic-list')) ringFieldsRenderBlankLenSummary(); });
 
 function _intakeCollectRingsFromDom() {
   const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
@@ -398,6 +431,7 @@ function intakeRenderRingBlocks() {
     </div>
   `).join('');
   ringFieldsRenderStampingSummary();
+  ringFieldsRenderBlankLenSummary();
   _intakeRings.forEach((r, i) => { if (r.category === 'Custom Ring') ringFieldsUpdateBlankLength(i); });
 }
 

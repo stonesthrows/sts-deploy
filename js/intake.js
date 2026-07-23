@@ -249,7 +249,6 @@ function intakeSetOrderFor(val) {
 // order-for controls while Piece Type is Ring (js/intake-sheet.js).
 function intakeApplyPieceType(pieceType) {
   ringFieldsApplyPieceType(pieceType);
-  if (typeof intakeRenderBlankLenSummary === 'function') intakeRenderBlankLenSummary();
   if (typeof psRenderPanes === 'function') psRenderPanes();
 }
 
@@ -2474,56 +2473,6 @@ eoUpdateBalanceDue = function () {
   intakeDepositRefresh();
   intakeTabsRefresh(); // item/price changes flow through here (4.4)
 };
-
-// ── Ring Blank Length — surfaced on Step 3 (Items & Price) ────
-// The blank-length readout used to live inline in each Custom Ring block on
-// Step 1 (rendered by js/ring-fields.js, shared with the desktop Edit Order
-// modal). On intake we hide that inline readout (CSS in intake.html) and
-// mirror it here, in the Estimate Builder, so the number sits next to pricing.
-// The desktop app is untouched — this is all intake-only, wrapping the shared
-// ring-fields functions rather than editing them.
-function intakeRenderBlankLenSummary() {
-  const el = document.getElementById('est-ring-blanklen-summary');
-  if (!el) return;
-  const g = id => document.getElementById(id);
-  // The ring blocks stay in the DOM (just hidden) when Piece Type isn't Ring,
-  // so gate on the current type or the readout would linger on other pieces.
-  if (g('f-piece-type')?.value !== 'Ring') { el.innerHTML = ''; el.style.display = 'none'; return; }
-  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
-  const multi = blocks.length > 1;
-  const esc = v => String(v || '').replace(/</g, '&lt;');
-  const rows = [...blocks].map((block, i) => {
-    if ((g('f-ring-category-' + i)?.value || '') !== 'Custom Ring') return '';
-    const mm = ringBlankLengthMm(
-      g('f-ring-customsize-' + i)?.value,
-      g('f-ring-customgauge-' + i)?.value,
-      g('f-ring-customallowance-' + i)?.value,
-    );
-    if (mm === null) return '';
-    const inches = mm / 25.4;
-    const name = g('f-ring-name-' + i)?.value || '';
-    const label = multi ? ('Ring ' + (i + 1) + (name ? ' (' + name + ')' : '')) : 'Ring';
-    return '<div><strong>' + esc(label) + '</strong> — Blank length: '
-      + mm.toFixed(1) + ' mm (' + inches.toFixed(2) + ' in)</div>';
-  }).filter(Boolean).join('');
-  el.innerHTML = rows;
-  el.style.display = rows ? '' : 'none';
-}
-
-// Refresh the Step-3 mirror whenever the ring blocks re-render (count/type
-// changes, reset, initial render) — the shared ring-fields code calls the
-// global by name, so this wrap is picked up everywhere it re-renders.
-const _rfRenderRingBlocks = intakeRenderRingBlocks;
-intakeRenderRingBlocks = function () {
-  _rfRenderRingBlocks();
-  intakeRenderBlankLenSummary();
-};
-
-// …and on every keystroke in the size/gauge/allowance inputs, which change
-// the number without re-rendering the blocks.
-document.addEventListener('input', e => {
-  if (e.target.closest?.('#rings-dynamic-list')) intakeRenderBlankLenSummary();
-});
 
 // ── Init ──────────────────────────────────────────────────────
 (function intakeInit() {
