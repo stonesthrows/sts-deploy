@@ -177,6 +177,25 @@ function _recordRefPhotosSync(order, d) {
   delete order._refPhotosChanged;
 }
 
+// Same change-detection as the sketch, for the intake app's Approval-step
+// attached image (order.approvalImg, a single base64 dataURL). Synced to
+// Notion's 'Approval Image' file property so the Send-for-Approval page can
+// stream it back on any device (see apLoadApprovalFromNotion in js/intake.js).
+function _markApprovalImgChanged(order) {
+  if (typeof sketchHash !== 'function') return;
+  const cur = order.approvalImg ? sketchHash(order.approvalImg) : null;
+  if (cur !== (order.approvalImgSyncedHash || null)) order._approvalImgChanged = true;
+  else delete order._approvalImgChanged;
+}
+
+function _recordApprovalImgSync(order, d) {
+  if (d && d.approvalImgSynced && typeof sketchHash === 'function') {
+    order.approvalImgSyncedHash = order.approvalImg ? sketchHash(order.approvalImg) : null;
+    if (typeof saveToStorage === 'function') saveToStorage();
+  }
+  delete order._approvalImgChanged;
+}
+
 // ════════════════════════════════════════════
 //  CREATE  —  push a new order to Notion
 //  Returns the Notion page ID (string) or null on failure.
@@ -187,6 +206,7 @@ async function notionCreateOrder(order) {
   try {
     _markSketchChanged(order);
     _markRefPhotosChanged(order);
+    _markApprovalImgChanged(order);
     const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -200,6 +220,7 @@ async function notionCreateOrder(order) {
     const d = await r.json();
     _recordSketchSync(order, d);
     _recordRefPhotosSync(order, d);
+    _recordApprovalImgSync(order, d);
     return d.notionId || null;
   } catch(e) {
     console.warn('notionCreateOrder error', e);
@@ -220,6 +241,7 @@ async function notionUpdateOrder(order) {
   try {
     _markSketchChanged(order);
     _markRefPhotosChanged(order);
+    _markApprovalImgChanged(order);
     const r = await fetch(PIPELINE_PROXY, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -235,6 +257,7 @@ async function notionUpdateOrder(order) {
     const d = await r.json().catch(() => ({}));
     _recordSketchSync(order, d);
     _recordRefPhotosSync(order, d);
+    _recordApprovalImgSync(order, d);
     if (typeof setConnStatus === 'function') setConnStatus(true);
     return 'ok';
   } catch(e) {
@@ -365,6 +388,7 @@ async function notionSyncFromNotion() {
       // that live only on-device.
       'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
       'stones', 'estimateAlternatives', 'estimate', 'approval', 'sketchInkImg', 'signatureImg',
+      'approvalImg', 'approvalImgSyncedHash',
       'refPhotos', 'refPhotosSyncedHash', 'rings'];
 
     for (const no of notionOrders) {
@@ -502,6 +526,8 @@ async function notionStartupSync() {
       if (o.sketchSyncedHash) localFields[o.id].sketchSyncedHash = o.sketchSyncedHash;
       if (o.refPhotos && o.refPhotos.length) localFields[o.id].refPhotos = o.refPhotos;
       if (o.refPhotosSyncedHash) localFields[o.id].refPhotosSyncedHash = o.refPhotosSyncedHash;
+      if (o.approvalImg) localFields[o.id].approvalImg = o.approvalImg;
+      if (o.approvalImgSyncedHash) localFields[o.id].approvalImgSyncedHash = o.approvalImgSyncedHash;
       if (o.pickup)      localFields[o.id].pickup      = o.pickup;
       if (o.contactedAt) localFields[o.id].contactedAt = o.contactedAt;
       if (o.deliveredAt) localFields[o.id].deliveredAt = o.deliveredAt;
@@ -575,6 +601,8 @@ async function notionStartupSync() {
       if (!no.sketchSyncedHash && lf.sketchSyncedHash) no.sketchSyncedHash = lf.sketchSyncedHash;
       if ((!no.refPhotos || !no.refPhotos.length) && lf.refPhotos) no.refPhotos = lf.refPhotos;
       if (!no.refPhotosSyncedHash && lf.refPhotosSyncedHash) no.refPhotosSyncedHash = lf.refPhotosSyncedHash;
+      if (!no.approvalImg && lf.approvalImg) no.approvalImg = lf.approvalImg;
+      if (!no.approvalImgSyncedHash && lf.approvalImgSyncedHash) no.approvalImgSyncedHash = lf.approvalImgSyncedHash;
       if (!no.pickup      && lf.pickup)      no.pickup      = lf.pickup;
       if (!no.contactedAt && lf.contactedAt) no.contactedAt = lf.contactedAt;
       if (!no.deliveredAt && lf.deliveredAt) no.deliveredAt = lf.deliveredAt;

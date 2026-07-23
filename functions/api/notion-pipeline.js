@@ -344,6 +344,7 @@ const NEW_SCHEMA_PROPS = {
   'App Data':               { rich_text: {} },
   'Signature':              { files: {} },
   'Reference Photos':       { files: {} },
+  'Approval Image':         { files: {} },
 };
 
 async function ensureSchema(hdrs) {
@@ -412,7 +413,7 @@ async function getSketch(hdrs, pageId, propName = 'Sketch', idx = 0, listOnly = 
   if (!/^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
     return json({ error: 'bad page id' }, 400);
   }
-  if (!['Sketch', 'Signature', 'Reference Photos'].includes(propName)) return json({ error: 'bad prop' }, 400);
+  if (!['Sketch', 'Signature', 'Reference Photos', 'Approval Image'].includes(propName)) return json({ error: 'bad prop' }, 400);
   const r = await fetch(`${NOTION_API}/pages/${pageId}`, { headers: hdrs });
   if (!r.ok) {
     const err = await r.json().catch(() => ({}));
@@ -564,6 +565,21 @@ export async function onRequestPost(context) {
     refPhotosSynced = true;
   }
 
+  // Approval-step attached image → Notion 'Approval Image' file property.
+  // Same dirty-hash gate + isolation as the sketch; lets the intake app's
+  // Send-for-Approval page stream the image back on any device.
+  let approvalImgSynced = false, approvalImgError = null;
+  if (order._approvalImgChanged && order.approvalImg) {
+    try {
+      const fid = await uploadSketchToNotion(token, order.approvalImg, 'approval.png');
+      props['Approval Image'] = { files: [{ name: 'approval.png', type: 'file_upload', file_upload: { id: fid } }] };
+      approvalImgSynced = true;
+    } catch (e) { approvalImgError = e.message || String(e); }
+  } else if (order._approvalImgChanged && !order.approvalImg) {
+    props['Approval Image'] = { files: [] }; // approval image was cleared — empty the property
+    approvalImgSynced = true;
+  }
+
   // Update existing Notion page
   if (order.notionId) {
     const r = await writePage(hdrs, `${NOTION_API}/pages/${order.notionId}`, 'PATCH',
@@ -572,7 +588,7 @@ export async function onRequestPost(context) {
       const err = await r.json().catch(() => ({}));
       return json({ error: err.message || 'update failed' }, r.status);
     }
-    return json({ notionId: order.notionId, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
+    return json({ notionId: order.notionId, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
   }
 
   // Idempotency guard — if a page with this App ID already exists (e.g. a
@@ -596,7 +612,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
+        return json({ notionId: match.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
       }
     }
   }
@@ -635,7 +651,7 @@ export async function onRequestPost(context) {
           const err = await r.json().catch(() => ({}));
           return json({ error: err.message || 'update failed' }, r.status);
         }
-        return json({ notionId: match.id, matchedBy: 'name', sketchSynced, sketchError, refPhotosSynced, refPhotosError });
+        return json({ notionId: match.id, matchedBy: 'name', sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
       }
     }
   }
@@ -645,5 +661,5 @@ export async function onRequestPost(context) {
     { parent: { database_id: PIPELINE_DB }, properties: props });
   const d = await r.json();
   if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
-  return json({ notionId: d.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError });
+  return json({ notionId: d.id, sketchSynced, sketchError, refPhotosSynced, refPhotosError, approvalImgSynced, approvalImgError });
 }

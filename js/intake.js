@@ -483,13 +483,12 @@ function _apGenToken() {
 // sendForApproval() and the Step-4 preview, but isn't persisted onto the
 // order (the sketch canvas remains the order's own record).
 let _apAttachedImg = null;
-// The downscaled copy this approval attachment folded into the order's
-// reference photos (so it actually persists to Notion + the desktop order
-// viewer — approvalImg on its own is a local field nothing syncs or shows).
-// Tracked so a Replace/Remove in the same session pulls the right one back out.
-let _apRefPhoto = null;
 
 // Read a chosen image file → dataURL → show it as the approval preview.
+// The image is persisted on the order as order.approvalImg and synced to
+// Notion's 'Approval Image' file property (see js/notion.js + the pipeline),
+// so it survives reopen on any device (apLoadApprovalFromNotion streams it
+// back where the local base64 copy is absent).
 function apAttachImage(input) {
   const file = input && input.files && input.files[0];
   if (!file) return;
@@ -500,39 +499,11 @@ function apAttachImage(input) {
     const nameEl = document.getElementById('ap-attach-name');
     if (nameEl) nameEl.textContent = file.name;
     if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
-    if (typeof toast === 'function') toast('Image attached — saved to the order photos and sent in place of the sketch', '📎');
+    if (typeof toast === 'function') toast('Image attached — saved to the order and sent in place of the sketch', '📎');
   };
   reader.onerror = () => toast('Could not read that image', '⚠');
   reader.readAsDataURL(file);
-  // Fold a downscaled copy into the order's Reference Photos so the image is
-  // persisted, synced to Notion, and visible in the desktop order viewer.
-  apMergeAttachmentIntoRefPhotos(file);
   input.value = '';   // allow re-selecting the same file later
-}
-
-// Add (or replace) this attachment's copy inside the shared reference-photo
-// array, reusing the same downscale + de-dupe the Photos tab uses.
-async function apMergeAttachmentIntoRefPhotos(file) {
-  if (typeof _refPhotos === 'undefined' || typeof _rpResizeFile !== 'function') return;
-  let resized;
-  try { resized = await _rpResizeFile(file); } catch (e) { return; }
-  // Remove the copy a previous attach (this session) contributed, if any.
-  if (_apRefPhoto) {
-    const prev = _refPhotos.indexOf(_apRefPhoto);
-    if (prev >= 0) _refPhotos.splice(prev, 1);
-    _apRefPhoto = null;
-  }
-  const cap = (typeof RP_MAX_PHOTOS !== 'undefined') ? RP_MAX_PHOTOS : 6;
-  if (_refPhotos.includes(resized)) {
-    _apRefPhoto = resized;                 // already present — just claim it
-  } else if (_refPhotos.length < cap) {
-    _refPhotos.push(resized);
-    _apRefPhoto = resized;
-  } else if (typeof toast === 'function') {
-    toast('Photo list is full — approval image not added to order photos', '⚠', 3000);
-  }
-  if (typeof rpRenderGrid === 'function') rpRenderGrid();
-  if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
 }
 
 // Drop the attached image and fall back to the order's sketch (if any).
@@ -540,15 +511,38 @@ function apClearAttachedImage() {
   _apAttachedImg = null;
   const nameEl = document.getElementById('ap-attach-name');
   if (nameEl) nameEl.textContent = '';
-  // Pull this attachment's copy back out of the reference photos.
-  if (_apRefPhoto && typeof _refPhotos !== 'undefined') {
-    const i = _refPhotos.indexOf(_apRefPhoto);
-    if (i >= 0) _refPhotos.splice(i, 1);
-    _apRefPhoto = null;
-    if (typeof rpRenderGrid === 'function') rpRenderGrid();
-    if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
-  }
   if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+}
+
+// Cross-device rehydrate: when editing an order whose approval image was
+// attached on another device, the local base64 (order.approvalImg) is absent
+// here. Stream the bytes back from Notion's 'Approval Image' property through
+// the pipeline proxy (its S3 URLs expire hourly + block CORS, so we proxy the
+// bytes and convert to a dataURL), then treat it as the local copy. Marks the
+// synced hash so a subsequent save doesn't needlessly re-upload the same image.
+async function apLoadApprovalFromNotion(order) {
+  if (!order || !order.notionId || _apAttachedImg) return;
+  try {
+    const url = '/api/notion-pipeline?sketch=' + encodeURIComponent(order.notionId)
+              + '&prop=' + encodeURIComponent('Approval Image') + '&idx=0';
+    const r = await fetch(url);
+    if (!r.ok) return;                       // 404 no-sketch → nothing to show
+    const blob = await r.blob();
+    if (!blob || !/^image\//.test(blob.type || '')) return;
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    if (_apAttachedImg) return;              // a live attach won the race
+    _apAttachedImg = dataUrl;
+    order.approvalImg = dataUrl;             // seed this device's local copy
+    if (typeof sketchHash === 'function') order.approvalImgSyncedHash = sketchHash(dataUrl);
+    const nm = document.getElementById('ap-attach-name');
+    if (nm) nm.textContent = 'Attached image';
+    if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+  } catch (e) { /* best-effort — falls back to the sketch preview */ }
 }
 
 // Render the Step-4 preview each time it's opened, and refresh any existing
@@ -767,6 +761,10 @@ async function intakeLoadOrderForEdit(id) {
   // (intakeRenderApproval() picks _apAttachedImg up when Step 4 is shown).
   _apAttachedImg = order.approvalImg || null;
   { const nm = document.getElementById('ap-attach-name'); if (nm) nm.textContent = _apAttachedImg ? 'Attached image' : ''; }
+  // No local copy but the order has a Notion page → the approval image was
+  // attached on another device; stream it back so the Send-for-Approval page
+  // shows it here too. Fire-and-forget: it re-renders the preview on arrival.
+  if (!_apAttachedImg && order.notionId) apLoadApprovalFromNotion(order);
   // Rehydrate the Photos-tab reference images into session state so they
   // (a) show in the bottom sheet on reopen and (b) are no longer force-
   // restored from the original by intakeSubmit() — which meant photos
@@ -1081,7 +1079,35 @@ async function intakeSubmit() {
       } catch (e) { console.warn('Order save to IndexedDB failed', e); }
     }
   } else {
-    ORDERS.push(order);
+    // New-intake id reuse — if this customer already has exactly one OPEN
+    // order, this is almost certainly the same job being (re)taken in, not a
+    // brand-new second order. Reuse that order's id/notionId so the save
+    // patches the existing Notion page instead of minting a fresh id, which
+    // is what spawned duplicate cards for repeat customers. 0 or 2+ open
+    // matches is ambiguous → keep the brand-new id already on `order`.
+    const OPEN_TERMINAL = new Set(['complete', 'delivered', 'cancelled']);
+    const twins = ORDERS.filter(o => o && o.name === name && !OPEN_TERMINAL.has(o.stage));
+    if (twins.length === 1) {
+      const twin = twins[0];
+      order.id       = twin.id;
+      order.notionId = twin.notionId || null;
+      // Freshly-entered values win, but a blank this session didn't touch (a
+      // field, or an image not reloaded) must never wipe what the twin holds.
+      const merged = Object.assign({}, twin, order);
+      Object.keys(twin).forEach(k => {
+        const v = order[k];
+        const empty = v == null || v === '' || (Array.isArray(v) && !v.length);
+        if (empty && twin[k] != null) merged[k] = twin[k];
+      });
+      // Don't regress the pipeline: keep the order where it already sits, and
+      // keep its locked order type (matches the in-app Edit-Order behavior).
+      merged.stage     = twin.stage;
+      merged.orderType = twin.orderType || order.orderType;
+      Object.assign(order, merged);
+      ORDERS[ORDERS.indexOf(twin)] = order;
+    } else {
+      ORDERS.push(order);
+    }
     saveToStorage();
   }
   _lastSavedOrderId = order.id;
