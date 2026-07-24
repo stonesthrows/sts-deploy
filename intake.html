@@ -1443,10 +1443,12 @@
               Apply 8.25% sales tax
             </label>
           </div>
-          <div class="fg mt-3">
-            <label>Notes for Customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sent with estimate</span></label>
+          <div class="fg mt-3" id="f-customer-notes-wrap">
+            <label id="f-customer-notes-label">Notes for Customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sent with estimate</span></label>
             <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…"></textarea>
           </div>
+          <!-- Compare mode: one always-visible note per option (Notes for Option A/B/C), instead of one box that swaps content -->
+          <div id="est-option-notes" class="hidden mt-3"></div>
           <div class="est-total-box mt-4">
             <div class="est-total-row"><span>Materials Total</span><span id="est-mat-total">$0.00</span></div>
             <div class="est-total-row"><span>Labor</span><span id="est-labor-display">$0.00</span></div>
@@ -1522,10 +1524,13 @@
           <table class="w-full text-[15px]" id="ap-est-summary"></table>
         </div>
 
-        <!-- Note to customer (prefilled from the Items & Price step; per-option in Compare mode) -->
+        <!-- Note to customer (prefilled from the Items & Price step; Compare mode shows it
+             read-only here — edited on Items & Price, this is just a final check before sending) -->
         <div class="fg mt-3">
           <label id="ap-note-label">Notes for the customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown on the approval page</span></label>
-          <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…" oninput="if (_estVariants && _estVariants.length > 1) _estVariants[_apActiveOpt].notes = this.value;"></textarea>
+          <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…"></textarea>
+          <div id="ap-note-readonly" class="hidden" style="white-space:pre-wrap;padding:10px 12px;border:1px solid #E4E2DD;border-radius:8px;background:#FAFAF9;color:#4a4230;font-size:14px;min-height:44px;"></div>
+          <p id="ap-note-hint" class="hidden" style="font-size:12px;color:#8a8272;margin-top:6px;">Edit this on the Items &amp; Price step — this is just a final check before sending.</p>
         </div>
 
         <!-- Recipient -->
@@ -1728,11 +1733,11 @@
 <script src="js/storage.js?v=20260720a"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/notion.js?v=20260722d"></script>
-<script src="js/order-widgets.js?v=20260722d"></script>
+<script src="js/order-widgets.js?v=20260724a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=35"></script>
+<script src="js/intake.js?v=37"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>

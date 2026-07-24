@@ -694,10 +694,18 @@ function estCostBase(inp) {
   if (b !== undefined && b !== '') return parseFloat(b) || 0;
   return parseFloat(inp.value) || 0;   // legacy row with no dataset.base yet
 }
+// This row's markup multiplier: the per-row × field if set, else the global
+// estMultiplier. Given a cost input, walks up to the row to find its × field.
+function estRowMultOf(costInp) {
+  const row = costInp && costInp.closest ? costInp.closest('.est-row') : null;
+  const m   = row ? row.querySelector('.est-mult-input') : null;
+  const v   = m ? parseFloat(m.value) : NaN;
+  return (isFinite(v) && v > 0) ? v : estMultiplier;
+}
 function estRebakeCost(inp) {
   if (!inp) return;
   const b = parseFloat(inp.dataset.base);
-  inp.value = (b > 0) ? (b * estMultiplier).toFixed(2) : (inp.dataset.base ? inp.dataset.base : '');
+  inp.value = (b > 0) ? (b * estRowMultOf(inp)).toFixed(2) : (inp.dataset.base ? inp.dataset.base : '');
 }
 function estRebakeAllCosts() {
   document.querySelectorAll('#est-materials .est-cost-input').forEach(inp => {
@@ -719,8 +727,19 @@ function estCostInput(inp) {
 function estCostBlur(inp) {
   estRebakeCost(inp);
 }
+// Per-row markup changed: re-bake that row's Cost box to base × new markup and
+// recompute the estimate. (The Cost box shows the marked amount when unfocused.)
+function estMultInput(multInp) {
+  const row  = multInp && multInp.closest ? multInp.closest('.est-row') : null;
+  const cost = row ? row.querySelector('.est-cost-input') : null;
+  if (cost && cost !== document.activeElement) estRebakeCost(cost);
+  calcEstimate();
+}
 
-function addMaterialRow(desc = '', cost = '', qty = '') {
+// Third arg `mult` is this row's markup override (blank = follow the global
+// estMultiplier). It's the per-row × field the intake layout already reserved
+// a column for; the old vestigial "×N" cost-multiplier suffix now feeds it.
+function addMaterialRow(desc = '', cost = '', mult = '') {
   const container = document.getElementById('est-materials');
   if (!container) return;
   const rowId = 'est-row-' + (++estRowCount);
@@ -732,11 +751,14 @@ function addMaterialRow(desc = '', cost = '', qty = '') {
     // StullerSearch (js/stuller.js) is only loaded by the main app — guarded so intake.html doesn't throw
     '<button class="est-stuller-btn eo-edit-only" title="Search Stuller catalog" onclick="window.StullerSearch&&StullerSearch.open(\'' + rowId + '\')">🔍</button>' +
     '<input class="est-input est-cost-input" type="number" placeholder="0.00" step="0.01" min="0" onfocus="estCostFocus(this)" oninput="estCostInput(this)" onblur="estCostBlur(this)">' +
+    '<input class="est-input est-mult-input" type="number" step="0.05" min="0" title="Markup × for this line" oninput="estMultInput(this)" onfocus="this.select()">' +
     '<button class="est-remove-btn eo-edit-only" onclick="removeMaterialRow(\'' + rowId + '\')">&#215;</button>';
   container.appendChild(div);
-  const inputs = div.querySelectorAll('input');
+  const inputs = div.querySelectorAll('input');   // [desc, cost, mult]
   if (desc) inputs[0].value = desc;
-  // `cost` is the raw pre-markup base; store it and display base × multiplier.
+  // Row markup: explicit override if given, else the current global multiplier.
+  inputs[2].value = (mult !== '' && mult != null) ? String(mult) : String(estMultiplier);
+  // `cost` is the raw pre-markup base; store it and display base × row markup.
   if (cost !== '' && cost != null) { inputs[1].dataset.base = String(cost); estRebakeCost(inputs[1]); }
   calcEstimate();
 }
@@ -750,12 +772,25 @@ function populateEstimateFromOrder(o) {
     container.innerHTML = '';
     estRowCount = 0;
 
+    // Labor, shipping, tax, multiplier + adjustment: prefer the estimate
+    // state saved ON the order (written at intake and by Save Estimate —
+    // travels with the order across devices via Notion App Data); fall back
+    // to the legacy per-device localStorage stash for older orders.
+    let estState = {};
+    try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
+    const saved = (o.estimate && typeof o.estimate === 'object') ? o.estimate : (estState[o.id] || {});
+
+    // Set the global markup BEFORE rows load, so each row created without its
+    // own "×N" override inherits the right default, and rows that DO carry an
+    // override keep it (setMultiplier's bulk-apply is guarded by _estPopulating).
+    setMultiplier(saved.multiplier || 2.5);
+
     const lines = (o.materials || '').split('\n').filter(l => l.trim());
     if (lines.length) {
       lines.forEach(line => {
         const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
         if (match) {
-          // Split an optional "×N" cost-multiplier suffix off the description.
+          // Split an optional "×N" per-row markup suffix off the description.
           const qm = match[1].trim().match(/^(.*?)\s*×\s*(\d+\.?\d*)$/);
           if (qm) addMaterialRow(qm[1].trim(), match[2], qm[2]);
           else    addMaterialRow(match[1].trim(), match[2]);
@@ -766,13 +801,6 @@ function populateEstimateFromOrder(o) {
       addMaterialRow();
     }
 
-    // Labor, shipping, tax, multiplier + adjustment: prefer the estimate
-    // state saved ON the order (written at intake and by Save Estimate —
-    // travels with the order across devices via Notion App Data); fall back
-    // to the legacy per-device localStorage stash for older orders.
-    let estState = {};
-    try { estState = JSON.parse(localStorage.getItem('sts-est-state') || '{}'); } catch(e) {}
-    const saved = (o.estimate && typeof o.estimate === 'object') ? o.estimate : (estState[o.id] || {});
     const laborEl = document.getElementById('est-labor');
     if (laborEl) laborEl.value = saved.labor != null && saved.labor !== '' ? saved.labor : '';
     const shippingEl = document.getElementById('est-shipping');
@@ -781,7 +809,6 @@ function populateEstimateFromOrder(o) {
     if (taxToggle) taxToggle.checked = saved.taxOn || false;
     const adjEl = document.getElementById('est-adjustment');
     if (adjEl) adjEl.value = saved.adjustment ? saved.adjustment : '';
-    setMultiplier(saved.multiplier || 2.5);
     // Visibility of #eo-estimate-module is owned by the order-type module
     // (js/orders.js's eoApplyOrderTypeModule), not by this function.
   } finally {
@@ -796,10 +823,12 @@ function removeMaterialRow(id) {
 
 function calcEstimate() {
   const rows = document.querySelectorAll('#est-materials .est-row');
-  let matTotal = 0;
+  let matTotal = 0, matMarked = 0;
   rows.forEach(row => {
     const ins  = row.querySelectorAll('input');
-    matTotal += estCostBase(ins[1]);   // raw, pre-markup
+    const base = estCostBase(ins[1]);   // raw, pre-markup
+    matTotal  += base;
+    matMarked += base * estRowMultOf(ins[1]);   // per-row markup (× field, else global)
   });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
@@ -808,8 +837,7 @@ function calcEstimate() {
   // on the iPad reproduces exactly here. The #est-adjustment input only
   // exists in the desktop module; intake keeps its own wrapper (_estAdj).
   const adjustment = parseFloat(document.getElementById('est-adjustment')?.value) || 0;
-  // Markup applies to materials ONLY; labor is added un-marked on top.
-  const matMarked = matTotal * estMultiplier;
+  // Markup applies to materials ONLY (per row now); labor added un-marked on top.
   const subtotal  = matMarked + labor;
   const adjusted  = subtotal + adjustment;
   const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
@@ -864,7 +892,14 @@ function estCollectMaterialsText() {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
     const cost = estCostBase(inputs[1]);   // persist the raw base, not the marked display
-    if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
+    const mult = estRowMultOf(inputs[1]);
+    if (desc || cost) {
+      // Encode a per-row markup override as a "×N" suffix on the description
+      // (parsed back in populateEstimateFromOrder). Rows at the global markup
+      // stay plain so existing orders and bag prints read unchanged.
+      const d = (Math.abs(mult - estMultiplier) > 0.001) ? (desc + ' ×' + mult) : desc;
+      lines.push(d + (cost ? ' — $' + cost.toFixed(2) : ''));
+    }
   });
   return lines.join('\n');
 }
@@ -927,6 +962,12 @@ function setMultiplier(val) {
   if (valEl) valEl.textContent = val + '×';
   const hint = document.getElementById('est-formula-hint');
   if (hint) hint.textContent = 'Materials × ' + val + ' + Labor';
+  // The global control sets EVERY row's markup (you can then override any
+  // individual row's × field). Skipped while populating a saved order, so
+  // rows loaded with their own ×N override aren't overwritten by the global.
+  if (!_estPopulating) {
+    document.querySelectorAll('#est-materials .est-mult-input').forEach(m => { m.value = String(val); });
+  }
   estRebakeAllCosts();
   calcEstimate();
 }

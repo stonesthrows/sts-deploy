@@ -98,6 +98,7 @@ function intakeStep(n) {
   if (next) next.classList.toggle('invisible', _intakeStep === maxStep);
   document.querySelectorAll('.step-scroll').forEach(p => { p.scrollTop = 0; });
   if (_intakeStep === 2) intakeSizeSketchStage();
+  if (_intakeStep === 3 && typeof intakeSyncCustomerNotes === 'function') intakeSyncCustomerNotes();
   if (_intakeStep === 4 && typeof intakeRenderApproval === 'function') intakeRenderApproval();
   if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh(); // sketch ink has no input event — catch it on step changes
 }
@@ -426,11 +427,17 @@ function intakeUseEstimate() {
 // o.materials. Same read as the desktop's saveEstimateToNotion().
 function _intakeEstMaterialLines() {
   const lines = [];
+  const globalMult = (typeof estMultiplier !== 'undefined') ? estMultiplier : 2.5;
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim();
     const cost = estCostBase(inputs[1]);   // persist raw base, not the marked display
-    if (desc || cost) lines.push(desc + (cost ? ' — $' + cost.toFixed(2) : ''));
+    const mult = (typeof estRowMultOf === 'function') ? estRowMultOf(inputs[1]) : globalMult;
+    if (desc || cost) {
+      // Per-row markup override rides as a "×N" suffix (see estCollectMaterialsText).
+      const d = (Math.abs(mult - globalMult) > 0.001) ? (desc + ' ×' + mult) : desc;
+      lines.push(d + (cost ? ' — $' + cost.toFixed(2) : ''));
+    }
   });
   return lines.join('\n');
 }
@@ -486,8 +493,11 @@ function _apReadFinancials() {
 function _apOptionFinancials(v) {
   const total = Math.round(_estStateTotal(v) * 100) / 100;
   const shipping = v.shipping || 0;
-  const mat = v.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
-  const adjusted = (mat + (v.labor || 0)) * (v.multiplier || 2.5) + (v.adjustment || 0);
+  // Tax basis must match _estStateTotal: per-row markup on materials, labor
+  // un-marked, then adjustment — otherwise the split lines wouldn't sum to total.
+  const marked = (v.rows || []).reduce((sum, r) =>
+    sum + (r.cost || 0) * ((r.mult != null ? r.mult : v.multiplier) || 2.5), 0);
+  const adjusted = marked + (v.labor || 0) + (v.adjustment || 0);
   const tax = v.taxOn ? Math.round(adjusted * 0.0825 * 100) / 100 : 0;
   const work = Math.max(0, Math.round((total - shipping - tax) * 100) / 100);
   const lines = [{ label: 'Design & labor', amount: work }];
@@ -757,11 +767,26 @@ function intakeRenderApproval() {
     const attachBtn = g('ap-attach-btn');
     if (attachBtn) attachBtn.textContent = (_apAttachedImgs && _apAttachedImgs.length) ? '📎 Add more images' : '📎 Attach image';
   }
+  // Compare mode: notes are edited on Items & Price now (one always-visible
+  // box per option) — this is a read-only reflection of the active option's
+  // note, a final check before sending, not a second editable copy.
   const noteLabel = g('ap-note-label');
-  if (noteLabel) noteLabel.textContent = compareOn
-    ? 'Notes for ' + _estVariants[_apActiveOpt].label + ' → shown when the customer views this option'
-    : 'Notes for the customer → shown on the approval page';
-  if (noteEl && compareOn) noteEl.value = _estVariants[_apActiveOpt].notes || '';
+  const noteReadonly = g('ap-note-readonly');
+  const noteHint = g('ap-note-hint');
+  if (compareOn) {
+    if (noteLabel) noteLabel.textContent = 'Notes for ' + _estVariants[_apActiveOpt].label + ' → shown when the customer views this option';
+    if (noteEl) noteEl.classList.add('hidden');
+    if (noteReadonly) {
+      noteReadonly.textContent = _estVariants[_apActiveOpt].notes || '(no notes yet — add them on Items & Price)';
+      noteReadonly.classList.remove('hidden');
+    }
+    if (noteHint) noteHint.classList.remove('hidden');
+  } else {
+    if (noteLabel) noteLabel.textContent = 'Notes for the customer → shown on the approval page';
+    if (noteEl) noteEl.classList.remove('hidden');
+    if (noteReadonly) noteReadonly.classList.add('hidden');
+    if (noteHint) noteHint.classList.add('hidden');
+  }
 
   // Estimate summary — active option's numbers in Compare mode, else the
   // live DOM totals from the Items & Price step.
@@ -836,8 +861,6 @@ function _apFetchStatus(token) {
 
 function apSwitchOption(i) {
   if (!_estVariants || !_estVariants[i] || i === _apActiveOpt) return;
-  const noteEl = document.getElementById('f-approval-note');
-  if (noteEl) _estVariants[_apActiveOpt].notes = noteEl.value;
   _apActiveOpt = i;
   intakeRenderApproval();
 }
@@ -875,9 +898,8 @@ async function sendForApproval() {
   // on the top-level record too, for older callers.
   let options = null;
   if (compareOn) {
-    // Capture whatever's currently in the notes box onto the option it belongs to.
-    const noteEl = g('f-approval-note');
-    if (noteEl) _estVariants[_apActiveOpt].notes = noteEl.value.trim();
+    // Notes are edited directly on Items & Price now (one box per option) —
+    // nothing to capture from the Approval step's now-read-only note here.
     _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
     options = _estVariants.map((v, i) => {
       const f = _apOptionFinancials(v);
@@ -922,11 +944,21 @@ async function sendForApproval() {
     return;
   }
 
-  // Stash the pointer so Save & Close persists it onto the order.
+  // Stash the pointer so Save & Close persists it onto the order — but only
+  // for a real customer send. A test send goes to Kyle, not the customer, so
+  // it must NOT mark the order "awaiting response." It also clears any existing
+  // *pending* (unanswered) pointer, so a stale "Sent — awaiting response" left
+  // by an earlier test disappears; a pointer already carrying the customer's
+  // response (approved/changes) is never touched.
   _apLink = location.origin + '/approval?token=' + token;
-  window._intakeApproval = { token, status: 'sent', sentAt: new Date().toISOString(),
-                             notesForCustomer: snapshot.notesForCustomer, link: _apLink };
-  if (_editingOrder) _editingOrder.approval = window._intakeApproval;
+  if (_apTestMode) {
+    if (window._intakeApproval && window._intakeApproval.status === 'sent') window._intakeApproval = null;
+    if (_editingOrder && _editingOrder.approval && _editingOrder.approval.status === 'sent') _editingOrder.approval = null;
+  } else {
+    window._intakeApproval = { token, status: 'sent', sentAt: new Date().toISOString(),
+                               notesForCustomer: snapshot.notesForCustomer, link: _apLink };
+    if (_editingOrder) _editingOrder.approval = window._intakeApproval;
+  }
   g('ap-copy-btn')?.classList.remove('hidden');
   if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
 
@@ -940,8 +972,10 @@ async function sendForApproval() {
     const sd = await sr.json().catch(() => ({}));
     if (sr.ok) {
       const sentTo = sd.to || email;
-      if (status) status.textContent = '✓ Emailed to ' + sentTo + (_apTestMode ? ' (test)' : '') + ' — Save & Close to keep it on the order';
-      toast('Estimate emailed to ' + sentTo + (_apTestMode ? ' (test)' : ''), '✅');
+      if (status) status.textContent = _apTestMode
+        ? '✓ Test sent to ' + sentTo + ' — customer not notified'
+        : '✓ Emailed to ' + sentTo + ' — Save & Close to keep it on the order';
+      toast(_apTestMode ? 'Test estimate sent to ' + sentTo : 'Estimate emailed to ' + sentTo, '✅');
     } else if (sd.error === 'email-not-configured') {
       if (status) status.textContent = '🔗 Link ready — email setup pending. Use “Copy link”.';
       toast('Link ready — copy it to send (email not set up yet)', '🔗', 6000);
@@ -1262,7 +1296,12 @@ async function intakeSubmit() {
     // Paper mode's handwritten page (js/intake-paper.js) — the full-fidelity
     // human record, kept alongside the structured fields OCR'd out of it.
     paperPageImg:  (typeof paperExportPage === 'function') ? paperExportPage() : null,
-    customerNotes: g('f-customer-notes').value.trim() || '',
+    // In Compare mode the order-level note is the crowned option's note (the
+    // one the customer is quoted); the textarea itself may be showing a
+    // different option. Single-estimate mode uses the textarea directly.
+    customerNotes: (_estVariants && _estVariants.length > 1)
+      ? ((_estVariants[_estCrowned] && _estVariants[_estCrowned].notes) || '').trim()
+      : (g('f-customer-notes').value.trim() || ''),
     notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
                     notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
@@ -1954,20 +1993,22 @@ let _estCrowned = 0;
 let _estVariantsTouched = false;
 
 function _estReadDom() {
-  let matTotal = 0;
+  let matTotal = 0, matMarked = 0;
   const rows = [];
   document.querySelectorAll('#est-materials .est-row').forEach(row => {
     const inputs = row.querySelectorAll('input');
     const desc = inputs[0]?.value.trim() || '';
     const cost = estCostBase(inputs[1]);   // raw, pre-markup
-    matTotal += cost;
-    if (desc || cost) rows.push({ desc, cost });
+    const mult = (typeof estRowMultOf === 'function') ? estRowMultOf(inputs[1]) : estMultiplier;
+    matTotal  += cost;
+    matMarked += cost * mult;              // per-row markup
+    if (desc || cost) rows.push({ desc, cost, mult });
   });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
   const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
   // Markup applies to materials only; labor added un-marked (matches order-widgets calcEstimate).
-  return { rows, matTotal, labor, shipping, taxOn, r: taxOn ? 0.0825 : 0, marked: matTotal * estMultiplier + labor };
+  return { rows, matTotal, labor, shipping, taxOn, r: taxOn ? 0.0825 : 0, marked: matMarked + labor };
 }
 
 // Re-derives tax + final with the adjustment in place and overwrites the
@@ -2041,13 +2082,16 @@ function estStateApply(s) {
   if (taxEl) taxEl.checked = !!s.taxOn;
   _estAdj = s.adjustment || 0;
   setMultiplier(s.multiplier || 2.5);
-  if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : ''));
+  if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : '', r.mult != null ? String(r.mult) : ''));
   else addMaterialRow();
 }
 
 function _estStateTotal(s) {
-  const mat = s.rows.reduce((sum, r) => sum + (r.cost || 0), 0);
-  const adjusted = mat * (s.multiplier || 2.5) + s.labor + (s.adjustment || 0);
+  // Per-row markup: each line marked by its own multiplier (fallback to the
+  // state's global), labor added un-marked — matches order-widgets calcEstimate.
+  const marked = (s.rows || []).reduce((sum, r) =>
+    sum + (r.cost || 0) * ((r.mult != null ? r.mult : s.multiplier) || 2.5), 0);
+  const adjusted = marked + (s.labor || 0) + (s.adjustment || 0);
   return adjusted * (s.taxOn ? 1.0825 : 1) + (s.shipping || 0);
 }
 
@@ -2060,7 +2104,10 @@ function intakeEstCompare() {
   const label = (prompt('Label for the new version (e.g. "14k / lab"):', 'Option ' + nextLetter) || 'Option ' + nextLetter).trim();
   _estVariantsTouched = true;
   if (!_estVariants) {
-    const base = estStateCapture('Option A');
+    // Carry the single-estimate note into Option A so it isn't lost on the
+    // switch to per-option notes.
+    const seedNote = document.getElementById('f-customer-notes')?.value || '';
+    const base = estStateCapture('Option A', null, seedNote);
     _estVariants = [base, { ...estStateCapture(label) }];
     _estActive = 1;
     _estCrowned = 0;
@@ -2071,29 +2118,75 @@ function intakeEstCompare() {
   }
   estStateApply(_estVariants[_estActive]);
   intakeEstRenderVariants();
+  intakeSyncCustomerNotes();
 }
 
 function intakeEstSwitchVariant(i) {
   if (!_estVariants || i === _estActive) return;
+  // Notes live in their own always-visible per-option textareas now (see
+  // intakeSyncCustomerNotes), not a single box tied to the active chip, so
+  // there's nothing to capture here before switching.
   _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
   _estActive = i;
   estStateApply(_estVariants[i]);
   intakeEstRenderVariants();
+  intakeSyncCustomerNotes();
+}
+
+// "Notes for Customer" on the Items & Price step — the source of truth for
+// per-option notes. Compare mode shows one always-visible textarea per
+// option (Notes for Option A, Notes for Option B, …), each writing straight
+// into _estVariants[i].notes; the Approval step just displays whichever
+// option's note that is, read-only, as a final check before sending.
+// Single-estimate mode keeps the one plain order-level textarea. Called
+// whenever the active option or compare state changes.
+function intakeSyncCustomerNotes() {
+  const singleWrap = document.getElementById('f-customer-notes-wrap');
+  const multiWrap  = document.getElementById('est-option-notes');
+  if (!singleWrap || !multiWrap) return;
+  const compareOn = _estVariants && _estVariants.length > 1;
+  if (compareOn) {
+    singleWrap.classList.add('hidden');
+    multiWrap.innerHTML = _estVariants.map((v, i) =>
+      '<div class="fg mb-3">'
+      + '<label>Notes for ' + _apEsc(v.label) + ' <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown when the customer views this option</span></label>'
+      + '<textarea oninput="intakeEstOptionNoteInput(' + i + ', this.value)" placeholder="Any notes to include for this option…">' + _apEsc(v.notes || '') + '</textarea>'
+      + '</div>'
+    ).join('');
+    multiWrap.classList.remove('hidden');
+  } else {
+    multiWrap.classList.add('hidden');
+    multiWrap.innerHTML = '';
+    singleWrap.classList.remove('hidden');
+  }
+}
+
+// oninput handler for a single option's notes textarea on Items & Price.
+function intakeEstOptionNoteInput(i, v) {
+  if (_estVariants && _estVariants[i]) _estVariants[i].notes = v;
 }
 
 function intakeEstRemoveVariant(i) {
   if (!_estVariants) return;
+  // Collapsing to a single option: keep its notes as the order-level note.
+  const soleNote = _estVariants.length === 2 ? (_estVariants[i === 0 ? 1 : 0].notes || '') : null;
   _estVariants.splice(i, 1);
   if (_estCrowned >= _estVariants.length) _estCrowned = 0;
   if (_estVariants.length < 2) {
+    // Reset _estActive before estStateApply — it re-enters calcEstimate ->
+    // intakeEstRenderVariants synchronously (via setMultiplier), and a
+    // stale index pointing past the now-1-item array crashes there.
+    _estActive = 0;
     if (_estVariants.length === 1) estStateApply(_estVariants[0]);
     _estVariants = null;
-    _estActive = 0;
+    const noteEl = document.getElementById('f-customer-notes');
+    if (noteEl && soleNote != null) noteEl.value = soleNote;
   } else {
     if (_estActive >= _estVariants.length) _estActive = _estVariants.length - 1;
     estStateApply(_estVariants[_estActive]);
   }
   intakeEstRenderVariants();
+  intakeSyncCustomerNotes();
 }
 
 function intakeEstRenderVariants() {
@@ -2136,7 +2229,7 @@ function _serializeEstVariants() {
       active:  _estActive,
       variants: _estVariants.map(v => ({
         label:      v.label || '',
-        rows:       (v.rows || []).map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })),
+        rows:       (v.rows || []).map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0, mult: (r.mult != null ? Number(r.mult) : undefined) })),
         labor:      Number(v.labor) || 0,
         shipping:   Number(v.shipping) || 0,
         taxOn:      !!v.taxOn,
@@ -2230,7 +2323,7 @@ function intakeRehydrateEstVariants(order) {
     const local = Array.isArray(localImgs[i]) ? localImgs[i].filter(s => typeof s === 'string' && s.startsWith('data:')) : [];
     return {
       label:      v.label || 'Option',
-      rows:       Array.isArray(v.rows) ? v.rows.map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })) : [],
+      rows:       Array.isArray(v.rows) ? v.rows.map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0, mult: (r.mult != null ? Number(r.mult) : undefined) })) : [],
       labor:      Number(v.labor) || 0,
       shipping:   Number(v.shipping) || 0,
       taxOn:      !!v.taxOn,
@@ -2245,6 +2338,7 @@ function intakeRehydrateEstVariants(order) {
   _estVariantsTouched = true;
   estStateApply(_estVariants[_estActive]);
   intakeEstRenderVariants();
+  intakeSyncCustomerNotes();
   // Cross-device backfill: options with no local dataURLs but R2 keys on the
   // snapshot get their images streamed back (index-safe, sequential).
   const keysByOption = _estVariants.map((variant, i) =>
