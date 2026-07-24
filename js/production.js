@@ -1033,6 +1033,7 @@ var sotNotionPageId = null;
 var sotNotionTimer  = null;
 var sotUpdatedAt    = 0;
 var sotCatalogUrls  = {};
+var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat}
 
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
@@ -1075,7 +1076,8 @@ function sotSaveLocal() {
     localStorage.setItem('sot_custom_v1', JSON.stringify({
       custom: sotCustom,
       suppliers: sotCustomSuppliers,
-      catalogUrls: sotCatalogUrls
+      catalogUrls: sotCatalogUrls,
+      catalogOverrides: sotCatalogOverrides
     }));
     localStorage.setItem('sot_updated_at_v1', String(sotUpdatedAt));
   } catch(e) {}
@@ -1108,6 +1110,7 @@ function sotLoad() {
       sotCustom = dc.custom || [];
       sotCustomSuppliers = dc.suppliers || [];
       sotCatalogUrls = dc.catalogUrls || {};
+      sotCatalogOverrides = dc.catalogOverrides || {};
     }
     var rawN = localStorage.getItem('sot_notes_v1');
     if (rawN) sotNotesTxt = rawN;
@@ -1199,7 +1202,13 @@ async function sotLoadNotion() {
 }
 
 // ── Data helpers ─────────────────────────────────────────────
-function sotAllItems() { return CATALOG.concat(sotCustom); }
+function sotAllItems() {
+  var cat = CATALOG.map(function(i) {
+    var ov = sotCatalogOverrides[i.id];
+    return ov ? Object.assign({}, i, ov) : i;
+  });
+  return cat.concat(sotCustom);
+}
 function sotGetItem(id) {
   return sotAllItems().filter(function(i){return i.id===id;})[0] || null;
 }
@@ -1578,14 +1587,14 @@ function sotEditOpen(id) {
   var isCust = !CATALOG_IDS.has(id);
   sotEditId = id;
   var el;
-  el = document.getElementById('sotEditName'); if(el) { el.value = item.name||''; el.disabled = !isCust; }
-  el = document.getElementById('sotEditDesc'); if(el) { el.value = item.desc||''; el.disabled = !isCust; }
+  el = document.getElementById('sotEditName'); if(el) { el.value = item.name||''; el.disabled = false; }
+  el = document.getElementById('sotEditDesc'); if(el) { el.value = item.desc||''; el.disabled = false; }
   el = document.getElementById('sotEditSku');  if(el) el.value = item.id||'';
   el = document.getElementById('sotEditCat');  if(el) {
     el.innerHTML = '<option value="">— Category —</option>' +
       CAT_ORDER.map(function(c){ return '<option' + (c===item.cat?' selected':'') + '>' + sotEsc(c) + '</option>'; }).join('') +
       '<option' + (item.cat==='Other'?' selected':'') + '>Other</option>';
-    el.disabled = !isCust;
+    el.disabled = false;
   }
   el = document.getElementById('sotEditUrl');  if(el) el.value = sotItemUrl(item);
   el = document.getElementById('sotModalDelete'); if(el) el.style.display = isCust ? '' : 'none';
@@ -1593,17 +1602,24 @@ function sotEditOpen(id) {
 }
 function sotEditSave() {
   var isCust = !CATALOG_IDS.has(sotEditId);
-  var urlEl = document.getElementById('sotEditUrl');
+  var urlEl  = document.getElementById('sotEditUrl');
+  var nameEl = document.getElementById('sotEditName');
+  var descEl = document.getElementById('sotEditDesc');
+  var catEl  = document.getElementById('sotEditCat');
   var url = urlEl ? urlEl.value.trim() : '';
   if (isCust) {
     var item = sotCustom.filter(function(i){return i.id===sotEditId;})[0];
     if (!item) return;
-    var el;
-    el = document.getElementById('sotEditName'); if(el) item.name = el.value.trim();
-    el = document.getElementById('sotEditDesc'); if(el) item.desc = el.value.trim();
-    el = document.getElementById('sotEditCat');  if(el) item.cat  = el.value;
+    if (nameEl) item.name = nameEl.value.trim();
+    if (descEl) item.desc = descEl.value.trim();
+    if (catEl)  item.cat  = catEl.value;
     item.url = url;
   } else {
+    var ov = sotCatalogOverrides[sotEditId] || {};
+    if (nameEl) ov.name = nameEl.value.trim();
+    if (descEl) ov.desc = descEl.value.trim();
+    if (catEl)  ov.cat  = catEl.value;
+    sotCatalogOverrides[sotEditId] = ov;
     if (url) sotCatalogUrls[sotEditId] = url;
     else delete sotCatalogUrls[sotEditId];
   }
