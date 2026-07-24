@@ -904,6 +904,10 @@
             <div id="est-ring-stamping-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#FBF3E0;font-size:13px;line-height:1.6;color:#4A3F2A;"></div>
             <div id="est-ring-blanklen-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#EAF1F6;font-size:13px;line-height:1.6;color:#2A3A46;"></div>
 
+            <!-- Stale-price banner — shown by estCheckStalePrices() when a
+                 metal line's quoted price has drifted from the library. -->
+            <div id="est-stale-banner" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#FBE9E7;border:1px solid #F3C6BE;font-size:13px;color:#8A2A1B;">⚠ Some metal prices have moved since these lines were quoted. <button class="btn btn-ghost btn-sm eo-edit-only" onclick="estRepriceFromLibrary()">↻ Re-price now</button></div>
+
             <!-- Category-first estimate calculators — rendered by
                  estCalcRender() in js/order-widgets.js based on the order
                  type (Custom/Repair/Resize) + Piece Type. -->
@@ -1005,6 +1009,10 @@
               <div class="est-total-row">
                 <span>Subtotal</span>
                 <span id="est-subtotal">$0.00</span>
+              </div>
+              <div class="est-total-row" id="est-margin-row" style="display:none;">
+                <span>Margin <span id="est-margin-note" style="font-size:11px;font-weight:400;color:#C0392B;letter-spacing:0;text-transform:none;"></span></span>
+                <span id="est-margin-display">—</span>
               </div>
               <!-- Markup is now baked into each material's Cost; no separate markup line -->
               <div class="est-total-row" style="margin-top:2px;display:none;">
@@ -3504,8 +3512,8 @@
 <script src="js/customers.js?v=20260721b"></script>
 <script src="js/app.js?v=20260722d"></script>
 <script src="js/sketchpad.js?v=8"></script>
-<script src="js/estimate-calc.js?v=1"></script>
-<script src="js/order-widgets.js?v=20260724c"></script>
+<script src="js/estimate-calc.js?v=2"></script>
+<script src="js/order-widgets.js?v=20260724d"></script>
 <script src="js/ring-fields.js?v=7"></script>
 <script src="js/orders.js?v=20260724c"></script>
 <script src="js/stuller.js?v=20260616a"></script>

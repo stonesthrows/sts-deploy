@@ -834,6 +834,8 @@ function populateEstimateFromOrder(o) {
     _estCalcCtx.category = document.getElementById('f-order-type')?.value || saved.category || 'order';
     _estCalcCtx.itemType = document.getElementById('f-piece-type')?.value || saved.itemType || '';
     if (typeof estCalcRender === 'function') estCalcRender();
+    // Flag any metal lines whose quoted price has since moved (async, non-blocking).
+    if (typeof estCheckStalePrices === 'function') estCheckStalePrices();
   } finally {
     _estPopulating = prevPopulating;
   }
@@ -880,6 +882,30 @@ function calcEstimate() {
   const taxRow = g('est-tax-row');
   if (taxRow) taxRow.style.display = taxOn ? '' : 'none';
   if (g('est-tax-display')) g('est-tax-display').textContent = fmt(tax);
+
+  // Margin guardrail — profit vs. raw material cost (labor + markup count as
+  // margin, the maker's value-add). Excludes shipping/tax (pass-through). Red
+  // below the shop margin floor, green at/above target (both from shop settings).
+  const marginRow = g('est-margin-row');
+  const marginEl  = g('est-margin-display');
+  if (marginRow && marginEl) {
+    const priceForMargin = adjusted;   // pre-tax, pre-shipping customer price
+    const costBasis = matTotal;        // raw supplier cost of materials
+    if (priceForMargin > 0 && (matMarked > 0 || labor > 0)) {
+      const marginPct = (priceForMargin - costBasis) / priceForMargin * 100;
+      const s = (typeof estShopSettings === 'function') ? estShopSettings() : {};
+      const floor  = typeof s.marginFloorPct === 'number' ? s.marginFloorPct : null;
+      const target = typeof s.targetMarginPct === 'number' ? s.targetMarginPct : null;
+      marginRow.style.display = '';
+      marginEl.textContent = marginPct.toFixed(0) + '%';
+      marginEl.style.color = (floor != null && marginPct < floor) ? '#C0392B'
+                           : (target != null && marginPct >= target) ? '#2E7D32' : '';
+      const note = g('est-margin-note');
+      if (note) note.textContent = (floor != null && marginPct < floor) ? '⚠ below ' + floor + '% floor' : '';
+    } else {
+      marginRow.style.display = 'none';
+    }
+  }
 
   // Populating the module from a saved order is display-only: never write
   // Total ($) and never arm the auto-save from a programmatic rebuild.
@@ -1149,12 +1175,18 @@ let _estCalcCtx = { category: 'order', itemType: '' };
 // uses. "Not all yet": metals without a price stay undefined here and the UI
 // prompts for a manual price rather than guessing.
 let _estMetalPriceCache = null;
+// Shop-wide settings (margin floor/target, hourly labor rate, metal prices)
+// from /api/shop-settings — cached the first time prices load, reused by the
+// margin guardrail and the labor-by-time calculator so they share one fetch.
+let _estShopSettings = null;
+function estShopSettings() { return _estShopSettings || {}; }
 async function estCalcLoadMetalPrices() {
   if (_estMetalPriceCache) return _estMetalPriceCache;
   const prices = {};
   const G = (window.EstimateCalc && EstimateCalc.G_PER_OZT) || 31.1035;
   try {
     const s = await fetch('/api/shop-settings').then(r => r.json()).catch(() => ({}));
+    if (s && !s.error) _estShopSettings = s;
     const shop = (s && !s.error && s.metalPricePerOzt) ? s.metalPricePerOzt : {};
     Object.keys(shop).forEach(k => { if (typeof shop[k] === 'number') prices[k] = shop[k]; });
     if (typeof _materialsApiFetch === 'function') {
@@ -1238,7 +1270,22 @@ function estCalcRender() {
         _estCalcFieldHtml('Scrap %', _estCalcInput('ecm-scrap', 'type="number" step="1" min="0" value="0"', 'estCalcMetalCompute()')) +
       '</div>' +
       '<div id="ecm-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter ring size + gauge to calculate.</div>' +
+      // For Ring orders the size/gauge/width/profile are already entered in
+      // Design Details — pull them in instead of re-typing.
+      (itemType === 'Ring' ? '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcPullRingDims()" style="margin-right:6px;">⤵ Pull from ring details</button>' : '') +
       '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcMetalAdd()">＋ Add to estimate</button>' +
+    '</details>');
+
+  // Labor by time (hours × shop hourly rate)
+  blocks.push(
+    '<details class="est-calc-block" style="margin-bottom:8px;">' +
+      '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">🕒 Labor by Time</summary>' +
+      '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+        _estCalcFieldHtml('Hours', _estCalcInput('ecl-hours', 'type="number" step="0.25" min="0" placeholder="1.5"', 'estCalcLaborCompute()')) +
+        _estCalcFieldHtml('Rate / hr $', _estCalcInput('ecl-rate', 'type="number" step="1" min="0" placeholder="auto"', 'estCalcLaborCompute()')) +
+      '</div>' +
+      '<div id="ecl-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter hours to calculate.</div>' +
+      '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcLaborAdd()">＋ Add to Labor</button>' +
     '</details>');
 
   // Direct known-weight → cost (any metal piece)
@@ -1306,12 +1353,19 @@ function estCalcRender() {
   }
 
   panel.innerHTML =
+    '<div id="est-preset-bar" style="margin-bottom:10px;"></div>' +
     '<div class="form-sec-label" style="margin-bottom:6px;">🧮 Calculators</div>' +
     blocks.join('');
 
-  // Prefill metal prices from the library (async; leaves fields blank offline).
+  estPresetRender();
+
+  // Prefill metal prices + labor rate from the library/shop settings (async;
+  // leaves fields blank offline).
   estCalcLoadMetalPrices().then(() => {
     ['ecm-metal', 'ecw-metal', 'ecr-metal'].forEach(id => { if (document.getElementById(id)) estCalcMetalPrefill(id); });
+    const rateEl = document.getElementById('ecl-rate');
+    const rate = estShopSettings().shopHourlyRate;
+    if (rateEl && rateEl.value === '' && typeof rate === 'number' && rate > 0) { rateEl.value = String(rate); rateEl.dataset.autofill = '1'; }
   });
 }
 
@@ -1551,6 +1605,7 @@ async function estRepriceFromLibrary() {
     repriced++;
   });
   calcEstimate();
+  if (typeof estCheckStalePrices === 'function') estCheckStalePrices();  // clears the stale flags we just resolved
   if (typeof toast === 'function') {
     if (repriced) toast('Re-priced ' + repriced + ' metal line' + (repriced > 1 ? 's' : '') + ' from the library' + (skipped ? ' (' + skipped + ' skipped — no price on file)' : ''), '✅');
     else toast(skipped ? 'No lines re-priced — ' + skipped + ' metal line(s) have no library price on file.' : 'No calculator-priced metal lines to re-price.', 'ℹ️');
@@ -1560,6 +1615,228 @@ async function estRepriceFromLibrary() {
 function _estMetalLabel(metalType) {
   const found = EST_METAL_OPTIONS.find(o => o[0] === metalType);
   return found ? found[1] : (metalType || 'Metal');
+}
+function _estEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ── Auto-pull ring dimensions from Design Details into the metal calc ──
+// For a Ring order, size/gauge/width/profile/allowance are already entered in
+// the ring blocks (js/ring-fields.js). Pull the first Custom Ring's values in
+// so staff don't re-type them.
+function estCalcPullRingDims() {
+  const g = id => document.getElementById(id);
+  const blocks = document.querySelectorAll('#rings-dynamic-list .ring-block');
+  let idx = -1;
+  for (let i = 0; i < blocks.length; i++) {
+    if ((g('f-ring-category-' + i)?.value || '') === 'Custom Ring') { idx = i; break; }
+  }
+  if (idx < 0) { if (typeof toast === 'function') toast('No Custom Ring details to pull from.', 'ℹ️'); return; }
+  const set = (cid, val) => { const el = g(cid); if (el && val != null && val !== '') el.value = val; };
+  set('ecm-size', g('f-ring-customsize-' + idx)?.value);
+  set('ecm-gauge', g('f-ring-customgauge-' + idx)?.value);
+  const wm = String(g('f-ring-customwidth-' + idx)?.value || '').match(/([\d.]+)/);
+  if (wm) set('ecm-width', wm[1]);
+  const prof = g('f-ring-customprofile-' + idx)?.value;
+  if (prof && g('ecm-profile')) g('ecm-profile').value = prof;
+  set('ecm-allow', g('f-ring-customallowance-' + idx)?.value);
+  estCalcMetalCompute();
+  if (typeof toast === 'function') toast('Pulled ring ' + (idx + 1) + ' details into the calculator.', '✅');
+}
+
+// ── Labor by time (hours × shop hourly rate) ──
+let _estCalcLaborLast = null;
+function estCalcLaborCompute() {
+  const out = document.getElementById('ecl-result');
+  if (!out || !window.EstimateCalc) return;
+  const r = EstimateCalc.laborCost({ hours: _estNum('ecl-hours'), rate: _estNum('ecl-rate') });
+  if (!(r.hours > 0)) { out.textContent = 'Enter hours to calculate.'; _estCalcLaborLast = null; return; }
+  if (!r.hasRate) { out.innerHTML = '<strong>' + r.hours + ' hr</strong> — enter an hourly rate to get a cost.'; _estCalcLaborLast = null; return; }
+  out.innerHTML = '<strong>' + r.hours + ' hr × $' + r.rate.toFixed(2) + '</strong> → <strong>$' + r.cost.toFixed(2) + '</strong> labor';
+  _estCalcLaborLast = { cost: r.cost };
+}
+function estCalcLaborAdd() {
+  if (!_estCalcLaborLast) { if (typeof toast === 'function') toast('Enter hours + rate first.', '⚠️'); return; }
+  const laborEl = document.getElementById('est-labor');
+  if (!laborEl) return;
+  const cur = parseFloat(laborEl.value) || 0;
+  laborEl.value = (cur + _estCalcLaborLast.cost).toFixed(2);
+  calcEstimate();
+  if (typeof toast === 'function') toast('Added $' + _estCalcLaborLast.cost.toFixed(2) + ' to Labor.', '✅');
+}
+
+// ── Estimate presets (reusable starting points, saved per device) ──
+const EST_PRESET_KEY = 'sts-est-presets';
+function estPresetGetAll() { try { return JSON.parse(localStorage.getItem(EST_PRESET_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function estPresetSetAll(o) { try { localStorage.setItem(EST_PRESET_KEY, JSON.stringify(o)); } catch (e) {} }
+function estPresetCapture() {
+  return {
+    lines: (typeof estCollectLines === 'function') ? estCollectLines() : [],
+    labor: parseFloat(document.getElementById('est-labor')?.value) || 0,
+    shipping: parseFloat(document.getElementById('est-shipping')?.value) || 0,
+    taxOn: document.getElementById('est-tax-toggle')?.checked || false,
+    multiplier: estMultiplier,
+  };
+}
+function estPresetSave() {
+  const name = (typeof prompt === 'function') ? prompt('Save this estimate as a reusable preset.\nName:') : null;
+  if (!name || !name.trim()) return;
+  const all = estPresetGetAll();
+  all[name.trim()] = estPresetCapture();
+  estPresetSetAll(all);
+  estPresetRender();
+  if (typeof toast === 'function') toast('Saved preset “' + name.trim() + '”.', '✅');
+}
+function estPresetApply(name) {
+  const p = estPresetGetAll()[name];
+  if (!p) return;
+  const container = document.getElementById('est-materials');
+  if (container) container.innerHTML = '';
+  estRowCount = 0;
+  (p.lines || []).forEach(l => addMaterialRow(l.label || '', (l.cost != null ? l.cost : ''), '', {
+    source: l.source || 'manual', kind: l.kind || 'material', calcInputs: l.calcInputs || null,
+  }));
+  if (!(p.lines || []).length) addMaterialRow();
+  const laborEl = document.getElementById('est-labor'); if (laborEl) laborEl.value = p.labor || '';
+  const shipEl = document.getElementById('est-shipping'); if (shipEl) shipEl.value = p.shipping || '';
+  const taxEl = document.getElementById('est-tax-toggle'); if (taxEl) taxEl.checked = !!p.taxOn;
+  setMultiplier(p.multiplier || 2.5);
+  calcEstimate();
+  if (typeof toast === 'function') toast('Applied preset “' + name + '”.', '✅');
+}
+function estPresetDelete(name) {
+  if (typeof confirm === 'function' && !confirm('Delete preset “' + name + '”?')) return;
+  const all = estPresetGetAll();
+  delete all[name];
+  estPresetSetAll(all);
+  estPresetRender();
+}
+function estPresetRender() {
+  const bar = document.getElementById('est-preset-bar');
+  if (!bar) return;
+  const all = estPresetGetAll();
+  const names = Object.keys(all).sort();
+  const arg = n => JSON.stringify(n).replace(/"/g, '&quot;');
+  const chips = names.map(n =>
+    '<span style="display:inline-flex;align-items:center;gap:2px;background:#F3ECDC;border:1px solid #E0D4BC;border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;">' +
+      '<button class="eo-edit-only" onclick="estPresetApply(' + arg(n) + ')" style="background:none;border:none;cursor:pointer;font-size:12px;color:#4A3F2A;padding:2px 2px;">' + _estEsc(n) + '</button>' +
+      '<button class="eo-edit-only" title="Delete preset" onclick="estPresetDelete(' + arg(n) + ')" style="background:none;border:none;cursor:pointer;color:#a08a5a;font-size:13px;line-height:1;">×</button>' +
+    '</span>').join(' ');
+  bar.innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">' +
+      '<span style="font-size:11px;font-weight:600;color:#6b5f47;text-transform:uppercase;letter-spacing:.04em;">Presets</span>' +
+      (chips || '<span style="font-size:12px;color:#9a8f78;">none saved yet</span>') +
+      '<button class="btn btn-ghost btn-sm eo-edit-only" style="margin-left:auto;" onclick="estPresetSave()">💾 Save current</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="estPreviewEstimate()">👁 Preview</button>' +
+    '</div>';
+}
+
+// ── Stale-price detection ──
+// Compares each calculator-priced metal line's quoted price/ozt against the
+// current Materials Library price; flags drifted rows red and shows the banner.
+async function estCheckStalePrices() {
+  const banner = document.getElementById('est-stale-banner');
+  const rows = document.querySelectorAll('#est-materials .est-row');
+  let anyStale = false;
+  const prices = await estCalcLoadMetalPrices();
+  rows.forEach(row => {
+    if (row.dataset.calcRow !== '1') return;
+    const src = row.dataset.source;
+    if (src !== 'metal-weight' && src !== 'metal-direct' && src !== 'resize') return;
+    let ci = null; try { ci = JSON.parse(row.dataset.calc || 'null'); } catch (e) {}
+    if (!ci || !ci.metalType) return;
+    const cur = prices[ci.metalType], quoted = ci.pricePerOzt;
+    let stale = false;
+    if (typeof cur === 'number' && cur > 0 && typeof quoted === 'number' && quoted > 0) {
+      stale = Math.abs(cur - quoted) / quoted >= 0.03;   // ≥3% drift
+      if (stale) {
+        anyStale = true;
+        row.style.boxShadow = 'inset 3px 0 0 #C0392B';
+        row.dataset.stale = '1';
+        row.title = (EST_SOURCE_LABEL[src] || '') + ' — metal price moved ' + Math.round(Math.abs(cur - quoted) / quoted * 100) + '% since quoted';
+      }
+    }
+    if (!stale) { delete row.dataset.stale; _estApplyRowProvenance(row, src); }  // restore normal gold stripe
+  });
+  if (banner) banner.style.display = anyStale ? '' : 'none';
+}
+
+// ── Customer-facing estimate preview ──
+// A clean, branded view of what the customer sees: line items at MARKED
+// (customer-facing) prices, labor, shipping, tax, total — no raw costs, markup,
+// or margin. Shown in an overlay; "Print" opens a standalone printable window.
+let _estPreviewDoc = '';
+function _estBuildPreviewContent() {
+  const rows = document.querySelectorAll('#est-materials .est-row');
+  const mult = estMultiplier;
+  const money = n => '$' + (n || 0).toFixed(2);
+  const items = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc = (inputs[0]?.value || '').trim();
+    const base = estCostBase(inputs[1]);
+    if (desc || base) items.push({ desc: desc || 'Item', price: base * mult });
+  });
+  const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
+  const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
+  const adj      = parseFloat(document.getElementById('est-adjustment')?.value) || 0;
+  const taxOn    = document.getElementById('est-tax-toggle')?.checked || false;
+  const subtotal = items.reduce((a, i) => a + i.price, 0) + labor;
+  const adjusted = subtotal + adj;
+  const tax      = taxOn ? adjusted * 0.0825 : 0;
+  const total    = adjusted + shipping + tax;
+  const custName = (typeof getFullName === 'function' ? getFullName() : '') || 'Valued Customer';
+  const itemRows = items.map(i =>
+    '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;">' + _estEsc(i.desc) + '</td>' +
+    '<td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">' + money(i.price) + '</td></tr>').join('');
+  const sumRow = (label, val, strong) =>
+    '<tr><td style="padding:4px 0;color:' + (strong ? '#3a2f18' : '#666') + ';' + (strong ? 'font-weight:700;' : '') + '">' + label + '</td>' +
+    '<td style="padding:4px 0;text-align:right;' + (strong ? 'font-weight:700;' : '') + '">' + money(val) + '</td></tr>';
+  return '' +
+    '<div style="font-family:Georgia,\'Times New Roman\',serif;color:#2a2416;max-width:520px;margin:0 auto;">' +
+      '<div style="text-align:center;border-bottom:2px solid #C8A24B;padding-bottom:10px;margin-bottom:14px;">' +
+        '<div style="font-size:20px;font-weight:700;letter-spacing:.02em;">Stones Throw Studio</div>' +
+        '<div style="font-size:12px;color:#8a7d5f;">Custom Jewelry Estimate</div>' +
+      '</div>' +
+      '<div style="font-size:13px;margin-bottom:10px;">Prepared for <strong>' + _estEsc(custName) + '</strong></div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;">' + itemRows + '</table>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:10px;">' +
+        (labor ? sumRow('Labor', labor) : '') +
+        (adj ? sumRow('Adjustment', adj) : '') +
+        (shipping ? sumRow('Shipping', shipping) : '') +
+        (taxOn ? sumRow('Sales Tax (8.25%)', tax) : '') +
+        '<tr><td colspan="2"><hr style="border:none;border-top:1px solid #C8A24B;margin:6px 0;"></td></tr>' +
+        sumRow('Estimate Total', total, true) +
+      '</table>' +
+      '<div style="font-size:11px;color:#9a8f78;margin-top:16px;text-align:center;">This estimate is valid for 30 days. Final pricing may vary with materials market and design changes.</div>' +
+    '</div>';
+}
+function estPreviewEstimate() {
+  const content = _estBuildPreviewContent();
+  _estPreviewDoc = content;
+  let overlay = document.getElementById('est-preview-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'est-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,16,8,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);">' +
+      content +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">' +
+        '<button class="btn btn-ghost btn-sm" onclick="estPreviewPrint()">🖨 Print</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'est-preview-overlay\').style.display=\'none\'">Close</button>' +
+      '</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+}
+function estPreviewPrint() {
+  const w = window.open('', '_blank');
+  if (!w) { if (typeof toast === 'function') toast('Allow pop-ups to print the estimate.', '⚠️'); return; }
+  w.document.write('<!doctype html><html><head><title>Estimate — Stones Throw Studio</title></head><body style="margin:32px;">' + (_estPreviewDoc || '') + '</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 200);
 }
 
 // Initial render so the panel is populated wherever #est-calc-panel exists

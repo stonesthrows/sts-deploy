@@ -103,6 +103,12 @@ async function run() {
   const chNoPrice = EC.chainCost({ lengthIn: 18, pricePerIn: null, findings: 6 });
   check('chain no price → findings only, hasPrice false', chNoPrice.hasPrice === false && approx(chNoPrice.total, 6));
 
+  // ── labor by time ──
+  const lc = EC.laborCost({ hours: 2.5, rate: 60 });
+  check('laborCost = hours × rate', approx(lc.cost, 150) && lc.hasRate === true);
+  const lcNoRate = EC.laborCost({ hours: 2, rate: 0 });
+  check('laborCost no rate → hasRate false, cost null', lcNoRate.hasRate === false && lcNoRate.cost === null);
+
   return { pass: results.every(r => r.ok), lines: results.map(r => r.line) };
 }
 

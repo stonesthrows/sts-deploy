@@ -225,10 +225,22 @@
     };
   }
 
+  // ── Labor by time ──
+  // Hours × shop hourly rate. `rate` is resolved by the caller from shop
+  // settings (shopHourlyRate); null when unset so the UI can prompt for it.
+  function laborCost(opts) {
+    opts = opts || {};
+    const hours = Number(opts.hours) || 0;
+    const rate = Number(opts.rate);
+    const hasRate = isFinite(rate) && rate > 0;
+    return { hours: hours, rate: hasRate ? rate : null, hasRate: hasRate, cost: hasRate ? hours * rate : null };
+  }
+
   const api = {
     G_PER_OZT: G_PER_OZT,
     METAL_DENSITY: METAL_DENSITY,
     STONE_SET_RATES: STONE_SET_RATES,
+    laborCost: laborCost,
     metalDensity: metalDensity,
     gramsToOzt: gramsToOzt,
     oztToGrams: oztToGrams,
