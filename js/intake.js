@@ -454,18 +454,32 @@ function _intakeEstMaterialLines() {
 window._intakeApproval = window._intakeApproval || null;
 let _apLink = '';
 
-// Send-to toggle — defaults to a test email (to Kyle) every time Step 4 is
-// shown, so a fumbled send never reaches a real customer. Reset in
-// intakeRenderApproval(); flipped only by an explicit tap on "Customer's email".
-const AP_TEST_EMAIL = 'morphius1@gmail.com';
-let _apTestMode = true;
-
-function apSetRecipientMode(isTest) {
-  _apTestMode = isTest;
-  const testBtn = document.getElementById('ap-recipient-test');
-  const custBtn = document.getElementById('ap-recipient-customer');
-  if (testBtn) testBtn.className = 'btn ' + (isTest ? 'btn-gold' : 'btn-outline');
-  if (custBtn) custBtn.className = 'btn ' + (!isTest ? 'btn-gold' : 'btn-outline');
+// Send-for-Approval confirmation chip — tapping the "Send for Approval"
+// button surfaces a "Send estimate to <email>?" chip over the button
+// instead of sending right away; tapping the chip is what actually calls
+// sendForApproval(). Closed by tapping outside (see the pointerdown
+// listener near intakeSyncPopClose()). A small separate "send a test copy
+// to me" link (next to the button) still covers pre-send sanity checks,
+// routed through /api/send-approval's existing `test` flag → Kyle's inbox,
+// never the request body's address.
+function apShowSendChip() {
+  const g = id => document.getElementById(id);
+  const email = (g('f-approval-email')?.value || '').trim();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast('Add a valid customer email first', '⚠');
+    g('f-approval-email')?.focus();
+    return;
+  }
+  const label = g('ap-send-chip-email');
+  if (label) label.textContent = email;
+  g('ap-send-chip')?.classList.remove('hidden');
+}
+function apHideSendChip() {
+  document.getElementById('ap-send-chip')?.classList.add('hidden');
+}
+function apConfirmSendToCustomer() {
+  apHideSendChip();
+  sendForApproval(false);
 }
 
 function _apMoney(n) { return '$' + (Number(n) || 0).toFixed(2); }
@@ -682,9 +696,9 @@ async function apLoadApprovalFromNotion(order) {
 // approval's live status from KV.
 function intakeRenderApproval() {
   const g = id => document.getElementById(id);
-  apSetRecipientMode(true);   // default to test email every time this step is shown
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
+  apHideSendChip();
   const compareOn = _estVariants && _estVariants.length > 1;
 
   // Prefill note from earlier step if still blank — single-option only;
@@ -873,7 +887,7 @@ function apCopyLink() {
   } else { prompt('Copy this link:', _apLink); }
 }
 
-async function sendForApproval() {
+async function sendForApproval(isTest = false) {
   const g = id => document.getElementById(id);
   const email = (g('f-approval-email')?.value || '').trim();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -951,7 +965,7 @@ async function sendForApproval() {
   // by an earlier test disappears; a pointer already carrying the customer's
   // response (approved/changes) is never touched.
   _apLink = location.origin + '/approval?token=' + token;
-  if (_apTestMode) {
+  if (isTest) {
     if (window._intakeApproval && window._intakeApproval.status === 'sent') window._intakeApproval = null;
     if (_editingOrder && _editingOrder.approval && _editingOrder.approval.status === 'sent') _editingOrder.approval = null;
   } else {
@@ -967,15 +981,15 @@ async function sendForApproval() {
   try {
     const sr = await fetch('/api/send-approval', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, test: _apTestMode }),
+      body: JSON.stringify({ token, test: isTest }),
     });
     const sd = await sr.json().catch(() => ({}));
     if (sr.ok) {
       const sentTo = sd.to || email;
-      if (status) status.textContent = _apTestMode
+      if (status) status.textContent = isTest
         ? '✓ Test sent to ' + sentTo + ' — customer not notified'
         : '✓ Emailed to ' + sentTo + ' — Save & Close to keep it on the order';
-      toast(_apTestMode ? 'Test estimate sent to ' + sentTo : 'Estimate emailed to ' + sentTo, '✅');
+      toast(isTest ? 'Test estimate sent to ' + sentTo : 'Estimate emailed to ' + sentTo, '✅');
     } else if (sd.error === 'email-not-configured') {
       if (status) status.textContent = '🔗 Link ready — email setup pending. Use “Copy link”.';
       toast('Link ready — copy it to send (email not set up yet)', '🔗', 6000);
@@ -1973,6 +1987,15 @@ document.addEventListener('pointerdown', e => {
   if (pop && pop.classList.contains('open')
       && !e.target.closest('#sync-pop') && !e.target.closest('#intake-unsynced')) {
     intakeSyncPopClose();
+  }
+});
+
+// Close the Send-for-Approval confirmation chip on any outside tap.
+document.addEventListener('pointerdown', e => {
+  const chip = document.getElementById('ap-send-chip');
+  if (chip && !chip.classList.contains('hidden')
+      && !e.target.closest('#ap-send-chip') && !e.target.closest('#ap-send-btn')) {
+    apHideSendChip();
   }
 });
 window.addEventListener('offline', () => intakeUpdateUnsynced());

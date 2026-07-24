@@ -1269,8 +1269,10 @@ function _dsnUnitSuffix(m) {
 //  qty is always computed and stored, so cost rollups, the pricing sheet
 //  and the replenishment engine are untouched.
 const _DSN_G_PER_OZT = 31.1035;
+const _DSN_IN_PER_FT = 12;
 
 function _dsnIsWeightUnit(m) { return !!m && (m.unit === 'gram' || m.unit === 'ozt'); }
+function _dsnIsChainMat(m)   { return !!m && m.category === 'chain'; }
 function _dsnBomSplitOn()    { const el = document.getElementById('dsn-bom-split'); return !!(el && el.checked); }
 // The total-weight field is entered in troy ounces; line math runs in grams
 function _dsnBomTotalOzt()   { const v = parseFloat((document.getElementById('dsn-bom-total') || {}).value); return isNaN(v) ? null : v; }
@@ -1353,7 +1355,11 @@ function _dsnWastePctFor(m) {
 
 function _dsnEffectiveLabel(l, split) {
   const m = _dsnBomMat(l.materialId);
-  if (!m || !(l.qty > 0)) return '';
+  if (!m) return '';
+  // Chain lines are entered in inches but priced/stocked by the ft the
+  // Materials Library carries — show the ft the entered length converts to.
+  if (_dsnIsChainMat(m)) return l.qty > 0 ? ('= ' + l.qty.toFixed(2) + ' ft') : '';
+  if (!(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
   // Troy-oz equivalent of the entered qty on gram-based lines
   const oztEq = (m.unit === 'gram')
@@ -1412,9 +1418,16 @@ function _designsBomRender() {
     const m = _dsnBomMat(l.materialId);
     const usePct = split && _dsnIsWeightUnit(m);
     if (usePct) l.qty = _dsnSplitQty(m, total, l.pct);
-    const inputHtml = usePct
-      ? `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`
-      : `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
+    const isChain = !usePct && _dsnIsChainMat(m);
+    let inputHtml;
+    if (usePct) {
+      inputHtml = `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`;
+    } else if (isChain) {
+      const inVal = l.qty > 0 ? Math.round(l.qty * _DSN_IN_PER_FT * 1000) / 1000 : '';
+      inputHtml = `<input type="number" step="0.01" min="0" class="dsn-bom-qty dsn-bom-chain-in" placeholder="Length (in)" value="${inVal}">`;
+    } else {
+      inputHtml = `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
+    }
     return `<div class="dsn-bom-row" data-idx="${i}">
       <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
       ${inputHtml}
@@ -1429,10 +1442,12 @@ function _designsBomRender() {
     const qtyEl = row.querySelector('.dsn-bom-qty, .dsn-bom-pct');
     sel.addEventListener('change', () => {
       dsnBomSyncFromDom();
-      if (_dsnBomSplitOn()) { _designsBomRender(); return; }
-      const m = _dsnBomMat(sel.value);
-      if (m) qtyEl.placeholder = 'Qty (' + _dsnUnitSuffix(m) + ')';
-      dsnBomRecalcEffective();
+      // Switching materials can switch the input's unit (e.g. plain qty ↔
+      // chain-by-length) — the old value no longer means anything, and a
+      // full re-render swaps the input type in.
+      const l = _designsBom[idx];
+      if (l) { l.qty = null; l.pct = null; }
+      _designsBomRender();
     });
     qtyEl.addEventListener('input', () => { dsnBomSyncFromDom(); dsnBomRecalcEffective(); _dsnBomPctSumRender(); });
     row.querySelector('.dsn-bom-remove').addEventListener('click', () => {
@@ -1453,11 +1468,16 @@ function dsnBomSyncFromDom() {
     const l = _designsBom[parseInt(row.dataset.idx, 10)];
     if (!l) return;
     l.materialId = row.querySelector('.dsn-bom-mat').value;
-    const pctEl = row.querySelector('.dsn-bom-pct');
+    const pctEl     = row.querySelector('.dsn-bom-pct');
+    const chainInEl = row.querySelector('.dsn-bom-chain-in');
     if (pctEl) {
       const p = parseFloat(pctEl.value);
       l.pct = isNaN(p) ? null : p;
       l.qty = _dsnSplitQty(_dsnBomMat(l.materialId), total, l.pct);
+    } else if (chainInEl) {
+      // Entered in inches, stored in ft — still priced/stocked per foot.
+      const inches = parseFloat(chainInEl.value);
+      l.qty = isNaN(inches) ? null : Math.round(inches / _DSN_IN_PER_FT * 1000) / 1000;
     } else {
       const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
       l.qty = isNaN(q) ? null : q;

@@ -1539,18 +1539,18 @@
           <input type="email" id="f-approval-email" placeholder="name@example.com" autocomplete="off">
         </div>
 
-        <!-- Send-to toggle — defaults to test so a fumbled send never reaches the customer -->
-        <div class="fg mt-3">
-          <label>Send to</label>
-          <div class="flex gap-2">
-            <button type="button" class="btn btn-gold" id="ap-recipient-test" onclick="apSetRecipientMode(true)">✉ Test email to me</button>
-            <button type="button" class="btn btn-outline" id="ap-recipient-customer" onclick="apSetRecipientMode(false)">Customer's email</button>
+        <!-- Send-for-Approval confirms via a chip that appears over the
+             button itself once tapped, rather than sending straight away. -->
+        <div class="mt-4 flex flex-wrap items-center gap-2" style="position:relative;">
+          <div id="ap-send-chip" class="hidden" style="position:absolute; bottom:100%; left:0; margin-bottom:8px; z-index:20;">
+            <button type="button" class="btn btn-gold" style="white-space:nowrap; box-shadow:0 8px 22px rgba(0,0,0,0.20);"
+                    onclick="apConfirmSendToCustomer()">
+              ✉ Send estimate to <span id="ap-send-chip-email"></span>?
+            </button>
           </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="sendForApproval()">✉ Send for Approval</button>
+          <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="apShowSendChip()">✉ Send for Approval</button>
           <button type="button" class="btn btn-ghost hidden" id="ap-copy-btn" onclick="apCopyLink()">🔗 Copy link</button>
+          <button type="button" class="text-[12px] text-slate-400 underline decoration-dotted decoration-slate-300 underline-offset-2" id="ap-test-link" onclick="sendForApproval(true)">Send a test copy to me instead</button>
           <span id="ap-status" style="margin-left:auto;font-size:13px;color:var(--accent);"></span>
         </div>
       </div>
