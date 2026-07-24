@@ -10,7 +10,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const API_VERSION = 'materials-api v5 (2026-07-13)';
+const API_VERSION = 'materials-api v6 (2026-07-24)';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -59,6 +59,7 @@ const MATERIAL_SCHEMA_PROPS = {
   'Gauge':                 { rich_text: {} },
   'Unit':                  { select: {} },
   'Current Cost Per Unit': { number: {} },
+  'Weight Per Foot (ozt)': { number: {} },
   'Stock Level':           { number: {} },
   'Stock Confidence':      { select: {} },
   'Supplier Default':      { select: {} },
@@ -97,6 +98,7 @@ function materialToProps(m) {
     'Gauge':                   { rich_text: [{ text: { content: (m.gauge || '').slice(0, 200) } }] },
     'Unit':                    { select:    m.unit        ? { name: m.unit }        : null },
     'Current Cost Per Unit':   { number:    m.currentCostPerUnit ?? null },
+    'Weight Per Foot (ozt)':   { number:    m.weightPerFtOzt     ?? null },
     'Stock Level':             { number:    m.stockLevel        ?? null },
     'Stock Confidence':        { select:    m.stockConfidence ? { name: m.stockConfidence } : null },
     'Supplier Default':        { select:    m.supplierDefault ? { name: m.supplierDefault } : null },
@@ -122,6 +124,7 @@ function pageToMaterial(page) {
     gauge:               txt(p['Gauge']),
     unit:                sel(p['Unit']),
     currentCostPerUnit:  p['Current Cost Per Unit']?.number ?? null,
+    weightPerFtOzt:      p['Weight Per Foot (ozt)']?.number ?? null,
     stockLevel:          p['Stock Level']?.number ?? null,
     stockConfidence:     sel(p['Stock Confidence']),
     supplierDefault:     sel(p['Supplier Default']),

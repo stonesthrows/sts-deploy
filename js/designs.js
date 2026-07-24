@@ -1353,7 +1353,14 @@ function _dsnWastePctFor(m) {
 
 function _dsnEffectiveLabel(l, split) {
   const m = _dsnBomMat(l.materialId);
-  if (!m || !(l.qty > 0)) return '';
+  if (!m) return '';
+  // Chain lines are entered by weight (ozt) but priced/stocked by the ft the
+  // Materials Library carries — show the ft the entered weight converts to.
+  if (m.category === 'chain') {
+    if (!(m.weightPerFtOzt > 0)) return '⚠ set Weight/ft (ozt) on this material to enter by weight';
+    return l.qty > 0 ? ('= ' + l.qty.toFixed(2) + ' ft') : '';
+  }
+  if (!(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
   // Troy-oz equivalent of the entered qty on gram-based lines
   const oztEq = (m.unit === 'gram')
@@ -1412,9 +1419,19 @@ function _designsBomRender() {
     const m = _dsnBomMat(l.materialId);
     const usePct = split && _dsnIsWeightUnit(m);
     if (usePct) l.qty = _dsnSplitQty(m, total, l.pct);
-    const inputHtml = usePct
-      ? `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`
-      : `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
+    const isChain = m && m.category === 'chain';
+    const wpf = isChain ? m.weightPerFtOzt : null;
+    let inputHtml;
+    if (usePct) {
+      inputHtml = `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`;
+    } else if (isChain) {
+      const oztVal = (wpf > 0 && l.qty > 0) ? Math.round(l.qty * wpf * 1000) / 1000 : '';
+      inputHtml = (wpf > 0)
+        ? `<input type="number" step="0.001" min="0" class="dsn-bom-qty dsn-bom-chain-oz" placeholder="Weight (ozt)" value="${oztVal}">`
+        : `<input type="number" step="0.001" min="0" class="dsn-bom-qty dsn-bom-chain-oz" placeholder="Set Weight/ft first" disabled>`;
+    } else {
+      inputHtml = `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
+    }
     return `<div class="dsn-bom-row" data-idx="${i}">
       <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
       ${inputHtml}
@@ -1429,10 +1446,12 @@ function _designsBomRender() {
     const qtyEl = row.querySelector('.dsn-bom-qty, .dsn-bom-pct');
     sel.addEventListener('change', () => {
       dsnBomSyncFromDom();
-      if (_dsnBomSplitOn()) { _designsBomRender(); return; }
-      const m = _dsnBomMat(sel.value);
-      if (m) qtyEl.placeholder = 'Qty (' + _dsnUnitSuffix(m) + ')';
-      dsnBomRecalcEffective();
+      // Switching materials can switch the input's unit (e.g. plain qty ↔
+      // chain-by-weight) — the old value no longer means anything, and a
+      // full re-render swaps the input type in.
+      const l = _designsBom[idx];
+      if (l) { l.qty = null; l.pct = null; }
+      _designsBomRender();
     });
     qtyEl.addEventListener('input', () => { dsnBomSyncFromDom(); dsnBomRecalcEffective(); _dsnBomPctSumRender(); });
     row.querySelector('.dsn-bom-remove').addEventListener('click', () => {
@@ -1453,11 +1472,19 @@ function dsnBomSyncFromDom() {
     const l = _designsBom[parseInt(row.dataset.idx, 10)];
     if (!l) return;
     l.materialId = row.querySelector('.dsn-bom-mat').value;
-    const pctEl = row.querySelector('.dsn-bom-pct');
+    const pctEl     = row.querySelector('.dsn-bom-pct');
+    const chainOzEl = row.querySelector('.dsn-bom-chain-oz');
     if (pctEl) {
       const p = parseFloat(pctEl.value);
       l.pct = isNaN(p) ? null : p;
       l.qty = _dsnSplitQty(_dsnBomMat(l.materialId), total, l.pct);
+    } else if (chainOzEl) {
+      // Entered in troy oz, stored in ft — the material's Weight/ft (ozt)
+      // converts, since it's still priced/stocked per foot.
+      const m   = _dsnBomMat(l.materialId);
+      const wpf = m && m.weightPerFtOzt;
+      const oz  = parseFloat(chainOzEl.value);
+      l.qty = (wpf > 0 && !isNaN(oz)) ? Math.round(oz / wpf * 1000) / 1000 : null;
     } else {
       const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
       l.qty = isNaN(q) ? null : q;
