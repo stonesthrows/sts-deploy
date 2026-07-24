@@ -35,12 +35,13 @@ function _intakeBlankRing() {
 // the seam. The stock's own thickness sits at the bend, so the flat length
 // needed is the CIRCUMFERENCE AT THE STOCK'S MID-THICKNESS, not at the
 // ring's bare inside diameter — that's why thickness (gauge) is added to
-// diameter before multiplying by π. Same physical reasoning for both
-// profiles: Flat stock's relevant dimension is its thickness (the short
-// axis, perpendicular to the bend), not its face width, so `f-ring-
-// customwidth-N` never factors into this — a wider band with the same
-// gauge needs the same blank length. Round wire has no separate
-// width/thickness distinction, so its own diameter plays both roles.
+// diameter before multiplying by π. Same physical reasoning for all three
+// profiles: Flat and Comfort Fit stock's relevant dimension is its
+// thickness (the short axis, perpendicular to the bend), not its face
+// width, so `f-ring-customwidth-N` never factors into this — a wider band
+// with the same gauge needs the same blank length. Round wire has no
+// separate width/thickness distinction, so its own diameter plays both
+// roles.
 //
 // Ring size → inside diameter (mm), standard US/Canada chart, whole and
 // half sizes 3–16; quarters are linearly interpolated between these.
@@ -224,7 +225,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const block = e.target.closest?.('.ring-block');
-  if (!block || !e.target.matches('[id^="f-ring-customprofile-"]')) return;
+  if (!block || !e.target.matches('[id^="f-ring-customprofile-"], [id^="f-ring-customsize-"], [id^="f-ring-customgauge-"]')) return;
   const i = [...block.parentElement.children].indexOf(block);
   ringFieldsUpdateBlankLength(i);
 });
@@ -378,19 +379,19 @@ function _intakeRingCategoryFieldsHtml(i, r) {
     return `
       <div class="fg">
         <label>Ring Size</label>
-        <input type="text" id="f-ring-customsize-${i}" value="${esc(r.customSize)}" placeholder="e.g. 7">
+        ${_intakeSelectHtml('f-ring-customsize-' + i, _intakeSizeOptions(4, 15), r.customSize)}
       </div>
       <div class="fg">
         <label>Ring Width</label>
-        <input type="text" id="f-ring-customwidth-${i}" value="${esc(r.customWidth)}" placeholder="e.g. 4mm">
+        ${_intakeSelectHtml('f-ring-customwidth-' + i, ['4mm', '6mm', '8mm', '10mm'], r.customWidth)}
       </div>
       <div class="fg">
         <label>Ring Gauge</label>
-        <input type="text" id="f-ring-customgauge-${i}" value="${esc(r.customGauge)}" placeholder="e.g. 18ga">
+        ${_intakeSelectHtml('f-ring-customgauge-' + i, ['16ga', '18ga'], r.customGauge)}
       </div>
       <div class="fg">
         <label>Stock Profile</label>
-        ${_intakeSelectHtml('f-ring-customprofile-' + i, ['Flat', 'Round'], r.customProfile || 'Flat')}
+        ${_intakeSelectHtml('f-ring-customprofile-' + i, ['Flat', 'Round', 'Comfort Fit'], r.customProfile || 'Flat')}
       </div>
       <div class="fg">
         <label>Cut Allowance (mm)</label>
