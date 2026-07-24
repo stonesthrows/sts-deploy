@@ -331,14 +331,18 @@ function eoPopulateFields(o) {
   eoUpdateCompleteButtons(o);
 }
 
-// Swaps "Mark Complete" for "Undo Complete" in the footer once an order has
-// actually been completed — Undo only ever makes sense from that state.
+// Shows "Undo Complete" once an order has actually been completed (Undo
+// only ever makes sense from that state), and gates the Stage dropdown's
+// "Completed" option to orders that have actually reached Ready to
+// Pickup/Ship or Ship Out — completing an order that hasn't been handed
+// off yet was the actual accidental-archiving failure mode this replaced.
 function eoUpdateCompleteButtons(o) {
-  const isComplete  = o.stage === 'complete';
-  const btnComplete = document.getElementById('eo-btn-complete');
+  const isComplete = o.stage === 'complete';
   const btnUndo     = document.getElementById('eo-btn-undo-complete');
-  if (btnComplete) btnComplete.style.display = isComplete ? 'none' : '';
-  if (btnUndo)      btnUndo.style.display     = isComplete ? '' : 'none';
+  if (btnUndo) btnUndo.style.display = isComplete ? '' : 'none';
+
+  const completeOpt = document.querySelector('#f-stage option[value="complete"]');
+  if (completeOpt) completeOpt.disabled = !['ready-pick', 'ship-out', 'complete'].includes(o.stage);
 }
 
 // Seeds the shared ring-fields engine (js/ring-fields.js) from an order
@@ -1029,22 +1033,57 @@ function closeEditOrderModal() {
   eoSetMode('view');
 }
 
-function markOrderComplete() {
-  const id = document.getElementById('f-editing-id').value;
-  const o  = ORDERS.find(x => x.id === id);
+// ════════════════════════════════════════════
+//  COMPLETE ORDER CONFIRM
+//  There is no one-click "mark complete" anymore — completing an order
+//  means picking "Completed" from the same Stage dropdown as every other
+//  stage (Edit mode only), which is gated to Ready to Pickup/Ship or Ship
+//  Out (see eoUpdateCompleteButtons), then confirming final price in this
+//  dialog on Save. That combination replaced a standalone danger button
+//  that was too easy to hit before an order had actually been handed off.
+// ════════════════════════════════════════════
+let completeConfirmOrderId = null;
+
+function openCompleteConfirm(id) {
+  const o = ORDERS.find(x => x.id === id);
   if (!o) return;
+  // Defense in depth — the dropdown option is disabled outside these
+  // stages, so this only fires if something drove f-stage another way.
+  if (!['ready-pick', 'ship-out'].includes(o.stage)) {
+    document.getElementById('f-stage').value = o.stage;
+    toast('Move the order to Ready to Pickup/Ship or Ship Out first', '⚠');
+    return;
+  }
+  completeConfirmOrderId = id;
+  document.getElementById('cc-message').textContent = `Complete "${o.name}"? Confirm the customer has received it.`;
+  document.getElementById('cc-final-price').value = o.price || '';
+  document.getElementById('completeConfirmBg').classList.add('open');
+  document.getElementById('completeConfirm').classList.add('open');
+}
 
-  // Confirm final price (pre-filled with quoted price)
-  const priceInput = prompt(
-    `Final price for ${o.name}:\n(quoted: $${o.price || 0})`,
-    o.price || ''
-  );
-  if (priceInput === null) return; // cancelled
+function _hideCompleteConfirmUI() {
+  document.getElementById('completeConfirmBg').classList.remove('open');
+  document.getElementById('completeConfirm').classList.remove('open');
+}
 
-  const finalPrice = parseFloat(priceInput) || o.price || 0;
+function closeCompleteConfirm() {
+  const o = ORDERS.find(x => x.id === completeConfirmOrderId);
+  _hideCompleteConfirmUI();
+  // Cancelling reverts the dropdown to the order's real stage so the modal
+  // doesn't sit there showing "Completed" for an order that isn't.
+  if (o) document.getElementById('f-stage').value = o.stage;
+  completeConfirmOrderId = null;
+}
+
+function confirmCompleteOrder() {
+  const o = ORDERS.find(x => x.id === completeConfirmOrderId);
+  _hideCompleteConfirmUI();
+  if (!o) { completeConfirmOrderId = null; return; }
+
+  const finalPrice = parseFloat(document.getElementById('cc-final-price').value) || o.price || 0;
+  completeConfirmOrderId = null;
 
   o.preCompleteStage = o.stage;
-  o.stage       = 'complete';
   o.finalPrice  = finalPrice;
   o.completedAt = new Date().toISOString();
   completedHidden.add(o.id);
@@ -1057,22 +1096,18 @@ function markOrderComplete() {
     localStorage.setItem('sts-completed-registry', JSON.stringify(reg));
   } catch(e) {}
 
-  updateCompletedToggle();
-  renderKanban();
-  closeEditOrderModal();
-
-  // Push the full order (not just a stage-only patch) so the completion
-  // date lands in Notion's "Completed At" property in the same request —
+  // f-stage is already 'complete' (that's what triggered this dialog) —
+  // run it through the normal save path so every other field the user
+  // edited in this session is captured in the same request, then push the
+  // full order (not just a stage-only patch) so the completion date lands
+  // in Notion's "Completed At" property alongside everything else —
   // matches prodMarkDelivered's approach for the 'delivered' stage.
-  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
-
-  saveToStorage();
-  toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
+  _eoCollectAndSaveFields(o, `${o.name} completed — $${finalPrice.toLocaleString()} ✓`);
 }
 
-// Reverses markOrderComplete — restores the stage the order was in right
+// Reverses confirmCompleteOrder — restores the stage the order was in right
 // before it was completed, and purges it from the sticky completed
-// registry (see markOrderComplete) so a background Notion sync doesn't
+// registry (see confirmCompleteOrder) so a background Notion sync doesn't
 // silently flip it back to 'complete'.
 function undoOrderComplete() {
   const id = document.getElementById('f-editing-id').value;
@@ -1147,6 +1182,24 @@ function saveOrderEdit() {
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
 
+  // Completing an order is never a plain field save — it needs the confirm
+  // dialog (final price, explicit "they've received it" check) that
+  // replaced the old one-click Mark Complete button. Divert there instead
+  // of applying the stage change directly; confirmCompleteOrder() re-enters
+  // via _eoCollectAndSaveFields() once the dialog is confirmed.
+  const stageValEarly = document.getElementById('f-stage').value;
+  if (stageValEarly === 'complete' && o.stage !== 'complete') {
+    openCompleteConfirm(id);
+    return;
+  }
+
+  _eoCollectAndSaveFields(o);
+}
+
+// The actual field-gather-and-persist body, shared by the normal Save
+// Changes path and confirmCompleteOrder() (which calls this once the
+// completion confirm dialog has been accepted).
+function _eoCollectAndSaveFields(o, toastMsg) {
   o.name          = getFullName();
   o.jobDescMode   = _jdMode;
   o.jobDesc       = jdGetJobDescValue();
@@ -1270,7 +1323,7 @@ function saveOrderEdit() {
   // Refresh any open customer expand panels so order changes show immediately
   if (typeof refreshOpenCustomerExpands === 'function') refreshOpenCustomerExpands();
 
-  toast('Order updated ✓', '✓');
+  toast(toastMsg || 'Order updated ✓', '✓');
 }
 
 

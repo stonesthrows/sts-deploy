@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="css/app.css?v=20260723b">
+  <link rel="stylesheet" href="css/app.css?v=20260724a">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -485,6 +485,7 @@
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          <div class="eo-stage-hint">"Completed" only unlocks once the order is at Ready to Pickup/Ship or Ship Out.</div>
         </div>
         <div class="fg" id="order-type-fg">
           <label>Order Type</label>
@@ -1084,7 +1085,6 @@
       <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
       <button class="btn btn-outline btn-sm" onclick="printOrder(document.getElementById('f-editing-id').value)">🖨 Print</button>
       <div style="flex:1"></div>
-      <button class="btn btn-danger btn-sm" id="eo-btn-complete" onclick="markOrderComplete()">✓ Mark Complete</button>
       <button class="btn btn-outline btn-sm" id="eo-btn-undo-complete" style="display:none;" onclick="undoOrderComplete()">↩ Undo Complete</button>
       <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
       <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
@@ -2957,6 +2957,26 @@
 
 <link rel="stylesheet" href="css/print-setup.css?v=20260720a">
 
+<!-- ═══════════════════ COMPLETE ORDER CONFIRM (gated: only reachable from Ready to Pickup/Ship or Ship Out) ═══════════════════ -->
+<div class="complete-confirm-bg" id="completeConfirmBg" onclick="if(event.target===this)closeCompleteConfirm()"></div>
+<div class="complete-confirm" id="completeConfirm">
+  <div class="cc-head">
+    <span class="cc-title">Complete order</span>
+    <button class="cc-close" onclick="closeCompleteConfirm()">&times;</button>
+  </div>
+  <div class="cc-body">
+    <p id="cc-message"></p>
+    <div class="fg">
+      <label>Final price</label>
+      <input type="number" id="cc-final-price" step="0.01" min="0">
+    </div>
+  </div>
+  <div class="cc-foot">
+    <button class="btn btn-outline btn-sm" onclick="closeCompleteConfirm()">Cancel</button>
+    <button class="btn btn-danger btn-sm" onclick="confirmCompleteOrder()">✓ Confirm Complete</button>
+  </div>
+</div>
+
 <!-- ═══════════════════ STAGE/MOVE SHEET (shared: kanban + production) ═══════════════════ -->
 <div class="stage-sheet-overlay" id="stageSheetOverlay" onclick="closeStageSheet()"></div>
 <div class="stage-sheet" id="stageSheet">
@@ -3500,7 +3520,7 @@
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260722d"></script>
 <script src="js/ring-fields.js?v=6"></script>
-<script src="js/orders.js?v=20260724a"></script>
+<script src="js/orders.js?v=20260724b"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>

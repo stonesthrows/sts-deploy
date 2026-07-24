@@ -902,6 +902,43 @@
       align-items: center; justify-content: center; padding: 18px;
     }
     .eo-bg.open { display: flex; }
+    .eo-stage-hint {
+      font-size: 11.5px; color: var(--text3); margin-top: 4px; line-height: 1.35;
+    }
+    /* Completing an order is gated (see eo-stage-hint above) and always
+       requires this confirm — no one-click path exists anymore. Sits above
+       .eo-bg (800) since it layers on top of the still-open Edit Order modal. */
+    .complete-confirm-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(26,46,56,.6); z-index: 960;
+      align-items: center; justify-content: center; padding: 18px;
+    }
+    .complete-confirm-bg.open { display: flex; }
+    .complete-confirm {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: var(--card-bg); border: 1px solid var(--bdr);
+      border-radius: 14px; box-shadow: var(--shadow-lg);
+      width: min(380px, 94vw); z-index: 961;
+      flex-direction: column; overflow: hidden;
+    }
+    .complete-confirm.open { display: flex; }
+    .cc-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--bdr-light);
+      background: var(--card-head-bg);
+    }
+    .cc-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .cc-close {
+      background: none; border: none; font-size: 20px; line-height: 1;
+      color: var(--text3); cursor: pointer; padding: 2px 6px;
+    }
+    .cc-close:hover { color: var(--text); }
+    .cc-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .cc-body p { margin: 0; font-size: 13.5px; color: var(--text2); line-height: 1.45; }
+    .cc-foot {
+      display: flex; gap: 8px; justify-content: flex-end;
+      padding: 12px 18px; border-top: 1px solid var(--bdr-light);
+    }
     .eo-modal {
       background: var(--card-bg); border: 1px solid var(--bdr);
       border-radius: 16px; box-shadow: var(--shadow-lg);
