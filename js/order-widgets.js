@@ -720,7 +720,36 @@ function estCostBlur(inp) {
   estRebakeCost(inp);
 }
 
-function addMaterialRow(desc = '', cost = '', qty = '') {
+// Provenance labels for calculator-sourced rows — used for the row's tooltip
+// and to recognize which rows estRepriceFromLibrary() can recompute.
+const EST_SOURCE_LABEL = {
+  'metal-weight':  '🔩 From Ring Blank → Metal Cost calculator',
+  'metal-direct':  '⚖️ From Metal Weight → Cost calculator',
+  'resize':        '↔️ From Ring Resize calculator',
+  'stone-setting': '💎 From Stone Setting calculator',
+  'chain':         '⛓️ From Chain / Pendant calculator',
+};
+// Marks a row as calculator-derived (subtle gold inset stripe + tooltip). Uses
+// box-shadow so it never shifts the .est-row grid columns.
+function _estApplyRowProvenance(div, source) {
+  const isCalc = source && source !== 'manual' && EST_SOURCE_LABEL[source];
+  div.dataset.source = source || 'manual';
+  if (isCalc) {
+    div.title = EST_SOURCE_LABEL[source];
+    div.style.boxShadow = 'inset 3px 0 0 #C8A24B';
+    div.dataset.calcRow = '1';
+  } else {
+    div.title = '';
+    div.style.boxShadow = '';
+    delete div.dataset.calcRow;
+  }
+}
+
+// `meta` (optional) records where a row came from: { source, kind, calcInputs }.
+// Calculator "Add to estimate" handlers pass it so the row remembers what it was
+// computed from — enabling the provenance badge and estRepriceFromLibrary(). A
+// row with no meta is a plain manual line (source 'manual').
+function addMaterialRow(desc = '', cost = '', qty = '', meta = null) {
   const container = document.getElementById('est-materials');
   if (!container) return;
   const rowId = 'est-row-' + (++estRowCount);
@@ -738,6 +767,10 @@ function addMaterialRow(desc = '', cost = '', qty = '') {
   if (desc) inputs[0].value = desc;
   // `cost` is the raw pre-markup base; store it and display base × multiplier.
   if (cost !== '' && cost != null) { inputs[1].dataset.base = String(cost); estRebakeCost(inputs[1]); }
+  // Provenance (additive — manual rows just get source 'manual').
+  if (meta && meta.kind) div.dataset.kind = meta.kind;
+  if (meta && meta.calcInputs) { try { div.dataset.calc = JSON.stringify(meta.calcInputs); } catch (e) {} }
+  _estApplyRowProvenance(div, meta && meta.source);
   calcEstimate();
 }
 
@@ -750,20 +783,31 @@ function populateEstimateFromOrder(o) {
     container.innerHTML = '';
     estRowCount = 0;
 
-    const lines = (o.materials || '').split('\n').filter(l => l.trim());
-    if (lines.length) {
-      lines.forEach(line => {
-        const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
-        if (match) {
-          // Split an optional "×N" cost-multiplier suffix off the description.
-          const qm = match[1].trim().match(/^(.*?)\s*×\s*(\d+\.?\d*)$/);
-          if (qm) addMaterialRow(qm[1].trim(), match[2], qm[2]);
-          else    addMaterialRow(match[1].trim(), match[2]);
-        }
-        else addMaterialRow(line.trim(), '');
+    // Prefer the structured lines[] (carries per-row provenance) when the order
+    // has it; fall back to parsing the legacy o.materials text for older orders.
+    const structured = (o.estimate && Array.isArray(o.estimate.lines)) ? o.estimate.lines : null;
+    if (structured && structured.length) {
+      structured.forEach(l => {
+        addMaterialRow(l.label || '', (l.cost != null ? l.cost : ''), '', {
+          source: l.source || 'manual', kind: l.kind || 'material', calcInputs: l.calcInputs || null,
+        });
       });
     } else {
-      addMaterialRow();
+      const lines = (o.materials || '').split('\n').filter(l => l.trim());
+      if (lines.length) {
+        lines.forEach(line => {
+          const match = line.match(/^(.*?) — \$(\d+\.?\d*)$/);
+          if (match) {
+            // Split an optional "×N" cost-multiplier suffix off the description.
+            const qm = match[1].trim().match(/^(.*?)\s*×\s*(\d+\.?\d*)$/);
+            if (qm) addMaterialRow(qm[1].trim(), match[2], qm[2]);
+            else    addMaterialRow(match[1].trim(), match[2]);
+          }
+          else addMaterialRow(line.trim(), '');
+        });
+      } else {
+        addMaterialRow();
+      }
     }
 
     // Labor, shipping, tax, multiplier + adjustment: prefer the estimate
@@ -875,6 +919,31 @@ function estCollectMaterialsText() {
   return lines.join('\n');
 }
 
+// Structured sibling of estCollectMaterialsText(): the same rows, but as an
+// array that keeps each line's provenance (which calculator produced it + the
+// inputs it was computed from). Derived from the SAME DOM rows and the SAME raw
+// cost basis (estCostBase) as the text serializer, so the two can never drift.
+// Additive — o.materials remains the source of truth for Notion/Square/print.
+function estCollectLines() {
+  const rows = document.querySelectorAll('#est-materials .est-row');
+  const out = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const label = (inputs[0]?.value || '').trim();
+    const cost  = estCostBase(inputs[1]);
+    if (!label && !cost) return;
+    const line = {
+      label: label,
+      cost: cost,
+      kind: row.dataset.kind || 'material',
+      source: row.dataset.source || 'manual',
+    };
+    if (row.dataset.calc) { try { line.calcInputs = JSON.parse(row.dataset.calc); } catch (e) {} }
+    out.push(line);
+  });
+  return out;
+}
+
 async function saveEstimateToNotion() {
   const editingId = document.getElementById('f-editing-id')?.value;
   if (!editingId) return;
@@ -900,6 +969,8 @@ async function saveEstimateToNotion() {
     // legacy orders simply lack these keys; nothing reads them destructively.
     category:   document.getElementById('f-order-type')?.value || _estCalcCtx.category || 'order',
     itemType:   document.getElementById('f-piece-type')?.value || _estCalcCtx.itemType || '',
+    // Structured line items with per-row provenance (parallel to o.materials).
+    lines:      estCollectLines(),
   };
   saveToStorage();
 
@@ -1294,7 +1365,15 @@ function estCalcMetalCompute() {
   const oztTxt = r.ozt != null ? r.ozt.toFixed(3) + ' ozt (' + r.grams.toFixed(2) + ' g)' : '—';
   if (r.hasPrice && r.cost != null) {
     out.innerHTML = '<strong>' + oztTxt + '</strong> → <strong>$' + r.cost.toFixed(2) + '</strong> material';
-    _estCalcMetalLast = { label: _estMetalLabel(metalType) + ' — blank ' + lengthMm.toFixed(1) + 'mm (' + r.ozt.toFixed(3) + ' ozt)', cost: r.cost };
+    _estCalcMetalLast = {
+      label: _estMetalLabel(metalType) + ' — blank ' + lengthMm.toFixed(1) + 'mm (' + r.ozt.toFixed(3) + ' ozt)',
+      cost: r.cost,
+      meta: { source: 'metal-weight', kind: 'material', calcInputs: {
+        metalType: metalType, ringSize: size, gauge: gauge, widthMm: _estNum('ecm-width'),
+        profile: _estVal('ecm-profile'), allowanceMm: _estVal('ecm-allow'), scrapPct: _estNum('ecm-scrap'),
+        pricePerOzt: _estNum('ecm-price'), ozt: r.ozt,
+      } },
+    };
   } else {
     out.innerHTML = '<strong>' + oztTxt + '</strong> — no price on file for this metal; enter Price / ozt to get a cost.';
     _estCalcMetalLast = null;
@@ -1302,7 +1381,7 @@ function estCalcMetalCompute() {
 }
 function estCalcMetalAdd() {
   if (!_estCalcMetalLast) { if (typeof toast === 'function') toast('Nothing to add — enter size, gauge + price first.', '⚠️'); return; }
-  addMaterialRow(_estCalcMetalLast.label, _estCalcMetalLast.cost.toFixed(2));
+  addMaterialRow(_estCalcMetalLast.label, _estCalcMetalLast.cost.toFixed(2), '', _estCalcMetalLast.meta);
 }
 
 // ── Direct known-weight → cost ──
@@ -1322,11 +1401,17 @@ function estCalcWeightCompute() {
   if (!(price > 0)) { out.innerHTML = '<strong>' + ozt.toFixed(3) + ' ozt</strong> — enter Price / ozt to get a cost.'; _estCalcWeightLast = null; return; }
   const cost = ozt * price;
   out.innerHTML = '<strong>' + ozt.toFixed(3) + ' ozt</strong> → <strong>$' + cost.toFixed(2) + '</strong> material';
-  _estCalcWeightLast = { label: _estMetalLabel(metalType) + ' — ' + ozt.toFixed(3) + ' ozt', cost: cost };
+  _estCalcWeightLast = {
+    label: _estMetalLabel(metalType) + ' — ' + ozt.toFixed(3) + ' ozt',
+    cost: cost,
+    meta: { source: 'metal-direct', kind: 'material', calcInputs: {
+      metalType: metalType, weight: wVal, unit: unit, pricePerOzt: price, ozt: ozt,
+    } },
+  };
 }
 function estCalcWeightAdd() {
   if (!_estCalcWeightLast) { if (typeof toast === 'function') toast('Enter a weight + price first.', '⚠️'); return; }
-  addMaterialRow(_estCalcWeightLast.label, _estCalcWeightLast.cost.toFixed(2));
+  addMaterialRow(_estCalcWeightLast.label, _estCalcWeightLast.cost.toFixed(2), '', _estCalcWeightLast.meta);
 }
 
 // ── Ring resize ──
@@ -1352,11 +1437,19 @@ function estCalcResizeCompute() {
   out.innerHTML = 'Resize ' + dir + ': ' +
     (r.metalCost > 0 ? '$' + r.metalCost.toFixed(2) + ' metal + ' : '') +
     '$' + r.labor.toFixed(2) + ' labor → <strong>$' + r.total.toFixed(2) + '</strong>';
-  _estCalcResizeLast = { label: 'Resize ' + from + '→' + to + ' (' + dir + ')', cost: r.total };
+  _estCalcResizeLast = {
+    label: 'Resize ' + from + '→' + to + ' (' + dir + ')',
+    cost: r.total,
+    meta: { source: 'resize', kind: 'material', calcInputs: {
+      metalType: _estVal('ecr-metal'), fromSize: from, toSize: to, gauge: gauge,
+      widthMm: _estNum('ecr-width'), profile: _estVal('ecr-profile'),
+      laborBase: _estNum('ecr-laborbase'), laborPerSize: _estNum('ecr-laborsize'), pricePerOzt: _estNum('ecr-price'),
+    } },
+  };
 }
 function estCalcResizeAdd() {
   if (!_estCalcResizeLast) { if (typeof toast === 'function') toast('Enter from/to size + gauge first.', '⚠️'); return; }
-  addMaterialRow(_estCalcResizeLast.label, _estCalcResizeLast.cost.toFixed(2));
+  addMaterialRow(_estCalcResizeLast.label, _estCalcResizeLast.cost.toFixed(2), '', _estCalcResizeLast.meta);
 }
 
 // ── Stone setting ──
@@ -1370,12 +1463,16 @@ function estCalcStoneCompute() {
   const rate = rateOverride > 0 ? rateOverride : EstimateCalc.stoneSettingRate(setting);
   const cost = rate * count;
   out.innerHTML = count + ' × ' + setting + ' @ $' + rate.toFixed(2) + ' → <strong>$' + cost.toFixed(2) + '</strong> labor';
-  _estCalcStoneLast = { label: 'Stone setting — ' + count + '× ' + setting, cost: cost };
+  _estCalcStoneLast = {
+    label: 'Stone setting — ' + count + '× ' + setting,
+    cost: cost,
+    meta: { source: 'stone-setting', kind: 'labor', calcInputs: { setting: setting, count: count, rate: rate } },
+  };
 }
 function estCalcStoneAdd() {
   if (!_estCalcStoneLast) estCalcStoneCompute();
   if (!_estCalcStoneLast) return;
-  addMaterialRow(_estCalcStoneLast.label, _estCalcStoneLast.cost.toFixed(2));
+  addMaterialRow(_estCalcStoneLast.label, _estCalcStoneLast.cost.toFixed(2), '', _estCalcStoneLast.meta);
 }
 
 // ── Chain / pendant ──
@@ -1388,11 +1485,76 @@ function estCalcChainCompute() {
   out.innerHTML = (r.chainCost != null ? '$' + r.chainCost.toFixed(2) + ' chain' : '') +
     (r.findings ? ' + $' + r.findings.toFixed(2) + ' findings' : '') +
     ' → <strong>$' + r.total.toFixed(2) + '</strong>';
-  _estCalcChainLast = { label: 'Chain ' + (_estNum('ecc-len') || '?') + '" + findings', cost: r.total };
+  _estCalcChainLast = {
+    label: 'Chain ' + (_estNum('ecc-len') || '?') + '" + findings',
+    cost: r.total,
+    meta: { source: 'chain', kind: 'material', calcInputs: {
+      lengthIn: _estNum('ecc-len'), pricePerIn: _estNum('ecc-price'), findings: _estNum('ecc-find'),
+    } },
+  };
 }
 function estCalcChainAdd() {
   if (!_estCalcChainLast) { if (typeof toast === 'function') toast('Enter chain length + price first.', '⚠️'); return; }
-  addMaterialRow(_estCalcChainLast.label, _estCalcChainLast.cost.toFixed(2));
+  addMaterialRow(_estCalcChainLast.label, _estCalcChainLast.cost.toFixed(2), '', _estCalcChainLast.meta);
+}
+
+// ── Re-price metal lines from the Materials Library (the payoff of lines[]) ──
+// Walks the estimate's calculator-sourced metal rows, re-fetches current metal
+// prices, and recomputes each line's cost from its stored calcInputs — so when
+// the price of gold moves you can re-quote an open estimate in one click instead
+// of re-typing every material row. Manual rows and non-metal calc rows are left
+// untouched; rows whose metal has no price on file are skipped, not zeroed.
+async function estRepriceFromLibrary() {
+  if (!window.EstimateCalc) return;
+  _estMetalPriceCache = null;                 // force a fresh fetch
+  const prices = await estCalcLoadMetalPrices();
+  const rows = document.querySelectorAll('#est-materials .est-row');
+  let repriced = 0, skipped = 0;
+  rows.forEach(row => {
+    if (row.dataset.calcRow !== '1') return;
+    const source = row.dataset.source;
+    if (source !== 'metal-weight' && source !== 'metal-direct' && source !== 'resize') return;
+    let ci = null; try { ci = JSON.parse(row.dataset.calc || 'null'); } catch (e) {}
+    if (!ci) return;
+    const newPrice = prices[ci.metalType];
+    if (!(typeof newPrice === 'number' && newPrice > 0)) { skipped++; return; }
+
+    let newCost = null, newOzt = ci.ozt;
+    if (source === 'metal-weight') {
+      const lengthMm = (typeof ringBlankLengthMm === 'function') ? ringBlankLengthMm(ci.ringSize, ci.gauge, ci.allowanceMm) : null;
+      const thicknessMm = _estThicknessMm(ci.gauge);
+      if (lengthMm == null || thicknessMm == null) { skipped++; return; }
+      const r = EstimateCalc.metalCost({ lengthMm: lengthMm, widthMm: ci.widthMm, thicknessMm: thicknessMm, profile: ci.profile, metalType: ci.metalType, pricePerOzt: newPrice, scrapPct: ci.scrapPct });
+      newCost = r.cost; newOzt = r.ozt;
+    } else if (source === 'metal-direct') {
+      if (!(ci.ozt > 0)) { skipped++; return; }
+      newOzt = ci.ozt; newCost = ci.ozt * newPrice;
+    } else if (source === 'resize') {
+      const startBlank  = (typeof ringBlankLengthMm === 'function') ? ringBlankLengthMm(ci.fromSize, ci.gauge, 0) : null;
+      const targetBlank = (typeof ringBlankLengthMm === 'function') ? ringBlankLengthMm(ci.toSize, ci.gauge, 0) : null;
+      const thicknessMm = _estThicknessMm(ci.gauge);
+      if (startBlank == null || targetBlank == null || thicknessMm == null) { skipped++; return; }
+      const steps = Math.abs((parseFloat(ci.toSize) || 0) - (parseFloat(ci.fromSize) || 0));
+      const r = EstimateCalc.resizeCost({ startBlankMm: startBlank, targetBlankMm: targetBlank, widthMm: ci.widthMm, thicknessMm: thicknessMm, profile: ci.profile, metalType: ci.metalType, pricePerOzt: newPrice, laborBase: ci.laborBase, laborPerSize: ci.laborPerSize, sizeSteps: steps });
+      newCost = r.total; newOzt = r.ozt;
+    }
+    if (newCost == null || !isFinite(newCost)) { skipped++; return; }
+
+    const costInput = row.querySelector('.est-cost-input');
+    if (costInput) {
+      costInput.dataset.base = String(Math.round(newCost * 100) / 100);
+      if (costInput !== document.activeElement) estRebakeCost(costInput);
+    }
+    // Persist the fresh price/ozt back onto the row so a subsequent save keeps it.
+    ci.pricePerOzt = newPrice; if (newOzt != null) ci.ozt = newOzt;
+    try { row.dataset.calc = JSON.stringify(ci); } catch (e) {}
+    repriced++;
+  });
+  calcEstimate();
+  if (typeof toast === 'function') {
+    if (repriced) toast('Re-priced ' + repriced + ' metal line' + (repriced > 1 ? 's' : '') + ' from the library' + (skipped ? ' (' + skipped + ' skipped — no price on file)' : ''), '✅');
+    else toast(skipped ? 'No lines re-priced — ' + skipped + ' metal line(s) have no library price on file.' : 'No calculator-priced metal lines to re-price.', 'ℹ️');
+  }
 }
 
 function _estMetalLabel(metalType) {

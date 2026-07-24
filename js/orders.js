@@ -1251,6 +1251,11 @@ function saveOrderEdit() {
       taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
       multiplier: estMultiplier,
       adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
+      // Category-first branch + structured line items (parallel to o.materials),
+      // same shape saveEstimateToNotion writes so both save paths agree.
+      category:   document.getElementById('f-order-type')?.value || 'order',
+      itemType:   document.getElementById('f-piece-type')?.value || '',
+      lines:      (typeof estCollectLines === 'function') ? estCollectLines() : [],
     };
     // Materials Cost($) rows live in #est-materials, separate from the
     // f-materials textarea read above — without this, a plain Save Changes
