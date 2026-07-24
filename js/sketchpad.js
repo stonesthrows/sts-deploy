@@ -95,20 +95,39 @@ function _padRedo(pad) {
   pad.dirty = true;
 }
 
+// Largest distance between any two points in a set — used below to tell a
+// deliberate multi-finger tap (fingers spread apart) apart from a resting
+// wrist/palm's contact blobs (clustered close together).
+function _maxPairwiseDist(points) {
+  let max = 0;
+  for (let a = 0; a < points.length; a++) {
+    for (let b = a + 1; b < points.length; b++) {
+      max = Math.max(max, Math.hypot(points[a].x - points[b].x, points[a].y - points[b].y));
+    }
+  }
+  return max;
+}
+
 // Two-finger tap ⇒ undo, three-finger tap ⇒ redo. Only live on a pen-only
 // pad: touch is already ignored there for drawing, so fingers are free
 // for gestures — skip entirely once "Allow finger drawing" is toggled on,
 // since a tap can't then be told apart from a deliberate short stroke.
+// Tolerances kept tight (short window, small allowed drift, and a minimum
+// spread between contacts) because a wrist/palm resting on the glass while
+// writing produces its own brief, closely-clustered multi-touch contacts
+// that would otherwise misfire as an intentional gesture and undo/redo the
+// last stroke.
 function _padWireTapGestures(pad) {
   const el = pad.canvas;
   const touches = new Map(); // pointerId -> {x, y} at touchdown
-  const MOVE_TOL = 14, TAP_MS = 400;
-  let gestureStart = 0, peak = 0, moved = false;
+  const MOVE_TOL = 8, TAP_MS = 220, MIN_SPREAD = 30;
+  let gestureStart = 0, peak = 0, moved = false, downPositions = [];
 
   el.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'touch' || !pad.penOnly) return;
-    if (touches.size === 0) { gestureStart = performance.now(); peak = 0; moved = false; }
+    if (touches.size === 0) { gestureStart = performance.now(); peak = 0; moved = false; downPositions = []; }
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    downPositions.push({ x: e.clientX, y: e.clientY });
     peak = Math.max(peak, touches.size);
   });
   el.addEventListener('pointermove', e => {
@@ -121,6 +140,7 @@ function _padWireTapGestures(pad) {
     touches.delete(e.pointerId);
     if (touches.size > 0) return; // gesture still in progress — wait for the last finger up
     if (moved || performance.now() - gestureStart >= TAP_MS) return;
+    if (peak >= 2 && _maxPairwiseDist(downPositions) < MIN_SPREAD) return; // clustered contact, not spread fingers
     if (peak === 2) {
       if (pad.undo.length) { _padUndo(pad); toast('Undo', '↩'); } else toast('Nothing to undo', '↩');
     } else if (peak === 3) {
