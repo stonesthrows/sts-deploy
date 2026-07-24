@@ -529,6 +529,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof renderCustomers === 'function') renderCustomers();
     if (typeof loadNotes === 'function') loadNotes();
 
+    // Bag QR deep link (?order=<id>) — jump straight to the order that was
+    // scanned. Strip the param after opening so a refresh doesn't reopen it.
+    const orderParam = new URLSearchParams(window.location.search).get('order');
+    if (orderParam && typeof ORDERS !== 'undefined' && ORDERS.some(o => o.id === orderParam)) {
+      if (typeof switchTab === 'function') switchTab('dashboard');
+      if (typeof openOrderCard === 'function') openOrderCard(orderParam);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('order');
+      window.history.replaceState({}, '', url);
+    }
+
     // Load Gmail brief (localStorage fallback first, then try scheduled JSON)
     if (typeof loadGmailOverview === 'function') loadGmailOverview();
     if (typeof loadScheduledBrief === 'function') loadScheduledBrief();

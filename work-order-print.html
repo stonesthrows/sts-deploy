@@ -433,6 +433,11 @@
       body.preview { background: #fff; padding: 0; }
       body.preview .print-bar, body.preview .screen-note { display: none; }
     }
+
+    /* ── Bag QR — deep-links to the order in the app ── */
+    .hdr-row { display: flex; align-items: flex-start; justify-content: space-between; }
+    .bag-qr { width: 0.52in; height: 0.52in; flex-shrink: 0; }
+    .bag-qr svg { display: block; width: 100%; height: 100%; }
   </style>
 </head>
 <body>
@@ -447,9 +452,12 @@
 
 <div class="form-content">
 
-  <div style="margin-bottom:3px">
-    <div class="shop-name">Stones Throw Studio</div>
-    <div class="shop-sub">Custom Jewelry</div>
+  <div class="hdr-row" style="margin-bottom:3px">
+    <div>
+      <div class="shop-name">Stones Throw Studio</div>
+      <div class="shop-sub">Custom Jewelry</div>
+    </div>
+    <div class="bag-qr" id="bag-qr"></div>
   </div>
 
   <div class="chk-row">
@@ -583,6 +591,7 @@
 
 </div>
 
+<script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
     if (!d) return '';
@@ -666,6 +675,8 @@
   const srcName   = p.get('srcName')   || '';
   const orderNo   = p.get('orderNo')   || '';
   const country   = p.get('country')   || '';
+  const orderId   = p.get('orderId')   || '';
+  if (typeof stsBagQR === 'function') stsBagQR(document.getElementById('bag-qr'), orderId);
 
   // ── Apply layout settings ──
   const fc = document.querySelector('.form-content');

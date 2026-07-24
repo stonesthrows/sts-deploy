@@ -2099,6 +2099,7 @@ function buildClassicBagUrl(o) {
     // desc/amount feed the manual layouts' line-item table; the ecom layout
     // gets structured specs separately via the ecomItems param below.
     items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
+    orderId:   o.id || '',
   });
   // Per-kind layout params (order-normalize.js): drive which print variant
   // the template renders — ecom orders get Source row + Ship To block.
@@ -2175,6 +2176,7 @@ function buildSketchBagUrl(o) {
       desc:   oiPrintLabel(it),
       amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
     }))),
+    orderId:   o.id || '',
   });
   if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
   // kind drives the center-block mode (compact for resize orders); From/To
@@ -2252,6 +2254,7 @@ function buildVariantBagUrl(o) {
       desc:   oiPrintLabel(it),
       amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
     }))),
+    orderId:   o.id || '',
   });
   if (o.repairNotes) p.set('repairNotes', o.repairNotes);
   if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));

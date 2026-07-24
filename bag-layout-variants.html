@@ -195,6 +195,11 @@
       body.preview { background: #fff; padding: 0; }
       body.preview .print-bar, body.preview .screen-note { display: none; }
     }
+
+    /* ── Bag QR — deep-links to the order in the app ── */
+    .top-right { display: flex; align-items: center; gap: 6px; }
+    .bag-qr { width: 0.5in; height: 0.5in; flex-shrink: 0; }
+    .bag-qr svg { display: block; width: 100%; height: 100%; }
   </style>
 </head>
 <body>
@@ -207,7 +212,10 @@
 
   <div class="top">
     <b>Stones Throw Studio</b>
-    <span class="lbl" id="kind-lbl">Custom Order</span>
+    <div class="top-right">
+      <span class="lbl" id="kind-lbl">Custom Order</span>
+      <div class="bag-qr" id="bag-qr"></div>
+    </div>
   </div>
 
   <div class="grid3">
@@ -276,6 +284,7 @@
 
 </div>
 
+<script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
     if (!d) return '';
@@ -292,6 +301,7 @@
   const variant = ['rings', 'repair', 'compact'].includes(q.get('variant')) ? q.get('variant') : 'rings';
   const demo = q.get('demo');
   document.body.dataset.variant = variant;
+  if (typeof stsBagQR === 'function') stsBagQR(document.getElementById('bag-qr'), q.get('orderId') || (demo ? 'demo-' + demo : ''));
 
   // ── Demo orders — one per variant, showing different ring-combo /
   // order-kind data the Intake app can actually produce. ──
