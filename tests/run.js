@@ -6,6 +6,7 @@
 const { startServer } = require('./lib/server');
 const fingerprint = require('./fingerprint');
 const offlineStorage = require('./offline-storage');
+const estimateCalc = require('./estimate-calc');
 
 async function main() {
   const server = await startServer();
@@ -13,7 +14,14 @@ async function main() {
 
   let overallPass = true;
 
-  console.log('── Fingerprint suite ──────────────────────');
+  // Pure math suite — no server/browser needed, run it first so a broken
+  // calculator fails fast before the slower headless suites spin up.
+  console.log('── Estimate-calc suite ────────────────────');
+  const ec = await estimateCalc.run();
+  console.log(ec.lines.join('\n'));
+  overallPass = overallPass && ec.pass;
+
+  console.log('\n── Fingerprint suite ──────────────────────');
   const fp = await fingerprint.run({ baseUrl: server.baseUrl });
   console.log(fp.lines.join('\n'));
   overallPass = overallPass && fp.pass;

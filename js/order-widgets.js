@@ -784,6 +784,12 @@ function populateEstimateFromOrder(o) {
     setMultiplier(saved.multiplier || 2.5);
     // Visibility of #eo-estimate-module is owned by the order-type module
     // (js/orders.js's eoApplyOrderTypeModule), not by this function.
+    // Restore the calculator panel's branch context from the order (order
+    // type + piece type are already set in the DOM by eoPopulateFields), so
+    // the right calculators are showing when the module opens.
+    _estCalcCtx.category = document.getElementById('f-order-type')?.value || saved.category || 'order';
+    _estCalcCtx.itemType = document.getElementById('f-piece-type')?.value || saved.itemType || '';
+    if (typeof estCalcRender === 'function') estCalcRender();
   } finally {
     _estPopulating = prevPopulating;
   }
@@ -890,6 +896,10 @@ async function saveEstimateToNotion() {
     taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
     multiplier: estMultiplier,
     adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
+    // Branch the estimate was built for (category-first flow). Additive —
+    // legacy orders simply lack these keys; nothing reads them destructively.
+    category:   document.getElementById('f-order-type')?.value || _estCalcCtx.category || 'order',
+    itemType:   document.getElementById('f-piece-type')?.value || _estCalcCtx.itemType || '',
   };
   saveToStorage();
 
@@ -1043,3 +1053,357 @@ function clearEstimate() {
   calcEstimate();
   addMaterialRow();
 }
+
+// ════════════════════════════════════════════
+//  ESTIMATE CALCULATORS (UI wiring)
+//  The category-first estimate flow: the order type (Custom / Repair /
+//  Resize) and the item type (Ring / Pendant / Earrings …) decide which
+//  calculators surface in the Estimate Builder. The math itself is pure and
+//  lives in js/estimate-calc.js (EstimateCalc.*); this wiring reads the DOM,
+//  resolves a live metal price from the Materials Library, and — via
+//  "＋ Add to estimate" — pushes a labeled, hand-editable row into the
+//  existing materials list (addMaterialRow), so calculator output flows
+//  through the same o.materials persistence and Square/Notion paths as a
+//  manually-typed line. Rendered into a single #est-calc-panel container so
+//  the desktop modal and the intake wizard share one implementation.
+// ════════════════════════════════════════════
+
+// Current branch context, set by eoApplyOrderTypeModule (category) and the
+// Piece Type change (itemType). Drives which calculators estCalcRender shows.
+let _estCalcCtx = { category: 'order', itemType: '' };
+
+// Metal price/ozt cache, resolved once from the Materials Library:
+// shop-wide metalPricePerOzt map, overridden by any per-metal library row's
+// currentCostPerUnit (normalized to per-ozt) — same precedence js/designs.js
+// uses. "Not all yet": metals without a price stay undefined here and the UI
+// prompts for a manual price rather than guessing.
+let _estMetalPriceCache = null;
+async function estCalcLoadMetalPrices() {
+  if (_estMetalPriceCache) return _estMetalPriceCache;
+  const prices = {};
+  const G = (window.EstimateCalc && EstimateCalc.G_PER_OZT) || 31.1035;
+  try {
+    const s = await fetch('/api/shop-settings').then(r => r.json()).catch(() => ({}));
+    const shop = (s && !s.error && s.metalPricePerOzt) ? s.metalPricePerOzt : {};
+    Object.keys(shop).forEach(k => { if (typeof shop[k] === 'number') prices[k] = shop[k]; });
+    if (typeof _materialsApiFetch === 'function') {
+      const mats = await _materialsApiFetch().catch(() => []);
+      (mats || []).forEach(m => {
+        if (!m || m.category !== 'metal' || !m.metalType) return;
+        if (typeof m.currentCostPerUnit !== 'number') return;
+        if (m.unit !== 'ozt' && m.unit !== 'gram') return;   // ignore foot/piece rows
+        prices[m.metalType] = m.unit === 'gram' ? m.currentCostPerUnit * G : m.currentCostPerUnit;
+      });
+    }
+  } catch (e) { /* offline / no library — user enters price manually */ }
+  // Only cache a non-empty result, so a first load while offline doesn't
+  // permanently block prefill — a later interaction retries the fetch.
+  if (Object.keys(prices).length) _estMetalPriceCache = prices;
+  return prices;
+}
+
+// Friendly metal picker — value is the Materials Library metalType key so the
+// price lookup and EstimateCalc density both resolve. Extras beyond the three
+// the library knows today (18k, sterling, platinum…) are here so the calc
+// still works if you quote in them; they just won't auto-fill a price yet.
+const EST_METAL_OPTIONS = [
+  ['argentium', 'Argentium Silver'],
+  ['sterling',  'Sterling Silver'],
+  ['gold_fill', 'Gold-Filled'],
+  ['10k',       '10k Gold'],
+  ['14k',       '14k Gold'],
+  ['18k',       '18k Gold'],
+  ['platinum',  'Platinum'],
+];
+
+function estSetContext(category) {
+  _estCalcCtx.category = category || 'order';
+  estCalcRender();
+}
+function estSetItemType(itemType) {
+  _estCalcCtx.itemType = itemType || '';
+  estCalcRender();
+}
+
+function _estCalcMetalSelectHtml(id) {
+  return '<select id="' + id + '" onchange="estCalcMetalPrefill(\'' + id + '\')" ' +
+    'style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;">' +
+    EST_METAL_OPTIONS.map(o => '<option value="' + o[0] + '">' + o[1] + '</option>').join('') +
+    '</select>';
+}
+function _estCalcFieldHtml(label, inner) {
+  return '<div style="flex:1 1 120px;min-width:110px;"><label style="display:block;font-size:11px;font-weight:600;color:#6b5f47;margin-bottom:3px;">' +
+    label + '</label>' + inner + '</div>';
+}
+function _estCalcInput(id, attrs, oninput) {
+  return '<input id="' + id + '" ' + (attrs || '') +
+    ' oninput="' + (oninput || '') + '" ' +
+    'style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;box-sizing:border-box;">';
+}
+
+// Renders the calculator panel appropriate to the current branch context.
+function estCalcRender() {
+  const panel = document.getElementById('est-calc-panel');
+  if (!panel) return;
+  const ctx = _estCalcCtx;
+  const isResize = ctx.category === 'resize';
+  const itemType = ctx.itemType || '';
+  const showChain = /pendant|necklace/i.test(itemType);
+
+  const blocks = [];
+
+  // Ring blank → metal cost (rings; also the natural tool for resize add-metal)
+  blocks.push(
+    '<details class="est-calc-block" ' + (itemType === 'Ring' || isResize ? 'open' : '') + ' style="margin-bottom:8px;">' +
+      '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">🔩 Ring Blank → Metal Cost</summary>' +
+      '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+        _estCalcFieldHtml('Metal', _estCalcMetalSelectHtml('ecm-metal')) +
+        _estCalcFieldHtml('Price / ozt', _estCalcInput('ecm-price', 'type="number" step="0.01" min="0" placeholder="auto"', 'estCalcMetalCompute()')) +
+        _estCalcFieldHtml('Ring Size', _estCalcInput('ecm-size', 'type="text" placeholder="7"', 'estCalcMetalCompute()')) +
+        _estCalcFieldHtml('Gauge', _estCalcInput('ecm-gauge', 'type="text" placeholder="18ga"', 'estCalcMetalCompute()')) +
+        _estCalcFieldHtml('Width (mm)', _estCalcInput('ecm-width', 'type="number" step="0.1" min="0" placeholder="4"', 'estCalcMetalCompute()')) +
+        _estCalcFieldHtml('Profile', '<select id="ecm-profile" onchange="estCalcMetalCompute()" style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;"><option value="Flat">Flat</option><option value="Round">Round</option></select>') +
+        _estCalcFieldHtml('Allowance (mm)', _estCalcInput('ecm-allow', 'type="number" step="0.1" min="0" value="1"', 'estCalcMetalCompute()')) +
+        _estCalcFieldHtml('Scrap %', _estCalcInput('ecm-scrap', 'type="number" step="1" min="0" value="0"', 'estCalcMetalCompute()')) +
+      '</div>' +
+      '<div id="ecm-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter ring size + gauge to calculate.</div>' +
+      '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcMetalAdd()">＋ Add to estimate</button>' +
+    '</details>');
+
+  // Direct known-weight → cost (any metal piece)
+  blocks.push(
+    '<details class="est-calc-block" style="margin-bottom:8px;">' +
+      '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">⚖️ Metal Weight → Cost</summary>' +
+      '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+        _estCalcFieldHtml('Metal', _estCalcMetalSelectHtml('ecw-metal')) +
+        _estCalcFieldHtml('Price / ozt', _estCalcInput('ecw-price', 'type="number" step="0.01" min="0" placeholder="auto"', 'estCalcWeightCompute()')) +
+        _estCalcFieldHtml('Weight', _estCalcInput('ecw-weight', 'type="number" step="0.01" min="0" placeholder="0"', 'estCalcWeightCompute()')) +
+        _estCalcFieldHtml('Unit', '<select id="ecw-unit" onchange="estCalcWeightCompute()" style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;"><option value="g">grams</option><option value="ozt">Troy oz</option><option value="dwt">pennyweight</option></select>') +
+      '</div>' +
+      '<div id="ecw-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter a weight to calculate.</div>' +
+      '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcWeightAdd()">＋ Add to estimate</button>' +
+    '</details>');
+
+  // Ring resize (resize order type)
+  if (isResize) {
+    blocks.push(
+      '<details class="est-calc-block" open style="margin-bottom:8px;">' +
+        '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">↔️ Ring Resize</summary>' +
+        '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+          _estCalcFieldHtml('Metal', _estCalcMetalSelectHtml('ecr-metal')) +
+          _estCalcFieldHtml('Price / ozt', _estCalcInput('ecr-price', 'type="number" step="0.01" min="0" placeholder="auto"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('From size', _estCalcInput('ecr-from', 'type="text" placeholder="7"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('To size', _estCalcInput('ecr-to', 'type="text" placeholder="8"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('Gauge', _estCalcInput('ecr-gauge', 'type="text" placeholder="18ga"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('Width (mm)', _estCalcInput('ecr-width', 'type="number" step="0.1" min="0" placeholder="4"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('Profile', '<select id="ecr-profile" onchange="estCalcResizeCompute()" style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;"><option value="Flat">Flat</option><option value="Round">Round</option></select>') +
+          _estCalcFieldHtml('Labor base $', _estCalcInput('ecr-laborbase', 'type="number" step="1" min="0" value="40"', 'estCalcResizeCompute()')) +
+          _estCalcFieldHtml('Labor / size $', _estCalcInput('ecr-laborsize', 'type="number" step="1" min="0" value="10"', 'estCalcResizeCompute()')) +
+        '</div>' +
+        '<div id="ecr-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter from/to size + gauge to calculate.</div>' +
+        '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcResizeAdd()">＋ Add to estimate</button>' +
+      '</details>');
+  }
+
+  // Stone setting (any piece with stones)
+  blocks.push(
+    '<details class="est-calc-block" style="margin-bottom:8px;">' +
+      '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">💎 Stone Setting</summary>' +
+      '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+        _estCalcFieldHtml('Setting', '<select id="ecs-setting" onchange="estCalcStoneCompute()" style="width:100%;padding:6px 8px;border:1px solid #d8cdb8;border-radius:6px;">' +
+          ['Bezel', 'Prong ×4', 'Prong ×6', 'Flush', 'Channel', 'Pavé'].map(s => '<option value="' + s + '">' + s + '</option>').join('') + '</select>') +
+        _estCalcFieldHtml('# Stones', _estCalcInput('ecs-count', 'type="number" step="1" min="1" value="1"', 'estCalcStoneCompute()')) +
+        _estCalcFieldHtml('Rate / stone $', _estCalcInput('ecs-rate', 'type="number" step="1" min="0" placeholder="auto"', 'estCalcStoneCompute()')) +
+      '</div>' +
+      '<div id="ecs-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Choose a setting to calculate.</div>' +
+      '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcStoneAdd()">＋ Add to estimate</button>' +
+    '</details>');
+
+  // Chain / pendant length (pendants + necklaces)
+  if (showChain) {
+    blocks.push(
+      '<details class="est-calc-block" open style="margin-bottom:8px;">' +
+        '<summary style="cursor:pointer;font-weight:600;font-size:13px;color:#4A3F2A;">⛓️ Chain / Pendant</summary>' +
+        '<div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;">' +
+          _estCalcFieldHtml('Length (in)', _estCalcInput('ecc-len', 'type="number" step="0.5" min="0" placeholder="18"', 'estCalcChainCompute()')) +
+          _estCalcFieldHtml('Price / in $', _estCalcInput('ecc-price', 'type="number" step="0.01" min="0" placeholder="0"', 'estCalcChainCompute()')) +
+          _estCalcFieldHtml('Findings $', _estCalcInput('ecc-find', 'type="number" step="0.01" min="0" placeholder="0"', 'estCalcChainCompute()')) +
+        '</div>' +
+        '<div id="ecc-result" style="font-size:13px;color:#2A3A46;margin:4px 0;">Enter length + price to calculate.</div>' +
+        '<button class="btn btn-ghost btn-sm eo-edit-only" onclick="estCalcChainAdd()">＋ Add to estimate</button>' +
+      '</details>');
+  }
+
+  panel.innerHTML =
+    '<div class="form-sec-label" style="margin-bottom:6px;">🧮 Calculators</div>' +
+    blocks.join('');
+
+  // Prefill metal prices from the library (async; leaves fields blank offline).
+  estCalcLoadMetalPrices().then(() => {
+    ['ecm-metal', 'ecw-metal', 'ecr-metal'].forEach(id => { if (document.getElementById(id)) estCalcMetalPrefill(id); });
+  });
+}
+
+// When a metal is picked, drop its per-ozt price into the sibling price box
+// (only if that box is empty, so a hand-typed override is never clobbered).
+function estCalcMetalPrefill(selId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const priceId = selId.replace('-metal', '-price');
+  const priceEl = document.getElementById(priceId);
+  if (!priceEl) return;
+  const prices = _estMetalPriceCache || {};
+  const p = prices[sel.value];
+  if (typeof p === 'number' && (priceEl.value === '' || priceEl.dataset.autofill === '1')) {
+    priceEl.value = p.toFixed(2);
+    priceEl.dataset.autofill = '1';
+  }
+  // Re-run whichever calculator this metal belongs to.
+  if (selId === 'ecm-metal') estCalcMetalCompute();
+  else if (selId === 'ecw-metal') estCalcWeightCompute();
+  else if (selId === 'ecr-metal') estCalcResizeCompute();
+}
+
+function _estThicknessMm(gaugeText) {
+  // Reuse the single gauge chart in js/ring-fields.js.
+  if (typeof _ringGaugeToMm === 'function') return _ringGaugeToMm(gaugeText);
+  return null;
+}
+function _estVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function _estNum(id) { return parseFloat(_estVal(id)) || 0; }
+
+// ── Ring blank → metal cost ──
+let _estCalcMetalLast = null;
+function estCalcMetalCompute() {
+  const out = document.getElementById('ecm-result');
+  if (!out || !window.EstimateCalc) return;
+  const size = _estVal('ecm-size'), gauge = _estVal('ecm-gauge');
+  const lengthMm = (typeof ringBlankLengthMm === 'function') ? ringBlankLengthMm(size, gauge, _estVal('ecm-allow')) : null;
+  const thicknessMm = _estThicknessMm(gauge);
+  if (lengthMm == null || thicknessMm == null) {
+    out.textContent = 'Enter ring size + gauge to calculate.';
+    _estCalcMetalLast = null;
+    return;
+  }
+  const metalType = _estVal('ecm-metal');
+  const r = EstimateCalc.metalCost({
+    lengthMm: lengthMm, widthMm: _estNum('ecm-width'), thicknessMm: thicknessMm,
+    profile: _estVal('ecm-profile'), metalType: metalType,
+    pricePerOzt: _estNum('ecm-price'), scrapPct: _estNum('ecm-scrap'),
+  });
+  const oztTxt = r.ozt != null ? r.ozt.toFixed(3) + ' ozt (' + r.grams.toFixed(2) + ' g)' : '—';
+  if (r.hasPrice && r.cost != null) {
+    out.innerHTML = '<strong>' + oztTxt + '</strong> → <strong>$' + r.cost.toFixed(2) + '</strong> material';
+    _estCalcMetalLast = { label: _estMetalLabel(metalType) + ' — blank ' + lengthMm.toFixed(1) + 'mm (' + r.ozt.toFixed(3) + ' ozt)', cost: r.cost };
+  } else {
+    out.innerHTML = '<strong>' + oztTxt + '</strong> — no price on file for this metal; enter Price / ozt to get a cost.';
+    _estCalcMetalLast = null;
+  }
+}
+function estCalcMetalAdd() {
+  if (!_estCalcMetalLast) { if (typeof toast === 'function') toast('Nothing to add — enter size, gauge + price first.', '⚠️'); return; }
+  addMaterialRow(_estCalcMetalLast.label, _estCalcMetalLast.cost.toFixed(2));
+}
+
+// ── Direct known-weight → cost ──
+let _estCalcWeightLast = null;
+function estCalcWeightCompute() {
+  const out = document.getElementById('ecw-result');
+  if (!out || !window.EstimateCalc) return;
+  const G = EstimateCalc.G_PER_OZT;
+  const wVal = _estNum('ecw-weight'), unit = _estVal('ecw-unit');
+  let ozt = 0;
+  if (unit === 'ozt') ozt = wVal;
+  else if (unit === 'dwt') ozt = wVal / 20;           // 20 dwt = 1 ozt
+  else ozt = wVal / G;                                 // grams
+  const price = _estNum('ecw-price');
+  const metalType = _estVal('ecw-metal');
+  if (!(wVal > 0)) { out.textContent = 'Enter a weight to calculate.'; _estCalcWeightLast = null; return; }
+  if (!(price > 0)) { out.innerHTML = '<strong>' + ozt.toFixed(3) + ' ozt</strong> — enter Price / ozt to get a cost.'; _estCalcWeightLast = null; return; }
+  const cost = ozt * price;
+  out.innerHTML = '<strong>' + ozt.toFixed(3) + ' ozt</strong> → <strong>$' + cost.toFixed(2) + '</strong> material';
+  _estCalcWeightLast = { label: _estMetalLabel(metalType) + ' — ' + ozt.toFixed(3) + ' ozt', cost: cost };
+}
+function estCalcWeightAdd() {
+  if (!_estCalcWeightLast) { if (typeof toast === 'function') toast('Enter a weight + price first.', '⚠️'); return; }
+  addMaterialRow(_estCalcWeightLast.label, _estCalcWeightLast.cost.toFixed(2));
+}
+
+// ── Ring resize ──
+let _estCalcResizeLast = null;
+function estCalcResizeCompute() {
+  const out = document.getElementById('ecr-result');
+  if (!out || !window.EstimateCalc || typeof ringBlankLengthMm !== 'function') return;
+  const from = _estVal('ecr-from'), to = _estVal('ecr-to'), gauge = _estVal('ecr-gauge');
+  const startBlank = ringBlankLengthMm(from, gauge, 0);
+  const targetBlank = ringBlankLengthMm(to, gauge, 0);
+  const thicknessMm = _estThicknessMm(gauge);
+  if (startBlank == null || targetBlank == null || thicknessMm == null) {
+    out.textContent = 'Enter from/to size + gauge to calculate.'; _estCalcResizeLast = null; return;
+  }
+  const steps = Math.abs((parseFloat(to) || 0) - (parseFloat(from) || 0));
+  const r = EstimateCalc.resizeCost({
+    startBlankMm: startBlank, targetBlankMm: targetBlank,
+    widthMm: _estNum('ecr-width'), thicknessMm: thicknessMm, profile: _estVal('ecr-profile'),
+    metalType: _estVal('ecr-metal'), pricePerOzt: _estNum('ecr-price'),
+    laborBase: _estNum('ecr-laborbase'), laborPerSize: _estNum('ecr-laborsize'), sizeSteps: steps,
+  });
+  const dir = r.direction === 'up' ? 'size up' : 'size down';
+  out.innerHTML = 'Resize ' + dir + ': ' +
+    (r.metalCost > 0 ? '$' + r.metalCost.toFixed(2) + ' metal + ' : '') +
+    '$' + r.labor.toFixed(2) + ' labor → <strong>$' + r.total.toFixed(2) + '</strong>';
+  _estCalcResizeLast = { label: 'Resize ' + from + '→' + to + ' (' + dir + ')', cost: r.total };
+}
+function estCalcResizeAdd() {
+  if (!_estCalcResizeLast) { if (typeof toast === 'function') toast('Enter from/to size + gauge first.', '⚠️'); return; }
+  addMaterialRow(_estCalcResizeLast.label, _estCalcResizeLast.cost.toFixed(2));
+}
+
+// ── Stone setting ──
+let _estCalcStoneLast = null;
+function estCalcStoneCompute() {
+  const out = document.getElementById('ecs-result');
+  if (!out || !window.EstimateCalc) return;
+  const setting = _estVal('ecs-setting');
+  const count = Math.max(1, parseInt(_estVal('ecs-count'), 10) || 1);
+  const rateOverride = _estNum('ecs-rate');
+  const rate = rateOverride > 0 ? rateOverride : EstimateCalc.stoneSettingRate(setting);
+  const cost = rate * count;
+  out.innerHTML = count + ' × ' + setting + ' @ $' + rate.toFixed(2) + ' → <strong>$' + cost.toFixed(2) + '</strong> labor';
+  _estCalcStoneLast = { label: 'Stone setting — ' + count + '× ' + setting, cost: cost };
+}
+function estCalcStoneAdd() {
+  if (!_estCalcStoneLast) estCalcStoneCompute();
+  if (!_estCalcStoneLast) return;
+  addMaterialRow(_estCalcStoneLast.label, _estCalcStoneLast.cost.toFixed(2));
+}
+
+// ── Chain / pendant ──
+let _estCalcChainLast = null;
+function estCalcChainCompute() {
+  const out = document.getElementById('ecc-result');
+  if (!out || !window.EstimateCalc) return;
+  const r = EstimateCalc.chainCost({ lengthIn: _estNum('ecc-len'), pricePerIn: _estNum('ecc-price'), findings: _estNum('ecc-find') });
+  if (!r.hasPrice && !r.findings) { out.textContent = 'Enter length + price to calculate.'; _estCalcChainLast = null; return; }
+  out.innerHTML = (r.chainCost != null ? '$' + r.chainCost.toFixed(2) + ' chain' : '') +
+    (r.findings ? ' + $' + r.findings.toFixed(2) + ' findings' : '') +
+    ' → <strong>$' + r.total.toFixed(2) + '</strong>';
+  _estCalcChainLast = { label: 'Chain ' + (_estNum('ecc-len') || '?') + '" + findings', cost: r.total };
+}
+function estCalcChainAdd() {
+  if (!_estCalcChainLast) { if (typeof toast === 'function') toast('Enter chain length + price first.', '⚠️'); return; }
+  addMaterialRow(_estCalcChainLast.label, _estCalcChainLast.cost.toFixed(2));
+}
+
+function _estMetalLabel(metalType) {
+  const found = EST_METAL_OPTIONS.find(o => o[0] === metalType);
+  return found ? found[1] : (metalType || 'Metal');
+}
+
+// Initial render so the panel is populated wherever #est-calc-panel exists
+// (desktop modal — re-rendered with real context when it opens; intake Step 3
+// — where estSetItemType from the Piece Type change keeps it current). Safe to
+// run against a hidden modal.
+function _estCalcInit() { if (document.getElementById('est-calc-panel')) estCalcRender(); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _estCalcInit);
+else _estCalcInit();

@@ -261,14 +261,18 @@ function eoApplyOrderTypeModule(type) {
   });
   const isDesign = _eoOrderTypeModule === 'design';
   const isSquare = _eoOrderTypeModule === 'square';
-  // The Design module bucket also covers Etsy/Website orders, but the
-  // Estimate Builder is Custom Order only — everything else (Repair,
-  // Resize, Square Item, Etsy, Website) prices via manual Order Items.
+  // The category-first Estimate Builder now prices Custom Order, Repair AND
+  // Resize (each surfaces the calculators for its branch). Square/Etsy/Website
+  // stay on the manual Order Items repeater — they're externally-priced.
+  // (Etsy/Website fall in the Design module bucket but are not custom orders.)
   const isCustomOrder = type === 'order';
+  const usesEstimate  = isCustomOrder || type === 'repair' || type === 'resize';
   const oiGrid = document.getElementById('oi-section') && document.getElementById('oi-section').closest('.form-grid');
-  if (oiGrid) oiGrid.style.display = (isCustomOrder || isSquare) ? 'none' : '';
+  if (oiGrid) oiGrid.style.display = (usesEstimate || isSquare) ? 'none' : '';
   const estModule = document.getElementById('eo-estimate-module');
-  if (estModule) estModule.style.display = isCustomOrder ? '' : 'none';
+  if (estModule) estModule.style.display = usesEstimate ? '' : 'none';
+  // Tell the Estimate Builder's calculators which branch they're pricing.
+  if (typeof estSetContext === 'function') estSetContext(type);
   if (isSquare) {
     _jdMode = 'square';
     if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
