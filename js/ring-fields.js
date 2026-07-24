@@ -133,6 +133,9 @@ let _intakeRings = [_intakeBlankRing()];
 // have a bottom parameter sheet (intake.html) re-render it after calling
 // this — that's page-specific and lives in the caller, not here.
 function ringFieldsApplyPieceType(pieceType) {
+  // Feed the item type into the Estimate Builder's category-first calculators
+  // (js/order-widgets.js) so the right tools (ring blank, chain, …) surface.
+  if (typeof estSetItemType === 'function') estSetItemType(pieceType);
   const isRing = pieceType === 'Ring';
   const countFg = document.getElementById('ring-count-fg');
   const dynWrap = document.getElementById('rings-dynamic-wrap');

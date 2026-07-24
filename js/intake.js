@@ -1899,7 +1899,16 @@ function _estReadDom() {
     const desc = inputs[0]?.value.trim() || '';
     const cost = estCostBase(inputs[1]);   // raw, pre-markup
     matTotal += cost;
-    if (desc || cost) rows.push({ desc, cost });
+    if (desc || cost) {
+      // Carry each row's calculator provenance through the variant snapshot so
+      // switching Option A/B/C doesn't strip the badge / re-price metadata.
+      const r = { desc, cost };
+      if (row.dataset.source && row.dataset.source !== 'manual') {
+        r.meta = { source: row.dataset.source, kind: row.dataset.kind || 'material' };
+        if (row.dataset.calc) { try { r.meta.calcInputs = JSON.parse(row.dataset.calc); } catch (e) {} }
+      }
+      rows.push(r);
+    }
   });
   const labor    = parseFloat(document.getElementById('est-labor')?.value) || 0;
   const shipping = parseFloat(document.getElementById('est-shipping')?.value) || 0;
@@ -1979,7 +1988,7 @@ function estStateApply(s) {
   if (taxEl) taxEl.checked = !!s.taxOn;
   _estAdj = s.adjustment || 0;
   setMultiplier(s.multiplier || 2.5);
-  if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : ''));
+  if (s.rows.length) s.rows.forEach(r => addMaterialRow(r.desc, r.cost ? String(r.cost) : '', '', r.meta || null));
   else addMaterialRow();
 }
 

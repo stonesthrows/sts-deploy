@@ -261,14 +261,18 @@ function eoApplyOrderTypeModule(type) {
   });
   const isDesign = _eoOrderTypeModule === 'design';
   const isSquare = _eoOrderTypeModule === 'square';
-  // The Design module bucket also covers Etsy/Website orders, but the
-  // Estimate Builder is Custom Order only — everything else (Repair,
-  // Resize, Square Item, Etsy, Website) prices via manual Order Items.
+  // The category-first Estimate Builder now prices Custom Order, Repair AND
+  // Resize (each surfaces the calculators for its branch). Square/Etsy/Website
+  // stay on the manual Order Items repeater — they're externally-priced.
+  // (Etsy/Website fall in the Design module bucket but are not custom orders.)
   const isCustomOrder = type === 'order';
+  const usesEstimate  = isCustomOrder || type === 'repair' || type === 'resize';
   const oiGrid = document.getElementById('oi-section') && document.getElementById('oi-section').closest('.form-grid');
-  if (oiGrid) oiGrid.style.display = (isCustomOrder || isSquare) ? 'none' : '';
+  if (oiGrid) oiGrid.style.display = (usesEstimate || isSquare) ? 'none' : '';
   const estModule = document.getElementById('eo-estimate-module');
-  if (estModule) estModule.style.display = isCustomOrder ? '' : 'none';
+  if (estModule) estModule.style.display = usesEstimate ? '' : 'none';
+  // Tell the Estimate Builder's calculators which branch they're pricing.
+  if (typeof estSetContext === 'function') estSetContext(type);
   if (isSquare) {
     _jdMode = 'square';
     if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
@@ -1247,6 +1251,11 @@ function saveOrderEdit() {
       taxOn:      document.getElementById('est-tax-toggle')?.checked || false,
       multiplier: estMultiplier,
       adjustment: parseFloat(document.getElementById('est-adjustment')?.value) || 0,
+      // Category-first branch + structured line items (parallel to o.materials),
+      // same shape saveEstimateToNotion writes so both save paths agree.
+      category:   document.getElementById('f-order-type')?.value || 'order',
+      itemType:   document.getElementById('f-piece-type')?.value || '',
+      lines:      (typeof estCollectLines === 'function') ? estCollectLines() : [],
     };
     // Materials Cost($) rows live in #est-materials, separate from the
     // f-materials textarea read above — without this, a plain Save Changes
