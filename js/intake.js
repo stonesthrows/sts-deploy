@@ -1241,13 +1241,18 @@ async function intakeSubmit() {
     // breakdown ride along (small text, safe for the Notion "App Data" JSON
     // property); images don't — they're far too large for that property
     // and stay in the approval KV record / emailed link only.
+    // Falls back to whatever was already on the order when Compare mode
+    // wasn't touched this session — intakeLoadOrderForEdit() never rehydrates
+    // _estVariants (there's no reload path for it yet), so on a plain edit
+    // this would otherwise always compute [] and wipe out an earlier session's
+    // declined-tier list.
     estimateAlternatives: (_estVariants && _estVariants.length > 1)
       ? _estVariants.map((v, i) => {
           const f = _apOptionFinancials(v);
           return { label: v.label, total: Math.round(_estStateTotal(v) * 100) / 100,
                     crowned: i === _estCrowned, notes: v.notes || '', lines: f.lines };
         }).filter(v => !v.crowned)
-      : [],
+      : (_editingOrder && _editingOrder.estimateAlternatives) || [],
     repairNotes:   repairNotes,
     resizeFrom:    resizeFrom,
     resizeTo:      resizeTo,
@@ -1282,7 +1287,7 @@ async function intakeSubmit() {
     // remaining image keys (sketch/signature/paper) have no reload path
     // yet, so they stay here to avoid a blank canvas wiping stored data.
     ['sensitivities', 'ringSizes', 'styleProfile', 'gift', 'stones',
-     'estimateAlternatives', 'sketchImg', 'sketchInkImg', 'signatureImg',
+     'sketchImg', 'sketchInkImg', 'signatureImg',
      'paperPageImg', 'trackingNumber', 'trackingCarrier',
      'contactMethod'].forEach(k => { merged[k] = _editingOrder[k]; });
     merged.id        = _editingOrder.id;
