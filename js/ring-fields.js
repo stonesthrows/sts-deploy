@@ -272,6 +272,18 @@ function intakeSetRingCategory(i, category) {
   intakeRenderRingBlocks();
 }
 
+// Tricolor spinners only ever come as a set of 3, so switching a ring's
+// Style of Spinner Ring to Tricolor locks Number of Spinners to '3' — same
+// snapshot-then-rerender pattern as intakeSetRingCategory above.
+function intakeSetRingSpinnerStyle(i, style) {
+  _intakeRings = _intakeCollectRingsFromDom();
+  if (_intakeRings[i]) {
+    _intakeRings[i].medSpinnerStyle = style;
+    if (style === 'Tricolor') _intakeRings[i].medSpinners = '3';
+  }
+  intakeRenderRingBlocks();
+}
+
 // Renders a preview of the ring blocks as the user types, WITHOUT writing
 // back into #f-ring-count itself — doing that mid-edit (e.g. while the
 // field is briefly empty from clearing it to type a new number) fights the
@@ -317,6 +329,9 @@ function _intakeSelectHtml(id, options, current) {
 function _intakeRingCategoryFieldsHtml(i, r) {
   const esc = v => String(v || '').replace(/"/g, '&quot;');
   if (r.category === 'Meditation Ring') {
+    const isTricolor = r.medSpinnerStyle === 'Tricolor';
+    const spinnerOptions = isTricolor ? ['3'] : ['1', '2', '3'];
+    const spinnerValue = isTricolor ? '3' : r.medSpinners;
     return `
       <div class="fg">
         <label>Width of Ring</label>
@@ -324,15 +339,20 @@ function _intakeRingCategoryFieldsHtml(i, r) {
       </div>
       <div class="fg">
         <label>Texture</label>
-        ${_intakeSelectHtml('f-ring-medtexture-' + i, ['Bodhi Leaf', 'Round Hammer'], r.medTexture)}
-      </div>
-      <div class="fg">
-        <label>Number of Spinners</label>
-        ${_intakeSelectHtml('f-ring-medspinners-' + i, ['1', '2', '3'], r.medSpinners)}
+        ${_intakeSelectHtml('f-ring-medtexture-' + i, ['Bodhi Leaf', 'Round Hammer', 'Cheese Cloth'], r.medTexture)}
       </div>
       <div class="fg">
         <label>Style of Spinner Ring</label>
-        ${_intakeSelectHtml('f-ring-medspinnerstyle-' + i, ['Leaf', 'Orbit Tricolor'], r.medSpinnerStyle)}
+        <select id="f-ring-medspinnerstyle-${i}" onchange="intakeSetRingSpinnerStyle(${i}, this.value)">
+          <option value="">— Select —</option>
+          <option value="Leaf" ${r.medSpinnerStyle === 'Leaf' ? 'selected' : ''}>Leaf</option>
+          <option value="Orbit" ${r.medSpinnerStyle === 'Orbit' ? 'selected' : ''}>Orbit</option>
+          <option value="Tricolor" ${r.medSpinnerStyle === 'Tricolor' ? 'selected' : ''}>Tricolor</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Number of Spinners</label>
+        ${_intakeSelectHtml('f-ring-medspinners-' + i, spinnerOptions, spinnerValue)}
       </div>
       <div class="fg">
         <label>Ring Size</label>
