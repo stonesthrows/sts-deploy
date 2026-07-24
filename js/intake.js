@@ -1179,19 +1179,30 @@ async function intakeSubmit() {
   const s1          = (typeof intakeSection1Collect === 'function') ? intakeSection1Collect() : null;
   const giftLine    = (typeof intakeSection1NotesLine === 'function') ? intakeSection1NotesLine(s1) : '';
 
+  // Stable order id, computed up front so Compare option images can be keyed
+  // by it in R2 before the order object is built (edits reuse the existing id).
+  const orderId = (_editingOrder && _editingOrder.id) || ('u' + Date.now());
+
   // Compare mode: refresh the active variant from the live estimate DOM (the
-  // user may have edited rows after last switching), then serialize the full
-  // set so the builder can be rebuilt on reopen. Images are dropped here —
-  // they'd blow the Notion App Data cap and already live in the approval
-  // record; the per-option gallery re-attaches on send, not on reload.
+  // user may have edited rows after last switching), upload its per-option
+  // images to R2, then serialize the full set so the builder can be rebuilt
+  // on reopen. The dataURLs themselves are kept locally on the order
+  // (optionImages, below) for instant/offline same-device reopen; the App
+  // Data snapshot carries only small R2 keys (base64 would blow the cap).
   if (_estVariants && _estVariants.length > 1) {
     _estVariants[_estActive] = estStateCapture(
       _estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
+    await _uploadEstVariantImages(orderId);   // best-effort; attaches v._imageKeys
   }
   const estVariantsSnapshot = _serializeEstVariants();
+  // Per-option image dataURLs, kept local (NOT in APP_DATA_FIELDS) like
+  // refPhotos/approvalImgs — restored directly on same-device reopen.
+  const optionImagesSnapshot = (_estVariants && _estVariants.length > 1)
+    ? _estVariants.map(v => [...(v.images || [])])
+    : (_estVariantsTouched ? [] : ((_editingOrder && _editingOrder.optionImages) || []));
 
   const order = {
-    id:        'u' + Date.now(),
+    id:        orderId,
     name:      name,
     jobDesc:   orderName,
     jobDescMode: _jdMode,
@@ -1305,6 +1316,10 @@ async function intakeSubmit() {
     // snapshot rather than wiping it (mirrors estimateAlternatives).
     estVariants:   estVariantsSnapshot !== undefined ? estVariantsSnapshot
                    : (_editingOrder && _editingOrder.estVariants) || null,
+    // Local-only per-option image dataURLs (parallel to estVariants). Stays
+    // out of Notion App Data — the R2 keys inside estVariants carry it
+    // cross-device; this is the instant/offline same-device copy.
+    optionImages:  optionImagesSnapshot,
   };
 
   const isEdit = !!(_editingOrder && _editingOrder.id);
@@ -2128,10 +2143,77 @@ function _serializeEstVariants() {
         multiplier: Number(v.multiplier) || 2.5,
         adjustment: Number(v.adjustment) || 0,
         notes:      v.notes || '',
+        // R2 object keys for this option's images (populated by
+        // _uploadEstVariantImages) — small text, safe for Notion App Data,
+        // and what lets another device fetch the photos back.
+        imageKeys:  Array.isArray(v._imageKeys) ? v._imageKeys : [],
       })),
     };
   }
   return _estVariantsTouched ? null : undefined;
+}
+
+// Upload each Compare option's image dataURLs to R2 (/api/images) under
+// deterministic keys, stashing the keys on v._imageKeys for _serializeEstVariants.
+// Best-effort: a failed upload just leaves that option's keys short — the local
+// optionImages copy still round-trips the photo on the same device. Already-key
+// strings (from a cross-device rehydrate) are kept as-is, not re-uploaded.
+async function _uploadEstVariantImages(orderId) {
+  if (!orderId || !_estVariants || _estVariants.length < 2) return;
+  for (let i = 0; i < _estVariants.length; i++) {
+    const imgs = _estVariants[i].images || [];
+    const keys = [];
+    for (let j = 0; j < imgs.length; j++) {
+      const src = imgs[j];
+      if (typeof src !== 'string') continue;
+      if (src.startsWith('orders/')) { keys.push(src); continue; }   // already an R2 key
+      const m = /^data:(image\/[a-z0-9+.-]+);base64,/i.exec(src);
+      if (!m) continue;
+      const ext = /png/i.test(m[1]) ? 'png' : /webp/i.test(m[1]) ? 'webp' : 'jpg';
+      const key = 'orders/' + orderId + '/opt-' + i + '-img-' + j + '.' + ext;
+      try {
+        const blob = await (await fetch(src)).blob();
+        const r = await fetch('/api/images?key=' + encodeURIComponent(key), {
+          method: 'PUT', headers: { 'Content-Type': blob.type || 'image/jpeg' }, body: blob });
+        if (r.ok) keys.push(key);
+      } catch (e) { /* best-effort — local dataURL still saved on the order */ }
+    }
+    _estVariants[i]._imageKeys = keys;
+  }
+}
+
+// Cross-device backfill: stream every option's images back from R2 by key →
+// dataURLs → _estVariants[i].images, re-rendering the chips as they arrive. Used
+// on reopen where the local optionImages copy is absent. Writes back by INDEX
+// (not a captured object reference) because intakeEstRenderVariants() replaces
+// the active variant object via estStateCapture — a held reference would be
+// orphaned mid-fetch, silently dropping that option's images. Sequential so the
+// re-renders between options can't race each other. Keeps the in-memory format
+// as dataURLs so chip thumbnails and the approval-send path work unchanged.
+async function _backfillOptionImagesFromR2(keysByOption) {
+  for (let i = 0; i < keysByOption.length; i++) {
+    const keys = keysByOption[i] || [];
+    if (!keys.length) continue;
+    const out = [];
+    for (const key of keys) {
+      try {
+        const r = await fetch('/api/images?key=' + encodeURIComponent(key));
+        if (!r.ok) continue;
+        const blob = await r.blob();
+        if (!/^image\//.test(blob.type || '')) continue;
+        out.push(await new Promise((res, rej) => {
+          const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob);
+        }));
+      } catch (e) { /* skip a missing key */ }
+    }
+    // Re-check the slot still exists and is still empty (user may have edited
+    // the compare set while the fetch was in flight — don't clobber that).
+    if (out.length && _estVariants && _estVariants[i] && !(_estVariants[i].images || []).length) {
+      _estVariants[i].images = out;
+      if (typeof intakeEstRenderVariants === 'function') intakeEstRenderVariants();
+      if (typeof intakeRenderApproval === 'function') intakeRenderApproval();
+    }
+  }
 }
 
 // The reload path _estVariants never had: rebuild the compare version chips
@@ -2141,22 +2223,33 @@ function _serializeEstVariants() {
 function intakeRehydrateEstVariants(order) {
   const ev = order && order.estVariants;
   if (!ev || !Array.isArray(ev.variants) || ev.variants.length < 2) return;
-  _estVariants = ev.variants.map(v => ({
-    label:      v.label || 'Option',
-    rows:       Array.isArray(v.rows) ? v.rows.map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })) : [],
-    labor:      Number(v.labor) || 0,
-    shipping:   Number(v.shipping) || 0,
-    taxOn:      !!v.taxOn,
-    multiplier: Number(v.multiplier) || 2.5,
-    adjustment: Number(v.adjustment) || 0,
-    images:     [],   // per-option images aren't persisted on the order yet
-    notes:      v.notes || '',
-  }));
+  const localImgs = Array.isArray(order.optionImages) ? order.optionImages : [];
+  _estVariants = ev.variants.map((v, i) => {
+    // Same-device: dataURLs saved locally on the order. Cross-device: absent,
+    // so seed empty and stream them back from R2 by key (below).
+    const local = Array.isArray(localImgs[i]) ? localImgs[i].filter(s => typeof s === 'string' && s.startsWith('data:')) : [];
+    return {
+      label:      v.label || 'Option',
+      rows:       Array.isArray(v.rows) ? v.rows.map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })) : [],
+      labor:      Number(v.labor) || 0,
+      shipping:   Number(v.shipping) || 0,
+      taxOn:      !!v.taxOn,
+      multiplier: Number(v.multiplier) || 2.5,
+      adjustment: Number(v.adjustment) || 0,
+      images:     local,
+      notes:      v.notes || '',
+    };
+  });
   _estCrowned = (Number.isInteger(ev.crowned) && ev.crowned >= 0 && ev.crowned < _estVariants.length) ? ev.crowned : 0;
   _estActive  = (Number.isInteger(ev.active)  && ev.active  >= 0 && ev.active  < _estVariants.length) ? ev.active  : _estCrowned;
   _estVariantsTouched = true;
   estStateApply(_estVariants[_estActive]);
   intakeEstRenderVariants();
+  // Cross-device backfill: options with no local dataURLs but R2 keys on the
+  // snapshot get their images streamed back (index-safe, sequential).
+  const keysByOption = _estVariants.map((variant, i) =>
+    (!variant.images.length && ev.variants[i] && Array.isArray(ev.variants[i].imageKeys)) ? ev.variants[i].imageKeys : []);
+  if (keysByOption.some(k => k.length)) _backfillOptionImagesFromR2(keysByOption);
 }
 
 // ── 2.3 Reference-photo underlay ──────────────────────────────
