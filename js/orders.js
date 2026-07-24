@@ -328,6 +328,17 @@ function eoPopulateFields(o) {
   } finally {
   _estPopulating = false;
   }
+  eoUpdateCompleteButtons(o);
+}
+
+// Swaps "Mark Complete" for "Undo Complete" in the footer once an order has
+// actually been completed — Undo only ever makes sense from that state.
+function eoUpdateCompleteButtons(o) {
+  const isComplete  = o.stage === 'complete';
+  const btnComplete = document.getElementById('eo-btn-complete');
+  const btnUndo     = document.getElementById('eo-btn-undo-complete');
+  if (btnComplete) btnComplete.style.display = isComplete ? 'none' : '';
+  if (btnUndo)      btnUndo.style.display     = isComplete ? '' : 'none';
 }
 
 // Seeds the shared ring-fields engine (js/ring-fields.js) from an order
@@ -1032,6 +1043,7 @@ function markOrderComplete() {
 
   const finalPrice = parseFloat(priceInput) || o.price || 0;
 
+  o.preCompleteStage = o.stage;
   o.stage       = 'complete';
   o.finalPrice  = finalPrice;
   o.completedAt = new Date().toISOString();
@@ -1056,6 +1068,41 @@ function markOrderComplete() {
 
   saveToStorage();
   toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
+}
+
+// Reverses markOrderComplete — restores the stage the order was in right
+// before it was completed, and purges it from the sticky completed
+// registry (see markOrderComplete) so a background Notion sync doesn't
+// silently flip it back to 'complete'.
+function undoOrderComplete() {
+  const id = document.getElementById('f-editing-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  if (!o || o.stage !== 'complete') return;
+
+  const restoreStage = o.preCompleteStage || 'ready-pick';
+  const restoreLabel = (STAGES.find(s => s.id === restoreStage) || {}).label || restoreStage;
+  if (!confirm(`Undo Complete for "${o.name}"?\nIt will move back to "${restoreLabel}".`)) return;
+
+  o.stage = restoreStage;
+  delete o.preCompleteStage;
+  delete o.completedAt;
+  delete o.finalPrice;
+  completedHidden.delete(o.id);
+
+  try {
+    const reg = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]');
+    const filtered = reg.filter(r => r.id !== o.id && !(o.notionId && r.notionId === o.notionId));
+    localStorage.setItem('sts-completed-registry', JSON.stringify(filtered));
+  } catch(e) {}
+
+  updateCompletedToggle();
+  renderKanban();
+  closeEditOrderModal();
+
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
+
+  saveToStorage();
+  toast(`${o.name} reopened — back to "${restoreLabel}"`, '↩');
 }
 
 function markOrderCancelled() {

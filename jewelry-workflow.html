@@ -1084,7 +1084,8 @@
       <button class="btn btn-outline btn-sm" onclick="eoShowInvoice()">📋 Invoice</button>
       <button class="btn btn-outline btn-sm" onclick="printOrder(document.getElementById('f-editing-id').value)">🖨 Print</button>
       <div style="flex:1"></div>
-      <button class="btn btn-danger btn-sm" onclick="markOrderComplete()">✓ Mark Complete</button>
+      <button class="btn btn-danger btn-sm" id="eo-btn-complete" onclick="markOrderComplete()">✓ Mark Complete</button>
+      <button class="btn btn-outline btn-sm" id="eo-btn-undo-complete" style="display:none;" onclick="undoOrderComplete()">↩ Undo Complete</button>
       <button class="btn btn-cancel btn-sm" onclick="markOrderCancelled()">🚫 Cancel Order</button>
       <button class="btn btn-delete btn-sm" onclick="deleteOrder()">🗑 Delete</button>
     </div>
@@ -3499,7 +3500,7 @@
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260722d"></script>
 <script src="js/ring-fields.js?v=6"></script>
-<script src="js/orders.js?v=20260723a"></script>
+<script src="js/orders.js?v=20260724a"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
