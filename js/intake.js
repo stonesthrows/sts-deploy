@@ -447,6 +447,20 @@ function _intakeEstMaterialLines() {
 window._intakeApproval = window._intakeApproval || null;
 let _apLink = '';
 
+// Send-to toggle — defaults to a test email (to Kyle) every time Step 4 is
+// shown, so a fumbled send never reaches a real customer. Reset in
+// intakeRenderApproval(); flipped only by an explicit tap on "Customer's email".
+const AP_TEST_EMAIL = 'morphius1@gmail.com';
+let _apTestMode = true;
+
+function apSetRecipientMode(isTest) {
+  _apTestMode = isTest;
+  const testBtn = document.getElementById('ap-recipient-test');
+  const custBtn = document.getElementById('ap-recipient-customer');
+  if (testBtn) testBtn.className = 'btn ' + (isTest ? 'btn-gold' : 'btn-outline');
+  if (custBtn) custBtn.className = 'btn ' + (!isTest ? 'btn-gold' : 'btn-outline');
+}
+
 function _apMoney(n) { return '$' + (Number(n) || 0).toFixed(2); }
 function _apNum(s) { return parseFloat(String(s == null ? '' : s).replace(/[^0-9.\-]/g, '')) || 0; }
 function _apEsc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
@@ -658,6 +672,7 @@ async function apLoadApprovalFromNotion(order) {
 // approval's live status from KV.
 function intakeRenderApproval() {
   const g = id => document.getElementById(id);
+  apSetRecipientMode(true);   // default to test email every time this step is shown
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
   const compareOn = _estVariants && _estVariants.length > 1;
@@ -920,12 +935,13 @@ async function sendForApproval() {
   try {
     const sr = await fetch('/api/send-approval', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, test: _apTestMode }),
     });
     const sd = await sr.json().catch(() => ({}));
     if (sr.ok) {
-      if (status) status.textContent = '✓ Emailed to ' + email + ' — Save & Close to keep it on the order';
-      toast('Estimate emailed to ' + email, '✅');
+      const sentTo = sd.to || email;
+      if (status) status.textContent = '✓ Emailed to ' + sentTo + (_apTestMode ? ' (test)' : '') + ' — Save & Close to keep it on the order';
+      toast('Estimate emailed to ' + sentTo + (_apTestMode ? ' (test)' : ''), '✅');
     } else if (sd.error === 'email-not-configured') {
       if (status) status.textContent = '🔗 Link ready — email setup pending. Use “Copy link”.';
       toast('Link ready — copy it to send (email not set up yet)', '🔗', 6000);

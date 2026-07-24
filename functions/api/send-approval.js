@@ -7,10 +7,11 @@
 //  the hosted approval page — server-side, via Gmail, from Kyle's real
 //  address so the thread lives in his inbox.
 //
-//  Request:  { token }
-//  The recipient + content come from the KV record, NOT the request, so
-//  this public endpoint can only ever mail the address already on file for
-//  an (unguessable) token — it can't be used to send arbitrary mail.
+//  Request:  { token, test? }
+//  The recipient + content come from the KV record (or, when test is true,
+//  a hardcoded internal test address), NOT the request, so this public
+//  endpoint can only ever mail the address on file for an (unguessable)
+//  token or Kyle's own test inbox — never an arbitrary address.
 //
 //  One-time setup (Cloudflare Pages env vars) — until these are set the
 //  endpoint returns 503 and the caller falls back to copy/share the link:
@@ -37,6 +38,17 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 const money = (n) => '$' + (Number(n) || 0).toFixed(2);
+
+// First name only, for the email greeting — "Hi Amanda" reads friendlier
+// than "Hi Amanda Short" and matches how Kyle actually talks to customers.
+function firstName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || 'there';
+}
+
+// Test-send target for the intake app's "Send to" toggle — hardcoded here
+// (not taken from the request) so this public, token-only endpoint can
+// never be used to mail an arbitrary address.
+const TEST_EMAIL = 'morphius1@gmail.com';
 
 // Base64url encode a UTF-8 string for the Gmail raw payload.
 function b64url(str) {
@@ -140,7 +152,7 @@ function buildHtml(rec, link) {
    <div style="background:#FAFAF9;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #E4E2DD">
     <div style="max-width:560px;margin:0 auto;color:#2b3648">
     <h2 style="color:#4E7A94;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
-    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(rec.customerName || 'there')}, ${intro}</p>
+    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(firstName(rec.customerName))}, ${intro}</p>
     ${title}
     ${gallery}
     ${estimate}
@@ -171,17 +183,20 @@ export async function onRequestPost(context) {
   let body; try { body = await context.request.json(); } catch (e) { return json({ error: 'Bad JSON' }, 400); }
   const token = String(body.token || '').trim();
   if (!token) return json({ error: 'Missing token' }, 400);
+  const testMode = !!body.test;
 
   const raw = await kv.get(`approval:${token}`);
   if (!raw) return json({ error: 'Not found' }, 404);
   let rec; try { rec = JSON.parse(raw); } catch (e) { return json({ error: 'Corrupt record' }, 500); }
 
-  const to = (rec.customerEmail || '').trim();
+  // Test mode always wins and never touches the customer's address on file —
+  // it's purely which mailbox this send lands in.
+  const to = testMode ? TEST_EMAIL : (rec.customerEmail || '').trim();
   if (!to) return json({ error: 'No customer email on file for this estimate' }, 400);
 
   const link = new URL(context.request.url).origin + '/approval?token=' + encodeURIComponent(token);
   const sender = env.GMAIL_SENDER || 'kyle@stonesthrowjewelry.com';
-  const subject = 'Your custom estimate from Stones Throw Studio';
+  const subject = (testMode ? '[TEST] ' : '') + 'Your custom estimate from Stones Throw Studio';
 
   // RFC 2822 message with an HTML body.
   const mime = [

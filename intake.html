@@ -1534,6 +1534,15 @@
           <input type="email" id="f-approval-email" placeholder="name@example.com" autocomplete="off">
         </div>
 
+        <!-- Send-to toggle — defaults to test so a fumbled send never reaches the customer -->
+        <div class="fg mt-3">
+          <label>Send to</label>
+          <div class="flex gap-2">
+            <button type="button" class="btn btn-gold" id="ap-recipient-test" onclick="apSetRecipientMode(true)">✉ Test email to me</button>
+            <button type="button" class="btn btn-outline" id="ap-recipient-customer" onclick="apSetRecipientMode(false)">Customer's email</button>
+          </div>
+        </div>
+
         <div class="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="sendForApproval()">✉ Send for Approval</button>
           <button type="button" class="btn btn-ghost hidden" id="ap-copy-btn" onclick="apCopyLink()">🔗 Copy link</button>
