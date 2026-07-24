@@ -447,28 +447,31 @@ function _intakeEstMaterialLines() {
 window._intakeApproval = window._intakeApproval || null;
 let _apLink = '';
 
-// Send-to-customer confirmation chip — appears anchored under the email
-// field the moment it holds a plausible address, so committing to a real
-// send happens right where the address is set rather than via a separate
-// toggle. Tapping the chip calls sendForApproval() directly. A small
-// separate "send a test copy to me" link (near the main Send button) still
-// covers pre-send sanity checks, routed through /api/send-approval's
-// existing `test` flag → Kyle's inbox, never the request body's address.
-function apUpdateSendChip() {
+// Send-for-Approval confirmation chip — tapping the "Send for Approval"
+// button surfaces a "Send estimate to <email>?" chip over the button
+// instead of sending right away; tapping the chip is what actually calls
+// sendForApproval(). Closed by tapping outside (see the pointerdown
+// listener near intakeSyncPopClose()). A small separate "send a test copy
+// to me" link (next to the button) still covers pre-send sanity checks,
+// routed through /api/send-approval's existing `test` flag → Kyle's inbox,
+// never the request body's address.
+function apShowSendChip() {
   const g = id => document.getElementById(id);
   const email = (g('f-approval-email')?.value || '').trim();
-  const chip = g('ap-send-chip');
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast('Add a valid customer email first', '⚠');
+    g('f-approval-email')?.focus();
+    return;
+  }
   const label = g('ap-send-chip-email');
-  if (!chip) return;
-  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  if (valid && label) label.textContent = email;
-  chip.classList.toggle('hidden', !valid);
+  if (label) label.textContent = email;
+  g('ap-send-chip')?.classList.remove('hidden');
 }
-function apHideSendChipDelayed() {
-  setTimeout(() => document.getElementById('ap-send-chip')?.classList.add('hidden'), 150);
+function apHideSendChip() {
+  document.getElementById('ap-send-chip')?.classList.add('hidden');
 }
 function apConfirmSendToCustomer() {
-  document.getElementById('ap-send-chip')?.classList.add('hidden');
+  apHideSendChip();
   sendForApproval(false);
 }
 
@@ -685,7 +688,7 @@ function intakeRenderApproval() {
   const g = id => document.getElementById(id);
   const emailEl = g('f-approval-email');
   if (emailEl && !emailEl.value.trim()) emailEl.value = (g('f-email')?.value || '').trim();
-  apUpdateSendChip();
+  apHideSendChip();
   const compareOn = _estVariants && _estVariants.length > 1;
 
   // Prefill note from earlier step if still blank — single-option only;
@@ -1945,6 +1948,15 @@ document.addEventListener('pointerdown', e => {
   if (pop && pop.classList.contains('open')
       && !e.target.closest('#sync-pop') && !e.target.closest('#intake-unsynced')) {
     intakeSyncPopClose();
+  }
+});
+
+// Close the Send-for-Approval confirmation chip on any outside tap.
+document.addEventListener('pointerdown', e => {
+  const chip = document.getElementById('ap-send-chip');
+  if (chip && !chip.classList.contains('hidden')
+      && !e.target.closest('#ap-send-chip') && !e.target.closest('#ap-send-btn')) {
+    apHideSendChip();
   }
 });
 window.addEventListener('offline', () => intakeUpdateUnsynced());

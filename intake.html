@@ -1528,23 +1528,22 @@
           <textarea id="f-approval-note" placeholder="e.g. Here's the estimate for your ring — let me know if the stone size looks right…" oninput="if (_estVariants && _estVariants.length > 1) _estVariants[_apActiveOpt].notes = this.value;"></textarea>
         </div>
 
-        <!-- Recipient — tapping in surfaces a chip confirming the send, right
-             at the point where the address is set (replaces the old test/
-             customer toggle below the field). -->
-        <div class="fg mt-3" style="max-width:340px;position:relative;">
+        <!-- Recipient -->
+        <div class="fg mt-3" style="max-width:340px;">
           <label>Customer email</label>
-          <input type="email" id="f-approval-email" placeholder="name@example.com" autocomplete="off"
-                 onfocus="apUpdateSendChip()" oninput="apUpdateSendChip()" onblur="apHideSendChipDelayed()">
-          <div id="ap-send-chip" class="hidden" style="position:absolute; top:100%; left:0; margin-top:8px; z-index:20;">
+          <input type="email" id="f-approval-email" placeholder="name@example.com" autocomplete="off">
+        </div>
+
+        <!-- Send-for-Approval confirms via a chip that appears over the
+             button itself once tapped, rather than sending straight away. -->
+        <div class="mt-4 flex flex-wrap items-center gap-2" style="position:relative;">
+          <div id="ap-send-chip" class="hidden" style="position:absolute; bottom:100%; left:0; margin-bottom:8px; z-index:20;">
             <button type="button" class="btn btn-gold" style="white-space:nowrap; box-shadow:0 8px 22px rgba(0,0,0,0.20);"
-                    onmousedown="event.preventDefault()" onclick="apConfirmSendToCustomer()">
+                    onclick="apConfirmSendToCustomer()">
               ✉ Send estimate to <span id="ap-send-chip-email"></span>?
             </button>
           </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="sendForApproval()">✉ Send for Approval</button>
+          <button type="button" class="btn btn-gold" id="ap-send-btn" onclick="apShowSendChip()">✉ Send for Approval</button>
           <button type="button" class="btn btn-ghost hidden" id="ap-copy-btn" onclick="apCopyLink()">🔗 Copy link</button>
           <button type="button" class="text-[12px] text-slate-400 underline decoration-dotted decoration-slate-300 underline-offset-2" id="ap-test-link" onclick="sendForApproval(true)">Send a test copy to me instead</button>
           <span id="ap-status" style="margin-left:auto;font-size:13px;color:var(--accent);"></span>
@@ -1733,7 +1732,7 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=36"></script>
+<script src="js/intake.js?v=37"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>
