@@ -111,6 +111,11 @@ function notionHdrs(token) {
 const APP_DATA_FIELDS = [
   'sensitivities', 'ringSizes', 'wrist', 'neck', 'styleProfile', 'gift',
   'stones', 'estimateAlternatives', 'estimate',
+  // Full Compare-mode snapshot (all estimate options, no images — see
+  // intakeSubmit/_serializeEstVariants). Small text, so it's safe here; it's
+  // what lets the intake estimate builder rebuild its version chips on reopen
+  // and on another device.
+  'estVariants',
   'items', 'jobDescMode', 'fullyPaid', 'shipping',
   'orderFor', 'ringSize2', 'stamping', 'stamping2',
   // Estimate-approval pointer (token + status + customer response). The

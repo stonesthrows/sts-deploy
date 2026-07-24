@@ -1106,6 +1106,9 @@ function intakePopulateFromOrder(o) {
   if (typeof toggleShippingAddress === 'function') toggleShippingAddress();
 
   if (typeVal === 'order' && typeof populateEstimateFromOrder === 'function') populateEstimateFromOrder(o);
+  // Rebuild the Compare version chips from the saved snapshot (after the base
+  // estimate is populated, so the active option applies cleanly over it).
+  if (typeVal === 'order') intakeRehydrateEstVariants(o);
   if (typeof calcEstimate === 'function') calcEstimate();
   intakeUpdateShippingField();
 }
@@ -1175,6 +1178,17 @@ async function intakeSubmit() {
   // structured keys + a readable gift line for notes.
   const s1          = (typeof intakeSection1Collect === 'function') ? intakeSection1Collect() : null;
   const giftLine    = (typeof intakeSection1NotesLine === 'function') ? intakeSection1NotesLine(s1) : '';
+
+  // Compare mode: refresh the active variant from the live estimate DOM (the
+  // user may have edited rows after last switching), then serialize the full
+  // set so the builder can be rebuilt on reopen. Images are dropped here —
+  // they'd blow the Notion App Data cap and already live in the approval
+  // record; the per-option gallery re-attaches on send, not on reload.
+  if (_estVariants && _estVariants.length > 1) {
+    _estVariants[_estActive] = estStateCapture(
+      _estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
+  }
+  const estVariantsSnapshot = _serializeEstVariants();
 
   const order = {
     id:        'u' + Date.now(),
@@ -1283,6 +1297,14 @@ async function intakeSubmit() {
       multiplier: (typeof estMultiplier !== 'undefined') ? estMultiplier : 2.5,
       adjustment: (typeof _estAdj !== 'undefined') ? _estAdj : 0,
     } : null,
+    // Full Compare-mode snapshot (all options, not just the crowned one) so
+    // the estimate builder rebuilds the version chips on reopen. This is the
+    // reload path _estVariants never had — intakeRehydrateEstVariants() reads
+    // it back. Rides in App Data (no images, so it's small text). When
+    // compare wasn't touched this session, preserve the order's existing
+    // snapshot rather than wiping it (mirrors estimateAlternatives).
+    estVariants:   estVariantsSnapshot !== undefined ? estVariantsSnapshot
+                   : (_editingOrder && _editingOrder.estVariants) || null,
   };
 
   const isEdit = !!(_editingOrder && _editingOrder.id);
@@ -1911,6 +1933,10 @@ let _estAdj = 0;            // dollars added to the marked total (negative = dis
 let _estVariants = null;    // null = compare mode off; else [{label, rows, labor, shipping, taxOn, multiplier, adjustment}]
 let _estActive = 0;
 let _estCrowned = 0;
+// True once compare state has been created OR rehydrated this session. Lets
+// intakeSubmit tell "user never touched compare, preserve what's on the
+// order" apart from "user collapsed compare to a single option, clear it".
+let _estVariantsTouched = false;
 
 function _estReadDom() {
   let matTotal = 0;
@@ -2017,6 +2043,7 @@ function intakeEstCompare() {
   }
   const nextLetter = String.fromCharCode(65 + (_estVariants ? _estVariants.length : 1)); // B, C
   const label = (prompt('Label for the new version (e.g. "14k / lab"):', 'Option ' + nextLetter) || 'Option ' + nextLetter).trim();
+  _estVariantsTouched = true;
   if (!_estVariants) {
     const base = estStateCapture('Option A');
     _estVariants = [base, { ...estStateCapture(label) }];
@@ -2077,7 +2104,58 @@ function intakeEstReset() {
   _estVariants = null;
   _estActive = 0;
   _estCrowned = 0;
+  _estVariantsTouched = false;
   _apActiveOpt = 0;
+  intakeEstRenderVariants();
+}
+
+// Serialize the current compare state for persistence on the order.
+//   • > 1 variant  → the full snapshot {crowned, active, variants:[…]}
+//   • touched but collapsed to a single option → null (clear it)
+//   • never touched this session → undefined (caller preserves what's stored)
+// Images are intentionally omitted — see the note in intakeSubmit().
+function _serializeEstVariants() {
+  if (_estVariants && _estVariants.length > 1) {
+    return {
+      crowned: _estCrowned,
+      active:  _estActive,
+      variants: _estVariants.map(v => ({
+        label:      v.label || '',
+        rows:       (v.rows || []).map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })),
+        labor:      Number(v.labor) || 0,
+        shipping:   Number(v.shipping) || 0,
+        taxOn:      !!v.taxOn,
+        multiplier: Number(v.multiplier) || 2.5,
+        adjustment: Number(v.adjustment) || 0,
+        notes:      v.notes || '',
+      })),
+    };
+  }
+  return _estVariantsTouched ? null : undefined;
+}
+
+// The reload path _estVariants never had: rebuild the compare version chips
+// from a snapshot saved by _serializeEstVariants(). Runs after the single
+// estimate has been populated (see intakePopulateFromOrder) and applies the
+// active option over it. No-op for orders that were never in compare mode.
+function intakeRehydrateEstVariants(order) {
+  const ev = order && order.estVariants;
+  if (!ev || !Array.isArray(ev.variants) || ev.variants.length < 2) return;
+  _estVariants = ev.variants.map(v => ({
+    label:      v.label || 'Option',
+    rows:       Array.isArray(v.rows) ? v.rows.map(r => ({ desc: r.desc || '', cost: Number(r.cost) || 0 })) : [],
+    labor:      Number(v.labor) || 0,
+    shipping:   Number(v.shipping) || 0,
+    taxOn:      !!v.taxOn,
+    multiplier: Number(v.multiplier) || 2.5,
+    adjustment: Number(v.adjustment) || 0,
+    images:     [],   // per-option images aren't persisted on the order yet
+    notes:      v.notes || '',
+  }));
+  _estCrowned = (Number.isInteger(ev.crowned) && ev.crowned >= 0 && ev.crowned < _estVariants.length) ? ev.crowned : 0;
+  _estActive  = (Number.isInteger(ev.active)  && ev.active  >= 0 && ev.active  < _estVariants.length) ? ev.active  : _estCrowned;
+  _estVariantsTouched = true;
+  estStateApply(_estVariants[_estActive]);
   intakeEstRenderVariants();
 }
 
