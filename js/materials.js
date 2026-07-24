@@ -156,7 +156,6 @@ function materialsRender() {
   body.innerHTML = filtered.map(m => {
     const spec = m.category === 'metal'
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
-      : (m.category === 'chain' && m.weightPerFtOzt) ? `${m.weightPerFtOzt} ozt/ft`
       : '—';
     const cost = m.currentCostPerUnit != null ? `$${Number(m.currentCostPerUnit).toFixed(2)}` : '—';
     const stock = m.stockLevel != null ? `${m.stockLevel} ${matUnitAbbr(m.unit)}` : '—';
@@ -187,7 +186,6 @@ function materialsOpenNew() {
   document.getElementById('matGauge').value = '';
   document.getElementById('matUnit').value = 'gram';
   document.getElementById('matCost').value = '';
-  document.getElementById('matWeightPerFt').value = '';
   document.getElementById('matStock').value = '0';
   document.getElementById('matConfidence').value = 'estimated';
   document.getElementById('matSupplier').value = '';
@@ -209,7 +207,6 @@ function materialsOpenEdit(id) {
   document.getElementById('matGauge').value = m.gauge || '';
   document.getElementById('matUnit').value = m.unit || 'gram';
   document.getElementById('matCost').value = m.currentCostPerUnit ?? '';
-  document.getElementById('matWeightPerFt').value = m.weightPerFtOzt ?? '';
   document.getElementById('matStock').value = m.stockLevel ?? '';
   document.getElementById('matConfidence').value = m.stockConfidence || 'estimated';
   // Imported/Notion-side suppliers may not be in the fixed option list —
@@ -230,14 +227,10 @@ function materialsModalClose(event) {
   document.getElementById('materialsModalBg').classList.remove('open');
 }
 
-// Metal-only fields (Metal Type / Form / Gauge) only make sense for category=metal;
-// Weight per Foot only makes sense for category=chain (converts a Design's
-// by-weight BOM entry back to the ft the material is priced/stocked in).
+// Metal-only fields (Metal Type / Form / Gauge) only make sense for category=metal
 function materialsToggleMetalFields() {
-  const cat = document.getElementById('matCategory').value;
-  document.getElementById('matMetalFieldsRow').style.display = cat === 'metal' ? '' : 'none';
-  const chainRow = document.getElementById('matChainFieldsRow');
-  if (chainRow) chainRow.style.display = cat === 'chain' ? '' : 'none';
+  const isMetal = document.getElementById('matCategory').value === 'metal';
+  document.getElementById('matMetalFieldsRow').style.display = isMetal ? '' : 'none';
 }
 
 // ── Save / Delete ───────────────────────────────
@@ -259,8 +252,6 @@ async function materialsSave() {
     gauge:              isMetal ? document.getElementById('matGauge').value.trim() : '',
     unit,
     currentCostPerUnit: document.getElementById('matCost').value === '' ? null : Number(document.getElementById('matCost').value),
-    weightPerFtOzt:     category === 'chain' && document.getElementById('matWeightPerFt').value !== ''
-                           ? Number(document.getElementById('matWeightPerFt').value) : null,
     stockLevel:         document.getElementById('matStock').value === '' ? null : Number(document.getElementById('matStock').value),
     stockConfidence:    document.getElementById('matConfidence').value,
     supplierDefault:    document.getElementById('matSupplier').value,
