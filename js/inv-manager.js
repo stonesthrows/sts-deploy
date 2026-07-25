@@ -552,7 +552,7 @@ function invMgrAddMain() {
   _invMgrCurMain = key;
   _invMgrRenderMainTabs();
   _invMgrRenderRight();
-  toast(`Tab "${name}" added — now add a sub-tab to it`, '✓');
+  toast(`Tab "${esc(name)}" added — now add a sub-tab to it`, '✓');
 }
 
 function invMgrAddSub() {
@@ -569,7 +569,7 @@ function invMgrAddSub() {
   _invMgrCustomSave(c);
   if (!Array.isArray(_invMgrState[key])) _invMgrState[key] = [];
   _invMgrRenderRight();
-  toast(`Sub-tab "${name}" added — drag items into it`, '✓');
+  toast(`Sub-tab "${esc(name)}" added — drag items into it`, '✓');
 }
 
 function invMgrDeleteSub(key) {

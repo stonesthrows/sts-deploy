@@ -694,7 +694,7 @@ async function rpAddToQueue(designId, batch, btn) {
     }
 
     _rpQueued[designId] = true;
-    toast('Added to Restock Queue — ' + text, '✓');
+    toast('Added to Restock Queue — ' + esc(text), '✓');
     rpRender(false);
   } catch (e) {
     toast('Could not add to queue — ' + (e.message || e), '⚠');

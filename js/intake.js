@@ -30,6 +30,12 @@ function saveToStorage() {
   catch (e) { toast('⚠ Could not save locally — storage full?', '⚠'); }
 }
 
+// Escape user-supplied text before it goes into toast()'s innerHTML.
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 function toast(msg, icon = '', dur = 3000) {
   const wrap = document.getElementById('toast-wrap');
   if (!wrap) return;
@@ -989,7 +995,7 @@ async function sendForApproval(isTest = false) {
       if (status) status.textContent = isTest
         ? '✓ Test sent to ' + sentTo + ' — customer not notified'
         : '✓ Emailed to ' + sentTo + ' — Save & Close to keep it on the order';
-      toast(isTest ? 'Test estimate sent to ' + sentTo : 'Estimate emailed to ' + sentTo, '✅');
+      toast(isTest ? 'Test estimate sent to ' + esc(sentTo) : 'Estimate emailed to ' + esc(sentTo), '✅');
     } else if (sd.error === 'email-not-configured') {
       if (status) status.textContent = '🔗 Link ready — email setup pending. Use “Copy link”.';
       toast('Link ready — copy it to send (email not set up yet)', '🔗', 6000);
@@ -1775,7 +1781,7 @@ function intakePresetTogglePin(desc, cost) {
   it.pinned = !it.pinned;
   if (cost) it.cost = cost;
   _presetSave(s);
-  toast(it.pinned ? '★ Pinned "' + it.desc + '"' : 'Unpinned "' + it.desc + '"');
+  toast(it.pinned ? '★ Pinned "' + esc(it.desc) + '"' : 'Unpinned "' + esc(it.desc) + '"');
   intakePresetRenderStrip();
 }
 
@@ -1813,7 +1819,7 @@ function intakePresetRenderStrip() {
       if (!chip) return;
       if (chip.dataset.blank) { addMaterialRow(); return; }
       addMaterialRow(chip.dataset.desc, chip.dataset.cost || '');
-      toast('Added ' + chip.dataset.desc, '✓', 1600);
+      toast('Added ' + esc(chip.dataset.desc), '✓', 1600);
     });
     _intakeLongPress(strip, t => {
       const chip = t.closest && t.closest('.est-preset-chip');
@@ -2551,7 +2557,7 @@ function qaClose() {
 function qaAddManual(name, price) {
   _oiItems.push({ type: 'manual', name, price, quantity: 1 });
   oiRender();
-  toast(name + ' +$' + price + ' added', '✓', 2200);
+  toast(esc(name) + ' +$' + price + ' added', '✓', 2200);
   qaClose();
 }
 

@@ -37,7 +37,7 @@ function ssLookupTracking(opts) {
     .then(r => r.json())
     .then(data => {
       if (!data.found) {
-        toast('No ShipStation shipment found for order ' + orderNumber, '⚠');
+        toast('No ShipStation shipment found for order ' + esc(orderNumber), '⚠');
         return;
       }
       if (data.trackingNumber) {

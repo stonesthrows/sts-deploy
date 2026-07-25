@@ -170,7 +170,7 @@ function coApplyFromPrompt() {
       if (i < rows.length - 1) await new Promise(function(res) { setTimeout(res, 350); });
     }
     if (failed.length) {
-      toast('Material stock update failed for: ' + failed.join(', ') + ' — fix in Materials Library', '⚠');
+      toast('Material stock update failed for: ' + esc(failed.join(', ')) + ' — fix in Materials Library', '⚠');
     } else {
       toast('Material stock updated — ' + rows.length + ' material' + (rows.length !== 1 ? 's' : '') + ' decremented', '✓');
     }

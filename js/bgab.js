@@ -373,7 +373,7 @@ async function bgabCreateEvent() {
     const { notionPageId } = await r.json();
     _bgabEvents.unshift({ notionPageId, name, type, year });
     bgabCloseNewEventModal();
-    toast(`"${name}" created ✓`, '✓');
+    toast(`"${esc(name)}" created ✓`, '✓');
     bgabOpenEvent(notionPageId);
   } catch (e) {
     toast('Failed: ' + e.message, '⚠');
@@ -393,7 +393,7 @@ async function bgabSoftDeleteCurrent() {
     const r = await fetch(`${BGAB_API}?id=${ev.notionPageId}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('Delete failed');
     _bgabEvents = _bgabEvents.filter(e => e.notionPageId !== ev.notionPageId);
-    toast(`"${ev.name}" deleted`, 'ℹ');
+    toast(`"${esc(ev.name)}" deleted`, 'ℹ');
     _bgabCurrentEvent = null;
     _bgabDirty = {};
     bgabRenderList();

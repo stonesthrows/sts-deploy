@@ -306,7 +306,7 @@ async function rcvSave() {
     materialsRender();
   }
   if (failed.length) {
-    toast('Order saved, but stock update failed for: ' + failed.join(', ') + ' — fix those in Materials Library', '⚠');
+    toast('Order saved, but stock update failed for: ' + esc(failed.join(', ')) + ' — fix those in Materials Library', '⚠');
   } else {
     toast('Shipment received — ' + lines.length + ' material' + (lines.length !== 1 ? 's' : '') + ' restocked', '✓');
   }
