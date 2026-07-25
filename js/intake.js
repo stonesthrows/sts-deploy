@@ -382,8 +382,19 @@ function _intakeDirty() {
     || (typeof HW !== 'undefined' && HW && HW.hasInk);
 }
 
-function intakeExit() {
-  if (_intakeDirty() && !confirm('Discard this order? Nothing will be saved.')) return;
+async function intakeExit() {
+  // A running consult (js/intake-ai-notes.js) is its own record — discarding
+  // the order doesn't discard the conversation, so say so rather than
+  // letting "nothing will be saved" read as a promise to bin the recording.
+  const recording = (typeof ainIsRecording === 'function') && ainIsRecording();
+  const msg = 'Discard this order? Nothing will be saved.'
+    + (recording ? '\n\nThe consult recording is kept — find it under 🎙 AI Notes.' : '');
+  if ((_intakeDirty() || recording) && !confirm(msg)) return;
+  // Awaited so the consult reaches IndexedDB before we navigate away. Also
+  // drops the module's own beforeunload guard, so leaving never double-prompts.
+  if (typeof ainStopForExit === 'function') {
+    try { await ainStopForExit(); } catch (e) { console.warn('AI notes exit stop failed', e); }
+  }
   window.removeEventListener('beforeunload', _intakeBeforeUnload);
   location.href = 'jewelry-workflow.html';
 }
@@ -1186,6 +1197,15 @@ async function intakeSubmit() {
   if (!_intakeValidate()) return;
   if (btn) btn.disabled = true;
 
+  // Auto-recorded consult (js/intake-ai-notes.js) ends here, not at Exit —
+  // "Save & Close" is what marks the order finished. Stopping BEFORE the
+  // order object is built lets the recap ride along in `notes` below and
+  // lets the gap check compare the transcript against what was typed.
+  // Hard-capped internally, so a slow API can't hold the save open.
+  if (typeof ainFinalizeForSave === 'function') {
+    try { await ainFinalizeForSave(); } catch (e) { console.warn('AI notes finalize failed', e); }
+  }
+
   const items       = _oiItems.map(it => ({ ...it }));
   const addrStreet  = g('f-addr-street').value.trim();
   const addrStreet2 = g('f-addr-street2').value.trim();
@@ -1457,6 +1477,9 @@ async function intakeSubmit() {
     saveToStorage();
   }
   _lastSavedOrderId = order.id;
+  // Link the consult to the order it belongs to, so the AI Notes library
+  // can point back at it later ("what did she actually say about the size?").
+  if (typeof ainAttachToOrder === 'function') order.aiNoteId = ainAttachToOrder(order.id, name);
   // Upsert the Client Profile as a side effect — no separate data-entry chore
   if (typeof stsCustUpsertFromOrder === 'function') stsCustUpsertFromOrder(order);
 
@@ -1464,6 +1487,9 @@ async function intakeSubmit() {
   const doneTitle = document.getElementById('intake-done-title');
   if (doneTitle) doneTitle.textContent = name + ' — ' + (isEdit ? 'Updated' : typeMap.label);
   if (doneSub) doneSub.textContent = isEdit ? 'Saving changes…' : 'Syncing to Notion…';
+  // Gap check from the consult — advisory, on the Saved overlay rather than
+  // blocking the save, since the transcript isn't authoritative.
+  if (typeof ainRenderMissedCard === 'function') ainRenderMissedCard();
   const done = document.getElementById('intake-done');
   if (done) { done.classList.remove('hidden'); done.classList.add('flex'); }
 
