@@ -104,7 +104,7 @@ function prodApplyMove(o, colKey) {
   saveToStorage();
   if (typeof notionUpdateStage === 'function') notionUpdateStage(o.notionId, o.stage);
   renderProduction();
-  toast(o.name + ' moved to ' + (colKey === '__ship__' ? 'To be Shipped' : colKey === '__limbo__' ? 'In Limbo' : colKey), '📍');
+  toast(prodEsc(o.name) + ' moved to ' + (colKey === '__ship__' ? 'To be Shipped' : colKey === '__limbo__' ? 'In Limbo' : colKey), '📍');
 }
 
 function prodDrop(ev, colKey) {
@@ -553,7 +553,7 @@ function prodActionModalClose() {
 function prodOpenCustomer(name) {
   if (typeof CUSTOMERS === 'undefined') return;
   var idx = CUSTOMERS.findIndex(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
-  if (idx < 0) { toast('No customer record found for ' + name, '👥'); return; }
+  if (idx < 0) { toast('No customer record found for ' + prodEsc(name), '👥'); return; }
 
   // Switch to the customers sub-tab
   var parentEl = document.querySelector('[data-parent="custom-orders"]');
@@ -586,7 +586,7 @@ function prodMarkDelivered(id) {
   // date lands in Notion's "Completed At" property in the same request.
   if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
   renderProduction();
-  toast(o.name + ' marked as completed ✓', '✓');
+  toast(prodEsc(o.name) + ' marked as completed ✓', '✓');
 }
 
 // ════════════════════════════════════════════
@@ -856,7 +856,7 @@ function prodSaveToCustomerConfirm() {
   }
 
   prodSaveToCustomerClose();
-  toast((isNew ? 'Customer created: ' : 'Customer updated: ') + name, '✓');
+  toast((isNew ? 'Customer created: ' : 'Customer updated: ') + prodEsc(name), '✓');
 }
 
 // ============================================================

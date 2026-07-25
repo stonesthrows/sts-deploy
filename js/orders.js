@@ -1067,7 +1067,7 @@ function markOrderComplete() {
   if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
   saveToStorage();
-  toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
+  toast(`${esc(o.name)} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
 }
 
 // Reverses markOrderComplete — restores the stage the order was in right
@@ -1102,7 +1102,7 @@ function undoOrderComplete() {
   if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
   saveToStorage();
-  toast(`${o.name} reopened — back to "${restoreLabel}"`, '↩');
+  toast(`${esc(o.name)} reopened — back to "${restoreLabel}"`, '↩');
 }
 
 function markOrderCancelled() {
@@ -1118,7 +1118,7 @@ function markOrderCancelled() {
   renderKanban();
   if (typeof renderProduction === 'function') renderProduction();
   closeEditOrderModal();
-  toast(o.name + ' marked as cancelled', '🚫');
+  toast(esc(o.name) + ' marked as cancelled', '🚫');
 }
 
 function deleteOrder() {
@@ -1139,7 +1139,7 @@ function deleteOrder() {
   renderKanban();
   if (typeof renderProduction === 'function') renderProduction();
   closeEditOrderModal();
-  toast(o.name + ' deleted', '🗑');
+  toast(esc(o.name) + ' deleted', '🗑');
 }
 
 function saveOrderEdit() {

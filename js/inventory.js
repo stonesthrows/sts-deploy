@@ -314,7 +314,7 @@ async function invResetItem(itemId, itemName, sub) {
       _invUpdateCountLabel();
     }
 
-    toast(`"${itemName}" reset to match Square ✓`, '✓');
+    toast(`"${_esc(itemName)}" reset to match Square ✓`, '✓');
   } catch (e) {
     toast('Square error: ' + e.message, '⚠');
   }
@@ -532,7 +532,12 @@ function _invRenderSub(sub) {
     if (excludes.some(ex => nameLower.includes(ex))) return;
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
-    const nameSafe   = _esc(name).replace(/'/g, '&#39;');
+    // JS-escape (\ and ') for the onclick single-quoted-string context, then
+    // HTML-escape for the double-quoted attribute context — an HTML entity
+    // like &#39; would decode back to a literal ' before the inline handler
+    // is parsed as JS, breaking (or letting a crafted name break out of) the
+    // string literal.
+    const nameSafe   = _esc(name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
     const vars = _invSortVars((item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id)));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
@@ -582,7 +587,7 @@ function _invRenderSub(sub) {
       const badgeTxt  = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
       const dot       = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
       const dirty     = _invDirty[varId] !== undefined;
-      const varSafe   = _esc(varName).replace(/'/g, '&#39;');
+      const varSafe   = _esc(varName.replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
       const threshold = _invGetThreshold(varId);
       const isLow     = sqQty !== null && sqQty < threshold;
       const rowTint   = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '');
@@ -1117,7 +1122,7 @@ function invConfirmLowStockAdd() {
     body:    JSON.stringify({ text, block: 'Inventory Restock' }),
   }).then(r => {
     if (r.ok) {
-      toast(`Added "${text}" to Restock Queue ✓`, '✓');
+      toast(`Added "${_esc(text)}" to Restock Queue ✓`, '✓');
       if (typeof refreshNotes === 'function') refreshNotes();
     } else {
       toast('Failed to add to Restock Queue', '⚠');
