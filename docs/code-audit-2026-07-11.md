@@ -225,3 +225,25 @@ Global `ORDERS`, hardcoded `TODAY`, and DOM-coupled renders make everything unte
 | 1.1 | Frozen `TODAY` corrupts deadline badges | Med | Trivial |
 
 **First move:** confirm whether `/api/*` is already behind Cloudflare Access. If not, that one change (plus the shared-key check) neutralizes §2.1 and §2.3 at once and is the highest-leverage hour available.
+
+---
+
+## Remediation log — 2026-07-25
+
+Findings below are re-verified against the live code, not re-derived from this document — treat this section as authoritative over the sections above where they disagree.
+
+**§1.1 (Frozen clock) — already fixed, not by this session.** `js/data.js:6` now computes `TODAY` live at UTC midnight (`Date.UTC(now.getFullYear(), ...)`), not the hardcoded `2026-05-20` this doc describes. No action taken; noted so the entry above isn't mistaken for still-open.
+
+**§2.2 (Stored XSS via unescaped names) — the cited example is already fixed; a related instance of the same bug class was found and fixed today.** `cardHTML()` (`js/orders.js`), `buildCustomerExpandHtml()` (`js/customers.js`), `prodOrderCardHTML()` (`js/production.js`), and inventory's card renderer already escape `o.name`/`c.name`/item names via `esc()`/`prodEsc()`/`_esc()` — the specific `renderKanban` / `${o.name}` interpolation this doc cites no longer exists as written.
+
+What's still a real, live XSS chain: **`toast()` (`js/app.js:37`) sets `el.innerHTML` directly**, and ~14 call sites across the app interpolated raw order/customer/event/material/tab names into it without escaping — same root cause (§1.4: escaping is per-call-site discipline, not structural), different sink. Fixed in:
+- `js/orders.js` (4 sites — mark complete/undo/cancel/delete toasts) — commit `bf711ef`
+- `js/production.js` (4 sites), `js/inventory.js` (2 sites, plus a separate bug below) — commit `bf711ef`
+- `js/bgab.js`, `js/inv-manager.js`, `js/replenish.js`, `js/receiving.js`, `js/closeout.js`, `js/shipstation.js` (1–2 sites each) — commit `323d11e`
+- `js/intake.js` — runs on `intake.html`, which never loads `app.js`, so it had **no escape helper at all**. Added a local `esc()` there and fixed its 4 sites — commit `323d11e`
+
+**New finding, not in the original audit — broken onclick-attribute escaping in `inventory.js`.** `_invRenderSub()`'s `nameSafe`/`varSafe` (used to build `onclick="invHideItem('...','${nameSafe}',...)"`) HTML-entity-escaped apostrophes (`&#39;`) instead of JS-escaping them (`\'`). The browser decodes `&#39;` back to a literal `'` *before* the inline handler is parsed as JS, so a Square item/variation name containing an apostrophe could break out of the string literal — a second, independent injection path into the same onclick-attribute context §2.2 warns about generally. Fixed to JS-escape-then-HTML-escape (the pattern already used correctly elsewhere, e.g. `customers.js`'s `safeName`) — commit `bf711ef`.
+
+**Also noted, not fixed (out of scope of this pass):** `js/bgab.js` has no `<script>` tag in any HTML file — `app.js` still dispatches to `bgabInit()` for the `'bgab'` DIRECT_TAB, but the script that defines it is never loaded. Currently dead code; the toast fix there is inert until (if) it's wired back in.
+
+**Still open, unchanged by this pass:** §1.2 (monolith HTML), §1.3/§4.2 (Pages Functions boilerplate), §1.4 (escape helpers are still duplicated per-file — `esc`, `_esc`, `prodEsc`, `escHtml`, each reimplemented rather than consolidated), §1.5–§1.7, all of §2.1/§2.3/§2.4/§2.5 (API auth/CORS/secrets — the biggest remaining exposure), and §3–§4.
