@@ -1317,6 +1317,12 @@ async function intakeSubmit() {
       ? ((_estVariants[_estCrowned] && _estVariants[_estCrowned].notes) || '').trim()
       : (g('f-customer-notes').value.trim() || ''),
     notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
+                    // AI consult recap (js/intake-ai-notes.js) — folded into
+                    // notes rather than carried as its own field so it reaches
+                    // Notion and the printed bag with no pipeline changes.
+                    // Skipped when the user already tapped "Add to Internal
+                    // Notes", which put the same text in `notes` by hand.
+                    (typeof ainNotesTextForOrder === 'function' && !notes.includes('🎙 AI consult notes')) ? ainNotesTextForOrder() : '',
                     notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
                     giftLine,
@@ -1523,6 +1529,9 @@ function intakeReset() {
   if (typeof intakeEstReset === 'function') intakeEstReset();
   if (typeof ulReset === 'function') ulReset();
   if (typeof psVoiceReset === 'function') psVoiceReset();
+  // Clears the finished consult so the next customer starts blank; a
+  // recording still in progress is left running (js/intake-ai-notes.js).
+  if (typeof ainReset === 'function') ainReset();
   ['f-pickup', 'f-source', 'f-assignee', 'f-paid-by'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';

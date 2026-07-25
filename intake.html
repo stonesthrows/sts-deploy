@@ -813,6 +813,169 @@
       min-height: 40px; cursor: pointer; white-space: nowrap;
     }
     .paper-toggle.on { background: rgba(201,152,58,0.16); border-color: #C9983A; color: #F1DFB6; }
+
+    /* ═══ AI Note Taker (js/intake-ai-notes.js) ═══
+       Header chip lives on the dark top bar; everything below it renders
+       inside the white #ai-notes card, so it uses the form's light tokens. */
+    #ain-chip {
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      border-radius: 999px; border: 1px solid #35576D; background: transparent;
+      color: #B7C9D6; font-family: inherit; font-size: 12.5px; font-weight: 700;
+      padding: 8px 12px; min-height: 40px; cursor: pointer;
+    }
+    #ain-chip.on {
+      background: rgba(220,38,38,0.18); border-color: #DC2626; color: #FCA5A5;
+      animation: ain-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes ain-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.62; } }
+    #ain-chip span { font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) { .ain-chip-lbl { display: none; } }
+
+    .ain-tabs { display: flex; gap: 6px; margin: 14px 0 16px; border-bottom: 1px solid #E6E0D8; }
+    .ain-tab {
+      border: none; background: transparent; font-family: inherit; font-size: 13px;
+      font-weight: 700; color: var(--text3); padding: 9px 14px; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .ain-tab.on { color: var(--text); border-bottom-color: var(--accent); }
+
+    .ain-rec-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .ain-rec-btn {
+      width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+      border: 2px solid #D8D0C8; background: #FAFAF8; color: #DC2626;
+      font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center;
+      transition: transform var(--dur-fast) var(--ease-smooth);
+    }
+    .ain-rec-btn:active { transform: scale(0.94); }
+    .ain-rec-btn.live { background: #DC2626; border-color: #DC2626; color: #fff; }
+    .ain-rec-meta { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }
+    .ain-timer { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+    .ain-rec-state { font-size: 12px; color: var(--text3); }
+
+    .ain-speaker { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 10px; }
+    .ain-speaker-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+    .ain-chip {
+      border-radius: 999px; border: 1px solid #D8D0C8; background: #FAFAF8; color: var(--text2);
+      font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 7px 13px;
+      min-height: 36px; cursor: pointer;
+    }
+    .ain-chip.on { background: rgba(201,152,58,0.16); border-color: var(--accent); color: #7A5B14; }
+
+    .ain-transcript {
+      max-height: 40vh; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid #E6E0D8; border-radius: var(--rad-md); padding: 10px;
+      background: #FBFAF7; display: flex; flex-direction: column; gap: 8px;
+    }
+    .ain-seg { border-radius: var(--rad-sm); padding: 8px 10px; background: #fff; border: 1px solid #EFEAE2; }
+    .ain-seg.studio { background: #F3F8FC; border-color: #DDEAF4; }
+    .ain-seg.interim { opacity: 0.55; font-style: italic; }
+    .ain-seg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .ain-seg-who {
+      border: none; background: transparent; padding: 0; cursor: pointer; font-family: inherit;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent);
+    }
+    .ain-seg.studio .ain-seg-who { color: #35708F; }
+    .ain-seg-t { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+    .ain-seg-edit { margin-left: auto; border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 13px; padding: 0 2px; }
+    .ain-seg-text { font-size: 14.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
+
+    .ain-manual-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
+    .ain-manual {
+      flex: 1; border: 1px solid #D8D0C8; border-radius: var(--rad-sm); padding: 10px 12px;
+      font-size: 16px; font-family: inherit; color: var(--text); background: #FAFAF8;
+      outline: none; resize: none; line-height: 1.5;
+    }
+    .ain-manual:focus { border-color: var(--accent); background: #fff; box-shadow: var(--focus-ring); }
+
+    .ain-empty { padding: 22px 12px; text-align: center; font-size: 13.5px; line-height: 1.6; color: var(--text3); }
+    .ain-note {
+      margin: 10px 0; padding: 10px 12px; border-radius: var(--rad-sm);
+      background: #FDF6E6; border: 1px solid #EBDCB6; font-size: 12.5px; line-height: 1.55; color: #6B5520;
+    }
+
+    .ain-title { font-size: 19px; font-weight: 700; line-height: 1.3; }
+    .ain-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+    .ain-audio { margin-top: 12px; }
+    .ain-sec {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text3); margin: 18px 0 7px;
+    }
+    .ain-mini {
+      border: 1px solid #D8D0C8; background: #FAFAF8; border-radius: 999px; cursor: pointer;
+      font-family: inherit; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--text2); padding: 3px 9px;
+    }
+    .ain-prose { font-size: 14.5px; line-height: 1.6; color: var(--text); }
+    /* list-style is explicit: Tailwind's preflight strips markers from every ul */
+    .ain-list { margin: 0; padding-left: 20px; list-style: disc; font-size: 14.5px; line-height: 1.65; color: var(--text); }
+    .ain-list li { margin-bottom: 3px; }
+
+    .ain-actions { display: flex; flex-direction: column; gap: 6px; }
+    .ain-action {
+      display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
+      border: 1px solid #EFEAE2; border-radius: var(--rad-sm); padding: 9px 11px;
+      font-size: 14px; line-height: 1.5; color: var(--text); background: #FBFAF7;
+    }
+    .ain-action.done { opacity: 0.5; text-decoration: line-through; }
+    .ain-action input { margin-top: 2px; width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+    .ain-owner {
+      flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+      color: var(--text3); background: #EFEAE2; border-radius: 999px; padding: 2px 8px; margin-top: 1px;
+    }
+
+    .ain-fields { display: flex; flex-direction: column; gap: 6px; }
+    .ain-fld {
+      display: flex; align-items: center; gap: 9px; cursor: pointer;
+      border: 1px solid #EFEAE2; border-radius: var(--rad-sm); padding: 9px 11px; background: #FBFAF7;
+    }
+    .ain-fld.applied { background: #F1F8F2; border-color: #CFE6D4; }
+    .ain-fld input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+    .ain-fld-lbl {
+      flex-shrink: 0; min-width: 108px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3);
+    }
+    .ain-fld-val { flex: 1; min-width: 0; font-size: 14px; color: var(--text); word-break: break-word; }
+    .ain-fld-done { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #2F7D4A; }
+    .ain-wide { width: 100%; margin-top: 12px; }
+
+    .ain-asks { display: flex; flex-direction: column; gap: 10px; }
+    .ain-ask { border-left: 2px solid var(--accent); padding-left: 10px; }
+    .ain-ask-q { font-size: 13px; font-weight: 700; color: var(--text); }
+    .ain-ask-a { font-size: 14px; line-height: 1.55; color: var(--text2); margin-top: 2px; white-space: pre-wrap; }
+    .ain-ask-row { display: flex; gap: 8px; margin-top: 10px; }
+    .ain-ask-input {
+      flex: 1; min-width: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      padding: 10px 12px; font-size: 16px; font-family: inherit; color: var(--text);
+      background: #FAFAF8; outline: none; min-height: 44px;
+    }
+    .ain-ask-input:focus { border-color: var(--accent); background: #fff; box-shadow: var(--focus-ring); }
+    .ain-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+    .ain-foot .btn { flex: 1; min-width: 190px; }
+
+    .ain-search-wrap { position: relative; margin-bottom: 12px; }
+    .ain-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.6; }
+    .ain-search {
+      width: 100%; box-sizing: border-box; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      padding: 11px 12px 11px 34px; font-size: 16px; font-family: inherit; color: var(--text);
+      background: #FAFAF8; outline: none; min-height: 44px;
+    }
+    .ain-search:focus { border-color: var(--accent); background: #fff; box-shadow: var(--focus-ring); }
+    .ain-lib-row {
+      display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+      border: 1px solid #EFEAE2; border-radius: var(--rad-md); padding: 11px 12px;
+      background: #FBFAF7; margin-bottom: 8px;
+    }
+    .ain-lib-row:active { background: var(--hover); }
+    .ain-lib-main { flex: 1; min-width: 0; }
+    .ain-lib-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .ain-lib-sub { font-size: 11.5px; color: var(--text3); margin-top: 1px; }
+    .ain-lib-blurb {
+      font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .ain-lib-del { border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 15px; padding: 2px 4px; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -841,6 +1004,8 @@
     <div class="flex-1"></div>
     <button type="button" id="intake-orders-btn" onclick="intakeOrdersListOpen()" title="View past orders"
             class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">📋</button>
+    <!-- AI note taker (js/intake-ai-notes.js) — turns red and counts up while a consult is recording -->
+    <button type="button" id="ain-chip" onclick="ainOpen()" title="AI consult notes — record, transcribe, summarize">🎙 AI Notes</button>
     <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
             class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
@@ -1731,6 +1896,24 @@
   </div>
 </div>
 
+<!-- ═══ AI Note Taker — records the consult, transcribes it live, then hands
+     the transcript to Claude for a recap plus one-tap fills for this form.
+     Shell only; every view is rendered into #ain-body by js/intake-ai-notes.js ═══ -->
+<div id="ai-notes" class="fixed inset-0 z-[197] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:620px;">
+    <div class="flex items-center justify-between">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">AI Consult Notes</div>
+      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="ainClose()">Close ✕</button>
+    </div>
+    <div class="ain-tabs">
+      <button type="button" class="ain-tab on" data-view="record"  onclick="ainSetView('record')">Record</button>
+      <button type="button" class="ain-tab"    data-view="summary" onclick="ainSetView('summary')">Summary</button>
+      <button type="button" class="ain-tab"    data-view="library" onclick="ainSetView('library')">Library</button>
+    </div>
+    <div id="ain-body"></div>
+  </div>
+</div>
+
 <div id="toast-wrap"></div>
 
 <input type="file" id="ul-file" accept="image/*" style="display:none;" onchange="ulFileChosen(this)">
@@ -1743,7 +1926,8 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=38"></script>
+<script src="js/intake.js?v=39"></script>
 <script src="js/intake-paper.js?v=5"></script>
+<script src="js/intake-ai-notes.js?v=1"></script>
 </body>
 </html>
