@@ -12,6 +12,21 @@
 //    summary  — AI recap + "Detected order details" + Ask-the-transcript
 //    library  — every past consult, searchable, with audio playback
 //
+//  AUTO MODE (default on) is how this is meant to be used day to day: the
+//  panel stays shut and the consult records itself as a safety net. It
+//  arms on page load and starts on the first touch of the intake form —
+//  not on load — for two reasons: an iPad sitting open at a market
+//  shouldn't be recording an empty booth, and Safari only lets
+//  getUserMedia/SpeechRecognition start from a user gesture, which that
+//  first tap provides. It stops inside intakeSubmit() when the order is
+//  saved, and the recap is folded into the order's notes on the way
+//  through. At that moment the recap also gets what was actually typed
+//  into the form, so it can flag things the client said that never made
+//  it onto the order — the "what did I miss" pass (see _ainMissed).
+//  Edits opened via ?editId= never auto-start: those happen at the bench,
+//  not in front of a client. The ● chip in the header is always visible
+//  while recording — auto mode is never silent.
+//
 //  Transcription uses the Web Speech API (window.SpeechRecognition /
 //  webkitSpeechRecognition) — the same engine js/intake-sheet.js already
 //  relies on for the sketch dock's mic. It stops itself after a pause, so
@@ -56,6 +71,8 @@ let _ainView      = 'record';
 let _ainBusy      = false;     // an AI call is in flight
 let _ainQuery     = '';        // library search box
 let _ainApplied   = {};        // field key → true once filled into the form
+let _ainArmed     = false;     // auto mode: waiting for the first form touch
+let _ainMissed    = [];        // things said in the consult but not on the order
 
 const _ainEsc = t => String(t == null ? '' : t)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -168,13 +185,74 @@ function _ainStartTick() {
   }, 500);
 }
 
+// ── Auto mode ─────────────────────────────────────────────────
+// Default on. Two prefs, both sticky: the toggle itself, and a separate
+// "the browser refused the mic" latch so a denied permission doesn't
+// re-prompt on every single order.
+function _ainAutoEnabled() {
+  try { return localStorage.getItem('sts-ain-auto') !== '0'; } catch (e) { return true; }
+}
+
+function _ainAutoDenied() {
+  try { return localStorage.getItem('sts-ain-auto-denied') === '1'; } catch (e) { return false; }
+}
+
+function _ainSetAutoDenied(v) {
+  try { localStorage.setItem('sts-ain-auto-denied', v ? '1' : '0'); } catch (e) {}
+}
+
+function ainToggleAutoPref() {
+  const on = !_ainAutoEnabled();
+  try { localStorage.setItem('sts-ain-auto', on ? '1' : '0'); } catch (e) {}
+  if (on) {
+    // Turning it back on clears the refusal latch — the user is explicitly
+    // asking to try again, so let the browser prompt once more.
+    _ainSetAutoDenied(false);
+    ainArmAutoStart();
+  } else {
+    _ainArmed = false;
+  }
+  ainRender();
+}
+
+// Arms the one-shot trigger. Re-armed after every save (via ainReset) so
+// the next customer records without anyone remembering to press anything.
+function ainArmAutoStart() {
+  if (_ainArmed || !_ainAutoEnabled() || _ainAutoDenied()) return;
+  const main = document.querySelector('main');
+  if (!main) return;
+  _ainArmed = true;
+  // Capture phase + a single handler for both event types: whichever the
+  // device fires first (tap or hardware keyboard) is "the order started".
+  const fire = () => {
+    main.removeEventListener('pointerdown', fire, true);
+    main.removeEventListener('keydown', fire, true);
+    _ainArmed = false;
+    _ainAutoStart();
+  };
+  main.addEventListener('pointerdown', fire, true);
+  main.addEventListener('keydown', fire, true);
+}
+
+function _ainAutoStart() {
+  if (_ainRecording || !_ainAutoEnabled() || _ainAutoDenied()) return;
+  if (!_ainSpeechSupported()) return;          // nothing to auto-start
+  // An edit loaded via ?editId= is bench work, not a consult in front of a
+  // client — never start the mic for one. (_editingOrder lives in intake.js.)
+  if (typeof _editingOrder !== 'undefined' && _editingOrder) return;
+  // Don't clobber a consult the user already recorded and hasn't saved.
+  if (_ainCur && _ainCur.segments.length && !_ainCur.summary) return;
+  ainStartRecording({ auto: true });
+}
+
 // ── Recording ─────────────────────────────────────────────────
 function ainToggleRecord() {
   if (_ainRecording) ainStopRecording(); else ainStartRecording();
 }
 
-async function ainStartRecording() {
+async function ainStartRecording(opts) {
   if (_ainRecording) return;
+  const auto = !!(opts && opts.auto);
   // A new run continues the open session when one is already going (resume
   // after a stop mid-consult), otherwise starts a fresh one.
   if (!_ainCur || _ainCur.summary) {
@@ -189,9 +267,12 @@ async function ainStartRecording() {
       audio: null,
       audioType: '',
       durationMs: 0,
+      auto: auto,
+      orderId: null,
     };
     _ainElapsed = 0;
     _ainApplied = {};
+    _ainMissed = [];
   }
   _ainRecording = true;
   _ainStopping = false;
@@ -201,6 +282,9 @@ async function ainStartRecording() {
 
   if (_ainAudioEnabled()) await _ainStartAudio();
   _ainStartRecognition();
+  // Auto mode is never silent: say it out loud once, then let the pulsing
+  // header chip carry it. Anything louder would be in the way all day.
+  if (auto) _ainToast('Recording this consult — tap the chip to view', '🎙', 3200);
   ainRender();
 }
 
@@ -228,7 +312,10 @@ function _ainStartRecognition() {
     // 'no-speech' and 'aborted' are ordinary in a long consult; only a
     // permission failure is worth interrupting the user over.
     if (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
-      _ainToast('Microphone permission denied', '⚠', 4000);
+      // Latch the refusal so auto mode stops re-prompting on every order.
+      // Flipping the Auto chip back on clears it and tries once more.
+      _ainSetAutoDenied(true);
+      _ainToast('Mic blocked — auto-record is off until you allow it', '⚠', 5000);
       ainStopRecording();
     }
   };
@@ -294,8 +381,11 @@ function _ainStopRecognition() {
   _ainInterim = '';
 }
 
-async function ainStopRecording() {
+// opts.autoSummarize=false when the save path is going to drive the
+// summary itself (it needs the form snapshot attached to that one call).
+async function ainStopRecording(opts) {
   if (!_ainRecording) return;
+  const autoSummarize = !(opts && opts.autoSummarize === false);
   _ainElapsed = _ainNow();
   _ainRecording = false;
   _ainPaused = false;
@@ -315,7 +405,7 @@ async function ainStopRecording() {
   ainRender();
   // Auto-summarize the moment the consult ends — that's the whole point of
   // the feature; making the user tap a second button just delays the recap.
-  if (_ainCur && _ainTranscriptText(_ainCur).length > 80) ainSummarize();
+  if (autoSummarize && _ainCur && _ainTranscriptText(_ainCur).length > 80) ainSummarize();
 }
 
 function _ainDefaultTitle(s) {
@@ -464,8 +554,43 @@ function _ainParseJson(raw) {
   throw new Error('Could not parse the AI response');
 }
 
-function _ainSummaryPrompt() {
+// The form snapshot is what makes this a safety net rather than just a
+// recap: with the typed order in hand, the model can name the things the
+// client said that never landed on it. Only the save path passes one.
+const _AIN_SNAPSHOT_FIELDS = [
+  ['Customer',        () => (typeof getFullName === 'function' ? getFullName() : '')],
+  ['Email',           'f-email'], ['Phone', 'f-phone'],
+  ['Order type',      'f-order-type'], ['Piece type', 'f-piece-type'],
+  ['Order name',      'f-job-desc'], ['Description', 'f-description'],
+  ['Materials',       'f-materials'], ['Stones', 'f-gemstones'],
+  ['Sizing',          'f-sizing'], ['Inside stamping', 'f-stamping'],
+  ['Deadline',        'f-deadline'], ['Take in', 'f-takein'],
+  ['Pickup',          'f-pickup'], ['Repair details', 'f-repair-notes'],
+  ['Current size',    'f-resize-from'], ['Desired size', 'f-resize-to'],
+  ['Price',           'f-price'], ['Deposit', 'f-deposit'],
+  ['Internal notes',  'f-notes'], ['Notes for customer', 'f-customer-notes'],
+];
+
+function _ainFormSnapshot() {
+  const lines = [];
+  _AIN_SNAPSHOT_FIELDS.forEach(([label, src]) => {
+    const v = (typeof src === 'function') ? src() : ((document.getElementById(src) || {}).value || '');
+    const t = String(v == null ? '' : v).trim();
+    lines.push(label + ': ' + (t || '(blank)'));
+  });
+  return lines.join('\n');
+}
+
+function _ainSummaryPrompt(hasSnapshot) {
   const today = new Date().toISOString().slice(0, 10);
+  const missedRule = hasSnapshot
+    ? '\n- "missed": the safety-net check. Compare the transcript against the ORDER AS ENTERED below. '
+      + 'List anything the client stated that is absent from the order, or where the order contradicts what was said '
+      + '(a different size, metal, date, or price). One short line each, naming the field: '
+      + '"Deadline — she said before Sept 1, order has no deadline". '
+      + 'Only flag real, checkable gaps: never small talk, never a detail that IS on the order in different words, '
+      + 'and never something the transcript merely implies. An empty array is the correct and common answer.'
+    : '\n- "missed": return an empty array — no order was supplied to compare against.';
   return 'You are the note-taker for Stones Throw Studio, a custom jewelry shop in Austin, Texas. '
     + 'You are given the transcript of an in-person or phone consult between studio staff ("Studio") and a customer ("Client"). '
     + 'The transcript comes from live speech recognition, so it contains mishearings, missing punctuation, and no spelling of names — '
@@ -483,7 +608,8 @@ function _ainSummaryPrompt() {
     + '"ring_size":string|null,"stamping":string|null,"deadline":"YYYY-MM-DD"|null,'
     + '"pickup_location":"Bell Market"|"Mueller Market"|"Chaparral Crossing Market"|"Sunset Valley Farmer\'s Market"|"Austin Flea"|"Studio"|"To be Shipped"|null,'
     + '"repair_notes":string|null,"resize_from":string|null,"resize_to":string|null,'
-    + '"budget":string|null,"sensitivities":string[]}}\n\n'
+    + '"budget":string|null,"sensitivities":string[]},'
+    + '"missed":string[]}\n\n'
     + 'Guidance:\n'
     + '- "title": 3–7 words naming the customer and the piece, e.g. "Sarah — rose gold engagement ring".\n'
     + '- "overview": 2–4 sentences on what the customer wants and what was agreed.\n'
@@ -493,11 +619,15 @@ function _ainSummaryPrompt() {
     + '- "order_type": "repair" for fixing existing jewelry, "resize" for ring sizing only, "order" for new custom work.\n'
     + '- "job_desc" is a short order name; "description" is a fuller sentence describing the piece.\n'
     + '- "budget": the number or range the client said, as text (e.g. "$1,200–1,500"). Never guess a price.\n'
-    + '- "sensitivities": metal allergies or skin reactions mentioned (e.g. "nickel", "sterling turns skin green"). Empty array if none.\n'
+    + '- "sensitivities": metal allergies or skin reactions mentioned (e.g. "nickel", "sterling turns skin green"). Empty array if none.'
+    + missedRule + '\n'
     + 'Return ONLY the JSON object, no other text.';
 }
 
-async function ainSummarize() {
+// snapshot: the order as typed, supplied only by the save path so the
+// model can run the "what did I miss" comparison. Absent for a manual
+// Summarize/Re-summarize tap, which is a plain recap.
+async function ainSummarize(snapshot) {
   if (!_ainCur || _ainBusy) return;
   const transcript = _ainTranscriptText(_ainCur);
   if (transcript.trim().length < 20) {
@@ -505,13 +635,16 @@ async function ainSummarize() {
     return;
   }
   _ainBusy = true;
-  _ainView = 'summary';
+  // Re-rendering into the summary view is right when the panel is open and
+  // wrong at save time, where the user is looking at the Saved overlay.
+  if (!snapshot) _ainView = 'summary';
   ainRender();
   try {
     const raw = await _ainClaude({
       max_tokens: 2000,
-      system: _ainSummaryPrompt(),
-      messages: [{ role: 'user', content: 'Consult transcript:\n\n' + transcript }],
+      system: _ainSummaryPrompt(!!snapshot),
+      messages: [{ role: 'user', content: 'Consult transcript:\n\n' + transcript
+        + (snapshot ? '\n\n─────\nORDER AS ENTERED:\n\n' + snapshot : '') }],
     });
     const p = _ainParseJson(raw);
     _ainCur.summary = {
@@ -521,16 +654,25 @@ async function ainSummarize() {
                       .filter(a => a && a.text)
                       .map(a => ({ text: String(a.text), owner: a.owner === 'Client' ? 'Client' : 'Studio', done: false })),
       fields:       (p.fields && typeof p.fields === 'object') ? p.fields : {},
+      // Only a snapshot run can produce a real gap list. A later manual
+      // Re-summarize has nothing to compare against, so it keeps the one
+      // the save already found instead of blanking it.
+      missed:       snapshot
+                      ? (Array.isArray(p.missed) ? p.missed.filter(Boolean).map(String) : [])
+                      : ((_ainCur.summary && _ainCur.summary.missed) || []),
     };
+    _ainMissed = _ainCur.summary.missed;
     if (p.title) _ainCur.title = String(p.title).trim();
     if (!_ainCur.title) _ainCur.title = _ainDefaultTitle(_ainCur);
     if (!_ainCur.customer && _ainCur.summary.fields.customer_name) _ainCur.customer = _ainCur.summary.fields.customer_name;
     _ainUpsert(_ainCur);
     await _ainPersist();
-    _ainToast('Consult summarized', '✨');
+    // At save time the Saved overlay is already talking; don't stack a toast
+    // on top of it.
+    if (!snapshot) _ainToast('Consult summarized', '✨');
   } catch (err) {
     console.warn('AI notes: summarize failed', err);
-    _ainToast('Summary failed — ' + (err.message || 'try again'), '⚠', 4500);
+    if (!snapshot) _ainToast('Summary failed — ' + (err.message || 'try again'), '⚠', 4500);
   } finally {
     _ainBusy = false;
     ainRender();
@@ -567,6 +709,80 @@ async function ainAsk() {
     _ainBusy = false;
     ainRender();
   }
+}
+
+// ── Save path (called from js/intake.js intakeSubmit) ─────────
+// Stops a running consult and gets the recap in hand before the order
+// object is built, so ainNotesTextForOrder() has something to contribute
+// and the gap check can be shown on the Saved overlay.
+//
+// Hard-capped: someone standing at a market stall does not wait on an API
+// call to close out an order. If the summary hasn't landed by AIN_SAVE_WAIT
+// the save proceeds without it — the transcript is already filed, and the
+// recap catches up in the library a few seconds later.
+const AIN_SAVE_WAIT = 12000;
+
+async function ainFinalizeForSave() {
+  _ainMissed = [];
+  if (_ainRecording) await ainStopRecording({ autoSummarize: false });
+  if (!_ainCur || !_ainCur.segments.length) return null;
+
+  const snapshot = _ainFormSnapshot();
+  const done = ainSummarize(snapshot);          // resolves; never rejects
+  const timedOut = Symbol('timeout');
+  let timer;
+  const race = await Promise.race([
+    done.then(() => 'done'),
+    new Promise(r => { timer = setTimeout(() => r(timedOut), AIN_SAVE_WAIT); }),
+  ]);
+  clearTimeout(timer);
+  if (race === timedOut) {
+    // Let it finish in the background and file itself — just don't hold the
+    // save open for it.
+    _ainToast('Consult saved — recap still finishing', '🎙', 3000);
+    return null;
+  }
+  return (_ainCur && _ainCur.summary) || null;
+}
+
+// Stamps the consult with the order it belongs to, so the library row can
+// point at it and "what did she actually say" is one search away later.
+function ainAttachToOrder(orderId, customerName) {
+  if (!_ainCur || !_ainCur.segments.length) return null;
+  _ainCur.orderId = orderId || null;
+  if (customerName) _ainCur.customer = customerName;
+  if (!_ainCur.title || /^Consult ·/.test(_ainCur.title)) _ainCur.title = _ainDefaultTitle(_ainCur);
+  _ainUpsert(_ainCur);
+  _ainPersist();
+  return _ainCur.id;
+}
+
+function ainMissedItems() {
+  return _ainMissed.slice();
+}
+
+// Renders the gap check onto the Saved overlay. Deliberately advisory and
+// dismissible: the order is already saved and synced by this point, and a
+// transcript is not authoritative enough to block on or auto-apply.
+function ainRenderMissedCard() {
+  const card = document.getElementById('ain-missed-card');
+  if (!card) return;
+  if (!_ainMissed.length) { card.style.display = 'none'; card.innerHTML = ''; return; }
+  card.style.display = 'block';
+  card.innerHTML =
+    '<div class="ain-missed-head">⚠ ' + _ainMissed.length + ' thing' + (_ainMissed.length > 1 ? 's' : '')
+    + ' came up in the consult that ' + (_ainMissed.length > 1 ? 'aren\'t' : 'isn\'t') + ' on the order</div>'
+    + '<ul class="ain-missed-list">' + _ainMissed.map(m => '<li>' + _ainEsc(m) + '</li>').join('') + '</ul>'
+    + '<button type="button" class="ain-missed-btn" onclick="ainOpenFromSaved()">Open the consult notes</button>';
+}
+
+// From the Saved overlay: the order is written, so this is for reading the
+// transcript back, not for editing — real edits live in the main app. The
+// panel stacks ABOVE the Saved overlay rather than replacing it, so closing
+// it returns to New Intake / Return to App instead of a dead end.
+function ainOpenFromSaved() {
+  _ainView = 'summary';
+  ainOpen();
 }
 
 function ainToggleActionItem(i) {
@@ -663,6 +879,7 @@ function ainNotesTextForOrder() {
   if (s.key_points.length) lines.push('Key points:', ...s.key_points.map(k => '• ' + k));
   const open = s.action_items.filter(a => !a.done);
   if (open.length) lines.push('Action items:', ...open.map(a => '☐ ' + a.owner + ': ' + a.text));
+  if ((s.missed || []).length) lines.push('Mentioned but not entered on the order:', ...s.missed.map(m => '? ' + m));
   if (s.fields && s.fields.budget) lines.push('Budget discussed: ' + s.fields.budget);
   const sens = (s.fields && s.fields.sensitivities) || [];
   if (sens.length) lines.push('⚠ Mentioned sensitivities: ' + sens.join(', '));
@@ -687,9 +904,13 @@ function ainReset() {
   if (_ainRecording) return;
   _ainCur = null;
   _ainApplied = {};
+  _ainMissed = [];
   _ainView = 'record';
   _ainRevokeAudioUrl();
+  ainRenderMissedCard();
   ainUpdateChip();
+  // Re-arm so the next customer records without anyone remembering to.
+  ainArmAutoStart();
   const el = document.getElementById('ai-notes');
   if (el && !el.classList.contains('hidden')) ainRender();
 }
@@ -739,6 +960,7 @@ function ainRender() {
 function _ainRecordHtml() {
   const supported = _ainSpeechSupported();
   const audioOn = _ainAudioEnabled();
+  const autoOn = _ainAutoEnabled();
   let h = '';
 
   h += '<div class="ain-rec-bar">';
@@ -766,9 +988,20 @@ function _ainRecordHtml() {
      + '<button type="button" class="ain-chip' + (_ainSpeaker === 'client' ? ' on' : '') + '" onclick="ainSetSpeaker(\'client\')">Client</button>'
      + '<button type="button" class="ain-chip' + (_ainSpeaker === 'studio' ? ' on' : '') + '" onclick="ainSetSpeaker(\'studio\')">Studio</button>'
      + '<span style="flex:1"></span>'
+     + '<button type="button" class="ain-chip' + (autoOn ? ' on' : '') + '" onclick="ainToggleAutoPref()" '
+     + 'title="Start recording by itself when an order is started, stop when it is saved">⚡ Auto ' + (autoOn ? 'on' : 'off') + '</button>'
      + '<button type="button" class="ain-chip' + (audioOn ? ' on' : '') + '" onclick="ainToggleAudioPref()" '
      + 'title="Keep an audio recording alongside the transcript">🔊 Audio ' + (audioOn ? 'on' : 'off') + '</button>'
      + '</div>';
+
+  if (autoOn && !_ainRecording && !(_ainCur && _ainCur.segments.length)) {
+    h += '<div class="ain-note">'
+       + (_ainAutoDenied()
+          ? 'Auto-record is paused — this browser blocked the microphone. Tap <strong>⚡ Auto</strong> above to ask again.'
+          : 'Auto-record is on: this starts by itself the moment you touch the order form, and stops when you Save &amp; Close. '
+            + 'You don\'t need to open this panel — it\'s here for when you want to check what was said.')
+       + '</div>';
+  }
 
   if (!supported) {
     h += '<div class="ain-note">This browser can\'t transcribe speech. Type or paste the conversation below — '
@@ -830,6 +1063,14 @@ function _ainSummaryHtml() {
     h += _ainCur.audio
       ? '<div id="ain-audio-wrap" class="ain-audio"></div>'
       : '<div class="ain-note">Audio for this consult was cleared to save space — the transcript is kept in full.</div>';
+  }
+
+  // The safety-net result goes first — it's the one thing here that might
+  // need acting on, and it's only ever populated by a save-time run.
+  const missed = (s.missed || []);
+  if (missed.length) {
+    h += '<div class="ain-sec">Said in the consult, not on the order</div>'
+       + '<ul class="ain-list ain-list-warn">' + missed.map(m => '<li>' + _ainEsc(m) + '</li>').join('') + '</ul>';
   }
 
   if (s.overview) h += '<div class="ain-sec">Overview</div><div class="ain-prose">' + _ainEsc(s.overview) + '</div>';
@@ -926,17 +1167,40 @@ function _ainRenderLibraryList() {
     const when = new Date(s.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const blurb = (s.summary && s.summary.overview) || (s.segments && s.segments[0] && s.segments[0].text) || '';
     const open = s.summary ? s.summary.action_items.filter(a => !a.done).length : 0;
+    const gaps = s.summary ? (s.summary.missed || []).length : 0;
     return '<div class="ain-lib-row" onclick="ainOpenSession(\'' + s.id + '\')">'
       + '<div class="ain-lib-main">'
       + '<div class="ain-lib-title">' + _ainEsc(s.title || 'Untitled consult') + '</div>'
       + '<div class="ain-lib-sub">' + when + ' · ' + _ainClock(s.durationMs || 0)
       + (open ? ' · ' + open + ' open action' + (open > 1 ? 's' : '') : '')
+      + (gaps ? ' · ⚠ ' + gaps + ' not on the order' : '')
+      + (s.orderId ? ' · 🔗 order' : '')
       + (s.audio ? ' · 🔊' : '') + '</div>'
       + '<div class="ain-lib-blurb">' + _ainEsc(blurb.slice(0, 140)) + '</div>'
       + '</div>'
       + '<button type="button" class="ain-lib-del" onclick="event.stopPropagation();ainDeleteSession(\'' + s.id + '\')" aria-label="Delete">✕</button>'
       + '</div>';
   }).join('');
+}
+
+// ── Leaving the page ──────────────────────────────────────────
+// Called from intakeExit(). Discarding the ORDER shouldn't discard the
+// conversation — a consult is its own record and lives in the library, so
+// this files it rather than dropping it. Awaited by the caller so the
+// IndexedDB write actually lands before navigation.
+async function ainStopForExit() {
+  window.removeEventListener('beforeunload', _ainBeforeUnload);
+  if (_ainRecording) await ainStopRecording({ autoSummarize: false });
+}
+
+// True while a consult is running — lets intakeExit() say so in its confirm.
+function ainIsRecording() { return _ainRecording; }
+
+function _ainBeforeUnload(e) {
+  if (!_ainRecording) return;
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
 }
 
 // ── Boot ──────────────────────────────────────────────────────
@@ -947,10 +1211,10 @@ function _ainRenderLibraryList() {
 (function () {
   if (typeof stsStoreGet !== 'function') return;
   ainLoadSessions().then(ainUpdateChip);
-  window.addEventListener('beforeunload', e => {
-    if (!_ainRecording) return;
-    e.preventDefault();
-    e.returnValue = '';
-    return '';
-  });
+  // Arm auto mode once the page (and any ?editId= load) has settled — the
+  // trigger checks _editingOrder at fire time, but arming late also keeps
+  // the boot's own synthetic focus/scroll from counting as "order started".
+  if (document.readyState === 'complete') setTimeout(ainArmAutoStart, 300);
+  else window.addEventListener('load', () => setTimeout(ainArmAutoStart, 300));
+  window.addEventListener('beforeunload', _ainBeforeUnload);
 })();

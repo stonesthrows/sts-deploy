@@ -911,6 +911,24 @@
     /* list-style is explicit: Tailwind's preflight strips markers from every ul */
     .ain-list { margin: 0; padding-left: 20px; list-style: disc; font-size: 14.5px; line-height: 1.65; color: var(--text); }
     .ain-list li { margin-bottom: 3px; }
+    .ain-list-warn { color: #7A4B10; }
+
+    /* Gap check on the Saved overlay — the card is inside a centered
+       text-align:center panel, so it resets alignment for its own content. */
+    #ain-missed-card {
+      margin-top: 14px; padding: 12px 14px; text-align: left;
+      border-radius: var(--rad-md); background: #FDF6E6; border: 1px solid #EBDCB6;
+    }
+    .ain-missed-head { font-size: 13px; font-weight: 700; color: #6B5520; line-height: 1.4; }
+    .ain-missed-list {
+      margin: 7px 0 0; padding-left: 18px; list-style: disc;
+      font-size: 13px; line-height: 1.55; color: #6B5520;
+    }
+    .ain-missed-btn {
+      margin-top: 10px; width: 100%; border-radius: var(--rad-sm); cursor: pointer;
+      border: 1px solid #D8C79B; background: #fff; font-family: inherit;
+      font-size: 13px; font-weight: 700; color: #6B5520; padding: 9px 12px; min-height: 40px;
+    }
 
     .ain-actions { display: flex; flex-direction: column; gap: 6px; }
     .ain-action {
@@ -1852,6 +1870,10 @@
     <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
     <div id="intake-done-title" class="text-lg font-bold">Order saved</div>
     <div id="intake-done-sub" class="mt-1 text-sm text-slate-500"></div>
+    <!-- Consult gap check (js/intake-ai-notes.js ainRenderMissedCard) — only
+         appears when the auto-recorded consult mentions something the order
+         doesn't carry. Advisory: the order is already saved and synced. -->
+    <div id="ain-missed-card" style="display:none;"></div>
     <div class="mt-6 flex flex-col gap-2">
       <button type="button" onclick="intakeViewOrder(_lastSavedOrderId)" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">👁 View Order</button>
       <button type="button" onclick="intakeNew()" class="rounded-xl bg-gradient-to-br from-[#C9983A] to-[#A07428] px-5 py-3.5 text-[15px] font-bold text-white active:scale-95">＋ New Intake</button>
@@ -1899,7 +1921,9 @@
 <!-- ═══ AI Note Taker — records the consult, transcribes it live, then hands
      the transcript to Claude for a recap plus one-tap fills for this form.
      Shell only; every view is rendered into #ain-body by js/intake-ai-notes.js ═══ -->
-<div id="ai-notes" class="fixed inset-0 z-[197] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
+<!-- z-201 puts this ABOVE the Saved overlay (z-200): the gap check links here,
+     and closing it must land back on Saved, not on a dead end. -->
+<div id="ai-notes" class="fixed inset-0 z-[201] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
   <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:620px;">
     <div class="flex items-center justify-between">
       <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">AI Consult Notes</div>
@@ -1926,8 +1950,8 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=39"></script>
+<script src="js/intake.js?v=40"></script>
 <script src="js/intake-paper.js?v=5"></script>
-<script src="js/intake-ai-notes.js?v=1"></script>
+<script src="js/intake-ai-notes.js?v=2"></script>
 </body>
 </html>

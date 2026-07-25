@@ -23,13 +23,18 @@ the browser).
   migrate → persist → flush-on-hide → go offline → boot from cache →
   queue a write → reload → come back online → replay.
 - **`intake-ai-notes.js`** — drives the intake app's AI note taker
-  (`js/intake-ai-notes.js`) against `intake.html`: capture lines →
-  summarize → fill the intake form → ask the transcript → library search
-  → survive a reload. `/api/claude-proxy` is stubbed with a fixed recap,
-  so it costs no tokens and needs no API key; what's under test is the
-  parsing, rendering and field-mapping around the call. Headless Chromium
-  has no speech engine, so lines go in through the panel's manual-entry
-  box — the same path real devices without `SpeechRecognition` use.
+  (`js/intake-ai-notes.js`) against `intake.html`. The manual flow
+  (capture → summarize → fill the intake form → ask the transcript →
+  library search → survive a reload) and then **auto mode**, which is how
+  it actually gets used: arm → start on the first touch of the form →
+  restart through a lull → stop and summarize inside `intakeSubmit()` →
+  gap check on the Saved overlay → re-arm for the next customer.
+  `/api/claude-proxy` is stubbed with a fixed recap, so it costs no tokens
+  and needs no API key; what's under test is the parsing, rendering and
+  field-mapping around the call. The Web Speech API is replaced with a
+  scriptable stand-in (headless Chromium has no speech engine, and there'd
+  be no audio to feed it anyway), which drives the real
+  onresult/onend/onerror wiring.
 
 ## Setup (one-time)
 
