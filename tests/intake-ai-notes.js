@@ -329,6 +329,50 @@ async function run({ baseUrl } = {}) {
     check('exit clears the module\'s unload guard',
       await page.evaluate(() => !ainIsRecording()));
 
+    // ── 13. Crash safety: a consult in progress is checkpointed, and a
+    // checkpoint left behind by a crash/eviction is adopted on boot. ──
+    const readLive = () => page.evaluate(() => stsStoreGet('intake-ai-notes-live'));
+
+    await page.evaluate(async () => {
+      ainReset();                 // a brand-new consult that never gets filed
+      await ainStartRecording();
+      window.__fakeSay('She is bringing her grandmother\'s setting in on Thursday.');
+    });
+    // The checkpoint rides the 500ms clock tick, so give it a couple.
+    await page.waitForTimeout(1400);
+    const live = await readLive();
+    check('a running consult is checkpointed to its own key',
+      !!live && live.live === true && (live.segments || []).length === 1
+      && live.segments[0].text.includes('grandmother'),
+      JSON.stringify(live && { live: live.live, segs: (live.segments || []).length }));
+
+    check('the checkpoint carries no audio blob', !!live && live.audio === null);
+
+    // Simulate the crash: reload without ever stopping the recording.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1400);
+    await page.evaluate(() => { ainOpen(); ainSetView('library'); });
+    await page.waitForTimeout(300);
+    const recovered = await page.locator('.ain-lib-row:has-text("recovered")').count();
+    check('a crashed consult is recovered into the library', recovered === 1,
+      'rows=' + recovered);
+    check('recovery clears the checkpoint', (await readLive()) === undefined);
+
+    // The recovered consult must not become the current session, or a stale
+    // recording would suppress auto-record for the next order.
+    await page.evaluate(() => ainClose());
+    await page.click('#f-description');
+    await page.waitForTimeout(300);
+    check('a recovered consult does not block the next auto-record',
+      await page.evaluate(() => document.getElementById('ain-chip').classList.contains('on')));
+
+    // Stopping properly clears the checkpoint too.
+    await page.evaluate(async () => {
+      window.__fakeSay('A second consult, stopped cleanly.');
+      await ainStopRecording({ autoSummarize: false });
+    });
+    check('a clean stop clears the checkpoint', (await readLive()) === undefined);
+
     check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
   } finally {
     await browser.close();

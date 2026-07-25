@@ -44,12 +44,25 @@
 //  so the store can't grow without bound.
 //
 //  Sessions persist in IndexedDB via js/storage.js under 'intake-ai-notes'
-//  — never localStorage; an audio Blob would blow its quota instantly.
+//  — never localStorage; an audio Blob would blow its quota instantly. A
+//  consult still in progress is checkpointed separately under
+//  'intake-ai-notes-live' every AIN_AUTOSAVE_MS (and on tab-hide), because
+//  segments otherwise live only in memory until the consult stops — a
+//  refresh or an iOS tab eviction mid-consult would take the whole
+//  conversation with it. Boot adopts any leftover checkpoint into the
+//  library (_ainRecoverCheckpoint).
 //  Depends on: js/storage.js, js/order-widgets.js (setNameFields), and
 //  js/intake.js (toast, fmtPhoneInput, intakeApplyTypeLayout).
 // ════════════════════════════════════════════
 
 const AIN_STORE_KEY   = 'intake-ai-notes';
+// A consult in progress is checkpointed under its OWN key, not into the
+// session list: AIN_STORE_KEY holds every past consult including audio
+// blobs, and rewriting several MB of those every few seconds to save a few
+// lines of new text would be absurd. This key holds one small
+// transcript-only record, deleted the moment the consult is filed properly.
+const AIN_LIVE_KEY    = 'intake-ai-notes-live';
+const AIN_AUTOSAVE_MS = 10000; // checkpoint cadence while recording
 const AIN_MAX_SESSIONS = 40;   // pruned oldest-first
 const AIN_MAX_AUDIO    = 8;    // newest N sessions keep their audio blob
 const AIN_MODEL        = 'claude-sonnet-5';
@@ -73,6 +86,8 @@ let _ainQuery     = '';        // library search box
 let _ainApplied   = {};        // field key → true once filled into the form
 let _ainArmed     = false;     // auto mode: waiting for the first form touch
 let _ainMissed    = [];        // things said in the consult but not on the order
+let _ainDirty     = false;     // new lines since the last checkpoint
+let _ainLastSave  = 0;         // performance clock of the last checkpoint
 
 const _ainEsc = t => String(t == null ? '' : t)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -109,6 +124,60 @@ async function _ainPersist() {
     console.warn('AI notes: save failed', e);
     _ainToast('Couldn\'t save this consult locally', '⚠');
   }
+}
+
+// ── Crash safety: checkpoint the consult while it's still running ──
+// Segments live in memory until the consult stops, so without this a
+// refresh, a Safari tab eviction, or a flat battery mid-consult loses the
+// entire conversation — the one failure a safety net must not have.
+// Transcript only: the audio blob isn't assembled until stop, and a
+// checkpoint is meant to be cheap enough to run every few seconds.
+function _ainCheckpoint() {
+  if (!_ainCur || !_ainCur.segments.length) return;
+  _ainDirty = false;
+  _ainLastSave = performance.now();
+  const snap = Object.assign({}, _ainCur, {
+    audio: null,
+    live: true,
+    durationMs: _ainNow(),
+    title: _ainCur.title || _ainDefaultTitle(_ainCur),
+  });
+  // Fire and forget — a failed checkpoint must never interrupt recording.
+  Promise.resolve(stsStoreSet(AIN_LIVE_KEY, snap)).catch(e => console.warn('AI notes checkpoint failed', e));
+}
+
+function _ainClearCheckpoint() {
+  _ainDirty = false;
+  Promise.resolve(stsStoreDel(AIN_LIVE_KEY)).catch(() => {});
+}
+
+// Boot: adopt a consult that never got filed. It goes straight into the
+// library rather than becoming the current session — a stale recording
+// from yesterday must not suppress auto-record for today's first order
+// (see the _ainCur guard in _ainAutoStart).
+async function _ainRecoverCheckpoint() {
+  let snap = null;
+  try { snap = await stsStoreGet(AIN_LIVE_KEY); } catch (e) { return; }
+  if (!snap || !Array.isArray(snap.segments) || !snap.segments.length) return;
+  // A filed copy of this consult can already exist — a session that was
+  // stopped, then resumed, then crashed. The checkpoint wins only if it
+  // actually holds more of the conversation; otherwise it's just stale.
+  const filed = _ainSessions.find(s => s.id === snap.id);
+  if (filed && (filed.segments || []).length >= snap.segments.length) { _ainClearCheckpoint(); return; }
+  if (filed) {
+    // Checkpoints carry no audio and may predate the recap — take those
+    // back off the filed copy rather than dropping them on the floor.
+    snap.audio     = filed.audio || null;
+    snap.audioType = filed.audioType || '';
+    snap.summary   = snap.summary || filed.summary || null;
+    snap.orderId   = snap.orderId || filed.orderId || null;
+  }
+  snap.live = false;
+  snap.recovered = true;
+  _ainUpsert(snap);
+  await _ainPersist();
+  _ainClearCheckpoint();
+  _ainToast('Recovered an unfinished consult — see 🎙 AI Notes', '↻', 5000);
 }
 
 function _ainUpsert(session) {
@@ -182,6 +251,10 @@ function _ainStartTick() {
     ainUpdateChip();
     const t = document.getElementById('ain-timer');
     if (t) t.textContent = _ainClock(_ainNow());
+    // Piggyback the checkpoint on the clock that's already running, and
+    // only when something was actually said since the last one — a silent
+    // stretch of consult shouldn't churn the disk.
+    if (_ainDirty && (performance.now() - _ainLastSave) >= AIN_AUTOSAVE_MS) _ainCheckpoint();
   }, 500);
 }
 
@@ -278,6 +351,13 @@ async function ainStartRecording(opts) {
   _ainStopping = false;
   _ainPaused = false;
   _ainStartedAt = performance.now();
+  // Backdate the checkpoint clock a full interval so every consult banks
+  // its FIRST line straight away instead of inheriting the previous one's
+  // countdown. Backdated rather than zeroed: performance.now() is time
+  // since page load, so 0 means "at load", which on a freshly opened page
+  // is the very recent past — the opposite of what's wanted here.
+  _ainLastSave = performance.now() - AIN_AUTOSAVE_MS;
+  _ainDirty = false;
   _ainStartTick();
 
   if (_ainAudioEnabled()) await _ainStartAudio();
@@ -352,6 +432,7 @@ function _ainPushSegment(text) {
   } else {
     _ainCur.segments.push({ ms: _ainNow(), endMs: _ainNow(), speaker: _ainSpeaker, text: text });
   }
+  _ainDirty = true;
 }
 
 function ainTogglePause() {
@@ -360,6 +441,7 @@ function ainTogglePause() {
   if (_ainPaused) {
     _ainElapsed = _ainNow();
     _ainStartedAt = 0;
+    _ainCheckpoint();          // a pause can run long — bank it now
     _ainStopRecognition();
     if (_ainMedia && _ainMedia.state === 'recording') { try { _ainMedia.pause(); } catch (e) {} }
   } else {
@@ -397,10 +479,14 @@ async function ainStopRecording(opts) {
   // than filed — the library is for consults, not for stray taps.
   if (_ainCur && _ainCur.segments.length) {
     _ainCur.durationMs = _ainElapsed;
+    _ainCur.live = false;
     if (!_ainCur.title) _ainCur.title = _ainDefaultTitle(_ainCur);
     _ainUpsert(_ainCur);
     await _ainPersist();
   }
+  // Filed properly now (or empty and discarded) — the in-progress
+  // checkpoint has nothing left to protect.
+  _ainClearCheckpoint();
   ainUpdateChip();
   ainRender();
   // Auto-summarize the moment the consult ends — that's the whole point of
@@ -1174,6 +1260,7 @@ function _ainRenderLibraryList() {
       + '<div class="ain-lib-sub">' + when + ' · ' + _ainClock(s.durationMs || 0)
       + (open ? ' · ' + open + ' open action' + (open > 1 ? 's' : '') : '')
       + (gaps ? ' · ⚠ ' + gaps + ' not on the order' : '')
+      + (s.recovered ? ' · ↻ recovered' : '')
       + (s.orderId ? ' · 🔗 order' : '')
       + (s.audio ? ' · 🔊' : '') + '</div>'
       + '<div class="ain-lib-blurb">' + _ainEsc(blurb.slice(0, 140)) + '</div>'
@@ -1210,7 +1297,14 @@ function _ainBeforeUnload(e) {
 // the recording to the reasons to stay).
 (function () {
   if (typeof stsStoreGet !== 'function') return;
-  ainLoadSessions().then(ainUpdateChip);
+  ainLoadSessions().then(_ainRecoverCheckpoint).then(ainUpdateChip);
+  // iOS evicts backgrounded tabs without warning, but it backgrounds them
+  // first — so hiding is the last reliable moment to bank the transcript.
+  // pagehide covers the ordinary navigation/close path.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && _ainRecording && _ainDirty) _ainCheckpoint();
+  });
+  window.addEventListener('pagehide', () => { if (_ainRecording && _ainDirty) _ainCheckpoint(); });
   // Arm auto mode once the page (and any ?editId= load) has settled — the
   // trigger checks _editingOrder at fire time, but arming late also keeps
   // the boot's own synthetic focus/scroll from counting as "order started".

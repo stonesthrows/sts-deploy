@@ -34,7 +34,10 @@ the browser).
   field-mapping around the call. The Web Speech API is replaced with a
   scriptable stand-in (headless Chromium has no speech engine, and there'd
   be no audio to feed it anyway), which drives the real
-  onresult/onend/onerror wiring.
+  onresult/onend/onerror wiring. Also covers crash safety: that a running
+  consult is checkpointed to its own IndexedDB key, and that a checkpoint
+  left behind by a reload mid-consult is adopted into the library on the
+  next boot.
 
 ## Setup (one-time)
 
