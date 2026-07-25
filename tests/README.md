@@ -1,6 +1,7 @@
 # Smoke suite
 
-A dev-only test harness for `jewelry-workflow.html`, built out of the
+A dev-only test harness for `jewelry-workflow.html` (and, since the AI
+note taker landed, `intake.html`), built out of the
 verification scripts used to safely carry out the July 2026 rework series
 (monolith split, IndexedDB storage migration, offline support, sync
 rework). Not part of the deployed app — nothing here ships to Cloudflare
@@ -21,6 +22,14 @@ the browser).
   the Notion offline write queue (`js/notion.js`) end to end: seed →
   migrate → persist → flush-on-hide → go offline → boot from cache →
   queue a write → reload → come back online → replay.
+- **`intake-ai-notes.js`** — drives the intake app's AI note taker
+  (`js/intake-ai-notes.js`) against `intake.html`: capture lines →
+  summarize → fill the intake form → ask the transcript → library search
+  → survive a reload. `/api/claude-proxy` is stubbed with a fixed recap,
+  so it costs no tokens and needs no API key; what's under test is the
+  parsing, rendering and field-mapping around the call. Headless Chromium
+  has no speech engine, so lines go in through the panel's manual-entry
+  box — the same path real devices without `SpeechRecognition` use.
 
 ## Setup (one-time)
 
@@ -33,9 +42,10 @@ npm install
 
 ```
 cd tests
-node run.js              # both suites, combined pass/fail
+node run.js              # all suites, combined pass/fail
 node fingerprint.js      # just the fingerprint diff
 node offline-storage.js  # just the offline/storage suite
+node intake-ai-notes.js  # just the intake AI note taker suite
 ```
 
 Each suite starts its own copy of the repo's `serve.js` on port 3177 (see
@@ -76,6 +86,7 @@ services.
 Before pushing a change that touches shared infrastructure — `js/app.js`,
 `js/storage.js`, `js/notion.js`, `sw.js`, the `css/`/`js/` extraction
 boundaries in `jewelry-workflow.html`, or anything else more than one tab
-depends on. A change scoped to a single tab's own file doesn't need it;
+depends on — or that touches the intake app's AI note taker. A change
+scoped to a single tab's own file doesn't need it;
 the project's `CLAUDE.md` isolation rule already keeps that safe by
 construction.
