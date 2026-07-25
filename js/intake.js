@@ -2146,9 +2146,9 @@ function intakeEstCompare() {
 
 function intakeEstSwitchVariant(i) {
   if (!_estVariants || i === _estActive) return;
-  // Notes live in their own always-visible per-option textareas now (see
-  // intakeSyncCustomerNotes), not a single box tied to the active chip, so
-  // there's nothing to capture here before switching.
+  // Nothing to capture here: the notes textarea writes every keystroke
+  // straight into _estVariants[i].notes (see intakeEstOptionNoteInput), and
+  // intakeSyncCustomerNotes() below re-renders it for the newly active option.
   _estVariants[_estActive] = estStateCapture(_estVariants[_estActive].label, _estVariants[_estActive].images, _estVariants[_estActive].notes);
   _estActive = i;
   estStateApply(_estVariants[i]);
@@ -2157,9 +2157,9 @@ function intakeEstSwitchVariant(i) {
 }
 
 // "Notes for Customer" on the Items & Price step — the source of truth for
-// per-option notes. Compare mode shows one always-visible textarea per
-// option (Notes for Option A, Notes for Option B, …), each writing straight
-// into _estVariants[i].notes; the Approval step just displays whichever
+// per-option notes. Compare mode shows ONE textarea, for the option that's
+// currently selected (Notes for Option A / B / …), writing straight into
+// _estVariants[_estActive].notes; the Approval step just displays whichever
 // option's note that is, read-only, as a final check before sending.
 // Single-estimate mode keeps the one plain order-level textarea. Called
 // whenever the active option or compare state changes.
@@ -2170,12 +2170,13 @@ function intakeSyncCustomerNotes() {
   const compareOn = _estVariants && _estVariants.length > 1;
   if (compareOn) {
     singleWrap.classList.add('hidden');
-    multiWrap.innerHTML = _estVariants.map((v, i) =>
+    const i = _estActive;
+    const v = _estVariants[i];
+    multiWrap.innerHTML =
       '<div class="fg mb-3">'
       + '<label>Notes for ' + _apEsc(v.label) + ' <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ shown when the customer views this option</span></label>'
       + '<textarea oninput="intakeEstOptionNoteInput(' + i + ', this.value)" placeholder="Any notes to include for this option…">' + _apEsc(v.notes || '') + '</textarea>'
-      + '</div>'
-    ).join('');
+      + '</div>';
     multiWrap.classList.remove('hidden');
   } else {
     multiWrap.classList.add('hidden');

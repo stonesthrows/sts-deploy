@@ -53,6 +53,10 @@
     @media (min-width: 800px) { .form-grid { grid-template-columns: repeat(3, 1fr); } }
     .fg { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
     .fg.full { grid-column: 1 / -1; }
+    /* .fg is declared after Tailwind's .hidden and has equal specificity, so
+       display:flex was winning and .hidden field groups still showed (the
+       order-level Notes for Customer box stayed up in compare mode). */
+    .fg.hidden { display: none; }
     .fg label {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--text3);
@@ -1410,7 +1414,7 @@
           <div class="est-col-labels">
             <div class="est-col-label">Description</div>
             <div class="est-col-label">Cost ($)</div>
-            <div class="est-col-label" style="text-align:center;">×</div>
+            <div class="est-col-label"></div>
             <div class="est-col-label"></div>
           </div>
           <div id="est-materials"></div>
@@ -1449,7 +1453,7 @@
             <label id="f-customer-notes-label">Notes for Customer <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ sent with estimate</span></label>
             <textarea id="f-customer-notes" placeholder="Any notes to include with the Square estimate…"></textarea>
           </div>
-          <!-- Compare mode: one always-visible note per option (Notes for Option A/B/C), instead of one box that swaps content -->
+          <!-- Compare mode: the note for the SELECTED option only (Notes for Option A/B/C); swaps content when you switch chips -->
           <div id="est-option-notes" class="hidden mt-3"></div>
           <div class="est-total-box mt-4">
             <div class="est-total-row"><span>Materials Total</span><span id="est-mat-total">$0.00</span></div>
@@ -1739,7 +1743,7 @@
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=37"></script>
+<script src="js/intake.js?v=38"></script>
 <script src="js/intake-paper.js?v=5"></script>
 </body>
 </html>
