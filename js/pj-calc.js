@@ -139,10 +139,9 @@ const PS_DEFAULTS = {
   liRows:      4,
   fontSize:    'medium',
   showSizeRow: true,
-  // 'classic' = work-order-print.html; 'sketch' = custom-sketch-print.html
-  // prototype; 'variants' = bag-layout-variants.html prototype (auto-picks
-  // rings/repair/compact). Only affects orders that print with the custom
-  // bag layout.
+  // Which bag template is the app-wide default. Valid ids are the BAG_LAYOUTS
+  // rows in js/orders.js — that registry is the source of truth, so don't
+  // maintain a copy of the list here.
   customLayout: 'classic'
 };
 
@@ -156,6 +155,17 @@ function psSelect(groupId, btn) {
   btn.classList.add('active');
 }
 
+// The Custom Order Bag row is built from BAG_LAYOUTS (js/orders.js) rather
+// than hand-written buttons, so a new bag template shows up here the moment
+// it's added to the registry — no second place to remember to edit.
+function _psRenderCustomLayoutOpts(active) {
+  const wrap = document.getElementById('ps-customlayout');
+  if (!wrap || typeof BAG_LAYOUTS === 'undefined') return;
+  wrap.innerHTML = BAG_LAYOUTS.map(r =>
+    `<button class="ps-opt${r.id === active ? ' active' : ''}" data-val="${r.id}" onclick="psSelect('ps-customlayout',this)">${r.label}</button>`
+  ).join('');
+}
+
 function openPrintSetup() {
   const s = psLoadSettings();
   // Populate button groups
@@ -167,9 +177,7 @@ function openPrintSetup() {
   });
   document.getElementById('ps-lirows').value = s.liRows;
   document.getElementById('ps-sizerow').checked = s.showSizeRow;
-  document.querySelectorAll('#ps-customlayout .ps-opt').forEach(b => {
-    b.classList.toggle('active', b.dataset.val === (s.customLayout || 'classic'));
-  });
+  _psRenderCustomLayoutOpts(s.customLayout || 'classic');
   document.getElementById('printSetupBg').classList.add('open');
 }
 

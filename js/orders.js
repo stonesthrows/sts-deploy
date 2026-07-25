@@ -1819,6 +1819,8 @@ const BAG_LAYOUTS = [
     build: buildSketchBagUrl,  applies: l => ['custom', 'resize'].includes(l) },
   { id: 'variants', label: 'Rings/Repair/Compact (beta)', file: 'bag-layout-variants.html',
     build: buildVariantBagUrl, applies: l => ['custom', 'estimate', 'repair', 'resize'].includes(l) },
+  { id: 'website',  label: 'Website Order (beta)',          file: 'bag-layout-variants.html',
+    build: buildWebsiteBagUrl, applies: l => l === 'ecom' },
 ];
 // Legacy shape kept for anything still reading it; derived from the registry so
 // labels live in one place. The leading '' row = "Auto (Print Setup default)".
@@ -2109,6 +2111,8 @@ function buildClassicBagUrl(o) {
     p.set('layout',  pp.layout);
     p.set('orderNo', pp.orderNo);
     p.set('country', pp.country);
+    // Out-of-state marketplace orders owe no studio sales tax.
+    p.set('taxApplies', pp.taxApplies);
     if (pp.source) p.set('srcName', pp.source);
     // Structured per-item bag specs (metal / size / width / finish /
     // personalization) for the ecom layout — see order-normalize.js.
@@ -2211,16 +2215,42 @@ function printOrderSketchBag(o) { window.open(buildSketchBagUrl(o), '_blank'); }
 // Auto-picks which of its three center blocks to render: 'repair' for
 // repair orders, 'rings' when the order carries ring[] specs, 'compact'
 // (bench notes only) for everything else (resize, estimate, plain custom).
-const VARIANT_KIND_LABEL = { custom: 'Custom Order', estimate: 'Estimate', repair: 'Repair', resize: 'Resize', 'square-item': 'Custom Order' };
+const VARIANT_KIND_LABEL = { custom: 'Custom Order', estimate: 'Estimate', repair: 'Repair', resize: 'Resize', 'square-item': 'Custom Order', shopify: 'Website Order', etsy: 'Etsy Order' };
 function buildVariantBagUrl(o) {
   const fmtMD = d => {
     const p = String(d || '').split('-');
     return p.length === 3 ? p[1] + '/' + p[2] : '';
   };
   const kind = typeof inferOrderKind === 'function' ? inferOrderKind(o) : 'custom';
-  const variant = kind === 'repair' ? 'repair'
-                : (Array.isArray(o.rings) && o.rings.length) ? 'rings'
-                : 'compact';
+  // Ecom orders carry no rings[] — that shape comes from the intake form. Build
+  // one card per SIZED line item out of the parsed marketplace specs so a
+  // Shopify ring prints the same bench-readable card a walk-in custom gets,
+  // instead of a flat "1× Title — variant" description line. Add-ons are
+  // already folded onto their piece by ecomPrintItems, so the stamping
+  // instruction rides along on the ring it belongs to.
+  const isEcom  = kind === 'shopify' || kind === 'etsy';
+  const epItems = (isEcom && typeof ecomPrintItems === 'function') ? ecomPrintItems(o) : null;
+  const ecomRings = (epItems || []).filter(it => it.size).map(it => ({
+    category: 'Website Order',
+    title:    it.name,
+    wsMetal:  it.metal,
+    wsWidth:  it.width,
+    wsAccent: it.accent,
+    wsFinish: it.finish,
+    wsOther:  [it.other, (it.addons || []).join('; ')].filter(Boolean).join(' · '),
+    wsNotes:  it.pers,
+    wsSize:   it.size,
+    stamping:      it.stamp      || '',
+    stampingStyle: it.stampStyle || '',
+  }));
+  const rings = (Array.isArray(o.rings) && o.rings.length) ? o.rings : ecomRings;
+  const variant = kind === 'repair' ? 'repair' : rings.length ? 'rings' : 'compact';
+  // Line items the cards don't cover (non-ring products) still need to show,
+  // so keep them in the description; drop the ones a card already renders.
+  const ecomDesc = epItems
+    ? epItems.filter(it => !it.size)
+        .map(it => `${it.qty}× ${it.name}` + (it.pers ? ` — ✎ ${it.pers}` : '')).join('\n')
+    : null;
   const sa = o.shippingAddress || {};
   const addrLine = [o.addrStreet || sa.street || o.address || '',
                     o.addrStreet2 || sa.street2 || ''].filter(Boolean).join(', ');
@@ -2237,9 +2267,9 @@ function buildVariantBagUrl(o) {
     takeIn:    o.takeIn    || '',
     deadline:  o.deadline  || '',
     pickup:    o.pickup    || '',
-    pieceType: o.pieceType || '',
-    jobTitle:  o.jobDesc   || '',
-    desc:      o.desc      || '',
+    pieceType: o.pieceType || (isEcom && ecomRings.length ? 'Ring' : ''),
+    jobTitle:  o.jobDesc   || (isEcom && o.sourceOrderNumber ? 'Order ' + o.sourceOrderNumber : ''),
+    desc:      ecomDesc !== null ? ecomDesc : (o.desc || ''),
     stones:    o.gemstones || '',
     finish:    Array.isArray(o.finish) ? o.finish.join(' · ') : (o.finish || ''),
     notes:     o.notes     || '',
@@ -2250,14 +2280,20 @@ function buildVariantBagUrl(o) {
     deposit:   o.deposit   || '',
     shipping:  o.shipping  || '',
     fullyPaid: o.fullyPaid || '',
-    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({
-      desc:   oiPrintLabel(it),
-      amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
-    }))),
+    // Ecom: price the FOLDED items, so the $5 stamping add-on lands inside the
+    // ring's amount once instead of being dropped or double-counted.
+    items:     JSON.stringify(epItems
+      ? epItems.map(it => ({ desc: it.name + (it.qty > 1 ? ' ×' + it.qty : ''), amount: it.price * it.qty }))
+      : (o.items || []).filter(it => it.name).map(it => ({
+          desc:   oiPrintLabel(it),
+          amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
+        }))),
     orderId:   o.id || '',
+    // Out-of-state marketplace orders owe no studio sales tax.
+    taxApplies: (typeof orderTaxApplies === 'function' && !orderTaxApplies(o)) ? '0' : '1',
   });
   if (o.repairNotes) p.set('repairNotes', o.repairNotes);
-  if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
+  if (rings.length) p.set('rings', JSON.stringify(rings));
   const gift = o.gift || {};
   if (gift.recipient || gift.occasion || gift.surprise) {
     p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
@@ -2270,6 +2306,14 @@ function buildVariantBagUrl(o) {
   return 'bag-layout-variants.html?' + p.toString();
 }
 function printOrderVariantBag(o) { window.open(buildVariantBagUrl(o), '_blank'); }
+
+// Shopify/Etsy bag. Same template and builder as Rings/Repair/Compact —
+// buildVariantBagUrl already synthesizes 'Website Order' ring cards for ecom
+// orders — but registered as its own layout row so the picker can name it for
+// what it is instead of asking Kyle to pick "Rings/Repair/Compact" for a
+// website order, and so its applies() can be ecom-only.
+function buildWebsiteBagUrl(o) { return buildVariantBagUrl(o); }
+function printOrderWebsiteBag(o) { window.open(buildWebsiteBagUrl(o), '_blank'); }
 
 // ════════════════════════════════════════════
 

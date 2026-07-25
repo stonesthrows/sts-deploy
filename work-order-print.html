@@ -658,6 +658,11 @@
   const stamping2 = p.get('stamping2') || '';
   const fullyPaid = p.get('fullyPaid') || '';
   const workedBy  = p.get('workedBy')  || '';
+  // taxApplies=0 → out-of-state Shopify/Etsy order, which owes no studio sales
+  // tax (see orderTaxApplies in js/order-normalize.js). The ecom layout hides
+  // the totals block entirely today, so this only bites if that ever changes —
+  // but the param is passed for every order, so honor it rather than ignore it.
+  const taxApplies = p.get('taxApplies') !== '0';
   let lineItems = [];
   try { lineItems = JSON.parse(p.get('items') || '[]'); } catch (e) { lineItems = []; }
   // Structured per-item bag specs from ecomPrintItems() (order-normalize.js):
@@ -726,7 +731,7 @@
   // Totals rows
   const totalsRows = [
     { label: 'Subtotal',    id: 't-subtotal', editable: false, cls: 'tot' },
-    { label: 'Tax (8%)',    id: 't-salestax', editable: false, cls: 'tot' },
+    { label: taxApplies ? 'Tax (8%)' : 'Tax · Out of State', id: 't-salestax', editable: false, cls: 'tot' },
     { label: 'Shipping',    id: 't-shipping', editable: true,  cls: 'tot' },
     { label: 'Total',       id: 't-total',    editable: false, cls: 'tot strong' },
     { label: 'Deposit',     id: 't-deposit',  editable: true,  cls: 'tot' },
@@ -931,7 +936,7 @@
   function parseAmt(el) { return parseFloat((el.textContent || '').replace(/[$,\s]/g,'')) || 0; }
   function recalc() {
     const sub  = Array.from(document.querySelectorAll('.li-row:not(.tot) .li-a')).reduce((s,e) => s + parseAmt(e), 0);
-    const tax  = sub * 0.08;
+    const tax  = taxApplies ? sub * 0.08 : 0;
     const ship = parseAmt(document.getElementById('t-shipping'));
     const dep  = parseAmt(document.getElementById('t-deposit'));
     const tot  = sub + tax + ship;

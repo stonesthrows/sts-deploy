@@ -2732,7 +2732,7 @@
   </div>
 </div>
 
-<script src="js/pj-calc.js?v=20260721a"></script>
+<script src="js/pj-calc.js?v=20260724e"></script>
 
 <!-- Mileage Reconciliation Modal -->
 <div class="tl-modal-overlay" id="reconOverlay" onclick="odoCloseReconcile()"></div>
@@ -2940,11 +2940,10 @@
 
       <div class="ps-row">
         <label>Custom Order Bag</label>
-        <div class="ps-opts" id="ps-customlayout">
-          <button class="ps-opt" data-val="classic" onclick="psSelect('ps-customlayout',this)">Classic Form</button>
-          <button class="ps-opt" data-val="sketch" onclick="psSelect('ps-customlayout',this)">Sketch Canvas (beta)</button>
-          <button class="ps-opt" data-val="variants" onclick="psSelect('ps-customlayout',this)">Rings/Repair/Compact (beta)</button>
-        </div>
+        <!-- Options are rendered from the BAG_LAYOUTS registry (js/orders.js)
+             by _psRenderCustomLayoutOpts() in js/pj-calc.js when the modal
+             opens — don't hand-write buttons here or the two lists drift. -->
+        <div class="ps-opts" id="ps-customlayout"></div>
       </div>
 
     </div>
@@ -3494,14 +3493,14 @@
 <script src="js/api-auth.js?v=1"></script>
 <script src="js/storage.js?v=20260720a"></script>
 <script src="js/data.js?v=20260720c"></script>
-<script src="js/order-normalize.js?v=20260713c"></script>
+<script src="js/order-normalize.js?v=20260724e"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260721b"></script>
 <script src="js/app.js?v=20260724a"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260724a"></script>
 <script src="js/ring-fields.js?v=8"></script>
-<script src="js/orders.js?v=20260724b"></script>
+<script src="js/orders.js?v=20260724f"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>

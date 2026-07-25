@@ -71,6 +71,12 @@ const SPEC_FINISH_RX = /\b(hammered|high[ -]?polish(?:ed)?|polished|matte|brushe
 
 const SPEC_WIDTH_RX = /\b(\d+(?:[.,]\d+)?\s*mm)\b/i;
 
+// Motif/accent nouns. A metal word followed by one of these describes a
+// DECORATION, not the ring body: Shopify's "14k Yellow Gold Sun" option on
+// a sterling band means a gold sun soldered onto a silver ring — reading it
+// as the body metal would put the whole band in 14k gold at the bench.
+const SPEC_ACCENT_NOUN_RX = /\b(sun|moon|star|stars|leaf|leaves|heart|hearts|flower|motif|accent|inlay|overlay|bezel|dot|dots|nugget|granule|stripe|detail(?:ing)?)\b/i;
+
 // Bare ring-size values: "7", "7.5", "7 1/2", "7½", "9 US", "US 6"
 const SPEC_SIZE_VAL_RX = /^(?:us\s*)?(\d{1,2}(?:[.,]\d+)?(?:\s*(?:[½¼¾]|\d\/\d))?)\s*(?:us)?$/i;
 
@@ -99,7 +105,7 @@ function specPairsFromText(text) {
 }
 
 function parseSpecPairs(pairs) {
-  const spec = { size: '', metal: '', width: '', finish: '', other: [], pers: '' };
+  const spec = { size: '', metal: '', width: '', finish: '', accent: '', other: [], pers: '' };
   const finishes = [];
   (pairs || []).forEach(pr => {
     const name  = String(pr.name  || '').trim();
@@ -121,7 +127,20 @@ function parseSpecPairs(pairs) {
       if (!spec.width) spec.width = (SPEC_WIDTH_RX.exec(value) || [])[1] || value;
       return;
     }
-    if (SPEC_METAL_RX.test(value) && value.length <= 40) { if (!spec.metal) spec.metal = value; return; }
+    if (SPEC_METAL_RX.test(value) && value.length <= 40) {
+      const mm = SPEC_METAL_RX.exec(value);
+      const leftover = value.replace(mm[1], ' ').replace(/\s{2,}/g, ' ').trim();
+      // Metal + motif noun ("14k Yellow Gold Sun") = an accent on the piece,
+      // not the body metal. Park it as an accent so liftSpecFromTitle can
+      // still take the real body metal off the title ("Sterling Silver …").
+      if (leftover && SPEC_ACCENT_NOUN_RX.test(leftover)) {
+        spec.accent = spec.accent ? spec.accent + ', ' + value : value;
+        return;
+      }
+      // Bare metal option → keep only the matched metal, not trailing words.
+      if (!spec.metal) spec.metal = leftover ? value : mm[1];
+      return;
+    }
     if (SPEC_FINISH_RX.test(value)) { finishes.push(value); return; }
     spec.other.push(value);
   });
@@ -193,10 +212,21 @@ function cleanProductTitle(title, opts) {
   const tidy = s => s.replace(/(^|\s)([A-Za-z][\w-]*)\/(?=\s+(?:[,·—]|$)|\s*$)/g, '$1')
                      .replace(/\s*[,·]\s*(?=[,·])/g, '').replace(/\s{2,}/g, ' ')
                      .replace(/^[\s,·—-]+|[\s,·—-]+$/g, '').replace(/[\s,·—-]+$/g, '').trim();
+  // Storefront disclaimers ("(Please note: This is not a ring)") are aimed at
+  // the shopper, not the bench — drop the whole parenthetical.
+  t = t.replace(/\((?:\s*please\s+note|\s*note)\s*[:\-][^)]*\)/gi, ' ');
   t = tidy(t.replace(TITLE_AUDIENCE_RX, ' ').replace(TITLE_FILLER_RX, ' '));
   if (spec) {
     let stripped = t;
-    if (spec.metal)  stripped = stripped.replace(new RegExp(SPEC_METAL_RX.source, 'gi'), ' ');
+    // Keep a metal that qualifies a motif ("… with 14k Gold Motif") — stripping
+    // it leaves the meaningless "… with Motif". Only unqualified mentions go.
+    // The noun must come straight after the metal ("14k Gold Motif"), so the
+    // "Sun" in a product name like "Rising Sun Ring" doesn't shield the body
+    // metal from being stripped — that one belongs on its own spec row.
+    const ACCENT_NEXT_RX = new RegExp('^\\s+' + SPEC_ACCENT_NOUN_RX.source.replace(/^\\b|\\b$/g, ''), 'i');
+    if (spec.metal) stripped = stripped.replace(new RegExp(SPEC_METAL_RX.source, 'gi'),
+      (match, p1, offset, str) =>
+        ACCENT_NEXT_RX.test(str.slice(offset + match.length)) ? match : ' ');
     if (spec.width)  stripped = stripped.replace(new RegExp(SPEC_WIDTH_RX.source, 'gi'), ' ');
     if (spec.finish) stripped = stripped.replace(new RegExp(SPEC_FINISH_RX.source, 'gi'), ' ');
     stripped = tidy(stripped);
@@ -216,6 +246,7 @@ function specSummary(it) {
     it.ringSize ? 'Sz ' + it.ringSize : '',
     it.width,
     it.finish,
+    it.accent,
     it.specOther,
   ].filter(Boolean).join(' · ');
 }
@@ -237,6 +268,7 @@ function buildEcomItem(rawTitle, pairs, base) {
   it.metal        = spec.metal;
   it.width        = spec.width;
   it.finish       = spec.finish;
+  it.accent       = spec.accent;
   it.specOther    = spec.other.join(', ');
   if (spec.pers && !it.personalization) it.personalization = spec.pers;
   it.isRing       = !!spec.size;
@@ -413,6 +445,35 @@ function printLayoutFor(kind) {
   return ORDER_KIND_TO_LAYOUT[kind] || 'custom';
 }
 
+// ── Sales tax nexus ──────────────────────────────────────────────────
+// The studio's only nexus is Austin, TX, so a marketplace order owes Texas
+// sales tax only when it ships to a Texas address. Etsy and Shopify act as
+// marketplace facilitators — they already collect and remit destination tax
+// themselves — so adding Texas tax to an out-of-state order overstates the
+// bag's total against what the customer was actually charged.
+// Manual orders (walk-ins, markets, custom intake) are unaffected.
+const STUDIO_TAX_STATE = 'TX';
+// Shopify sends full state names ("Ohio"); Etsy and manual intake send
+// abbreviations. Only Texas needs recognizing, in either form.
+const TAX_HOME_STATE_RX = /^\s*(?:tx|texas)\s*$/i;
+
+// Destination state, from the flat address fields or the legacy
+// shippingAddress object (Shopify calls it province).
+function orderTaxState(o) {
+  const sa = o.shippingAddress || {};
+  return String(o.addrState || sa.state || sa.province || '').trim();
+}
+
+// Whether this order owes studio sales tax. Marketplace orders: only when the
+// destination is positively Texas — an unknown/blank state counts as out of
+// state, since guessing tax on would overstate a total the marketplace has
+// already settled. Everything else keeps today's behavior (taxable).
+function orderTaxApplies(o) {
+  const kind = typeof inferOrderKind === 'function' ? inferOrderKind(o) : 'custom';
+  if (kind !== 'shopify' && kind !== 'etsy') return true;
+  return TAX_HOME_STATE_RX.test(orderTaxState(o));
+}
+
 // Re-sync backfill for ecom orders imported before newer proxy fields
 // existed (spec'd items, Etsy's ship-by deadline). Fills only what's
 // missing or machine-vintage — never overwrites human-edited data.
@@ -431,6 +492,42 @@ function backfillEcomOrder(o, fresh) {
     changed = true;
   }
   return changed;
+}
+
+// ── Add-on line items → folded into the piece they modify ────────────
+// Shopify sells "Custom Inside Ring Stamping Add-on" as its own $5 line, but
+// on the bench it isn't a second piece — it's an instruction on the ring.
+// Printed as a peer item the bag reads "make a ring, and separately make a
+// thing that isn't a ring", and the stamp text never reaches the ring block.
+const ECOM_ADDON_RX = /\badd[ -]?on\b/i;
+const ECOM_STAMP_RX = /\bstamp(?:ing|ed)?\b|\bengrav/i;
+
+// Attach each add-on to its target piece and drop it from the list. Target =
+// first ring (has a size), else the priciest remaining item. The add-on's
+// price moves onto that piece so the money strip still reconciles with
+// Shopify's total — folded in, not printed as its own line.
+function foldEcomAddons(items) {
+  const addons = items.filter(it => ECOM_ADDON_RX.test(it.raw || it.name || ''));
+  if (!addons.length || addons.length === items.length) return items;
+  const pieces = items.filter(it => addons.indexOf(it) === -1);
+  addons.forEach(ad => {
+    const target = pieces.find(p => p.size) ||
+                   pieces.slice().sort((a, b) => b.price - a.price)[0];
+    if (!target) return;
+    if (ECOM_STAMP_RX.test(ad.raw || ad.name || '')) {
+      // The date/text the customer typed at checkout; the variant carries
+      // the how ("Date Stamped, Block Uppercase").
+      const text = ad.pers || '';
+      if (text)     target.stamp      = target.stamp ? target.stamp + '; ' + text : text;
+      if (ad.other) target.stampStyle = target.stampStyle ? target.stampStyle + ', ' + ad.other : ad.other;
+      if (!text && !ad.other) target.stampStyle = 'see order — stamping requested';
+    } else {
+      const label = [ad.name, ad.pers].filter(Boolean).join(': ');
+      target.addons = (target.addons || []).concat(label);
+    }
+    target.price += ad.price * (ad.qty || 1);
+  });
+  return pieces;
 }
 
 // Print-ready structured items for the ecom bag layout. Handles three
@@ -468,7 +565,7 @@ function ecomPrintItems(o) {
       });
     });
   }
-  return items.map(it => {
+  return foldEcomAddons(items.map(it => {
     let src = it;
     if (it.metal === undefined && it.width === undefined && it.finish === undefined) {
       // Legacy: name may carry a "Name — variant" tail; prefer an explicit
@@ -493,10 +590,11 @@ function ecomPrintItems(o) {
       metal:  src.metal           || '',
       width:  src.width           || '',
       finish: src.finish          || '',
+      accent: src.accent          || '',
       other:  src.specOther       || '',
       pers:   src.personalization || '',
     };
-  });
+  }));
 }
 
 // Extra query params printOrder() merges into the work-order-print.html URL.
@@ -509,6 +607,9 @@ function printParamsFor(o) {
     orderNo:  o.sourceOrderNumber || '',
     country:  o.addrCountry || (o.shippingAddress && o.shippingAddress.country) || '',
     workedBy: o.assignee || ({ kyle: 'Kyle', stevie: 'Stevie', vanessa: 'Vanessa' }[o.stage] || ''),
+    // '0' tells the bag templates not to add studio sales tax (out-of-state
+    // marketplace order). Absent/'1' keeps the computed tax.
+    taxApplies: orderTaxApplies(o) ? '1' : '0',
   };
 }
 

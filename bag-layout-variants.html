@@ -19,6 +19,10 @@
                          card grid, one card per ring, built from the
                          same rings[] shape as js/ring-fields.js
                          (Meditation Ring / Simple Band / Custom Ring).
+                         Shopify/Etsy orders also land here: buildVariantBagUrl
+                         synthesizes a rings[] of category 'Website Order'
+                         from ecomPrintItems(), one card per sized line
+                         item, with add-ons folded onto their piece.
       ?variant=repair   Repair order — center block is a bench
                          checklist (issue tags, warranty) + a wide
                          ruled area for repair instructions.
@@ -27,7 +31,7 @@
                          block at all; Bench Notes/Materials just
                          grows to fill the space.
 
-    ?demo=1..5 loads canned data per variant (see DEMOS below) so
+    ?demo=1..6 loads canned data per variant (see DEMOS below) so
     every combination can be reviewed with no app needed. The bar
     at the top (screen only) links every variant × demo combo.
     ══════════════════════════════════════════════════════════════
@@ -145,6 +149,17 @@
     .ring-card .rc-stamp { margin-top: auto; padding-top: 4px; border-top: 1px dashed #ccc;
                             font-size: 10px; font-style: italic; color: #333; }
     .rings-grid.n1 .ring-card .rc-stamp { font-size: 12px; }
+    /* Inside stamping is a get-it-right-the-first-time instruction (you can't
+       un-stamp a finished band), so it reads as a labeled value rather than an
+       italic afterthought. */
+    .ring-card .rc-stamp { font-style: normal; display: flex; flex-wrap: wrap;
+                           align-items: baseline; gap: 0 6px; }
+    .ring-card .rc-stamp .rs-lbl { font-size: 7.5px; font-weight: bold; letter-spacing: 1.4px;
+                                    text-transform: uppercase; color: #555; }
+    .ring-card .rc-stamp .rs-val { font-size: 12px; letter-spacing: .5px;
+                                    border-bottom: 1px solid #999; }
+    .rings-grid.n1 .ring-card .rc-stamp .rs-val { font-size: 15px; }
+    .ring-card .rc-stamp .rs-how { font-size: 9.5px; color: #555; flex-basis: 100%; }
 
     /* ── Variant: repair — checklist + wide ruled instructions ── */
     .repair-box { border: 1px solid #111; height: 100%; display: flex; flex-direction: column; }
@@ -267,7 +282,7 @@
 
   <div class="moneystrip">
     <div class="m"><small>Subtotal</small><span id="m-sub" contenteditable="true"></span></div>
-    <div class="m"><small>Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
+    <div class="m"><small id="m-tax-lbl">Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
     <div class="m hide" id="m-ship-cell"><small>Shipping</small><span id="m-ship" contenteditable="true"></span></div>
     <div class="m b"><small>Total</small><span id="m-total"></span></div>
     <div class="m"><small>Deposit</small><span id="m-dep" contenteditable="true"></span></div>
@@ -377,6 +392,24 @@
       ringSize: '7', items: [{ desc: 'Resize, down 1 size', amount: 45 }],
       deposit: 0, fullyPaid: '1',
     },
+    // variant=rings, Shopify order #1156 — a real order kept as a fixture.
+    // Exercises the Website Order card: body metal vs. gold accent motif, and
+    // a folded-in "Inside Ring Stamping Add-on" whose date lands on the ring.
+    '6': {
+      kindLbl: 'Website Order', name: 'Jack Joshua',
+      address: '301 N Franklin St', city: 'Delaware', state: 'Ohio', zip: '43015',
+      takeIn: '2026-07-24', pickup: 'Ship',
+      pieceType: 'Ring', jobTitle: 'Order #1156',
+      rings: [{
+        category: 'Website Order',
+        title: 'Rising Sun Ring with 14k Gold Motif',
+        wsMetal: 'Sterling Silver', wsAccent: '14k Yellow Gold Sun', wsSize: '12',
+        stamping: '08-08-2023', stampingStyle: 'Date Stamped, Block Uppercase',
+      }],
+      items: [{ desc: 'Rising Sun Ring with 14k Gold Motif', amount: 305 }],
+      // Ships to Ohio — out of state, so no Texas sales tax on the bag.
+      deposit: 0, fullyPaid: '1', taxApplies: false,
+    },
   };
 
   const src = demo && DEMOS[demo] ? DEMOS[demo] : {
@@ -398,6 +431,7 @@
     giftSurprise: q.get('giftSurprise') || '',
     deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
     fullyPaid: q.get('fullyPaid') || '',
+    taxApplies: q.get('taxApplies') !== '0',
     items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
   };
 
@@ -453,13 +487,23 @@
       rows.push(['Metal', r.customMetal], ['Width', r.customWidth], ['Gauge', r.customGauge]);
       if ((r.customTexture || []).length) rows.push(['Texture', r.customTexture.join(' / ')]);
       if (r.customNotes) rows.push(['Notes', r.customNotes]);
+    } else if (r.category === 'Website Order') {
+      // Shopify/Etsy line item, spec'd from the product title + variant by
+      // ecomPrintItems(). "Accent" is a motif in a second metal (a 14k gold
+      // sun on a sterling band) — deliberately its own row so nobody reads
+      // it as the body metal and makes the whole ring in gold.
+      rows.push(['Metal', r.wsMetal], ['Width', r.wsWidth],
+                ['Accent', r.wsAccent], ['Finish', r.wsFinish]);
+      if (r.wsOther) rows.push(['Options', r.wsOther]);
+      if (r.wsNotes) rows.push(['Cust. Note', r.wsNotes]);
     }
     return rows.filter(row => row[1]);
   }
   function ringSize(r) {
     return r.category === 'Meditation Ring' ? r.medSize
          : r.category === 'Simple Band'     ? r.bandSize
-         : r.category === 'Custom Ring'     ? r.customSize : '';
+         : r.category === 'Custom Ring'     ? r.customSize
+         : r.category === 'Website Order'   ? r.wsSize : '';
   }
 
   function renderRings(rings) {
@@ -473,15 +517,19 @@
       card.innerHTML = `
         <div class="rc-head">
           <div>
-            <div class="rc-name">${rings.length > 1 ? 'Ring ' + (i + 1) + (r.name ? ' — ' + r.name : '') : 'Ring'}</div>
-            <div class="rc-type">${r.category || ''}</div>
+            <div class="rc-name">${r.title || (rings.length > 1 ? 'Ring ' + (i + 1) + (r.name ? ' — ' + r.name : '') : 'Ring')}</div>
+            <div class="rc-type">${r.category === 'Website Order' ? '' : (r.category || '')}</div>
           </div>
           ${size ? `<div class="rc-size">${size}</div>` : ''}
         </div>
         <div class="rc-body">
           ${ringCategoryRows(r).map(([k, v]) => `<div class="rc-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}
         </div>
-        ${r.stamping ? `<div class="rc-stamp">“${r.stamping}”</div>` : ''}
+        ${(r.stamping || r.stampingStyle) ? `<div class="rc-stamp">
+            <span class="rs-lbl">Inside stamp</span>
+            ${r.stamping ? `<b class="rs-val">${r.stamping}</b>` : '<b class="rs-val">see order</b>'}
+            ${r.stampingStyle ? `<span class="rs-how">${r.stampingStyle}</span>` : ''}
+          </div>` : ''}
       `;
       grid.appendChild(card);
     });
@@ -585,7 +633,12 @@
     el.classList.add('show');
   }
   const sub  = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-  const tax  = sub * 0.08;
+  // taxApplies=0 → out-of-state Shopify/Etsy order (see orderTaxApplies in
+  // js/order-normalize.js). The cell stays on the bag showing $0.00 with a
+  // reason, so a zero reads as deliberate rather than a missed line.
+  const taxApplies = src.taxApplies !== false;
+  const tax  = taxApplies ? sub * 0.08 : 0;
+  if (!taxApplies) document.getElementById('m-tax-lbl').textContent = 'Tax · Out of State';
   const ship = parseFloat(src.shipping) || 0;
   const dep  = parseFloat(src.deposit) || 0;
   const tot  = sub + tax + ship;
