@@ -275,7 +275,7 @@
     /* 3 visible columns — the Stuller search button is display:none here,
        so its grid track is dropped (hidden elements create no grid items) */
     .est-row {
-      display: grid; grid-template-columns: 1fr 130px 56px 44px;
+      display: grid; grid-template-columns: 1fr 130px 82px 44px;
       gap: 6px; align-items: center; margin-bottom: 7px;
     }
     .est-input {
@@ -293,7 +293,9 @@
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       font-family: inherit; padding: 0;
     }
-    .est-col-labels { display: grid; grid-template-columns: 1fr 130px 56px 44px; gap: 6px; margin-bottom: 6px; }
+    /* Markup × column: tighter side padding + centered so "2.5" never clips */
+    .est-mult-input { padding-left: 4px; padding-right: 4px; text-align: center; }
+    .est-col-labels { display: grid; grid-template-columns: 1fr 130px 82px 44px; gap: 6px; margin-bottom: 6px; }
     .est-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
     .mult-toggle {
       display: flex; gap: 0; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
