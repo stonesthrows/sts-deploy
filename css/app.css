@@ -1706,6 +1706,24 @@
       to   { opacity: 1; transform: none; }
     }
 
+    /* ── Message chip on Kanban order cards ──── */
+    /* Empty slot must not eat flex gap when the customer has no messages. */
+    .o-msg-slot:empty { display: none; }
+    .o-msg-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #EEF2F6; color: var(--text2);
+      border: 1px solid #D8E2EA;
+      font-size: 10.5px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px;
+      white-space: nowrap; cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-smooth),
+                  border-color var(--dur-fast) var(--ease-smooth);
+    }
+    .o-msg-chip:hover { background: #E2EAF1; border-color: #BCCCDA; }
+    /* Unread gets the same amber treatment as the topbar badge. */
+    .o-msg-chip.unread { background: #FFF5E8; color: #B05A10; border-color: #E8C89A; }
+    .o-msg-chip.unread:hover { background: #FFECD4; border-color: #DDB27E; }
+
     /* ── Inline customer edit form ───────────── */
     .ct-exp-edit-form {
       padding: 10px 20px 12px;

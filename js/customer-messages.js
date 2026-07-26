@@ -118,6 +118,7 @@ function totalUnreadMessages() {
 // aren't in the DOM (e.g. filtered out by search/sub-tab).
 function renderAllMessageBadges() {
   renderMessageBell();
+  renderAllOrderMsgChips();
   if (typeof CUSTOMERS === 'undefined') return;
   CUSTOMERS.forEach(function(c, idx) {
     var el = document.getElementById('ct-msg-badge-' + idx);
@@ -196,6 +197,69 @@ function _msgCheckForNew() {
   if (grew) showMessagePop(total);
 }
 
+// ── Order-card message chip ──────────────────
+// Threads are keyed per customer, so every order card for the same person
+// shows that person's thread — the chip answers "is there a conversation
+// about this customer?", not "about this specific order".
+function messageCountsForName(name) {
+  var key = custKey(name);
+  return { total: messagesFor(key).length, unread: unreadMessageCount(key) };
+}
+
+function orderMsgChipHtml(name) {
+  var c = messageCountsForName(name);
+  if (!c.total) return '';
+  var safe = String(name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return '<span class="o-msg-chip' + (c.unread ? ' unread' : '') + '"'
+    + ' title="' + (c.unread ? c.unread + ' unread of ' + c.total : c.total)
+    + ' team message' + (c.total === 1 ? '' : 's') + ' about this customer"'
+    + ' onclick="event.stopPropagation();openMessagesForCustomer(\'' + esc(safe) + '\')">'
+    + '💬 ' + (c.unread || c.total) + '</span>';
+}
+
+// Refresh the chips already on screen without re-rendering the board (a
+// full renderKanban() here would fight drags and collapse open cards).
+function renderAllOrderMsgChips() {
+  if (typeof ORDERS === 'undefined') return;
+  document.querySelectorAll('[data-msg-chip-for]').forEach(function(slot) {
+    slot.innerHTML = orderMsgChipHtml(slot.getAttribute('data-msg-chip-for'));
+  });
+}
+
+// Jump from an order card to that customer's Team Messages thread.
+function openMessagesForCustomer(name) {
+  var key = custKey(name);
+  var idx = (typeof CUSTOMERS !== 'undefined')
+    ? CUSTOMERS.findIndex(function(c) { return custKey(c.name) === key; }) : -1;
+  if (idx < 0) return;
+  hideMessagePop();
+  if (typeof sbNav === 'function') sbNav('custom-orders', 'customers');
+  else if (typeof switchTab === 'function') switchTab('customers');
+
+  // The row may not be rendered yet, and the active sub-tab filter can
+  // exclude this customer outright (e.g. "Current" once their orders are
+  // done) — so render, then widen to "All" before giving up.
+  var tries = 0, widened = false;
+  (function findRow() {
+    var wrap = document.getElementById('ct-wrap-' + idx);
+    if (!wrap) {
+      if (tries === 0 && typeof renderCustomers === 'function') {
+        renderCustomers();
+      } else if (tries > 5 && !widened) {
+        widened = true;
+        var allBtn = document.querySelector('.cst-tab[data-cst="all"]');
+        if (allBtn && typeof switchCustTab === 'function') switchCustTab('all', allBtn);
+      }
+      if (++tries < 25) return setTimeout(findRow, 40);
+      return;
+    }
+    if (!wrap.classList.contains('ct-open') && typeof toggleCustomerRow === 'function') {
+      toggleCustomerRow(idx);
+    }
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  })();
+}
+
 // ── Render ───────────────────────────────────
 // Renders the thread for a currently-open customer panel. Since messages
 // are always fully loaded in memory (small, business-scale dataset — see
@@ -215,6 +279,7 @@ function renderMessageThread(idx, customerKey) {
   // Reading a thread drops the global count — rebaseline so the next
   // arrival still registers as growth rather than being swallowed.
   renderMessageBell();
+  renderAllOrderMsgChips();
   _msgPrevUnread = totalUnreadMessages();
 
   var msgs   = messagesFor(customerKey);

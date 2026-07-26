@@ -218,6 +218,7 @@ function cardHTML(o) {
         ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         ${o.printLayout ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
+        <span class="o-msg-slot" data-msg-chip-for="${esc(o.name)}">${typeof orderMsgChipHtml === 'function' ? orderMsgChipHtml(o.name) : ''}</span>
       </div>
       <div class="o-body">
         ${hasPhoto ? `
@@ -241,6 +242,7 @@ function cardHTML(o) {
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
+          <span class="o-msg-slot" data-msg-chip-for="${esc(o.name)}">${typeof orderMsgChipHtml === 'function' ? orderMsgChipHtml(o.name) : ''}</span>
           <span class="o-price">${fmtPrice(o.price)}</span>
         </div>
       </div>
