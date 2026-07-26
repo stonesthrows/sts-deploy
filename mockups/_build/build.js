@@ -1,0 +1,181 @@
+// ════════════════════════════════════════════════════════════
+//  Emits the 10 mockups + the gallery index.
+//
+//  Dev-only. The *output* is plain self-contained HTML with no
+//  build step — this script just keeps the fixture data and the
+//  shared markup identical across all 10 so the only variable
+//  between designs is the design itself.
+//
+//  Run:  node mockups/_build/build.js
+// ════════════════════════════════════════════════════════════
+
+const fs = require('fs');
+const path = require('path');
+const { page, esc } = require('./shell');
+
+const DESIGNS = [...require('./designs-a'), ...require('./designs-b')];
+const OUT = path.join(__dirname, '..');
+
+// ── The 10 design files ──────────────────────────────────────
+for (const d of DESIGNS) {
+  fs.writeFileSync(path.join(OUT, d.file), page(d), 'utf8');
+  console.log(`  ✓ ${d.file.padEnd(20)} ${d.name}`);
+}
+
+// ── Gallery ──────────────────────────────────────────────────
+const cards = DESIGNS.map(d => `      <a class="g-card" href="${d.file}" target="_blank" rel="noopener">
+        <div class="g-frame">
+          <iframe data-src="${d.file}" title="${esc(d.name)} preview" loading="lazy" scrolling="no" tabindex="-1"></iframe>
+        </div>
+        <div class="g-meta">
+          <div class="g-top">
+            <span class="g-num">${d.num}</span>
+            <span class="g-name">${esc(d.name)}</span>
+            <span class="g-open">Open ↗</span>
+          </div>
+          <p class="g-thesis">${esc(d.thesis)}</p>
+        </div>
+      </a>`).join('\n');
+
+const index = `<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STS Workflow — 10 Redesign Concepts</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F2F4F7; --card:#FFFFFF; --border:#E1E5EA;
+  --text:#151A21; --text2:#5A6470; --text3:#8892A0;
+  --accent:#B8862B; --shadow:0 1px 3px rgba(20,28,38,.07);
+  --shadow-lg:0 12px 32px rgba(20,28,38,.14);
+}
+:root[data-theme="dark"]{
+  --bg:#0C0F13; --card:#161A20; --border:#252B34;
+  --text:#E8EBEF; --text2:#98A2AE; --text3:#6E7885;
+  --accent:#D8A94A; --shadow:0 1px 3px rgba(0,0,0,.4);
+  --shadow-lg:0 14px 36px rgba(0,0,0,.6);
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  transition:background .3s,color .3s;
+}
+.wrap{max-width:1420px;margin:0 auto;padding:40px 28px 64px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px}
+h1{
+  font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+  font-size:32px;font-weight:600;letter-spacing:-.025em;line-height:1.1;
+}
+.sub{color:var(--text2);font-size:14px;margin-top:8px;max-width:62ch;line-height:1.55}
+.controls{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.tbtn{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  background:var(--card);border:1px solid var(--border);border-radius:20px;
+  padding:8px 15px;font-size:13px;font-weight:600;color:var(--text);
+  font-family:inherit;transition:border-color .16s,transform .16s;
+}
+.tbtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.note{
+  margin:26px 0 22px;padding:13px 16px;
+  background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--accent);border-radius:8px;
+  font-size:13px;color:var(--text2);line-height:1.55;
+}
+.note strong{color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:22px}
+.g-card{
+  display:block;text-decoration:none;color:inherit;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;box-shadow:var(--shadow);
+  transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s,border-color .2s;
+}
+.g-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:var(--accent)}
+.g-frame{
+  position:relative;height:290px;overflow:hidden;
+  border-bottom:1px solid var(--border);background:var(--bg);
+}
+.g-frame iframe{
+  position:absolute;top:0;left:0;
+  width:1520px;height:1015px;border:0;
+  transform:scale(.35);transform-origin:0 0;
+  pointer-events:none;
+}
+.g-meta{padding:14px 16px 16px}
+.g-top{display:flex;align-items:center;gap:9px}
+.g-num{
+  font-size:11px;font-weight:700;color:var(--accent);
+  font-variant-numeric:tabular-nums;letter-spacing:.06em;
+}
+.g-name{font-size:16px;font-weight:700;letter-spacing:-.015em}
+.g-open{margin-left:auto;font-size:12px;font-weight:600;color:var(--text3)}
+.g-card:hover .g-open{color:var(--accent)}
+.g-thesis{font-size:12.5px;color:var(--text2);line-height:1.5;margin-top:6px}
+footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text3);line-height:1.6}
+@media (max-width:620px){
+  .wrap{padding:26px 16px 44px}
+  h1{font-size:25px}
+  .grid{grid-template-columns:1fr}
+  .g-frame{height:230px}
+  .g-frame iframe{transform:scale(.27)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Ten ways the workflow could look</h1>
+      <p class="sub">Redesign concepts for the Stones Throw Studio order workflow. Every one renders the same real data — the same 16 orders, the same eight pipeline stages, the same dashboard widgets — so the only thing changing between them is the design. Each has its own light and dark mode.</p>
+    </div>
+    <div class="controls">
+      <button class="tbtn" onclick="toggleAll()"><span id="tIcon">◐</span><span id="tLabel">Dark</span></button>
+    </div>
+  </header>
+
+  <div class="note">
+    <strong>How to use this:</strong> the toggle above flips all ten previews at once — worth doing, because several designs are far more convincing in one mode than the other. Click any tile to open it full-screen, where you can switch between the <strong>Dashboard</strong> and the <strong>Order Pipeline</strong> and use that design's own theme toggle. Nothing here touches the live app.
+  </div>
+
+  <div class="grid">
+${cards}
+  </div>
+
+  <footer>
+    Mockups only — self-contained HTML, no external requests, no build step, not wired to Notion or any data source.<br>
+    Regenerate with <code>node mockups/_build/build.js</code>.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var K='sts-mock-gallery';
+  var saved=null; try{ saved=localStorage.getItem(K); }catch(e){}
+  var theme=saved||(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  apply(theme,true);
+
+  function apply(t,first){
+    theme=t;
+    document.documentElement.setAttribute('data-theme',t);
+    document.getElementById('tIcon').textContent=t==='dark'?'☀':'◐';
+    document.getElementById('tLabel').textContent=t==='dark'?'Light':'Dark';
+    document.querySelectorAll('iframe[data-src]').forEach(function(f){
+      var src=f.getAttribute('data-src')+'?theme='+t;
+      // Only reload when it actually changed, so toggling stays snappy.
+      if(f.getAttribute('src')!==src) f.setAttribute('src',src);
+    });
+  }
+  window.toggleAll=function(){
+    var t=theme==='dark'?'light':'dark';
+    apply(t); try{ localStorage.setItem(K,t); }catch(e){}
+  };
+})();
+</script>
+</body>
+</html>
+`;
+
+fs.writeFileSync(path.join(OUT, 'index.html'), index, 'utf8');
+console.log(`  ✓ index.html          Gallery (${DESIGNS.length} concepts)`);

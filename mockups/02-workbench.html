@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Workbench — STS Redesign 02</title>
+<style>
+/* ══════════════════════════════════════════════════════════
+   WORKBENCH — Information-dense and utilitarian. Minimal chrome, tabular numbers, far more orders visible per screen.
+   Redesign concept 02 of 10 for Stones Throw Studio.
+   Self-contained mockup: no external requests, no build step.
+   ══════════════════════════════════════════════════════════ */
+
+:root{
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+  --fs:13px; --radius:4px; --radius-sm:3px; --ease:cubic-bezier(.3,0,.2,1);
+  --gap:8px; --pad:14px; --view-pad:14px; --topbar-h:44px; --sidebar-w:200px;
+  --greet-size:17px; --greet-weight:700; --greet-track:-.01em;
+  --title-size:13px; --kpi-size:22px; --col-gap:6px; --col-min:142px;
+  --vs-pad:0 14px; --vs-gap:0;
+
+  --bg:#E9EBEE; --card:#FFFFFF; --card-head-bg:#F3F4F6; --card-head-fg:#333A44;
+  --border:#C6CBD3; --border-soft:#DFE2E7;
+  --text:#1B1F26; --text2:#4E5762; --text3:#79828F;
+  --accent:#0B6E4F; --accent-ink:#FFFFFF; --accent-text:#0B6E4F; --accent-soft:#E2F1EB;
+  --hover:#EDEFF2; --ok:#0B8E5F; --ok-text:#0B7A50;
+
+  --sidebar-bg:#20262E; --sidebar-fg:#BCC4CE; --sidebar-dim:#727C88;
+  --sidebar-hover:#2A313A; --sidebar-active-bg:#0B6E4F; --sidebar-active-fg:#FFFFFF;
+  --sidebar-border:1px solid #333B45;
+  --brand-mark-bg:#0B6E4F; --brand-fg:#E6EAEF;
+  --topbar-bg:#FFFFFF; --subnav-bg:#F3F4F6;
+  --pill-bg:#F3F4F6; --pill-border:#D5DAE1; --pill-radius:3px;
+  --shadow:0 1px 0 rgba(27,31,38,.06); --shadow-lg:0 2px 6px rgba(27,31,38,.13);
+
+  --tone-gold:#FAF0D8; --tone-purple:#EDE9F6; --tone-red:#FAE4E0; --tone-green:#E2F1EB;
+  --chip-bg:#F3F4F6; --badge-bg:#EFF1F4; --badge-fg:#4E5762;
+  --tag-ok-bg:#EDEFF2; --tag-ok-fg:#4E5762;
+  --tag-soon-bg:#FDF0D5; --tag-soon-fg:#8A6410;
+  --tag-late-bg:#FBE0DA; --tag-late-fg:#A83318;
+  --tag-done-bg:#DFF0E8; --tag-done-fg:#0B6E4F;
+  --flag-bg:#FDF0D5; --flag-fg:#8A6410;
+
+  --s1:#3A62D8; --s2:#B8890F; --s3:#C7602A; --s4:#128057;
+  --s5:#7B45BC; --s6:#1F5FA8; --s7:#B8890F; --s8:#0D7595;
+  --mix-head:15%; --mix-head-fg:78%; --mix-count:22%; --mix-body:5%;
+  --o-card-bg:#FFFFFF;
+}
+:root[data-theme="dark"]{
+  --bg:#101216; --card:#181B20; --card-head-bg:#1E2229; --card-head-fg:#C3CAD3;
+  --border:#2C313A; --border-soft:#23272E;
+  --text:#E2E6EB; --text2:#98A2AE; --text3:#6E7885;
+  --accent:#2ABF88; --accent-ink:#04140D; --accent-text:#3FD79C; --accent-soft:#12281F;
+  --hover:#22262D; --ok:#2ABF88; --ok-text:#3FD79C;
+
+  --sidebar-bg:#0B0D11; --sidebar-fg:#AEB7C2; --sidebar-dim:#646E7B;
+  --sidebar-hover:#161A20; --sidebar-active-bg:#12563E; --sidebar-active-fg:#7BEBBD;
+  --sidebar-border:1px solid #1D2128;
+  --brand-mark-bg:#12563E; --brand-fg:#DDE3EA;
+  --topbar-bg:#14171C; --subnav-bg:#14171C;
+  --pill-bg:#1B1F25; --pill-border:#2C313A;
+  --shadow:0 1px 0 rgba(0,0,0,.4); --shadow-lg:0 3px 10px rgba(0,0,0,.55);
+
+  --tone-gold:#2E2717; --tone-purple:#252131; --tone-red:#301D1A; --tone-green:#14291F;
+  --chip-bg:#1E2229; --badge-bg:#20252C; --badge-fg:#98A2AE;
+  --tag-ok-bg:#22272E; --tag-ok-fg:#98A2AE;
+  --tag-soon-bg:#332815; --tag-soon-fg:#E0B458;
+  --tag-late-bg:#361D17; --tag-late-fg:#F08E75;
+  --tag-done-bg:#12281F; --tag-done-fg:#3FD79C;
+  --flag-bg:#332815; --flag-fg:#E0B458;
+
+  --s1:#6E8FF5; --s2:#DFB444; --s3:#EE8A56; --s4:#31CE93;
+  --s5:#A87BE8; --s6:#5098E0; --s7:#DFB444; --s8:#3EB4D4;
+  --mix-head:16%; --mix-head-fg:85%; --mix-count:25%; --mix-body:6%;
+  --o-card-bg:#1C2026;
+}
+/* ── Shared structure (colour comes entirely from tokens above) ── */
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);font-size:var(--fs,14px);
+  background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  transition:background .3s ease,color .3s ease;
+}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+
+.app{display:grid;grid-template-columns:var(--sidebar-w,232px) 1fr;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{
+  background:var(--sidebar-bg);color:var(--sidebar-fg);
+  border-right:var(--sidebar-border,1px solid var(--border));
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 16px 14px;flex-shrink:0}
+.brand-mark{
+  width:32px;height:32px;border-radius:var(--radius-sm);
+  background:var(--brand-mark-bg);
+  display:grid;place-items:center;font-size:16px;flex-shrink:0;
+}
+.brand-name{font-family:var(--font-head);font-weight:var(--brand-weight,700);font-size:14px;color:var(--brand-fg);line-height:1.2;display:block}
+.brand-sub{font-size:10.5px;color:var(--sidebar-dim);letter-spacing:.04em;display:block;margin-top:1px}
+.sb-nav{flex:1;padding:0 8px 12px}
+.sb-section{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--sidebar-dim);padding:14px 8px 5px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:9px;
+  padding:7px 9px;border-radius:var(--radius-sm);
+  font-size:13px;color:var(--sidebar-fg);cursor:pointer;
+  transition:background .14s,color .14s;
+  margin-bottom:1px;
+}
+.sb-item:hover{background:var(--sidebar-hover)}
+.sb-item.active{background:var(--sidebar-active-bg);color:var(--sidebar-active-fg);font-weight:600}
+.sb-ico{width:17px;text-align:center;flex-shrink:0;font-size:13px}
+.sb-badge{
+  margin-left:auto;background:var(--accent);color:var(--accent-ink);
+  font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;
+}
+.sb-foot{padding:10px;border-top:1px solid var(--border);flex-shrink:0}
+.sb-foot button{
+  width:100%;text-align:left;background:none;cursor:pointer;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--sidebar-dim);font-size:12px;font-weight:600;padding:7px 10px;
+}
+
+/* ── Topbar ── */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{
+  display:flex;align-items:center;gap:10px;
+  padding:0 var(--pad,22px);height:var(--topbar-h,54px);flex-shrink:0;
+  background:var(--topbar-bg);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;
+}
+.topbar-title{font-family:var(--font-head);font-size:var(--title-size,15px);font-weight:var(--title-weight,700);letter-spacing:var(--title-track,-.01em)}
+.spacer{flex:1}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--pill-bg);border:1px solid var(--pill-border);
+  border-radius:var(--pill-radius,20px);padding:4px 11px;
+  font-size:11.5px;color:var(--text2);
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
+.icon-btn{
+  background:none;border:1px solid transparent;border-radius:var(--radius-sm);
+  padding:5px 8px;font-size:14px;cursor:pointer;line-height:1;
+  transition:background .14s;
+}
+.icon-btn:hover{background:var(--hover)}
+.theme-toggle{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  background:var(--pill-bg);border:1px solid var(--pill-border);
+  border-radius:var(--pill-radius,20px);padding:4px 11px;
+  font-size:11.5px;font-weight:600;color:var(--text2);
+}
+.theme-toggle:hover{background:var(--hover)}
+
+/* ── View switch ── */
+.vs{
+  display:flex;gap:var(--vs-gap,2px);padding:var(--vs-pad,10px 22px 0);
+  background:var(--subnav-bg);border-bottom:1px solid var(--border);
+}
+.vs-btn{
+  background:none;border:none;cursor:pointer;
+  padding:8px 14px;font-size:12.5px;font-weight:600;
+  color:var(--text3);border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .14s,border-color .14s,background .14s;
+}
+.vs-btn:hover{color:var(--text)}
+.vs-btn.active{color:var(--accent-text);border-bottom-color:var(--accent);background:var(--vs-active-bg,transparent)}
+
+.view{display:none;padding:var(--view-pad,20px 22px 36px)}
+.view.active{display:block}
+
+/* ── Dashboard ── */
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.greeting{font-family:var(--font-head);font-size:var(--greet-size,22px);font-weight:var(--greet-weight,700);letter-spacing:var(--greet-track,-.02em);line-height:1.1}
+.dash-date{font-size:12.5px;color:var(--text3);margin-top:3px}
+.btn{
+  background:var(--accent);color:var(--accent-ink);cursor:pointer;
+  border:var(--btn-border,none);border-radius:var(--radius-sm);
+  padding:7px 15px;font-size:12.5px;font-weight:600;
+  box-shadow:var(--btn-shadow,none);transition:filter .14s,transform .14s;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(1px)}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap,12px);margin-bottom:var(--gap,12px)}
+.kpi{
+  display:flex;align-items:center;gap:12px;
+  background:var(--card);border:var(--card-border,1px solid var(--border));
+  border-radius:var(--radius);padding:14px 16px;
+  box-shadow:var(--shadow);cursor:pointer;
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s;
+}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.kpi-ico{
+  width:38px;height:38px;border-radius:var(--radius-sm);
+  display:grid;place-items:center;font-size:17px;flex-shrink:0;
+}
+.t-gold{background:var(--tone-gold)}
+.t-purple{background:var(--tone-purple)}
+.t-red{background:var(--tone-red)}
+.t-green{background:var(--tone-green)}
+.kpi-num{font-family:var(--font-num,var(--font-head));font-size:var(--kpi-size,25px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi-lbl{font-size:10.5px;color:var(--text2);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--gap,12px);align-items:start}
+.dash-col{display:flex;flex-direction:column;gap:var(--gap,12px);min-width:0}
+.dash-split{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap,12px)}
+
+.card{
+  background:var(--card);border:var(--card-border,1px solid var(--border));
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  transition:box-shadow .16s var(--ease);
+}
+.card:hover{box-shadow:var(--shadow-lg)}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 14px;background:var(--card-head-bg);
+  border-bottom:1px solid var(--border-soft);
+  font-size:12.5px;font-weight:700;color:var(--card-head-fg);
+  letter-spacing:var(--head-track,0);text-transform:var(--head-case,none);
+}
+.card-link{font-size:11.5px;font-weight:600;color:var(--accent-text);cursor:pointer;background:none;border:none;padding:2px 6px;border-radius:5px}
+.card-link:hover{background:var(--accent-soft)}
+.card-body{padding:12px 14px}
+
+/* Sales */
+.sales-total{display:flex;align-items:baseline;gap:9px;margin-bottom:10px}
+.sales-num{font-family:var(--font-num,var(--font-head));font-size:26px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sales-delta{font-size:12px;font-weight:700;color:var(--ok-text)}
+.sales-sub{font-size:11.5px;color:var(--text3)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;font-size:12.5px;border-top:1px solid var(--border-soft)}
+.row:first-child{border-top:none}
+.row-dim{color:var(--text3);font-size:11.5px}
+.row-num{font-weight:700;font-variant-numeric:tabular-nums}
+
+/* Trip */
+.trip-route{font-size:13px;font-weight:600;line-height:1.35}
+.trip-miles{font-family:var(--font-num,var(--font-head));font-size:22px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
+.trip-when{font-size:11.5px;color:var(--text3)}
+
+/* Studio chips */
+.studio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px}
+.studio-chip{
+  background:var(--chip-bg);border:1px solid var(--border-soft);
+  border-radius:var(--radius-sm);padding:10px 11px;
+}
+.studio-n{font-family:var(--font-num,var(--font-head));font-size:19px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.studio-l{font-size:10.5px;color:var(--text2);margin-top:4px;font-weight:600}
+
+/* Calendar + packages */
+.list{padding:4px 0}
+.li{display:flex;align-items:flex-start;gap:10px;padding:8px 14px;border-top:1px solid var(--border-soft);font-size:12.5px}
+.li:first-child{border-top:none}
+.li-time{color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums;flex-shrink:0;min-width:38px;font-weight:600}
+.li-main{flex:1;min-width:0;line-height:1.35}
+.li-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.tag{
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;
+  white-space:nowrap;flex-shrink:0;letter-spacing:.02em;
+}
+.tag.ok{background:var(--tag-ok-bg);color:var(--tag-ok-fg)}
+.tag.soon{background:var(--tag-soon-bg);color:var(--tag-soon-fg)}
+.tag.late{background:var(--tag-late-bg);color:var(--tag-late-fg)}
+.tag.done{background:var(--tag-done-bg);color:var(--tag-done-fg)}
+
+/* ── Kanban ── */
+.board-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.board-title{font-family:var(--font-head);font-size:var(--greet-size,22px);font-weight:var(--greet-weight,700);letter-spacing:var(--greet-track,-.02em)}
+.board{display:flex;gap:var(--col-gap,10px);overflow-x:auto;padding-bottom:14px;align-items:flex-start;scrollbar-width:thin}
+.board::-webkit-scrollbar{height:8px}
+.board::-webkit-scrollbar-track{background:var(--border-soft);border-radius:4px}
+.board::-webkit-scrollbar-thumb{background:var(--text3);border-radius:4px;opacity:.5}
+
+.k-col{
+  /* 150px keeps all eight stages on screen at laptop width, the way the
+     real board does (.k-col there floors at 120px). Columns still flex
+     wider on big displays, and the track scrolls rather than the body. */
+  flex:1 1 0;min-width:var(--col-min,144px);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  /* Stage colour is derived here, NOT on :root — a custom property
+     substitutes var() at the element that declares it, and --sc is only
+     set on .k-col. Declared on :root these would all resolve against an
+     unset --sc and collapse to invalid (i.e. transparent). Designs tune
+     the blend with the --mix-* percentages, which are safe on :root
+     because they carry no var() of their own. */
+  --k-head-bg:color-mix(in srgb,var(--sc) var(--mix-head,14%),var(--card));
+  --k-head-fg:color-mix(in srgb,var(--sc) var(--mix-head-fg,74%),var(--text));
+  --k-count-bg:color-mix(in srgb,var(--sc) var(--mix-count,22%),transparent);
+  --k-body-bg:color-mix(in srgb,var(--sc) var(--mix-body,6%),var(--card));
+}
+.k-head{
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
+  padding:9px 12px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em;
+  background:var(--k-head-bg);color:var(--k-head-fg);
+}
+.k-count{
+  background:var(--k-count-bg);border-radius:20px;padding:1px 7px;
+  font-size:10px;font-weight:700;min-width:20px;text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+.k-body{
+  background:var(--k-body-bg);padding:8px;min-height:150px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.k-empty{
+  text-align:center;padding:14px 8px;color:var(--text3);
+  font-size:11.5px;font-style:italic;
+  border:1.5px dashed var(--border);border-radius:var(--radius-sm);
+}
+.o-card{
+  background:var(--o-card-bg);
+  border:var(--o-border,1px solid var(--border));
+  border-left:var(--o-edge-w,3px) solid var(--sc);
+  border-radius:var(--radius-sm);padding:10px 11px 9px;
+  box-shadow:var(--shadow);cursor:grab;
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease);
+}
+.o-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.o-flag{
+  display:flex;align-items:center;gap:5px;
+  margin:-10px -11px 8px;padding:5px 11px;
+  background:var(--flag-bg);color:var(--flag-fg);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+}
+.o-name{font-size:12.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.o-desc{font-size:11.5px;color:var(--text2);line-height:1.4;margin-top:5px}
+.o-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.o-badge{
+  font-size:10px;font-weight:600;padding:2px 6px;border-radius:5px;
+  background:var(--badge-bg);color:var(--badge-fg);
+  border:1px solid var(--border-soft);
+  /* A pickup name like "Chaparral Crossing" is wider than a column at the
+     144px floor. Ellipsize rather than let it paint past the card edge. */
+  white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+}
+.o-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px;flex-wrap:wrap}
+.o-price{font-family:var(--font-num,var(--font-head));font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;margin-left:auto}
+
+/* ── Responsive ── */
+@media (max-width:1080px){
+  .dash-grid{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .dash-split{grid-template-columns:1fr}
+  .studio-grid{grid-template-columns:repeat(2,1fr)}
+  :root{--pad:14px;--view-pad:16px 14px 30px}
+  .vs{padding:8px 14px 0;overflow-x:auto}
+  .k-col{min-width:80vw}
+  /* The topbar runs out of room before anything else does. Drop the two
+     least essential items — the sync pill and the ⌘K hint — rather than
+     let the icon buttons push the page into horizontal scroll. */
+  .topbar{gap:6px}
+  .pill{display:none}
+  .topbar-title::after{display:none}
+}
+@media (max-width:460px){
+  .kpi-row{grid-template-columns:1fr}
+}
+
+
+/* Dense mode: tighter everything, more rows on screen */
+.kpi{padding:9px 11px;gap:9px}
+.kpi-ico{width:30px;height:30px;font-size:14px}
+.kpi-lbl{font-size:9.5px;margin-top:2px}
+.card-head{padding:7px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.card-body{padding:9px 11px}
+.li{padding:5px 11px;font-size:12px}
+.studio-grid{padding:9px 11px;gap:6px}
+.studio-chip{padding:7px 9px}
+.o-card{padding:7px 9px 6px;border-radius:3px}
+.o-name{font-size:12px}
+.o-desc{font-size:11px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.o-foot{margin-top:5px}
+.o-badges{margin-top:4px;gap:3px}
+.k-head{padding:6px 9px;font-size:9.5px}
+.k-body{padding:6px;gap:6px;min-height:120px}
+.vs-btn{padding:11px 12px;border-radius:0;font-size:12px}
+.sb-item{padding:5px 8px;font-size:12.5px;border-radius:3px}
+.sb-section{padding:11px 8px 3px;font-size:9.5px}
+.tag{font-size:9.5px;padding:1px 5px;border-radius:3px}
+.o-badge{font-size:9.5px;border-radius:2px}
+.pill,.theme-toggle{font-size:11px;padding:3px 9px}
+</style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">💎</div>
+        <div>
+          <span class="brand-name">Stones Throw Studio</span>
+          <span class="brand-sub">Order Workflow</span>
+        </div>
+      </div>
+      <nav class="sb-nav">
+        
+        <div class="sb-item active"><span class="sb-ico">🏠</span>Dashboard</div>
+        <div class="sb-section">Orders</div>
+        <div class="sb-item"><span class="sb-ico">✚</span>New Order</div>
+        <div class="sb-item"><span class="sb-ico">📋</span>Custom Orders<span class="sb-badge">6</span></div>
+        <div class="sb-item"><span class="sb-ico">📬</span>Ready to Ship</div>
+        <div class="sb-item"><span class="sb-ico">👥</span>Customers</div>
+        <div class="sb-section">Inventory</div>
+        <div class="sb-item"><span class="sb-ico">📦</span>To Restock</div>
+        <div class="sb-item"><span class="sb-ico">💎</span>Adjust Inventory</div>
+        <div class="sb-item"><span class="sb-ico">📊</span>Production Report</div>
+        <div class="sb-item"><span class="sb-ico">🔄</span>Replenishment</div>
+        <div class="sb-section">Supplies</div>
+        <div class="sb-item"><span class="sb-ico">📦</span>Order Materials</div>
+        <div class="sb-item"><span class="sb-ico">📋</span>Order History</div>
+        <div class="sb-item"><span class="sb-ico">🧱</span>Materials Library</div>
+        <div class="sb-section">More</div>
+        <div class="sb-item"><span class="sb-ico">🚗</span>Trips</div>
+        <div class="sb-item"><span class="sb-ico">📝</span>Notes</div>
+        <div class="sb-item"><span class="sb-ico">🎨</span>Designs</div>
+        <div class="sb-item"><span class="sb-ico">📊</span>Sales</div>
+        <div class="sb-item"><span class="sb-ico">🏆</span>Best Sellers</div>
+        <div class="sb-item"><span class="sb-ico">⛓️</span>PJ Calc</div>
+      </nav>
+      <div class="sb-foot"><button>⚙ Integrations</button></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <span class="topbar-title">Dashboard</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot"></span>Notion <span style="color:var(--text3)">2m ago</span></span>
+        <button class="theme-toggle" onclick="toggleTheme()">
+          <span id="themeIcon">◐</span><span id="themeLabel">Dark</span>
+        </button>
+        <button class="icon-btn" title="Team messages">💬</button>
+        <button class="icon-btn" title="Integrations">🔌</button>
+      </header>
+      <div class="vs">
+        <button class="vs-btn active" onclick="showView('view-dash',this)">🏠 Dashboard</button>
+        <button class="vs-btn" onclick="showView('view-board',this)">📋 Order Pipeline</button>
+      </div>
+      <section id="view-dash" class="view active">
+        <div class="dash-head">
+          <div>
+            <div class="greeting">Good morning, Kyle</div>
+            <div class="dash-date">Sunday, July 26 · 3 orders due this week</div>
+          </div>
+          <button class="btn">⟳ Refresh</button>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-ico t-gold">📋</div>
+            <div>
+              <div class="kpi-num">14</div>
+              <div class="kpi-lbl">Active Orders</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-purple">🔨</div>
+            <div>
+              <div class="kpi-num">5</div>
+              <div class="kpi-lbl">At the Bench</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-red">⏰</div>
+            <div>
+              <div class="kpi-num">6</div>
+              <div class="kpi-lbl">Due This Week</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-green">✅</div>
+            <div>
+              <div class="kpi-num">3</div>
+              <div class="kpi-lbl">Ready to Pick Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="dash-col">
+            <div class="dash-split">
+              <div class="card">
+              <div class="card-head"><span>💰 Weekend Sales</span><button class="card-link">Sales →</button></div>
+              <div class="card-body">
+                <div class="sales-total">
+                  <span class="sales-num">$2,100</span>
+                  <span class="sales-delta">▲ +12%</span>
+                </div>
+                <div class="sales-sub" style="margin-bottom:8px">18 transactions · vs last weekend</div>
+                <div class="row">
+                  <span>Saturday <span class="row-dim">· Mueller Market</span></span>
+                  <span class="row-num">$1,240</span>
+                </div>
+                <div class="row">
+                  <span>Sunday <span class="row-dim">· Bell Market</span></span>
+                  <span class="row-num">$860</span>
+                </div>
+              </div>
+            </div>
+              <div class="card">
+              <div class="card-head"><span>🚗 Latest Trip</span><button class="card-link">Trips →</button></div>
+              <div class="card-body">
+                <div class="trip-route">Studio → Mueller Market</div>
+                <div class="trip-miles">14.2 mi</div>
+                <div class="trip-when">Fri Jul 25, 7:40 AM</div>
+                <div class="row" style="margin-top:9px"><span class="row-dim">Year to date</span><span class="row-num">2,318 mi YTD</span></div>
+              </div>
+            </div>
+            </div>
+            <div class="card">
+            <div class="card-head"><span>📋 Orders in Studio</span><button class="card-link">View pipeline →</button></div>
+            <div class="studio-grid">
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Sketch</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Estimating</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Deposit</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">1</div>
+                <div class="studio-l">Materials</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">3</div>
+                <div class="studio-l">At the Bench</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Ready</div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <div class="dash-col">
+            <div class="card">
+            <div class="card-head"><span>📅 Calendar</span><button class="card-link">Open full →</button></div>
+            <div class="list">
+              <div class="li">
+                <span class="li-time">9:00</span>
+                <span class="li-main">Bench block — Okonkwo band</span>
+                <span class="tag ok">Today</span>
+              </div>
+              <div class="li">
+                <span class="li-time">13:30</span>
+                <span class="li-main">Marisol Vega — sizing</span>
+                <span class="tag soon">Next</span>
+              </div>
+              <div class="li">
+                <span class="li-time">16:00</span>
+                <span class="li-main">Market load-out</span>
+                <span class="tag ok">Today</span>
+              </div>
+            </div>
+          </div>
+            <div class="card">
+            <div class="card-head"><span>📦 Packages</span><button class="card-link">+ New</button></div>
+            <div class="list">
+              <div class="li">
+                <span class="li-time">📥</span>
+                <span class="li-main">Stuller — 8mm opal cab<div class="li-sub">exp Jul 28</div></span>
+                <span class="tag soon">In Transit</span>
+              </div>
+              <div class="li">
+                <span class="li-time">📥</span>
+                <span class="li-main">Rio Grande — solder<div class="li-sub">today</div></span>
+                <span class="tag soon">Out for Delivery</span>
+              </div>
+              <div class="li">
+                <span class="li-time">📤</span>
+                <span class="li-main">Ingrid Solheim<div class="li-sub">Jul 24</div></span>
+                <span class="tag done">Delivered</span>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </section>
+      <section id="view-board" class="view">
+        <div class="board-bar">
+          <div>
+            <div class="board-title">Order Pipeline</div>
+            <div class="dash-date">16 active orders across 8 stages</div>
+          </div>
+          <button class="btn">✚ New Order</button>
+        </div>
+        <div class="board">
+          <div class="k-col" style="--sc:var(--s1)">
+            <div class="k-head"><span>Intake</span><span class="k-count">3</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Marisol Vega</div>
+              <div class="o-desc">Reset grandmother's 1.2ct old European cut into a low-profile bezel solitaire, 14k yellow</div>
+              <div class="o-badges"><span class="o-badge">📍 Studio</span><span class="o-badge">💬 Instagram</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 12d</span>
+                <span class="o-price">$2,400</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Dana Whitfield</div>
+              <div class="o-desc">Repair — re-tip 4 prongs, tighten center stone, full polish</div>
+              <div class="o-badges"><span class="o-badge">📍 Bell Market</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 3d</span>
+                <span class="o-price">$180</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Theo Marchetti</div>
+              <div class="o-desc">Estimate — matching wedding band, hammered 14k yellow, 4mm</div>
+              
+              <div class="o-foot">
+                <span class="tag ok">Due in 21d</span>
+                <span class="o-price">$890</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s2)">
+            <div class="k-head"><span>Sketch</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Priya Raghunathan</div>
+              <div class="o-desc">Sapphire trilogy ring, 18k white, milgrain edge, 2.1ct center</div>
+              <div class="o-badges"><span class="o-badge">👤 Kyle</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 8d</span>
+                <span class="o-price">$3,150</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Colby Nakamura</div>
+              <div class="o-desc">Signet ring with family crest engraving, sterling</div>
+              <div class="o-badges"><span class="o-badge">📍 Mueller Market</span></div>
+              <div class="o-foot">
+                <span class="tag late">Overdue 2d</span>
+                <span class="o-price">$1,275</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s3)">
+            <div class="k-head"><span>Estimating</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Renee Ostrowski</div>
+              <div class="o-desc">Pendant — 0.8ct pear moissanite on 18in cable chain</div>
+              <div class="o-badges"><span class="o-badge">✓ Contacted Jul 22</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 15d</span>
+                <span class="o-price">$640</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Aggie Lindqvist</div>
+              <div class="o-desc">Resize 3 rings, sizes 6 → 7.5</div>
+              
+              <div class="o-foot">
+                <span class="tag soon">Due in 5d</span>
+                <span class="o-price">$210</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s4)">
+            <div class="k-head"><span>Deposit</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Marcus Delacroix-Bell</div>
+              <div class="o-desc">Custom cuff, 12mm sterling, hand-stamped botanical</div>
+              <div class="o-badges"><span class="o-badge">👤 Stevie</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 18d</span>
+                <span class="o-price">$1,050</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Yuki Tanaka</div>
+              <div class="o-desc">Earrings — emerald-cut studs, 14k white, 1.4ctw</div>
+              <div class="o-badges"><span class="o-badge">📍 Chaparral Crossing</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 9d</span>
+                <span class="o-price">$780</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s5)">
+            <div class="k-head"><span>Materials</span><span class="k-count">1</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Odalys Beltrán</div>
+              <div class="o-desc">Bezel-set opal ring — waiting on 8mm cabochon from Stuller</div>
+              <div class="o-badges"><span class="o-badge">👤 Vanessa</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 11d</span>
+                <span class="o-price">$520</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s6)">
+            <div class="k-head"><span>At the Bench</span><span class="k-count">3</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Harriet Okonkwo</div>
+              <div class="o-desc">Three-stone anniversary band, channel set, 14k yellow</div>
+              <div class="o-badges"><span class="o-badge">👤 Kyle</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 4d</span>
+                <span class="o-price">$2,890</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Devon Applewhite</div>
+              <div class="o-desc">Rebuild worn shank on 1940s filigree, preserve original detail</div>
+              <div class="o-badges"><span class="o-badge">👤 Vanessa</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 6d</span>
+                <span class="o-price">$445</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Sunny Petrossian</div>
+              <div class="o-desc">Toe ring set, sterling, 3pc</div>
+              <div class="o-badges"><span class="o-badge">👤 Stevie</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 10d</span>
+                <span class="o-price">$95</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s7)">
+            <div class="k-head"><span>Contact Customer</span><span class="k-count">1</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              <div class="o-flag">📞 Contact Customer</div>
+              <div class="o-name">Blaise Toussaint</div>
+              <div class="o-desc">Sketch approved — needs deposit conversation before ordering stone</div>
+              <div class="o-badges"><span class="o-badge">💬 Referral</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 7d</span>
+                <span class="o-price">$1,680</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s8)">
+            <div class="k-head"><span>Ready to Pickup/Ship</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Ingrid Solheim</div>
+              <div class="o-desc">Pearl strand restring, 18in, knotted silk</div>
+              <div class="o-badges"><span class="o-badge">📍 Sunset Valley</span></div>
+              <div class="o-foot">
+                <span class="tag done">Ready</span>
+                <span class="o-price">$140</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Rafael Quintanilla</div>
+              <div class="o-desc">Wedding set — polish + rhodium replate, both bands</div>
+              <div class="o-badges"><span class="o-badge">📍 Studio</span></div>
+              <div class="o-foot">
+                <span class="tag done">Ready</span>
+                <span class="o-price">$3,400</span>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+<script>
+  (function(){
+    var K='sts-mock-02';
+    var qs=new URLSearchParams(location.search).get('theme');
+    var saved=null; try{ saved=localStorage.getItem(K); }catch(e){}
+    var initial=qs||saved||(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+    apply(initial);
+    function apply(t){
+      document.documentElement.setAttribute('data-theme',t);
+      var i=document.getElementById('themeIcon'),l=document.getElementById('themeLabel');
+      if(i)i.textContent=t==='dark'?'☀':'◐';
+      if(l)l.textContent=t==='dark'?'Light':'Dark';
+    }
+    window.toggleTheme=function(){
+      var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+      apply(t); try{ localStorage.setItem(K,t); }catch(e){}
+    };
+    window.showView=function(id,el){
+      document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active')});
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.vs-btn').forEach(function(b){b.classList.remove('active')});
+      el.classList.add('active');
+      var t=document.querySelector('.topbar-title');
+      if(t)t.textContent=id==='view-dash'?'Dashboard':'Order Pipeline';
+    };
+  })();
+</script>
+</body>
+</html>
