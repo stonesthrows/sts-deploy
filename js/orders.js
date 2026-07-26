@@ -2331,7 +2331,7 @@ function eoShowInvoice() {
   })();
 
   compose.innerHTML = `
-    <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">📋 Square Invoice / Estimate</div>
+    <div style="font-size:13px;font-weight:700;color:var(--card-bg);margin-bottom:10px;">📋 Square Invoice / Estimate</div>
     <div class="gt-inv-type-row">
       <button class="gt-inv-type-btn active" data-type="invoice"  onclick="eoInvSetType(this)">📋 Invoice</button>
       <button class="gt-inv-type-btn"        data-type="estimate" onclick="eoInvSetType(this)">📄 Estimate</button>

@@ -32,12 +32,10 @@
 .inv-search:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .inv-count-label {
   font-size: 12px;
-  color: rgba(255,255,255,0.78); /* sits on the slate page bg in light theme */
+  color: var(--text2);
   padding: 0 16px 8px;
   font-variant-numeric: tabular-nums;
-}
-body.theme-midnight .inv-count-label { color: var(--text-dim); }
-.inv-panel-body { padding: 0 16px 16px; }
+}.inv-panel-body { padding: 0 16px 16px; }
 /* Give the title band a card surface so .page-sub stays legible on the page bg,
    and the cat-nav / title / sub-tab stack reads as one cohesive header. */
 #tab-inv-adjust .page-bar { background: var(--card-bg); }
@@ -67,7 +65,7 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
 }
 .inv-ear-sub:hover { color: var(--text); background: var(--hover-bg); border-color: var(--bdr); }
 .inv-ear-sub:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
-.inv-ear-sub.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); box-shadow: var(--shadow-sm); }
+.inv-ear-sub.active { color: var(--accent-fg); background: var(--accent-bg); border-color: var(--accent-border); box-shadow: var(--shadow-sm); }
 
 .inv-card {
   background: var(--card-bg);
@@ -113,9 +111,9 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
-.inv-badge.in-stock  { background: #f0fdf4; color: #16a34a; }
-.inv-badge.low-stock { background: #fffbeb; color: #d97706; }
-.inv-badge.no-stock  { background: #fef2f2; color: #dc2626; }
+.inv-badge.in-stock  { background: var(--ok-bg); color: var(--ok-fg); }
+.inv-badge.low-stock { background: var(--warn-bg); color: var(--warn-fg); }
+.inv-badge.no-stock  { background: var(--danger-bg); color: var(--danger-fg); }
 .inv-badge.unset     { background: var(--card-head-bg); color: var(--text-dim); font-weight: 400; font-style: italic; }
 
 .inv-stepper {
@@ -165,7 +163,7 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   padding: 0 10px;
   height: 30px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 7px;
   font-size: 12px;
@@ -198,15 +196,15 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   background: var(--bdr);
   flex-shrink: 0;
 }
-.inv-dot.ok  { background: #22c55e; }
-.inv-dot.err { background: #ef4444; }
+.inv-dot.ok  { background: var(--ok); }
+.inv-dot.err { background: var(--danger); }
 
 .inv-queue-btn {
   padding: 0 9px;
   height: 28px;
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fbbf24;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border: 1px solid var(--warn);
   border-radius: 7px;
   font-size: 11px;
   font-weight: 700;
@@ -216,7 +214,7 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   letter-spacing: 0.02em;
   transition: background .15s, color .15s;
 }
-.inv-queue-btn:hover { background: #fef3c7; color: #92400e; }
+.inv-queue-btn:hover { background: var(--warn-bg); color: var(--warn-fg); }
 .inv-queue-btn:focus-visible, .inv-qal-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .inv-qal-btn {
@@ -224,15 +222,15 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   height: 26px;
   font-size: 11px;
   font-weight: 600;
-  border: 1px solid #d97706;
+  border: 1px solid var(--warn);
   border-radius: 6px;
-  background: #fffbeb;
-  color: #b45309;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
   cursor: pointer;
   white-space: nowrap;
   transition: background .15s, color .15s;
 }
-.inv-qal-btn:hover { background: #fef3c7; color: #92400e; }
+.inv-qal-btn:hover { background: var(--warn-bg); color: var(--warn-fg); }
 
 .inv-last-date {
   font-size: 11px;
@@ -254,8 +252,8 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   transition: opacity var(--dur-fast) var(--ease-smooth);
 }
 .inv-split-you:hover, .inv-split-georgina:hover { opacity: .75; }
-.inv-split-you      { background: var(--accent-bg); color: var(--accent, #C9983A); }
-.inv-split-georgina { background: #f0ebff; color: #7c3aed; }
+.inv-split-you      { background: var(--accent-bg); color: var(--accent, var(--accent)); }
+.inv-split-georgina { background: var(--accent-bg); color: var(--accent-fg); }
 
 /* Split stock popover */
 #inv-split-popover {
@@ -338,30 +336,7 @@ body.theme-midnight .inv-count-label { color: var(--text-dim); }
   max-width: 95vw;
   box-shadow: var(--shadow-lg);
 }
-#inv-ls-qty { font-size: 14px; font-weight: 700; color: #d97706; font-variant-numeric: tabular-nums; }
-
-/* ── Inventory: midnight theme ──
-   js/inventory.js hardcodes light-hex chip colors and inline pastel row
-   tints; scope the dark fixes under this tab (+ its body-level popover)
-   so the shared base classes used by other views stay untouched. */
-body.theme-midnight #tab-inv-adjust .inv-badge.in-stock  { background: #1C2E22; color: #7FC79A; }
-body.theme-midnight #tab-inv-adjust .inv-badge.low-stock { background: #332818; color: #F0C060; }
-body.theme-midnight #tab-inv-adjust .inv-badge.no-stock  { background: #33201E; color: #E08A80; }
-body.theme-midnight #tab-inv-adjust .inv-queue-btn,
-body.theme-midnight #tab-inv-adjust .inv-qal-btn { background: #28221A; border-color: #8A6420; color: #F0C060; }
-body.theme-midnight #tab-inv-adjust .inv-queue-btn:hover,
-body.theme-midnight #tab-inv-adjust .inv-qal-btn:hover { background: #342C20; color: #F0D498; }
-body.theme-midnight #tab-inv-adjust .inv-split-georgina,
-body.theme-midnight #inv-split-popover .inv-split-georgina { background: #2E2838; color: #B49CF0; }
-/* Neutralize the JS-inlined pastel row tints in midnight; keep a subtle zebra
-   (variant rows start at the card's 2nd child, so "odd" = every other row). */
-body.theme-midnight #tab-inv-adjust .inv-row { background: transparent !important; }
-body.theme-midnight #tab-inv-adjust .inv-row:nth-child(odd) { background: rgba(255,255,255,0.03) !important; }
-body.theme-midnight #inv-ls-qty { color: #F0C060; }
-/* Shared .btn-outline hardcodes a white background; re-surface it for dark
-   (same scoped fix the Calendar pass used). */
-body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
-
+#inv-ls-qty { font-size: 14px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
 /* ── Designs ─────────────────────────────── */
 /* Give the title band a card surface so .page-sub stays legible on the page
    bg (same treatment as the Inventory pass). */
@@ -409,7 +384,7 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
   background: none; border: none; color: var(--text3);
   cursor: pointer; font-size: 14px; padding: 2px 4px; flex: none;
 }
-.dsn-bom-remove:hover { color: #e55; }
+.dsn-bom-remove:hover { color: var(--danger); }
 .dsn-bom-note { font-size: 12px; color: var(--text3); margin-bottom: 6px; }
 .dsn-bom-waste-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .dsn-bom-waste-row label { font-size: 12px; color: var(--text3); font-weight: 600; }
@@ -428,10 +403,8 @@ body.theme-midnight #tab-inv-adjust .btn-outline { background: var(--card-bg); }
 #dsn-bom-total:focus { border-color: var(--accent); }
 .dsn-bom-total-unit { font-size: 12px; color: var(--text3); font-weight: 700; margin-left: -2px; }
 .dsn-bom-pct-sum { font-size: 12px; font-weight: 700; }
-.dsn-bom-pct-sum.ok { color: #1E7B3C; }
-.dsn-bom-pct-sum.warn { color: #c77b00; }
-body.theme-midnight .dsn-bom-pct-sum.ok { color: #6fd08a; }
-.dsn-bom-row .dsn-bom-pct { flex: 1; }
+.dsn-bom-pct-sum.ok { color: var(--ok-fg); }
+.dsn-bom-pct-sum.warn { color: var(--warn); }.dsn-bom-row .dsn-bom-pct { flex: 1; }
 .dsn-waste-defaults { margin-top: 10px; font-size: 12px; color: var(--text3); }
 .dsn-wd-edit { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0 4px; }
 .dsn-wd-grid {
@@ -445,9 +418,7 @@ body.theme-midnight .dsn-bom-pct-sum.ok { color: #6fd08a; }
 }
 .dsn-wd-grid input:focus { border-color: var(--accent); }
 .dsn-bom-chip { margin-left: 4px; background: var(--card-head-bg); color: var(--text3); border-color: var(--bdr); }
-.dsn-bom-chip.weighed { background: #DCF5E3; color: #1E7B3C; border-color: #b5e2c4; }
-body.theme-midnight .dsn-bom-chip.weighed { background: #1a3a26; color: #6fd08a; border-color: #2c5a3c; }
-
+.dsn-bom-chip.weighed { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok); }
 /* ── Design Variations (size/metal/width combos) ── */
 .dsn-var-row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -478,9 +449,7 @@ body.theme-midnight .dsn-bom-chip.weighed { background: #1a3a26; color: #6fd08a;
 .dsn-ru-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); padding: 2px 0; }
 .dsn-ru-row.dsn-ru-sub   { border-top: 1px dashed var(--bdr); margin-top: 4px; padding-top: 5px; font-weight: 600; color: var(--text); }
 .dsn-ru-row.dsn-ru-total { font-weight: 800; color: var(--text); font-size: 13.5px; }
-.dsn-ru-row.dsn-ru-bad   { color: #B3392C; font-weight: 700; }
-body.theme-midnight .dsn-ru-row.dsn-ru-bad { color: #e08070; }
-.dsn-ru-dim  { color: var(--text3); font-weight: 400; font-size: 11px; }
+.dsn-ru-row.dsn-ru-bad   { color: var(--danger); font-weight: 700; }.dsn-ru-dim  { color: var(--text3); font-weight: 400; font-size: 11px; }
 .dsn-ru-dim2 { color: var(--text3); }
 .dsn-ps-settings {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -499,13 +468,9 @@ body.theme-midnight .dsn-ru-row.dsn-ru-bad { color: #e08070; }
 }
 .dsn-ps-settings select:focus { border-color: var(--accent); }
 .dsn-ps-alert {
-  background: #FDE2E1; color: #B3392C; border: 1px solid #f3b6b2; border-radius: 8px;
+  background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger); border-radius: 8px;
   padding: 9px 13px; font-size: 12.5px; margin-bottom: 12px;
-}
-body.theme-midnight .dsn-ps-alert { background: #4a2320; color: #e08070; border-color: #6a3630; }
-.oh-table tr.dsn-ps-bad td { background: #FDF0EF; }
-body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
-.dsn-filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:var(--shadow-sm); }
+}.oh-table tr.dsn-ps-bad td { background: var(--danger-bg); }.dsn-filter-btn.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); box-shadow:var(--shadow-sm); }
 /* Library grid */
 .dsn-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:var(--sp-3); }
 .dsn-card {
@@ -520,9 +485,9 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-card-thumb { width:100%; height:100%; background-size:cover; background-position:center; transition:transform var(--dur-med) var(--ease-smooth); }
 .dsn-card:hover .dsn-card-thumb:not(.dsn-card-thumb-empty) { transform:scale(1.04); }
 .dsn-card-thumb-empty { display:flex; align-items:center; justify-content:center; height:100%; background:var(--card-head-bg); }
-.dsn-img-badge { position:absolute; bottom:6px; right:6px; background:rgba(26,46,56,.6); color:#fff; font-size:11px; font-weight:700; border-radius:10px; padding:2px 7px; }
+.dsn-img-badge { position:absolute; bottom:6px; right:6px; background:rgba(26,46,56,.6); color:var(--accent-ink); font-size:11px; font-weight:700; border-radius:10px; padding:2px 7px; }
 .dsn-card-body { padding:11px 13px 13px; }
-.dsn-cat-chip { display:inline-block; background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent-border); border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.2px; padding:2px 8px; margin-bottom:5px; }
+.dsn-cat-chip { display:inline-block; background:var(--accent-bg); color:var(--accent-fg); border:1px solid var(--accent-border); border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.2px; padding:2px 8px; margin-bottom:5px; }
 .dsn-card-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; }
 .dsn-card-preview { font-size:11.5px; color:var(--text3); line-height:1.4; }
 .dsn-family-bar { display:flex; align-items:center; gap:10px; margin-bottom:var(--sp-3); }
@@ -573,7 +538,7 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 .dsn-form-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .dsn-form-title { font-size:16px; font-weight:800; color:var(--text); flex:1; }
 .dsn-field-label { font-size:12px; font-weight:700; color:var(--text); display:block; margin-bottom:4px; }
-.dsn-req { color:#c0392b; }
+.dsn-req { color:var(--danger); }
 .dsn-input, .dsn-textarea, .dsn-select {
   width:100%; padding:9px 11px; border:1px solid var(--bdr); border-radius:var(--rad-sm);
   font-size:13px; font-family:inherit; background:var(--card-bg); color:var(--text); margin-bottom:14px;
@@ -615,10 +580,10 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
              color var(--dur-fast) var(--ease-smooth);
 }
 .dsn-upload-btn:hover { background:var(--accent-bg); border-color:var(--accent-border); color:var(--text); }
-.dsn-key-save { flex-shrink:0; padding:6px 14px; background:var(--accent); color:#fff; border-color:var(--accent); }
-.dsn-key-save:hover { background:var(--accent-mid); border-color:var(--accent-mid); color:#fff; }
+.dsn-key-save { flex-shrink:0; padding:6px 14px; background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.dsn-key-save:hover { background:var(--accent-mid); border-color:var(--accent-mid); color:var(--accent-ink); }
 .dsn-pdf-status { font-size:12px; color:var(--accent); font-weight:600; margin-bottom:12px; min-height:18px; transition:color var(--dur-fast); }
-.dsn-pdf-status.err { color:#c0392b; }
+.dsn-pdf-status.err { color:var(--danger); }
 .dsn-pdf-status.ok  { color:var(--text); }
 .dsn-gear-menu {
   position:absolute; right:0; top:calc(100% + 6px);
@@ -631,15 +596,15 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 }
 .dsn-gear-item { display:flex; align-items:center; gap:9px; width:100%; padding:9px 12px; border:none; background:none; font-size:13px; font-family:inherit; color:var(--text); cursor:pointer; border-radius:7px; text-align:left; white-space:nowrap; transition:background var(--dur-fast); }
 .dsn-gear-item:hover { background:var(--hover); }
-.dsn-gear-item.danger { color:#c0392b; }
-.dsn-gear-item.active { background:var(--accent); color:#fff; }
+.dsn-gear-item.danger { color:var(--danger); }
+.dsn-gear-item.active { background:var(--accent); color:var(--accent-ink); }
 .dsn-gear-sep { height:1px; background:var(--bdr); margin:4px 0; }
 .dsn-form-layout { display:grid; grid-template-columns:1fr 250px; gap:24px; align-items:start; }
 .dsn-form-right { position:sticky; top:10px; }
 .dsn-img-col-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .dsn-img-edit-btn { background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--text2); transition:background var(--dur-fast); }
 .dsn-img-edit-btn:hover { background:var(--accent-bg); }
-.dsn-img-edit-btn.active { background:#c0392b; color:#fff; border-color:#c0392b; }
+.dsn-img-edit-btn.active { background:var(--danger); color:var(--accent-ink); border-color:var(--danger); }
 .dsn-img-col { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-height:40px; }
 .dsn-thumb-wrap { position:relative; }
 .dsn-thumb {
@@ -649,7 +614,7 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
              box-shadow var(--dur-fast) var(--ease-smooth);
 }
 .dsn-thumb:hover { border-color:var(--accent); box-shadow:var(--shadow-sm); }
-.dsn-thumb-del { position:absolute; top:7px; right:7px; width:28px; height:28px; border-radius:50%; background:rgba(192,57,43,.9); color:#fff; border:2px solid rgba(255,255,255,.7); cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0; pointer-events:none; transition:opacity var(--dur-fast); }
+.dsn-thumb-del { position:absolute; top:7px; right:7px; width:28px; height:28px; border-radius:50%; background:rgba(192,57,43,.9); color:var(--accent-ink); border:2px solid rgba(255,255,255,.7); cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0; pointer-events:none; transition:opacity var(--dur-fast); }
 .dsn-img-col.edit-mode .dsn-thumb-del { opacity:1; pointer-events:auto; }
 .dsn-form-actions { display:flex; gap:8px; padding-top:4px; flex-wrap:wrap; }
 @media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
@@ -657,7 +622,7 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
 #dsn-img-overlay { position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:9999; display:none; align-items:center; justify-content:center; animation:dsnFade var(--dur-med) var(--ease-smooth); }
 @keyframes dsnFade { from { opacity:0; } }
 #dsn-img-overlay img { max-width:92vw; max-height:88vh; border-radius:var(--rad-md); object-fit:contain; }
-#dsn-img-overlay-close { position:absolute; top:16px; right:20px; font-size:28px; color:#fff; cursor:pointer; line-height:1; }
+#dsn-img-overlay-close { position:absolute; top:16px; right:20px; font-size:28px; color:var(--accent-ink); cursor:pointer; line-height:1; }
 @media (max-width:600px) {
   .dsn-grid { grid-template-columns:1fr 1fr; }
   .dsn-card-thumb-wrap { height:90px; }
@@ -738,20 +703,20 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
     height: auto !important; min-height: 0 !important; max-height: none !important;
     overflow: visible !important; padding: 0 !important; margin: 0 !important;
     width: auto !important; max-width: none !important;
-    background: #fff !important; border: none !important; box-shadow: none !important;
+    background: var(--card-bg) !important; border: none !important; box-shadow: none !important;
   }
   body.dsn-printing .dsn-no-print { display: none !important; }
   body.dsn-printing #dsn-guide-page {
     max-width: none; margin: 0; padding: 0;
-    background: #fff; border: none; border-radius: 0; box-shadow: none;
+    background: var(--card-bg); border: none; border-radius: 0; box-shadow: none;
   }
   /* force ink-friendly colors regardless of theme */
   body.dsn-printing #dsn-guide-page, body.dsn-printing #dsn-guide-page * {
-    color: #111 !important; background: transparent !important; border-color: #999 !important;
+    color: var(--text) !important; background: transparent !important; border-color: var(--text3) !important;
   }
-  body.dsn-printing .dsn-gd-meta, body.dsn-printing .dsn-gd-h2 { color: #555 !important; }
-  body.dsn-printing .dsn-cat-chip { border: 1px solid #999 !important; }
-  body.dsn-printing .dsn-gd-stepnum { border-color: #111 !important; }
+  body.dsn-printing .dsn-gd-meta, body.dsn-printing .dsn-gd-h2 { color: var(--text2) !important; }
+  body.dsn-printing .dsn-cat-chip { border: 1px solid var(--text3) !important; }
+  body.dsn-printing .dsn-gd-stepnum { border-color: var(--text) !important; }
   body.dsn-printing .dsn-gd-hero { width: 3in; cursor: default; }
   body.dsn-printing .dsn-gd-thumb { width: 0.9in; height: 0.9in; cursor: default; }
   /* clean breaks */
@@ -761,15 +726,3 @@ body.theme-midnight .oh-table tr.dsn-ps-bad td { background: #3a2422; }
   body.dsn-printing .dsn-gd-thumbs { break-inside: avoid; }
   body.dsn-printing .dsn-gd-h2, body.dsn-printing .dsn-gd-subhead { break-after: avoid; }
 }
-
-/* ── Designs: midnight theme ──
-   Shared .btn-outline hardcodes a white background (same scoped fix the
-   Calendar + Inventory passes used), and the hardcoded #c0392b reds are
-   too dark to read on the midnight card surfaces. Scope under this tab. */
-body.theme-midnight #tab-designs .btn-outline { background: var(--card-bg); }
-body.theme-midnight #tab-designs .dsn-filter-btn.active,
-body.theme-midnight #tab-designs .dsn-gear-item.active,
-body.theme-midnight #tab-designs .dsn-key-save { color:#1A1A1C; }
-body.theme-midnight #tab-designs .dsn-gear-item.danger { color:#E08A80; }
-body.theme-midnight #tab-designs .dsn-req { color:#E08A80; }
-body.theme-midnight #tab-designs .dsn-pdf-status.err { color:#E08A80; }

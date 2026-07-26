@@ -399,7 +399,7 @@ function oiRowReadHtml(it, idx) {
 function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
   if (readOnly) return oiRowReadHtml(it, idx);
   const isSquareSelected = it.type === 'square' && (it.squareVariationId || it.squareItemId);
-  const typeSel = (isSquareSelected || hideTypeSelect) ? '' : `<select class="eo-edit-only" onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex-shrink:0;">
+  const typeSel = (isSquareSelected || hideTypeSelect) ? '' : `<select class="eo-edit-only" onchange="oiSetType(${idx}, this.value)" style="font-size:11px;padding:5px 6px;border:1px solid var(--bdr);border-radius:5px;background:var(--card-bg);flex-shrink:0;">
     <option value="manual" ${it.type === 'manual' ? 'selected' : ''}>Manual Item</option>
     <option value="square" ${it.type === 'square' ? 'selected' : ''}>Square Item</option>
   </select>`;
@@ -416,20 +416,20 @@ function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
             <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);">${it.hasFixedPrice ? 'Square Price' : 'Enter Price'}</span>
-            <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid ${it.hasFixedPrice ? 'var(--bdr)' : '#C98A2A'};border-radius:6px;font-size:12px;">
+            <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:90px;padding:4px 6px;border:1px solid ${it.hasFixedPrice ? 'var(--bdr)' : 'var(--accent)'};border-radius:6px;font-size:12px;">
           </div>
           <button type="button" class="rq-item-remove eo-edit-only" title="Change item" onclick="oiClearSquareSelection(${idx})">↺</button>
         </div>
-        ${!it.hasFixedPrice ? `<div style="font-size:11px;color:#A0702A;">No fixed price in Square (variable pricing) — enter the price manually</div>` : ''}
+        ${!it.hasFixedPrice ? `<div style="font-size:11px;color:var(--accent);">No fixed price in Square (variable pricing) — enter the price manually</div>` : ''}
         ${(it.modifierLists || []).map(list => `
         <div style="display:flex;align-items:center;gap:6px;">
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">${(list.name || '').replace(/</g, '&lt;')}</label>
-          <select onchange="oiSetModifier(${idx},'${list.id}', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;background:#fff;flex:1;max-width:220px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);flex-shrink:0;">${(list.name || '').replace(/</g, '&lt;')}</label>
+          <select onchange="oiSetModifier(${idx},'${list.id}', this.value)" style="font-size:12px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;background:var(--card-bg);flex:1;max-width:220px;">
             ${list.options.map(o => `<option value="${o.id}" ${it.selectedModifierIds && it.selectedModifierIds[list.id] === o.id ? 'selected' : ''}>${(o.name || '').replace(/</g, '&lt;')} — $${((parseFloat(it.basePrice) || 0) + o.price).toFixed(2)}</option>`).join('')}
           </select>
         </div>`).join('')}
         ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);flex-shrink:0;">Ring Size</label>
           <input type="text" placeholder="e.g. 6.5" value="${(it.ringSize || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'ringSize',this.value)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
           <span style="font-size:11px;color:var(--text3);">No size variation in Square — enter the size manually</span>
         </div>` : ''}
@@ -453,7 +453,7 @@ function oiRowHtml(it, idx, hideTypeSelect, readOnly) {
         <input type="number" step="0.01" min="0" placeholder="0.00" value="${it.price || ''}" oninput="oiUpdateField(${idx},'price',parseFloat(this.value)||0)" style="width:100px;flex:0 0 100px;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;box-sizing:border-box;">
       </div>
       ${needsRingSize ? `<div style="display:flex;align-items:center;gap:6px;">
-        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7A7268;flex-shrink:0;">Ring Size</label>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);flex-shrink:0;">Ring Size</label>
         <input type="text" placeholder="e.g. 6.5" value="${(it.ringSize || '').replace(/"/g, '&quot;')}" oninput="oiUpdateField(${idx},'ringSize',this.value)" style="width:90px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;">
       </div>` : ''}
     </div>`;

@@ -326,6 +326,49 @@ function _navRestore() {
 
 document.addEventListener('DOMContentLoaded', () => setTimeout(_navRestore, 0));
 
+// ── Theme ──────────────────────────────────────
+// The attribute is already set before first paint by the inline script in
+// jewelry-workflow.html's <head>; this only handles flipping it. Plain
+// localStorage rather than js/storage.js — the IndexedDB layer exists
+// because base64 photos blow the localStorage quota, and a five-character
+// theme string does not.
+const THEME_KEY = 'sts-theme';
+
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  // Keep the PWA status bar in step with the app chrome.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0E0F12' : '#F8F8F9');
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) {
+    const dark = theme === 'dark';
+    btn.textContent = dark ? '☀' : '☾';
+    btn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+    btn.setAttribute('aria-label', btn.title);
+  }
+}
+
+function toggleTheme() {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+}
+
+// Follow the OS only while the user hasn't expressed a preference.
+if (window.matchMedia) {
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (err) {}
+    if (saved !== 'dark' && saved !== 'light') applyTheme(e.matches ? 'dark' : 'light');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => applyTheme(currentTheme()));
+
 // Keyboard support: Enter/Space activates a focused tab; Arrows move focus
 document.addEventListener('keydown', function(e) {
   const t = e.target;

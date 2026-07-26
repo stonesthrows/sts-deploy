@@ -508,7 +508,7 @@ function prodActionNameInput(val) {
     suggest.innerHTML = matches.map(function(c) {
       var esc = prodEsc(c.name);
       var safe = prodEsc((c.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
-      return '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #eee;"'
+      return '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bdr-light);"'
            + ' onmouseover="this.style.background=\'#F4F0E8\'"'
            + ' onmouseout="this.style.background=\'\'"'
            + ' onclick="prodActionSelectCustomer(\'' + safe + '\')">'

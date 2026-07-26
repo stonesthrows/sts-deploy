@@ -433,7 +433,7 @@ function _rqSessionEditRowHTML(store, i, s) {
       }).join('')
     + (editAdd ? _rqEditAddPanelHTML(store, i, editAdd) : '<button class="rq-adjust-link" style="margin-top:4px;" onclick="rqEditOpenAdd(\'' + store + '\',' + i + ')">+ Add item</button>')
     + '<div style="display:flex;gap:8px;margin-top:2px;">'
-    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveEditSession(\'' + store + '\',' + i + ')">Save</button>'
+    + '<button class="rq-sbar-act-btn" style="border-color:var(--ok);color:var(--ok);" onclick="rqSaveEditSession(\'' + store + '\',' + i + ')">Save</button>'
     + '<button class="rq-sbar-act-btn" onclick="rqCancelEditSession(\'' + store + '\')">Cancel</button>'
     + '</div></div>';
 }
@@ -652,7 +652,7 @@ function _rqRenderRatesPanel() {
     + '<input class="rq-edit-input" type="number" min="0" step="0.1" id="rq-chain-min" placeholder="min/pendant" value="' + _rqChainMinPerPc() + '">'
     + '<span style="font-size:11px;color:var(--text3);">min/pendant</span></div>'
     + '<div style="display:flex;gap:8px;margin-top:2px;">'
-    + '<button class="rq-sbar-act-btn" style="border-color:#3A7A4A;color:#3A7A4A;" onclick="rqSaveRatesPanel()">Save</button>'
+    + '<button class="rq-sbar-act-btn" style="border-color:var(--ok);color:var(--ok);" onclick="rqSaveRatesPanel()">Save</button>'
     + '<button class="rq-sbar-act-btn" onclick="rqToggleRatesPanel()">Cancel</button>'
     + '</div></div>';
 }
@@ -712,7 +712,7 @@ function rqRenderProductionReport(forceRefresh) {
   if (_rqReportSessions && !forceRefresh) { _rqRenderReportBody(_rqReportSessions); return; }
   if (_rqReportLoading) return;
   _rqReportLoading = true;
-  body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>';
+  body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Loading…</div>';
   fetch('/api/notion-timesession?all=true')
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(ns) {
@@ -740,7 +740,7 @@ function rqRenderProductionReport(forceRefresh) {
     })
     .catch(function() {
       _rqReportLoading = false;
-      body.innerHTML = '<div style="text-align:center;color:#A0402A;font-size:13px;padding:30px 0;">Failed to load report</div>';
+      body.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:13px;padding:30px 0;">Failed to load report</div>';
     });
 }
 
@@ -783,7 +783,7 @@ function _rqRenderReportBody(sessions) {
   if (!body) return;
   _rqRenderReportControls();
   if (!sessions.length) {
-    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No production data yet</div>';
+    body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">No production data yet</div>';
     if (summaryEl) summaryEl.innerHTML = '';
     return;
   }
@@ -791,7 +791,7 @@ function _rqRenderReportBody(sessions) {
   var idxs = _rqVisibleReportIdxs(sessions);
   _rqRenderReportSummary(sessions, idxs, summaryEl);
   if (!idxs.length) {
-    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">No sessions in this date range</div>';
+    body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">No sessions in this date range</div>';
     return;
   }
   if (_rqReportView === 'design' || _rqReportView === 'category') {
@@ -829,7 +829,7 @@ function _rqRenderReportBody(sessions) {
       + '</div>'
       + '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
-      + '<span style="color:#ccc">·</span>'
+      + '<span style="color:var(--bdr)">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'report\',' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-report-' + i + '" onclick="rqSyncShiftsForSession(\'report\',' + i + ')">⟳ Sync</button>' : '')
@@ -888,7 +888,7 @@ function _rqRenderReportSummary(sessions, idxs, summaryEl) {
     + '<span>Total Labor: <b>$' + grandLabor.toFixed(2) + '</b></span>'
     + (grandMat > 0 ? '<span>Total Mat: <b>$' + grandMat.toFixed(2) + '</b></span>' : '')
     + '<span>Total Value: <b>$' + grandValue.toFixed(2) + '</b></span>'
-    + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
+    + '<span>Total Profit: <b style="color:' + (grandProfit >= 0 ? 'var(--ok)' : 'var(--danger)') + ';">' + (grandProfit >= 0 ? '+$' + grandProfit.toFixed(2) : '-$' + Math.abs(grandProfit).toFixed(2)) + '</b></span>'
     + (unpricedCount ? '<span title="Labor from these sessions counts against Total Profit, but their output value is unknown">⚠ ' + unpricedCount + ' session' + (unpricedCount !== 1 ? 's' : '') + ' missing price data</span>' : '')
     + '</div>';
 }
@@ -1097,7 +1097,7 @@ function _rqRenderAggView(sessions, idxs) {
   var byCategory = _rqReportView === 'category';
   var rows = _rqReportAgg(sessions, idxs, byCategory);
   if (!rows.length) {
-    body.innerHTML = '<div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Nothing to aggregate in this range</div>';
+    body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Nothing to aggregate in this range</div>';
     return;
   }
 
@@ -1156,7 +1156,7 @@ function _rqRenderAggView(sessions, idxs) {
       + '<td>' + _rqFmtMoney(g.labor) + '</td>'
       + '<td>' + matCell + '</td>'
       + '<td>' + (g.value ? _rqFmtMoney(g.value) : '—') + '</td>'
-      + '<td style="font-weight:600;color:' + (g.profit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + _rqFmtMoney(g.profit) + '</td>'
+      + '<td style="font-weight:600;color:' + (g.profit >= 0 ? 'var(--ok)' : 'var(--danger)') + ';">' + _rqFmtMoney(g.profit) + '</td>'
       + '<td' + (marginColor ? ' style="color:' + marginColor + ';"' : '') + '>' + marginTxt + '</td>'
       + '<td>' + (g.valPerHr != null ? _rqFmtMoney(g.valPerHr) : '—') + '</td>'
       + (byCategory ? '' :
@@ -1174,7 +1174,7 @@ function _rqRenderAggView(sessions, idxs) {
     + '<td>' + _rqFmtMoney(totals.labor) + '</td>'
     + '<td>' + _rqFmtMoney(totals.mat) + '</td>'
     + '<td>' + _rqFmtMoney(totals.value) + '</td>'
-    + '<td style="color:' + (totals.profit >= 0 ? '#3A7A4A' : '#A0402A') + ';">' + _rqFmtMoney(totals.profit) + '</td>'
+    + '<td style="color:' + (totals.profit >= 0 ? 'var(--ok)' : 'var(--danger)') + ';">' + _rqFmtMoney(totals.profit) + '</td>'
     + '<td>' + totalMargin + '</td>'
     + '<td></td>'
     + (byCategory ? '' : '<td>' + (salesReady ? totals.sold : '—') + '</td><td></td>')
@@ -1399,7 +1399,7 @@ function rqRenderSessions() {
 
     var timeRow = '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
-      + '<span style="color:#ccc">·</span>'
+      + '<span style="color:var(--bdr)">·</span>'
       + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
       + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'log\',' + i + ')">✎ Edit</button>'
       + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-log-' + i + '" onclick="rqSyncShiftsForSession(\'log\',' + i + ')">⟳ Sync</button>' : '')

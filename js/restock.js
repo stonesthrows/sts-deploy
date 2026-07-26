@@ -1365,7 +1365,7 @@ function restockQueueRender() {
 
   if (!_rqMetaLoaded || !_rqSizesLoaded || !_rqNotesLoaded) {
     if (!_rqLoadingAll) {
-      list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+      list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">Loading…</div>';
       list.style.display = 'flex';
       if (empty) empty.style.display = 'none';
       _rqLoadAll(restockQueueRender);
@@ -1386,7 +1386,7 @@ function restockQueueRender() {
   // means "not loaded yet" — keep showing Loading… instead of the empty
   // message; loadNotes re-renders when it finishes.
   if (typeof _notesLoaded !== 'undefined' && !_notesLoaded) {
-    list.innerHTML = '<div style="padding:24px;text-align:center;color:#B0A898;font-size:13px;">Loading…</div>';
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">Loading…</div>';
     list.style.display = 'flex';
     if (empty) empty.style.display = 'none';
     return;
@@ -2132,7 +2132,7 @@ function _rqSelectedHTML(pid) {
         }).join('');
         return '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'
           + '<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);flex-shrink:0;">' + (list.name || '').replace(/</g,'&lt;') + '</label>'
-          + '<select onchange="rqSetSetupModifier(\'' + pid + '\',\'' + safeId + '\',\'' + safeListId + '\', this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:5px;background:#fff;flex:1;max-width:200px;">'
+          + '<select onchange="rqSetSetupModifier(\'' + pid + '\',\'' + safeId + '\',\'' + safeListId + '\', this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:5px;background:var(--card-bg);flex:1;max-width:200px;">'
           + opts
           + '</select>'
           + '</div>';

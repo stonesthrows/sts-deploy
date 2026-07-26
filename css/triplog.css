@@ -11,9 +11,9 @@
 .tl-health-val { font-weight: 700; font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
 .tl-health-sep { color: var(--text-dim); font-size: 16px; }
 .tl-health-diff { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 20px; font-variant-numeric: tabular-nums; }
-.tl-health-diff.health-ok  { background: #e8f5e9; color: #2e7d32; }
-.tl-health-diff.health-warn { background: #fff3e0; color: #e65100; }
-.tl-health-diff.health-err  { background: #fce4ec; color: #c62828; }
+.tl-health-diff.health-ok  { background: var(--ok-bg); color: var(--ok-fg); }
+.tl-health-diff.health-warn { background: var(--warn-bg); color: var(--warn-fg); }
+.tl-health-diff.health-err  { background: var(--accent-bg); color: var(--danger); }
 .tl-health-log-btn {
   margin-left: auto; font-size: 12px; padding: 4px 12px;
   border: 1px solid var(--bdr); border-radius: 20px;
@@ -23,37 +23,37 @@
               color var(--dur-fast) var(--ease-smooth),
               border-color var(--dur-fast) var(--ease-smooth);
 }
-.tl-health-log-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tl-health-log-btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .tl-health-log-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 
 /* Chain gap rows */
 .tl-chain-gap-row td { padding: 6px 12px; }
-.tl-chain-gap-over  { background: #fff8e1; border-top: 2px dashed #ff9800; border-bottom: 1px solid #ffe082; }
-.tl-chain-gap-under { background: #fce4ec; border-top: 2px dashed #f44336; border-bottom: 1px solid #ffcdd2; }
+.tl-chain-gap-over  { background: var(--warn-bg); border-top: 2px dashed var(--warn); border-bottom: 1px solid var(--warn); }
+.tl-chain-gap-under { background: var(--accent-bg); border-top: 2px dashed var(--danger); border-bottom: 1px solid var(--danger-bg); }
 .tl-chain-gap-icon  { margin-right: 6px; }
 .tl-chain-gap-label { font-size: 12px; font-weight: 600; color: var(--text); }
 .tl-gap-add-btn {
   margin-left: 12px; font-size: 11px; padding: 2px 10px;
-  border: 1px solid #ff9800; border-radius: 12px;
-  background: transparent; color: #e65100; cursor: pointer;
+  border: 1px solid var(--warn); border-radius: 12px;
+  background: transparent; color: var(--warn); cursor: pointer;
   font-family: inherit;
   transition: background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
 }
-.tl-gap-add-btn:hover { background: #ff9800; color: #fff; }
+.tl-gap-add-btn:hover { background: var(--warn); color: var(--accent-ink); }
 .tl-gap-add-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Gap trip rows */
-.tl-gap-trip-row { background: #f3e5f5 !important; }
-.tl-gap-trip-row:hover { background: #ede7f6 !important; }
-.tl-gap-dot { background: #7b1fa2 !important; }
+.tl-gap-trip-row { background: var(--accent-bg) !important; }
+.tl-gap-trip-row:hover { background: var(--accent-bg) !important; }
+.tl-gap-dot { background: var(--s-material) !important; }
 .tl-del-btn {
   margin-left: 4px; font-size: 11px; padding: 2px 6px;
   border: 1px solid var(--bdr); border-radius: 6px;
-  background: transparent; color: #c62828; cursor: pointer;
+  background: transparent; color: var(--danger); cursor: pointer;
   font-family: inherit;
   transition: background var(--dur-fast) var(--ease-smooth), border-color var(--dur-fast) var(--ease-smooth);
 }
-.tl-del-btn:hover { background: #fce4ec; border-color: #ef9a9a; }
+.tl-del-btn:hover { background: var(--accent-bg); border-color: var(--danger); }
 .tl-del-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .tl-stats-row {
@@ -75,8 +75,8 @@
 }
 .tl-stat:hover { box-shadow: var(--shadow-md); border-color: var(--bdr); transform: translateY(-1px); }
 #tab-triplog .stat-value { font-variant-numeric: tabular-nums; }
-.tl-stat-reimb { border-color: #F0C870; background: #FDFAF2; }
-.tl-reimb-value { color: #8C6520 !important; }
+.tl-stat-reimb { border-color: var(--warn); background: var(--warn-bg); }
+.tl-reimb-value { color: var(--accent) !important; }
 /* ── Calendar ─────────────────────────── */
 .cal-card {
   background: var(--card-bg);
@@ -125,7 +125,7 @@
 .cal-today:hover { background: var(--accent-bg); border-color: var(--accent-border); }
 .cal-today .cal-num {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border-radius: 50%;
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
@@ -149,7 +149,7 @@
   font-size: 9px;
   font-weight: 600;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border-radius: 3px;
   padding: 1px 4px;
   white-space: nowrap;
@@ -284,13 +284,7 @@
   border: 1px solid var(--bdr);
   border-radius: var(--rad-lg);
   box-shadow: var(--shadow-lg);
-}
-/* Midnight: this tab's outline buttons — the shared .btn-outline class
-   hardcodes a white background with no dark-theme override anywhere in
-   the file, so it renders as an opaque white box on Scan Gmail/Reconnect/
-   Cancel here. Scoped to #tab-calendar only, per this pass's scope. */
-body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
-/* ── end Calendar ─────────────────────── */
+}/* ── end Calendar ─────────────────────── */
 
 .tl-stat-icon {
   width: 38px; height: 38px; border-radius: var(--rad-md);
@@ -341,8 +335,8 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
   display: inline-block; padding: 2px 8px;
   border-radius: 20px; font-size: 11px; font-weight: 600;
 }
-.tl-biz { background: #EAF6EE; color: #2D7A4A; border: 1px solid #B5DFC2; }
-.tl-per { background: #F0F2FF; color: #4A56A0; border: 1px solid #C5CAED; }
+.tl-biz { background: var(--ok-bg); color: var(--ok-fg); border: 1px solid var(--ok); }
+.tl-per { background: var(--info-bg); color: var(--info-fg); border: 1px solid var(--info); }
 .tl-edit-btn {
   padding: 4px 10px; font-size: 11px; font-weight: 600;
   border: 1px solid var(--bdr); border-radius: 6px;
@@ -356,10 +350,10 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
 .tl-edit-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg); box-shadow: var(--shadow-sm); }
 .tl-edit-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .tl-edit-dot {
-  font-size: 13px; color: #C9983A; margin-right: 4px;
+  font-size: 13px; color: var(--accent); margin-right: 4px;
   cursor: default;
 }
-.tl-edit-dot.tl-sync-fail { color: #c0392b; }
+.tl-edit-dot.tl-sync-fail { color: var(--danger); }
 
 /* ── Reconciliation Modal ── */
 .recon-modal { max-width: 620px; }
@@ -372,8 +366,8 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
 .recon-stat-val { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .recon-stat-sep { font-size: 16px; color: var(--text-dim); }
 .recon-gap { font-size: 20px; font-weight: 800; }
-.recon-over  { color: #2D7A4A; }
-.recon-under { color: #c0392b; }
+.recon-over  { color: var(--ok-fg); }
+.recon-under { color: var(--danger); }
 .recon-diff { font-size: 11px; font-weight: 700; margin-left: 4px; }
 .recon-table-wrap { padding: 12px 16px; max-height: 320px; overflow-y: auto; }
 /* ── Edit Modal ── */
@@ -432,8 +426,8 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
 .odo-friday-banner {
   display: flex; align-items: center; gap: 14px;
   margin: 0 20px 4px;
-  background: linear-gradient(135deg,#FEF9EC,#FDF2D5);
-  border: 1.5px solid #F0C870;
+  background: linear-gradient(135deg,var(--warn-bg), var(--warn-bg));
+  border: 1.5px solid var(--warn);
   border-radius: var(--rad-lg); padding: 12px 16px;
   box-shadow: var(--shadow-sm);
 }
@@ -462,9 +456,9 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
 .odo-sync-val { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .odo-sync-sep { font-size: 18px; color: var(--text-dim); }
 .odo-delta { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.odo-delta.ok   { color: #2D7A4A; }
-.odo-delta.warn { color: #B07818; }
-.odo-delta.err  { color: #c0392b; }
+.odo-delta.ok   { color: var(--ok-fg); }
+.odo-delta.warn { color: var(--accent); }
+.odo-delta.err  { color: var(--danger); }
 .odo-input-row {
   display: flex; gap: 8px; align-items: center;
   padding: 12px 16px;
@@ -480,38 +474,6 @@ body.theme-midnight #tab-calendar .btn-outline { background: var(--card-bg); }
 .odo-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .odo-notes { flex: 1; min-width: 180px; }
 .odo-history-wrap { padding: 12px 16px 0; overflow-x: auto; }
-
-/* ── TripLog: midnight theme ── */
-/* --bg2 is an alias (var(--hdr-pill)) substituted at :root, so the midnight
-   --hdr-pill override never reaches it — re-resolve it here. */
-body.theme-midnight .tl-health-bar { background: var(--hdr-pill); border-color: var(--bdr); }
-body.theme-midnight #tab-triplog .tl-stat-icon.si-gold   { background: #342C20; }
-body.theme-midnight #tab-triplog .tl-stat-icon.si-purple { background: #2E2838; }
-body.theme-midnight #tab-triplog .tl-stat-icon.si-green  { background: #1E2A22; }
-body.theme-midnight .tl-stat-reimb { border-color: #4A3820; background: #28221A; }
-body.theme-midnight .tl-reimb-value { color: #F0C060 !important; }
-body.theme-midnight .tl-health-diff.health-ok   { background: #1C2E22; color: #7FC79A; }
-body.theme-midnight .tl-health-diff.health-warn { background: #332818; color: #F0B060; }
-body.theme-midnight .tl-health-diff.health-err  { background: #33201E; color: #E08A80; }
-body.theme-midnight .tl-chain-gap-over  { background: #2A2414; border-top-color: #8A6A1C; border-bottom-color: #4A3E1C; }
-body.theme-midnight .tl-chain-gap-under { background: #2E1C1C; border-top-color: #8A3A34; border-bottom-color: #4A2A28; }
-body.theme-midnight .tl-gap-add-btn { border-color: #B07818; color: #F0B060; }
-body.theme-midnight .tl-gap-add-btn:hover { background: #B07818; color: #1A1A1C; }
-body.theme-midnight .tl-gap-trip-row { background: #2A2434 !important; }
-body.theme-midnight .tl-gap-trip-row:hover { background: #342C42 !important; }
-body.theme-midnight .tl-gap-dot { background: #B080D0 !important; }
-body.theme-midnight .tl-del-btn { color: #E08A80; }
-body.theme-midnight .tl-del-btn:hover { background: #33201E; border-color: #5A3230; }
-body.theme-midnight .tl-biz { background: #1C2E22; color: #7FC79A; border-color: #2E4A38; }
-body.theme-midnight .tl-per { background: #26283E; color: #9AA4E0; border-color: #3A4066; }
-body.theme-midnight .tl-edit-dot.tl-sync-fail { color: #E08A80; }
-body.theme-midnight .odo-friday-banner { background: linear-gradient(135deg,#28221A,#332B1C); border-color: #4A3820; }
-body.theme-midnight .odo-delta.ok   { color: #7FC79A; }
-body.theme-midnight .odo-delta.warn { color: #F0B060; }
-body.theme-midnight .odo-delta.err  { color: #E08A80; }
-body.theme-midnight .recon-over  { color: #7FC79A; }
-body.theme-midnight .recon-under { color: #E08A80; }
-
 /* ── TripLog: mobile (≤640px) ── */
 @media (max-width: 640px) {
   #tab-triplog .page-bar { padding: 14px 12px 0 !important; }

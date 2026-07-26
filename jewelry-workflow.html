@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: v113-bag-qr-deeplink -->
+<!-- deploy-version: 20260726e-product-theme -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -13,7 +13,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="css/app.css?v=20260726d">
+  <!-- Theme must resolve before first paint, or the app flashes light on
+       every load for anyone using dark. Inline and synchronous on purpose;
+       the toggle itself lives in js/app.js. -->
+  <script>
+    (function () {
+      var t;
+      try { t = localStorage.getItem('sts-theme'); } catch (e) {}
+      if (t !== 'dark' && t !== 'light') {
+        t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="css/app.css?v=20260726e">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -60,8 +73,8 @@
     <div class="sb-item" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
     <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
   </nav>
-  <div style="padding:10px 10px 14px;border-top:1px solid #2E5C78;flex-shrink:0;">
-    <button onclick="openIntegrationsModal()" style="width:100%;background:none;border:1px solid #2E5C78;border-radius:8px;color:#7AAFC8;font-size:12px;font-weight:600;padding:8px 10px;cursor:pointer;text-align:left;letter-spacing:0.04em;">⚙ Integrations</button>
+  <div style="padding:10px 10px 14px;border-top:1px solid var(--bdr);flex-shrink:0;">
+    <button onclick="openIntegrationsModal()" style="width:100%;background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--sb-fg);font-size:12px;font-weight:600;padding:8px 10px;cursor:pointer;text-align:left;letter-spacing:0.04em;">⚙ Integrations</button>
   </div>
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="sbClose()"></div>
@@ -189,6 +202,7 @@
     <button class="msg-bell-btn" onclick="messageBellClick()" title="Team Messages" aria-label="Team Messages">💬</button>
     <span class="msg-bell-badge" id="msgBellBadge"></span>
   </div>
+  <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Switch to dark mode" aria-label="Switch to dark mode" style="font-size:15px;">☾</button>
   <button class="theme-btn" onclick="openIntegrationsModal()" title="Configure API keys and integrations" style="font-size:15px;">🔌</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">🗺️</button>
 </div>
@@ -383,7 +397,7 @@
   <div class="kanban-filter-bar" id="kanbanFilterBar" style="display:none"></div>
 
   <div class="kanban-bar">
-    <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:rgba(255,255,255,0.72);font-size:13px;">— synced with Notion</span></span>
+    <span class="kanban-title">Order Pipeline <span style="font-weight:400;color:var(--text2);font-size:13px;">— synced with Notion</span></span>
     <div style="display:flex;align-items:center;gap:8px;">
       <button class="kb-new-btn" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</button>
       <div class="overflow-wrap" id="kbOverflowWrap">
@@ -905,8 +919,8 @@
 
             <!-- Ring size + Inside Ring Stamping glance list — populated by
                  js/ring-fields.js whenever Piece Type is Ring; hidden otherwise. -->
-            <div id="est-ring-stamping-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#FBF3E0;font-size:13px;line-height:1.6;color:#4A3F2A;"></div>
-            <div id="est-ring-blanklen-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:#EAF1F6;font-size:13px;line-height:1.6;color:#2A3A46;"></div>
+            <div id="est-ring-stamping-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);font-size:13px;line-height:1.6;color:var(--warn-fg);"></div>
+            <div id="est-ring-blanklen-summary" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:var(--info-bg);font-size:13px;line-height:1.6;color:var(--info-fg);"></div>
 
             <!-- Materials -->
             <div class="form-sec">
@@ -1133,12 +1147,12 @@
             <button type="button" class="dock-btn" onclick="sketchLassoDelete()" title="Delete selection">🗑</button>
           </div>
           <div class="dock-row dock-swatches" id="sk-color-row">
-            <button type="button" class="dock-swatch active" style="background:#1A1A1A" data-color="#1A1A1A" onclick="sketchSetColor('#1A1A1A',this)" title="Black"></button>
-            <button type="button" class="dock-swatch"        style="background:#3D7EC2" data-color="#3D7EC2" onclick="sketchSetColor('#3D7EC2',this)" title="Blue"></button>
-            <button type="button" class="dock-swatch"        style="background:#C0392B" data-color="#C0392B" onclick="sketchSetColor('#C0392B',this)" title="Red"></button>
-            <button type="button" class="dock-swatch"        style="background:#2E8B57" data-color="#2E8B57" onclick="sketchSetColor('#2E8B57',this)" title="Green"></button>
-            <button type="button" class="dock-swatch"        style="background:#C9983A" data-color="#C9983A" onclick="sketchSetColor('#C9983A',this)" title="Gold"></button>
-            <button type="button" class="dock-swatch"        style="background:#FFD400" data-color="#FFD400" onclick="sketchSetColor('#FFD400',this)" title="Yellow"></button>
+            <button type="button" class="dock-swatch active" style="background:var(--text)" data-color="#1A1A1A" onclick="sketchSetColor('#1A1A1A',this)" title="Black"></button>
+            <button type="button" class="dock-swatch"        style="background:var(--info)" data-color="#3D7EC2" onclick="sketchSetColor('#3D7EC2',this)" title="Blue"></button>
+            <button type="button" class="dock-swatch"        style="background:var(--danger)" data-color="#C0392B" onclick="sketchSetColor('#C0392B',this)" title="Red"></button>
+            <button type="button" class="dock-swatch"        style="background:var(--ok)" data-color="#2E8B57" onclick="sketchSetColor('#2E8B57',this)" title="Green"></button>
+            <button type="button" class="dock-swatch"        style="background:var(--accent)" data-color="#C9983A" onclick="sketchSetColor('#C9983A',this)" title="Gold"></button>
+            <button type="button" class="dock-swatch"        style="background:var(--warn)" data-color="#FFD400" onclick="sketchSetColor('#FFD400',this)" title="Yellow"></button>
           </div>
           <div class="dock-size">
             <div class="dock-size-preview"><span id="sk-size-dot"></span></div>
@@ -1546,7 +1560,7 @@
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
-      <button id="sotModalDelete" type="button" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="sotDeleteItem(sotEditId)">Delete</button>
+      <button id="sotModalDelete" type="button" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);" onclick="sotDeleteItem(sotEditId)">Delete</button>
       <div style="display:flex;gap:8px;">
         <button type="button" class="btn btn-outline btn-sm" onclick="sotModalBgClose()">Cancel</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="sotEditSave()">Save</button>
@@ -1815,7 +1829,7 @@
       </label>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
-      <button id="materialsModalDelete" type="button" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="materialsDelete()">Delete</button>
+      <button id="materialsModalDelete" type="button" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);" onclick="materialsDelete()">Delete</button>
       <div style="display:flex;gap:8px;">
         <button type="button" class="btn btn-outline btn-sm" onclick="materialsModalClose()">Cancel</button>
         <button type="button" class="btn btn-gold btn-sm" onclick="materialsSave()">Save</button>
@@ -2143,7 +2157,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260722b">
+<link rel="stylesheet" href="css/inventory.css?v=20260726e">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2640,7 +2654,7 @@
   </div>
 </div>
 
-<link rel="stylesheet" href="css/perm-jewelry.css?v=20260720a">
+<link rel="stylesheet" href="css/perm-jewelry.css?v=20260726e">
 
 <!-- ═══════════════════ PERM JEWELRY — CALCULATOR ═══════════════════ -->
 <div id="tab-pj-calc" class="tab-panel">
@@ -2891,7 +2905,7 @@
   </div>
 </div>
 
-<link rel="stylesheet" href="css/triplog.css?v=20260720a">
+<link rel="stylesheet" href="css/triplog.css?v=20260726e">
 
 <!-- ═══════════════════ EDIT ORDER MODAL ═══════════════════ -->
 <!-- ═══════════════════ PRINT SETUP MODAL ═══════════════════ -->
@@ -3256,7 +3270,7 @@
       </button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
-      <button id="ohModalDelete" class="btn btn-outline btn-sm" style="color:#e55;border-color:#e55;" onclick="ohDeleteOrder(ohEditId)">Delete</button>
+      <button id="ohModalDelete" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);" onclick="ohDeleteOrder(ohEditId)">Delete</button>
       <div style="display:flex;gap:8px;">
         <button id="ohModalCancel" class="btn btn-outline btn-sm">Cancel</button>
         <button id="ohModalSave" class="btn btn-gold btn-sm">Save</button>
@@ -3485,13 +3499,13 @@
   <div id="prod-report-controls"></div>
   <div id="prod-report-summary"></div>
   <div id="prod-report-body">
-    <div style="text-align:center;color:#B0A898;font-size:14px;padding:40px 0;">Loading…</div>
+    <div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Loading…</div>
   </div>
 </div>
 
-<link rel="stylesheet" href="css/prod-report.css?v=20260720a">
+<link rel="stylesheet" href="css/prod-report.css?v=20260726e">
 
-<link rel="stylesheet" href="css/restock-queue.css?v=20260720a">
+<link rel="stylesheet" href="css/restock-queue.css?v=20260726e">
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/api-auth.js?v=1"></script>
@@ -3499,12 +3513,12 @@
 <script src="js/data.js?v=20260720c"></script>
 <script src="js/order-normalize.js?v=20260724e"></script>
 <script src="js/notion.js?v=20260722d"></script>
-<script src="js/customers.js?v=20260726a"></script>
-<script src="js/app.js?v=20260726a"></script>
+<script src="js/customers.js?v="20260726e""></script>
+<script src="js/app.js?v="20260726e""></script>
 <script src="js/sketchpad.js?v=8"></script>
-<script src="js/order-widgets.js?v=20260724a"></script>
-<script src="js/ring-fields.js?v=8"></script>
-<script src="js/orders.js?v=20260726a"></script>
+<script src="js/order-widgets.js?v="20260726e""></script>
+<script src="js/ring-fields.js?v="20260726e""></script>
+<script src="js/orders.js?v="20260726e""></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
@@ -3513,14 +3527,14 @@
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260720a"></script>
 <script src="js/sales.js?v=20260720b"></script>
-<script src="js/production.js?v=20260724a"></script>
+<script src="js/production.js?v="20260726e""></script>
 <script src="js/notes.js?v=40"></script>
 <script src="js/customer-messages.js?v=3"></script>
-<script src="js/restock.js?v=13"></script>
-<script src="js/restock-sessions.js?v=4"></script>
-<script src="js/supplier-history.js?v=2"></script>
+<script src="js/restock.js?v="20260726e""></script>
+<script src="js/restock-sessions.js?v="20260726e""></script>
+<script src="js/supplier-history.js?v="20260726e""></script>
 <script src="js/materials.js?v=5"></script>
-<script src="js/receiving.js?v=2"></script>
+<script src="js/receiving.js?v="20260726e""></script>
 <script src="js/closeout.js?v=2"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
 <div id="prodActionModalBg" class="sot-modal-bg" onclick="if(event.target===this)prodActionModalClose()">
@@ -3540,7 +3554,7 @@
         box-shadow:0 6px 16px rgba(0,0,0,.12);max-height:180px;overflow-y:auto;"></div>
     </div>
 
-    <div id="prodActionMatchNote" style="font-size:11.5px;color:#2a7a4a;margin-top:6px;min-height:16px;"></div>
+    <div id="prodActionMatchNote" style="font-size:11.5px;color:var(--ok-fg);margin-top:6px;min-height:16px;"></div>
 
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="btn btn-gold" style="flex:1" onclick="prodActionConfirm()">Continue →</button>
@@ -3555,7 +3569,7 @@
     <h3 style="margin-bottom:4px;">📋 Save to Customer</h3>
     <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Review and edit the fields parsed from the PDF. Saving will update (or create) the customer record.</p>
 
-    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Name <span style="color:#c0392b">*</span></label>
+    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Name <span style="color:var(--danger-fg)">*</span></label>
     <input id="prodSaveName" type="text"
       style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;">
 
@@ -3563,13 +3577,13 @@
     <input id="prodSaveEmail" type="email"
       style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
       oninput="prodValidateSaveFields()">
-    <div id="prodSaveEmailWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
+    <div id="prodSaveEmailWarn" style="font-size:11.5px;color:var(--danger-fg);min-height:16px;margin-bottom:6px;"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Phone</label>
     <input id="prodSavePhone" type="tel"
       style="width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:3px;"
       oninput="prodValidateSaveFields()">
-    <div id="prodSavePhoneWarn" style="font-size:11.5px;color:#c0392b;min-height:16px;margin-bottom:6px;"></div>
+    <div id="prodSavePhoneWarn" style="font-size:11.5px;color:var(--danger-fg);min-height:16px;margin-bottom:6px;"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px;">Address</label>
     <input id="prodSaveAddress" type="text"
@@ -3597,12 +3611,12 @@
   }
 </script>
 <script src="js/designs.js?v=16"></script>
-<script src="js/triplog.js?v=20260711a"></script>
-<script src="js/inventory.js?v=12"></script>
-<script src="js/inv-manager.js?v=2"></script>
+<script src="js/triplog.js?v="20260726e""></script>
+<script src="js/inventory.js?v="20260726e""></script>
+<script src="js/inv-manager.js?v="20260726e""></script>
 <script src="js/replenish.js?v=3"></script>
 <script src="js/bestsellers.js?v=1"></script>
-<script src="js/calendar.js"></script>
+<script src="js/calendar.js?v=20260726e"></script>
 <script src="js/ui-shell.js?v=20260720a"></script>
 
 <!-- Hidden file input for camera / photo attachment -->

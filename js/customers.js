@@ -348,7 +348,7 @@ function openCustomerDrawer(idx) {
               <span style="background:${stageBg};color:${stageClr};padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;">${stageLabel(o.stage)}</span>
               ${o.price ? `<span style="font-size:11.5px;">${fmtPrice(o.price)}</span>` : ''}
               <span class="o-tag ${dl.cls}" style="font-size:10px;">${dl.text}</span>
-              ${o.pickup ? `<span style="font-size:10px;color:#6A6460;">📍 ${esc(o.pickup)}</span>` : ''}
+              ${o.pickup ? `<span style="font-size:10px;color:var(--text2);">📍 ${esc(o.pickup)}</span>` : ''}
             </div>
           </div>`;
       }).join('') : '<div style="color:var(--text3);font-size:13px;padding:4px 0;">No orders on record.</div>'}

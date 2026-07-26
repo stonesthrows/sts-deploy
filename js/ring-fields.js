@@ -399,7 +399,7 @@ function _intakeRingCategoryFieldsHtml(i, r) {
       </div>
       <div class="fg full">
         <label>Ring Blank Length</label>
-        <div id="f-ring-blanklen-${i}" style="font-size:14px;font-weight:600;color:#4A3F2A;padding:6px 0;">Enter ring size + gauge to calculate</div>
+        <div id="f-ring-blanklen-${i}" style="font-size:14px;font-weight:600;color:var(--warn-fg);padding:6px 0;">Enter ring size + gauge to calculate</div>
       </div>
       <div class="fg">
         <label>Metal</label>
@@ -428,7 +428,7 @@ function intakeRenderRingBlocks() {
   const showName = _intakeRings.length > 1;
   const esc = v => String(v || '').replace(/"/g, '&quot;');
   list.innerHTML = _intakeRings.map((r, i) => `
-    <div class="ring-block" style="border-top:1px solid #e2e2e2;margin-top:${i ? '12px' : '0'};padding-top:${i ? '12px' : '0'};">
+    <div class="ring-block" style="border-top:1px solid var(--bdr);margin-top:${i ? '12px' : '0'};padding-top:${i ? '12px' : '0'};">
       <div class="fg full"><label>Ring ${i + 1}</label></div>
       ${showName ? `
       <div class="fg">

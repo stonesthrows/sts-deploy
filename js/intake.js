@@ -823,8 +823,8 @@ function intakeRenderApproval() {
       rows += '<tr><td style="padding:3px 0">' + _apEsc(ln.label) + '</td>'
            +  '<td style="padding:3px 0;text-align:right">' + _apMoney(ln.amount) + '</td></tr>';
     });
-    rows += '<tr><td style="padding:8px 0 0;border-top:1px solid #e2e8f0;font-weight:700">Total</td>'
-         +  '<td style="padding:8px 0 0;border-top:1px solid #e2e8f0;text-align:right;font-weight:700">' + _apMoney(fin.total) + '</td></tr>';
+    rows += '<tr><td style="padding:8px 0 0;border-top:1px solid var(--bdr);font-weight:700">Total</td>'
+         +  '<td style="padding:8px 0 0;border-top:1px solid var(--bdr);text-align:right;font-weight:700">' + _apMoney(fin.total) + '</td></tr>';
     tbl.innerHTML = rows;
   }
 
@@ -858,7 +858,7 @@ function _apRenderResponse(ap) {
       ? '<div style="font-weight:400;margin-top:6px;font-size:13px;">🧾 Square invoice draft created' + (inv.invoiceNumber ? ' (#' + _apEsc(inv.invoiceNumber) + ')' : '') + ' — review &amp; send it from Square.</div>'
     : inv.status === 'skipped'
       ? '<div style="font-weight:400;margin-top:6px;font-size:13px;">🧾 No Square invoice created: ' + _apEsc(inv.reason || 'skipped') + '.</div>'
-    : '<div style="font-weight:400;margin-top:6px;font-size:13px;color:#b03030;">🧾 Square invoice draft failed: ' + _apEsc(inv.error || 'unknown error') + ' — create it manually in Square.</div>';
+    : '<div style="font-weight:400;margin-top:6px;font-size:13px;color:var(--danger);">🧾 Square invoice draft failed: ' + _apEsc(inv.error || 'unknown error') + ' — create it manually in Square.</div>';
   box.innerHTML = (approved ? '✓ Customer approved' : '✎ Customer requested changes')
     + (when ? ' · ' + when : '')
     + (ap.response ? '<div style="font-weight:400;margin-top:4px;white-space:pre-wrap">“' + _apEsc(ap.response) + '”</div>' : '')
@@ -1640,7 +1640,7 @@ function intakeViewOrder(id, fromList) {
   if (photosEl) {
     const photos = Array.isArray(order.refPhotos) ? order.refPhotos : [];
     photosEl.innerHTML = photos.map(src =>
-      '<img src="' + src + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #E4D8C4;">'
+      '<img src="' + src + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--surface3);">'
     ).join('');
   }
 

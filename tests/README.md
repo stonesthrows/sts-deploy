@@ -22,6 +22,14 @@ the browser).
   the Notion offline write queue (`js/notion.js`) end to end: seed →
   migrate → persist → flush-on-hide → go offline → boot from cache →
   queue a write → reload → come back online → replay.
+- **`theme-audit.js`** — walks every tab in both light and dark and checks
+  what the fingerprint probes can't: that text keeps its contrast against the
+  colour actually composited behind it, that nothing still paints the retired
+  warm/cream palette, that every `var(--token)` referenced is defined
+  somewhere, and — the one that matters most — that light and dark actually
+  *differ*. An earlier version of this suite passed all 40 tab/theme checks
+  while dark mode was completely dead: the attribute was set, but a stray
+  comment had deleted the block that consumed it.
 - **`intake-ai-notes.js`** — drives the intake app's AI note taker
   (`js/intake-ai-notes.js`) against `intake.html`. The manual flow
   (capture → summarize → fill the intake form → ask the transcript →
