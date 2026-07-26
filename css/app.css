@@ -1,181 +1,4 @@
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    /*
-     * ── Design Token Palette ─────────────────────────────────────────────────
-     * ALL colour usage must reference one of these tokens. Never use a raw hex
-     * inside a component rule — add the token here first.
-     *
-     * Backgrounds:  --bg  --hdr  --nav  --subnav  --hdr-pill
-     *               --card-bg  --card-head-bg
-     *               --surface  --surface2  --surface3  (aliases → card-head-bg)
-     * Borders:      --bdr  --bdr-light  --hdr-bdr  --border1  (alias → bdr)
-     * Accent:       --accent  --accent-mid  --accent-light
-     *               --accent-bg  --accent-border
-     * Text:         --text  --text2  --text3  --text-dim
-     *               --text1  (alias → text)
-     * ─────────────────────────────────────────────────────────────────────── */
-    :root {
-      /* ── Surfaces ── */
-      --bg: #FBFBFC;
-      --card-bg: #FFFFFF;
-      --card-head-bg: #FFFFFF;
-      --hdr: #FFFFFF;
-      --nav: #F8F8F9;
-      --subnav: #FFFFFF;
-      --hdr-pill: #F5F5F7;
-      --hdr-bdr: #E5E6E9;
-
-      /* ── Borders ── */
-      --bdr: #E5E6E9;
-      --bdr-light: #EFEFF1;
-
-      /* ── Text ── */
-      --text: #16171A;
-      --text2: #61656E;
-      --text3: #656971;
-      --text-dim: #6E727B;
-
-      /* ── Accent (indigo) ── */
-      --accent: #4F5AD8;
-      --accent-mid: #7C86F0;
-      --accent-light: #A3AAF6;
-      --accent-bg: #EEEFFD;
-      --accent-border: #D8DBFA;
-      --accent-ink: #FFFFFF;
-      --accent-fg: #3D46B8;
-      --accent-rgb: 79, 90, 216;
-
-      /* ── Sidebar ── */
-      --sb-bg: #F8F8F9;
-      --sb-fg: #3C4048;
-      --sb-dim: #656971;
-      --sb-hover: #EFEFF1;
-      --sb-active-bg: #EAEBFC;
-      --sb-active-fg: #4F5AD8;
-
-      /* ── Semantic status ──
-         Separate from the accent on purpose: these encode state (overdue,
-         complete, waiting), so they must stay legible and distinct from
-         "this is interactive". Each carries a fill, an ink and a line so a
-         chip, a badge and a border can all be built from one family. */
-      --ok: #1F9A68;      --ok-bg: #E2F4EC;   --ok-fg: #17734E;   --ok-line: #B9E3D0;
-      --danger: #D14343;  --danger-bg: #FCE9E9; --danger-fg: #A82C2C; --danger-line: #F5C9C9;
-      --warn: #C2810C;    --warn-bg: #FDF3DC;  --warn-fg: #8A5D08;  --warn-line: #F0DCA8;
-      --info: #3B6FD4;    --info-bg: #E9EFFB;  --info-fg: #2A54A8;  --info-line: #C4D5F2;
-
-      /* Aliases — map legacy/inconsistent names to canonical tokens above */
-      --text1: var(--text);
-      --text-muted: var(--text3);
-      --border1: var(--bdr);
-      --card: var(--card-bg);
-      --surface: #F8F8F9;
-      --surface2: #F5F5F7;
-      --surface3: #EFEFF1;
-      --gold: var(--accent);
-      --hover: #F5F5F7;
-      --hover-bg: rgba(16, 18, 22, 0.04);
-      --input-bg: #FFFFFF;
-      --bg2: var(--hdr-pill);
-      /* ── Board design tokens (spacing / radius / shadow / motion) ──
-         Used by the Order Pipeline (Kanban) dashboard styling. */
-      --sp-1: 4px;
-      --sp-2: 8px;
-      --sp-3: 12px;
-      --sp-4: 16px;
-      --rad-sm: 6px;
-      --rad-md: 8px;
-      --rad-lg: 12px;
-      --shadow-sm: 0 1px 2px rgba(16,18,22,0.05);
-      --shadow-md: 0 4px 14px rgba(16,18,22,0.09), 0 1px 3px rgba(16,18,22,0.05);
-      --shadow-lg: 0 10px 30px rgba(16,18,22,0.13), 0 2px 6px rgba(16,18,22,0.06);
-      --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-      --dur-fast: 0.16s;
-      --dur-med: 0.28s;
-      --focus-ring: 0 0 0 3px rgba(92,103,229,0.22);
-
-      /* ── Kanban stage hues ──
-         Distinct per stage on purpose — which column an order sits in is
-         information, so the hues must stay tellable apart at a glance.
-         Component rules derive head/body/edge from these. */
-      --s-intake:   #4C63E0;
-      --s-sketch:   #C2810C;
-      --s-estimate: #D0642A;
-      --s-deposit:  #1F9A68;
-      --s-material: #8848CC;
-      --s-bench:    #2874C0;
-      --s-contact:  #C2810C;
-      --s-ready:    #1888A8;
-      --s-repair:   #C1502A;
-      --s-complete: #1F9A68;
-    }
-
-    /* ── Dark ──
-       Designed, not derived: inverting lightness collapses the stage hues
-       into one muddy band, so those get raised chroma instead of a flipped
-       L. Every component reads these tokens, which is what let the old
-       hand-written dark patch layer be deleted entirely. */
-    :root[data-theme="dark"] {
-      --bg: #0B0C0E;
-      --card-bg: #131417;
-      --card-head-bg: #131417;
-      --hdr: #131417;
-      --nav: #0E0F12;
-      --subnav: #0E0F12;
-      --hdr-pill: #17191D;
-      --hdr-bdr: #23252B;
-
-      --bdr: #23252B;
-      --bdr-light: #1B1D22;
-
-      --text: #E9EAEC;
-      --text2: #A8ACB5;
-      --text3: #8E939D;
-      --text-dim: #82868F;
-
-      --accent: #6E79F0;
-      --accent-mid: #8B94F5;
-      --accent-light: #A9AFF8;
-      --accent-bg: #1B1D3A;
-      --accent-border: #2A2E52;
-      --accent-ink: #0B0C0E;
-      --accent-fg: #A9AFF8;
-      --accent-rgb: 110, 121, 240;
-
-      --sb-bg: #0E0F12;
-      --sb-fg: #B4B8C0;
-      --sb-dim: #8E939D;
-      --sb-hover: #17191D;
-      --sb-active-bg: #1E2040;
-      --sb-active-fg: #A0A8F8;
-
-      --ok: #35B584;      --ok-bg: #15301F;    --ok-fg: #55D3A0;    --ok-line: #1E4634;
-      --danger: #EE6C6C;  --danger-bg: #351B1B; --danger-fg: #F49B9B; --danger-line: #4A2626;
-      --warn: #E0B44E;    --warn-bg: #322915;  --warn-fg: #E8C46E;  --warn-line: #4A3C1C;
-      --info: #6B9BF0;    --info-bg: #16233D;  --info-fg: #9EBEF7;  --info-line: #26355A;
-
-      --surface: #17191D;
-      --surface2: #1A1C21;
-      --surface3: #1F2127;
-      --hover: #1A1C21;
-      --hover-bg: rgba(255, 255, 255, 0.05);
-      --input-bg: #17191D;
-
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-      --shadow-md: 0 4px 14px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
-      --shadow-lg: 0 10px 30px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.45);
-      --focus-ring: 0 0 0 3px rgba(110,121,240,0.3);
-
-      --s-intake:   #7C8AF5;
-      --s-sketch:   #DFB248;
-      --s-estimate: #EE8A54;
-      --s-deposit:  #35C68C;
-      --s-material: #AE7EF0;
-      --s-bench:    #5098E8;
-      --s-contact:  #DFB248;
-      --s-ready:    #38B2D8;
-      --s-repair:   #EE8A6C;
-      --s-complete: #35C68C;
-    }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
@@ -547,38 +370,38 @@
     }
 
     /* Stage color tokens */
-    .s-inquiry  .k-head { background:var(--info-bg); color:var(--info-fg); }
-    .s-inquiry  .k-body { background:var(--info-bg); }
+    .s-inquiry  .k-head { background:color-mix(in srgb,var(--s-intake) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-intake) var(--mix-head-fg),var(--text)); }
+    .s-inquiry  .k-body { background:color-mix(in srgb,var(--s-intake) var(--mix-body),var(--card-bg)); }
     .s-inquiry  .o-card { border-left-color:var(--s-intake); }
-    .s-sketch   .k-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .s-sketch   .k-body { background:var(--warn-bg); }
+    .s-sketch   .k-head { background:color-mix(in srgb,var(--s-sketch) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-sketch) var(--mix-head-fg),var(--text)); }
+    .s-sketch   .k-body { background:color-mix(in srgb,var(--s-sketch) var(--mix-body),var(--card-bg)); }
     .s-sketch   .o-card { border-left-color:var(--s-sketch); }
-    .s-quote    .k-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .s-quote    .k-body { background:var(--warn-bg); }
+    .s-quote    .k-head { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .s-quote    .k-body { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .s-quote    .o-card { border-left-color:var(--s-estimate); }
-    .s-materials .k-head { background:var(--accent-bg); color:var(--s-material); }
-    .s-materials .k-body { background:var(--accent-bg); }
+    .s-materials .k-head { background:color-mix(in srgb,var(--s-material) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-material) var(--mix-head-fg),var(--text)); }
+    .s-materials .k-body { background:color-mix(in srgb,var(--s-material) var(--mix-body),var(--card-bg)); }
     .s-materials .o-card { border-left-color:var(--s-material); }
-    .s-build    .k-head { background:var(--info-bg); color:var(--info-fg); }
-    .s-build    .k-body { background:var(--info-bg); }
+    .s-build    .k-head { background:color-mix(in srgb,var(--s-bench) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-bench) var(--mix-head-fg),var(--text)); }
+    .s-build    .k-body { background:color-mix(in srgb,var(--s-bench) var(--mix-body),var(--card-bg)); }
     .s-build    .o-card { border-left-color:var(--s-bench); }
     .s-complete .k-head { background:var(--ok-bg); color:var(--ok-fg); }
     .s-complete .k-body { background:var(--ok-bg); }
     .s-complete .o-card { border-left-color:var(--ok); }
-    .s-needs-est .k-head    { background:var(--danger-bg); color:var(--danger-fg); }
-    .s-needs-est .k-body    { background:var(--warn-bg); }
+    .s-needs-est .k-head    { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .s-needs-est .k-body    { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .s-needs-est .o-card    { border-left-color:var(--s-estimate); }
-    .s-wait-cust .k-head    { background:var(--info-bg); color:var(--info-fg); }
-    .s-wait-cust .k-body    { background:var(--info-bg); }
+    .s-wait-cust .k-head    { background:color-mix(in srgb,var(--s-ready) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-ready) var(--mix-head-fg),var(--text)); }
+    .s-wait-cust .k-body    { background:color-mix(in srgb,var(--s-ready) var(--mix-body),var(--card-bg)); }
     .s-wait-cust .o-card    { border-left-color:var(--s-ready); }
-    .s-est-appr .k-head     { background:var(--ok-bg); color:var(--ok-fg); }
-    .s-est-appr .k-body     { background:var(--ok-bg); }
+    .s-est-appr .k-head     { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .s-est-appr .k-body     { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .s-est-appr .o-card     { border-left-color:var(--s-deposit); }
-    .s-order-mat .k-head    { background:var(--warn-bg); color:var(--warn-fg); }
-    .s-order-mat .k-body    { background:var(--warn-bg); }
+    .s-order-mat .k-head    { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .s-order-mat .k-body    { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .s-order-mat .o-card    { border-left-color:var(--s-estimate); }
-    .s-ready-pick .k-head   { background:var(--info-bg); color:var(--info-fg); }
-    .s-ready-pick .k-body   { background:var(--info-bg); }
+    .s-ready-pick .k-head   { background:color-mix(in srgb,var(--s-ready) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-ready) var(--mix-head-fg),var(--text)); }
+    .s-ready-pick .k-body   { background:color-mix(in srgb,var(--s-ready) var(--mix-body),var(--card-bg)); }
     .s-ready-pick .o-card   { border-left-color:var(--s-ready); }
 
     /* ── Grouped column headers ─────────────── */
@@ -586,26 +409,26 @@
     .s-sketch-group .k-head    { background:var(--warn-bg); color:var(--warn-fg); }
     .s-estimate-group .k-head  { background:var(--warn-bg); color:var(--warn-fg); }
     .s-deposit-group .k-head   { background:var(--ok-bg); color:var(--ok-fg); }
-    .s-deposit-wait .k-head    { background:var(--ok-bg); color:var(--ok-fg); }
-    .s-deposit-wait .k-body    { background:var(--ok-bg); }
+    .s-deposit-wait .k-head    { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .s-deposit-wait .k-body    { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .s-deposit-wait .o-card    { border-left-color:var(--s-deposit); }
-    .s-deposit-paid .k-head    { background:var(--ok-bg); color:var(--ok-fg); }
-    .s-deposit-paid .k-body    { background:var(--ok-bg); }
+    .s-deposit-paid .k-head    { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .s-deposit-paid .k-body    { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .s-deposit-paid .o-card    { border-left-color:var(--s-deposit); }
-    .k-sub-wrap.s-deposit-wait .k-sub-head { background:var(--ok-bg); color:var(--ok-fg); }
-    .k-sub-wrap.s-deposit-wait .k-body     { background:var(--ok-bg); }
+    .k-sub-wrap.s-deposit-wait .k-sub-head { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-deposit-wait .k-body     { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-deposit-wait .o-card     { border-left-color:var(--s-deposit); }
-    .k-sub-wrap.s-deposit-paid .k-sub-head { background:var(--ok-bg); color:var(--ok-fg); }
-    .k-sub-wrap.s-deposit-paid .k-body     { background:var(--ok-bg); }
+    .k-sub-wrap.s-deposit-paid .k-sub-head { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-deposit-paid .k-body     { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-deposit-paid .o-card     { border-left-color:var(--s-deposit); }
     .s-materials-group .k-head { background:var(--accent-bg); color:var(--accent-fg); }
 
     /* ── Intake column stage colors ──────────── */
-    .s-intake-custom .k-head { background:var(--info-bg); color:var(--info-fg); }
-    .s-intake-custom .k-body { background:var(--info-bg); }
+    .s-intake-custom .k-head { background:color-mix(in srgb,var(--s-intake) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-intake) var(--mix-head-fg),var(--text)); }
+    .s-intake-custom .k-body { background:color-mix(in srgb,var(--s-intake) var(--mix-body),var(--card-bg)); }
     .s-intake-custom .o-card { border-left-color:var(--s-intake); }
-    .s-intake-repair .k-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .s-intake-repair .k-body { background:var(--warn-bg); }
+    .s-intake-repair .k-head { background:color-mix(in srgb,var(--s-repair) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-repair) var(--mix-head-fg),var(--text)); }
+    .s-intake-repair .k-body { background:color-mix(in srgb,var(--s-repair) var(--mix-body),var(--card-bg)); }
     .s-intake-repair .o-card { border-left-color:var(--s-repair); }
 
     /* ── Repairs column ──────────────────────── */
@@ -615,16 +438,16 @@
 
     /* ── Contact Customer column ─────────────── */
     .s-contact-group .k-head   { background:var(--ok-bg); color:var(--ok-fg); }
-    .s-contact-need .k-head    { background:var(--warn-bg); color:var(--warn-fg); }
-    .s-contact-need .k-body    { background:var(--warn-bg); }
-    .s-needs-invoice .k-head   { background:var(--accent-bg); color:var(--accent-fg); }
-    .s-needs-invoice .k-body   { background:var(--accent-bg); }
+    .s-contact-need .k-head    { background:color-mix(in srgb,var(--s-sketch) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-sketch) var(--mix-head-fg),var(--text)); }
+    .s-contact-need .k-body    { background:color-mix(in srgb,var(--s-sketch) var(--mix-body),var(--card-bg)); }
+    .s-needs-invoice .k-head   { background:color-mix(in srgb,var(--s-material) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-material) var(--mix-head-fg),var(--text)); }
+    .s-needs-invoice .k-body   { background:color-mix(in srgb,var(--s-material) var(--mix-body),var(--card-bg)); }
     .s-needs-invoice .o-card   { border-left-color:var(--s-material); }
-    .k-sub-wrap.s-needs-invoice .k-sub-head { background:var(--accent-bg); color:var(--accent-fg); }
-    .k-sub-wrap.s-needs-invoice .k-body     { background:var(--accent-bg); }
+    .k-sub-wrap.s-needs-invoice .k-sub-head { background:color-mix(in srgb,var(--s-material) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-material) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-needs-invoice .k-body     { background:color-mix(in srgb,var(--s-material) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-needs-invoice .o-card     { border-left-color:var(--s-material); }
-    .k-sub-wrap.s-invoice-sent  .k-sub-head { background:var(--accent-bg); color:var(--accent-fg); }
-    .k-sub-wrap.s-invoice-sent  .k-body     { background:var(--accent-bg); }
+    .k-sub-wrap.s-invoice-sent  .k-sub-head { background:color-mix(in srgb,var(--s-material) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-material) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-invoice-sent  .k-body     { background:color-mix(in srgb,var(--s-material) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-invoice-sent  .o-card     { border-left-color:var(--s-material); }
 
     .s-contact-need .o-card    { border-left-color:var(--s-sketch); }
@@ -677,14 +500,14 @@
     .k-sub-wrap.k-sub-empty.s-etsy-bench { display: none; }
 
     /* Sub-section stage colors — Intake group */
-    .k-sub-wrap.s-intake-custom .k-sub-head { background:var(--info-bg); color:var(--info-fg); }
-    .k-sub-wrap.s-intake-custom .k-body     { background:var(--info-bg); }
+    .k-sub-wrap.s-intake-custom .k-sub-head { background:color-mix(in srgb,var(--s-intake) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-intake) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-intake-custom .k-body     { background:color-mix(in srgb,var(--s-intake) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-intake-custom .o-card     { border-left-color:var(--s-intake); }
-    .k-sub-wrap.s-intake-repair .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .k-sub-wrap.s-intake-repair .k-body     { background:var(--warn-bg); }
+    .k-sub-wrap.s-intake-repair .k-sub-head { background:color-mix(in srgb,var(--s-repair) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-repair) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-intake-repair .k-body     { background:color-mix(in srgb,var(--s-repair) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-intake-repair .o-card     { border-left-color:var(--s-repair); }
-    .k-sub-wrap.s-needs-est .k-sub-head     { background:var(--danger-bg); color:var(--danger-fg); }
-    .k-sub-wrap.s-needs-est .k-body         { background:var(--warn-bg); }
+    .k-sub-wrap.s-needs-est .k-sub-head     { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-needs-est .k-body         { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-needs-est .o-card         { border-left-color:var(--s-estimate); }
     .k-sub-wrap.s-intake-website .k-sub-head { background:var(--ok-bg); color:var(--ok-fg); }
     .k-sub-wrap.s-intake-website .k-body     { background:var(--ok-bg); }
@@ -698,8 +521,8 @@
     .k-sync-btn:disabled { opacity: .5; cursor: default; }
 
     /* Sub-section stage colors — Contact Customer group */
-    .k-sub-wrap.s-contact-need .k-sub-head  { background:var(--warn-bg); color:var(--warn-fg); }
-    .k-sub-wrap.s-contact-need .k-body      { background:var(--warn-bg); }
+    .k-sub-wrap.s-contact-need .k-sub-head  { background:color-mix(in srgb,var(--s-sketch) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-sketch) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-contact-need .k-body      { background:color-mix(in srgb,var(--s-sketch) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-contact-need .o-card      { border-left-color:var(--s-sketch); }
     .k-sub-wrap.s-contact-done .k-sub-head  { background:var(--ok-bg); color:var(--ok-fg); }
     .k-sub-wrap.s-contact-done .k-body      { background:var(--ok-bg); }
@@ -712,44 +535,44 @@
     .k-sub-wrap.s-sketch-wait  .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
     .k-sub-wrap.s-sketch-wait  .k-body     { background:var(--warn-bg); }
     .k-sub-wrap.s-sketch-wait  .o-card     { border-left-color:var(--warn); }
-    .k-sub-wrap.s-sketch       .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .k-sub-wrap.s-sketch       .k-body     { background:var(--warn-bg); }
+    .k-sub-wrap.s-sketch       .k-sub-head { background:color-mix(in srgb,var(--s-sketch) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-sketch) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-sketch       .k-body     { background:color-mix(in srgb,var(--s-sketch) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-sketch       .o-card     { border-left-color:var(--s-sketch); }
 
     /* Sub-section stage colors — Estimating group */
-    .k-sub-wrap.s-quote         .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .k-sub-wrap.s-quote         .k-body     { background:var(--warn-bg); }
+    .k-sub-wrap.s-quote         .k-sub-head { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-quote         .k-body     { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-quote         .o-card     { border-left-color:var(--s-estimate); }
     .k-sub-wrap.s-est-wait-appr .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
     .k-sub-wrap.s-est-wait-appr .k-body     { background:var(--warn-bg); }
     .k-sub-wrap.s-est-wait-appr .o-card     { border-left-color:var(--warn); }
-    .k-sub-wrap.s-est-appr      .k-sub-head { background:var(--ok-bg); color:var(--ok-fg); }
-    .k-sub-wrap.s-est-appr      .k-body     { background:var(--ok-bg); }
+    .k-sub-wrap.s-est-appr      .k-sub-head { background:color-mix(in srgb,var(--s-deposit) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-deposit) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-est-appr      .k-body     { background:color-mix(in srgb,var(--s-deposit) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-est-appr      .o-card     { border-left-color:var(--s-deposit); }
 
     /* Sub-section stage colors — Materials group */
-    .k-sub-wrap.s-order-mat  .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
-    .k-sub-wrap.s-order-mat  .k-body     { background:var(--warn-bg); }
+    .k-sub-wrap.s-order-mat  .k-sub-head { background:color-mix(in srgb,var(--s-estimate) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-estimate) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-order-mat  .k-body     { background:color-mix(in srgb,var(--s-estimate) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-order-mat  .o-card     { border-left-color:var(--s-estimate); }
-    .k-sub-wrap.s-materials  .k-sub-head { background:var(--accent-bg); color:var(--s-material); }
-    .k-sub-wrap.s-materials  .k-body     { background:var(--accent-bg); }
+    .k-sub-wrap.s-materials  .k-sub-head { background:color-mix(in srgb,var(--s-material) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-material) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-materials  .k-body     { background:color-mix(in srgb,var(--s-material) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-materials  .o-card     { border-left-color:var(--s-material); }
     .k-sub-wrap.s-wait-cust-ship  .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
     .k-sub-wrap.s-wait-cust-ship  .k-body     { background:var(--warn-bg); }
     .k-sub-wrap.s-wait-cust-ship  .o-card     { border-left-color:var(--warn); }
 
     /* Sub-section colors — Ready for Pickup locations */
-    .k-sub-wrap.s-pickup-sub .k-sub-head { background:var(--info-bg); color:var(--info-fg); border-top:1px solid var(--info); }
-    .k-sub-wrap.s-pickup-sub .k-body     { background:var(--info-bg); }
+    .k-sub-wrap.s-pickup-sub .k-sub-head { background:color-mix(in srgb,var(--s-ready) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-ready) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-pickup-sub .k-body     { background:color-mix(in srgb,var(--s-ready) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-pickup-sub .o-card     { border-left-color:var(--s-ready); }
-    .k-sub-wrap.s-ship-out   .k-sub-head { background:var(--info-bg); color:var(--info-fg); border-top:1px solid var(--info); }
-    .k-sub-wrap.s-ship-out   .k-body     { background:var(--info-bg); }
+    .k-sub-wrap.s-ship-out   .k-sub-head { background:color-mix(in srgb,var(--s-ready) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-ready) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-ship-out   .k-body     { background:color-mix(in srgb,var(--s-ready) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-ship-out   .o-card     { border-left-color:var(--s-ready); }
     .k-sub-wrap.s-etsy-bench .k-sub-head { background:var(--warn-bg); color:var(--warn-fg); }
     .k-sub-wrap.s-etsy-bench .k-body     { background:var(--warn-bg); }
     .k-sub-wrap.s-etsy-bench .o-card     { border-left-color:var(--warn); }
-    .k-sub-wrap.s-kyle    .k-sub-head { background:var(--info-bg); color:var(--info-fg); }
-    .k-sub-wrap.s-kyle    .k-body     { background:var(--info-bg); }
+    .k-sub-wrap.s-kyle    .k-sub-head { background:color-mix(in srgb,var(--s-bench) var(--mix-head),var(--card-bg)); color:color-mix(in srgb,var(--s-bench) var(--mix-head-fg),var(--text)); }
+    .k-sub-wrap.s-kyle    .k-body     { background:color-mix(in srgb,var(--s-bench) var(--mix-body),var(--card-bg)); }
     .k-sub-wrap.s-kyle    .o-card     { border-left-color:var(--s-bench); }
     .k-sub-wrap.s-stevie  .k-sub-head { background:var(--accent-bg); color:var(--accent-fg); }
     .k-sub-wrap.s-stevie  .k-body     { background:var(--accent-bg); }
@@ -781,7 +604,7 @@
        (.o-card does not clip). Letting the name shrink and break keeps them
        in. */
     .o-name { font-size: 13px; font-weight: 700; letter-spacing: -0.1px; line-height: 1.3; color: var(--text); margin-bottom: 4px; min-width: 0; overflow-wrap: anywhere; }
-    .o-unsynced { font-size: 10px; font-weight: 600; color: var(--warn); background: var(--warn-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
+    .o-unsynced { font-size: 10px; font-weight: 600; color: var(--warn-fg); background: var(--warn-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
     .o-desc { font-size: 11.5px; color: var(--text2); line-height: 1.45; margin-bottom: var(--sp-2); }
     .o-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-1); }
     .o-tag {
@@ -1652,7 +1475,7 @@
     .ct-info-row {
       display: flex; gap: 12px; align-items: baseline;
       padding: 3px 0;
-      border-bottom: 1px solid var(--warn-bg);
+      border-bottom: 1px solid var(--bdr-light);
       font-size: 13px;
     }
     .ct-info-row:last-child { border-bottom: none; }
@@ -3406,7 +3229,7 @@
     .sales-table tbody tr:hover { background: var(--accent-bg); }
     .sales-table tbody tr:last-child td { border-bottom: none; }
     .sales-td-label { font-weight: 600; color: var(--text); }
-    .sales-td-total { font-weight: 700; color: var(--ok); }
+    .sales-td-total { font-weight: 700; color: var(--ok-fg); }
     .sales-td-muted { color: var(--text2); }
     .sales-td-desc  { color: var(--text2); max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sales-chip { display: inline-block; background: var(--bdr-light); border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 600; color: var(--text2); }
@@ -3605,7 +3428,7 @@
        header ✎ Edit toggle additionally lets a tap open bars straight
        into edit mode, but it must never be the only way in — hiding this
        button on phones left the read view as a dead end. */
-    .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: var(--warn-fg); }
+    .rq-edit-btn:hover, .rq-edit-done-btn:hover { background: var(--accent); }
     .rq-note-textarea {
       width: 100%; box-sizing: border-box; margin-top: 8px; padding: 7px 10px;
       border: 1px solid var(--bdr); border-radius: 7px; font-size: 12.5px;
@@ -4086,7 +3909,7 @@
       font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 4px 13px; cursor: pointer;
       transition: background 0.15s;
     }
-    .rq-variant-done:hover { background: var(--warn-fg); }
+    .rq-variant-done:hover { background: var(--accent); }
     .rq-sbar-err { color: var(--danger); }
     .rq-sbar-del {
       background: none; border: 1px solid var(--bdr-light); border-radius: 5px;
@@ -5694,9 +5517,9 @@
   .pb-frame-shell {
     border: 1px solid var(--bdr);
     border-radius: var(--rad-lg);
-    /* Matches the preview document's own screen backdrop (#666) so the
-       frame reads as one seamless surface in both themes, with no white
-       flash while the iframe loads. */
+    /* Matches the preview document's own screen backdrop so the frame
+       reads as one seamless surface in both themes, with no white flash
+       while the iframe loads. */
     background: var(--surface3);
     box-shadow: var(--shadow-sm);
     overflow: hidden;

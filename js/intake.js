@@ -80,15 +80,15 @@ function intakeStep(n) {
   }
   document.querySelectorAll('.intake-tab').forEach(b => {
     const active = parseInt(b.dataset.step, 10) === _intakeStep;
-    b.classList.toggle('bg-[#C9983A]', active);
-    b.classList.toggle('text-[#201A0A]', active);
+    b.classList.toggle('bg-[#6E79F0]', active);
+    b.classList.toggle('text-[#0B0C0E]', active);
     b.classList.toggle('text-[#9FB4C4]', !active);
   });
   const label = document.getElementById('intake-step-label');
   if (label) label.textContent = 'Step ' + _intakeStep + ' of ' + maxStep;
   document.querySelectorAll('#intake-dots .intake-dot').forEach((d, i) => {
     const active = (i + 1) === _intakeStep;
-    d.classList.toggle('bg-[#C9983A]', active || (i + 1) < _intakeStep);
+    d.classList.toggle('bg-[#6E79F0]', active || (i + 1) < _intakeStep);
     d.classList.toggle('bg-[#35576D]', !active && (i + 1) > _intakeStep);
     d.classList.toggle('scale-125', active);
   });

@@ -22,7 +22,9 @@ the browser).
   the Notion offline write queue (`js/notion.js`) end to end: seed →
   migrate → persist → flush-on-hide → go offline → boot from cache →
   queue a write → reload → come back online → replay.
-- **`theme-audit.js`** — walks every tab in both light and dark and checks
+- **`theme-audit.js`** — seeds a spread of orders (so cards, badges and
+  deadline tags actually paint — an audit against an empty board proves
+  almost nothing) and walks every tab in both light and dark and checks
   what the fingerprint probes can't: that text keeps its contrast against the
   colour actually composited behind it, that nothing still paints the retired
   warm/cream palette, that every `var(--token)` referenced is defined

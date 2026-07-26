@@ -45,22 +45,25 @@
 .pj-chip.active:hover { border-color: var(--accent); color: var(--accent-ink); }
 .pj-hidden { display: none !important; }
 .pj-price-card {
-  background: linear-gradient(135deg, var(--hdr) 0%, #1A3850 100%);
-  border: 1px solid var(--hdr-bdr); border-radius: var(--rad-lg);
+  /* Was a saturated navy hero with light text on it. A tinted panel is
+     both on-system and legible in either theme without needing its own
+     inverted text colours. */
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border); border-radius: var(--rad-lg);
   padding: 24px 22px; margin-bottom: var(--sp-3); text-align: center;
   box-shadow: var(--shadow-md);
   animation: kbFadeSlide var(--dur-med) var(--ease-smooth);
 }
 .pj-price-line {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.8px; color: var(--info); margin-bottom: 10px;
+  letter-spacing: 0.8px; color: var(--accent-fg); margin-bottom: 10px;
 }
 .pj-price-amount {
-  font-size: 64px; font-weight: 900; color: var(--accent-light);
+  font-size: 64px; font-weight: 900; color: var(--accent);
   line-height: 1; letter-spacing: -2px;
   font-variant-numeric: tabular-nums;
 }
-.pj-price-meta { font-size: 11.5px; color: var(--info); margin-top: 10px; }/* ── Perm Jewelry — Reference table ─────────── */
+.pj-price-meta { font-size: 11.5px; color: var(--accent-fg); margin-top: 10px; }/* ── Perm Jewelry — Reference table ─────────── */
 /* Horizontal inset is margin (not padding) so the scrollport edge sits flush
    with the table — otherwise scrolled columns peek out beside the sticky column. */
 .pj-ref-wrap { overflow-x: auto; padding: 2px 0 30px; margin: calc(var(--sp-4) - 2px) 20px 0; }

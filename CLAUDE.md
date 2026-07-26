@@ -10,7 +10,13 @@ STS Workflow is a CRM-like web app for managing day-to-day business tasks at Sto
 - Theming: light/dark live as design tokens on `:root` and
   `:root[data-theme="dark"]` in `css/app.css`. **Never put a raw hex in a
   component rule** — add a token instead, or dark mode silently ignores it.
-  `tests/theme-audit.js` enforces this.
+  `tests/theme-audit.js` enforces this. `intake.html` shares the same
+  tokens via `css/tokens.css` but pins itself light — its dark chrome and
+  white form cards are deliberate for an iPad used at markets.
+- Dev-only helpers in `tools/`: `lint-semantics.js` checks that a rule
+  whose selector implies a status (error, overdue, complete…) uses that
+  status colour family; the `migrate-*.js` scripts are the one-shot colour
+  migration, kept for reference.
 - CSS: `css/` folder — app.css (core/shared), plus per-tab files (inventory.css, perm-jewelry.css, triplog.css, print-setup.css, prod-report.css, restock-queue.css). Linked from the HTML at the same document positions the old inline `<style>` blocks occupied — keep that order (cascade depends on it)
 - When editing a `js/` or `css/` file, bump its `?v=` cache-buster on the `<script>`/`<link>` tag in `jewelry-workflow.html` (this also satisfies the deploy-detection rule below)
 - `clickup.js` is **retired** — replaced by `notion.js`. Do not edit or restore it.

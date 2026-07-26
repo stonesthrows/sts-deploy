@@ -2,9 +2,9 @@
    The queue markup is rendered by js/restock.js (frozen on a parallel
    branch), so this pass is CSS-only. The .rq- base rules are shared with
    the Production Report tab and the phone.html embed, so everything here
-   is scoped under this tab's id; where the JS inlines hardcoded colors we
-   out-specific them with [style*=…] hooks (same stopgap as the report
-   pass — post-merge cleanup task exists to move them into classes). */
+   is scoped under this tab's id. (It used to out-specific hardcoded inline
+   colours with [style*=…] hooks; the JS now emits design tokens directly,
+   so that stopgap is gone.) */
 
 /* Add bar: token radius + focus ring on the Square-catalog search */
 #tab-to-restock .rq-add-bar input {
@@ -15,15 +15,12 @@
 #tab-to-restock .rq-add-bar input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
 #tab-to-restock .rq-add-dropdown { border-radius: var(--rad-sm); box-shadow: var(--shadow-lg); }
 
-/* Empty / loading placeholders sit directly on the blue page background
-   (js/restock.js inlines var(--text-dim) for the loading one) */
+/* Empty / loading placeholders sit directly on the page background */
 #restock-queue-empty { text-align: center; color: var(--text2); font-size: 14px; padding: 40px 0; }
 #restock-queue-list { display: flex; flex-direction: column; gap: var(--sp-2); }
-#restock-queue-list > div[style*="var(--text-dim)"] { color: var(--text2) !important; }
 
 /* Queue cards: shared tokens + a subtle hover lift (mirrors the report
-   tab's session cards). var(--card-bg) also fixes the hardcoded #fff
-   card background in midnight. */
+   tab's session cards). */
 #tab-to-restock .rq-item {
   background: var(--card-bg);
   border-color: var(--bdr-light);
@@ -49,7 +46,7 @@
 }
 #tab-to-restock .rq-text.rq-done { color: var(--text-dim); }
 
-/* Reorder arrows: retokened from warm-gray hexes (#fff/var(--text-dim)/var(--text2))
+/* Reorder arrows: retokened from the old warm-gray hexes
    so they follow both themes */
 #tab-to-restock .rq-arrow { background: var(--card-bg); border-color: var(--bdr); color: var(--text2); }
 
@@ -72,8 +69,8 @@
 #tab-to-restock .rq-start-btn:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
 #tab-to-restock .rq-start-btn:disabled { border-color: var(--bdr-light); color: var(--bdr); }
 
-/* Running-timer card: theme-aware gold wash (base hardcodes var(--warn-bg)) —
-   the 4px gold left border + tinted shadow from the base rule stay */
+/* Running-timer card: theme-aware accent wash; the 4px left border and
+   tinted shadow from the base rule stay */
 #tab-to-restock .rq-item.rq-active { background: var(--accent-bg); }
 /* …but keep the base rules' intentionally loud phone highlight (the ID
    selector above would otherwise out-rank the base media query) */
@@ -114,9 +111,9 @@
 #tab-to-restock .rq-read-qty,
 #tab-to-restock .rq-adjust-input { font-variant-numeric: tabular-nums; }
 
-/* Setup panel (Square search) + expand-panel surfaces: retoken the
-   hardcoded #fff so midnight inherits (these are divs, so the global
-   midnight input/select override never reaches them) */
+/* Setup panel (Square search) + expand-panel surfaces: tokenised so both
+   themes inherit (these are divs, so the global input/select rules never
+   reach them) */
 #tab-to-restock .rq-setup-search-wrap { background: var(--input-bg); border-radius: var(--rad-sm); }
 #tab-to-restock .rq-setup-search-wrap:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
 #tab-to-restock .rq-setup-results { border-radius: var(--rad-sm); }

@@ -400,8 +400,8 @@ function _regHandSvg(hand) {
   const fingerShape = (f, x, y, w, h, textX, textY) => {
     const entry = entryFor(f);
     const sel = _regDial && _regDial.hand === hand && _regDial.finger === f;
-    const fill = sel ? '#F1DFB6' : entry ? '#F8F0E0' : '#FAF8F5';
-    const stroke = (sel || entry) ? '#C9983A' : '#C8BFB4';
+    const fill = sel ? 'var(--accent-bg)' : entry ? 'var(--surface2)' : 'var(--card-bg)';
+    const stroke = (sel || entry) ? 'var(--accent)' : 'var(--bdr)';
     let s = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (w / 2) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.5"/>';
     if (entry) {
       s += '<circle cx="' + (x + w / 2) + '" cy="' + (y + 7) + '" r="3.5" fill="' + (_REG_CONF_COLORS[entry.conf] || '#888') + '"/>'
@@ -419,8 +419,8 @@ function _regHandSvg(hand) {
   const tx = mirror ? 6 : 85, pivotX = mirror ? 13 : 92, rot = mirror ? 26 : -26;
   const tEntry = entryFor('thumb');
   const tSel = _regDial && _regDial.hand === hand && _regDial.finger === 'thumb';
-  const tFill = tSel ? '#F1DFB6' : tEntry ? '#F8F0E0' : '#FAF8F5';
-  const tStroke = (tSel || tEntry) ? '#C9983A' : '#C8BFB4';
+  const tFill = tSel ? 'var(--accent-bg)' : tEntry ? 'var(--surface2)' : 'var(--card-bg)';
+  const tStroke = (tSel || tEntry) ? 'var(--accent)' : 'var(--bdr)';
   let thumb = '<g class="rf-finger" data-hand="' + hand + '" data-finger="thumb">'
     + '<rect x="' + tx + '" y="58" width="15" height="42" rx="7.5" transform="rotate(' + rot + ' ' + pivotX + ' 60)" fill="' + tFill + '" stroke="' + tStroke + '" stroke-width="1.5"/>';
   if (tEntry) {

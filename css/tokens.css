@@ -1,0 +1,194 @@
+/* ════════════════════════════════════════════════════════════
+   DESIGN TOKENS  —  css/tokens.css
+
+   The single source of truth for colour, radius, shadow and motion,
+   shared by jewelry-workflow.html and intake.html. Must be linked
+   BEFORE any component stylesheet.
+
+   Rule: never put a raw hex in a component rule — add a token here
+   instead, or dark mode silently ignores it. tests/theme-audit.js
+   enforces both halves of that.
+   ════════════════════════════════════════════════════════════ */
+
+
+    /*
+     * ── Design Token Palette ─────────────────────────────────────────────────
+     * ALL colour usage must reference one of these tokens. Never use a raw hex
+     * inside a component rule — add the token here first.
+     *
+     * Backgrounds:  --bg  --hdr  --nav  --subnav  --hdr-pill
+     *               --card-bg  --card-head-bg
+     *               --surface  --surface2  --surface3  (aliases → card-head-bg)
+     * Borders:      --bdr  --bdr-light  --hdr-bdr  --border1  (alias → bdr)
+     * Accent:       --accent  --accent-mid  --accent-light
+     *               --accent-bg  --accent-border
+     * Text:         --text  --text2  --text3  --text-dim
+     *               --text1  (alias → text)
+     * ─────────────────────────────────────────────────────────────────────── */
+    :root {
+      /* ── Surfaces ── */
+      --bg: #FBFBFC;
+      --card-bg: #FFFFFF;
+      --card-head-bg: #FFFFFF;
+      --hdr: #FFFFFF;
+      --nav: #F8F8F9;
+      --subnav: #FFFFFF;
+      --hdr-pill: #F5F5F7;
+      --hdr-bdr: #E5E6E9;
+
+      /* ── Borders ── */
+      --bdr: #E5E6E9;
+      --bdr-light: #EFEFF1;
+
+      /* ── Text ── */
+      --text: #16171A;
+      --text2: #61656E;
+      --text3: #656971;
+      --text-dim: #6E727B;
+
+      /* ── Accent (indigo) ── */
+      --accent: #4F5AD8;
+      --accent-mid: #7C86F0;
+      --accent-light: #A3AAF6;
+      --accent-bg: #EEEFFD;
+      --accent-border: #D8DBFA;
+      --accent-ink: #FFFFFF;
+      --accent-fg: #3D46B8;
+      --accent-rgb: 79, 90, 216;
+
+      /* ── Sidebar ── */
+      --sb-bg: #F8F8F9;
+      --sb-fg: #3C4048;
+      --sb-dim: #656971;
+      --sb-hover: #EFEFF1;
+      --sb-active-bg: #EAEBFC;
+      --sb-active-fg: #4F5AD8;
+
+      /* ── Semantic status ──
+         Separate from the accent on purpose: these encode state (overdue,
+         complete, waiting), so they must stay legible and distinct from
+         "this is interactive". Each carries a fill, an ink and a line so a
+         chip, a badge and a border can all be built from one family. */
+      --ok: #1F9A68;      --ok-bg: #E2F4EC;   --ok-fg: #17734E;   --ok-line: #B9E3D0;
+      --danger: #D14343;  --danger-bg: #FCE9E9; --danger-fg: #A82C2C; --danger-line: #F5C9C9;
+      --warn: #C2810C;    --warn-bg: #FDF3DC;  --warn-fg: #8A5D08;  --warn-line: #F0DCA8;
+      --info: #3B6FD4;    --info-bg: #E9EFFB;  --info-fg: #2A54A8;  --info-line: #C4D5F2;
+
+      /* Aliases — map legacy/inconsistent names to canonical tokens above */
+      --text1: var(--text);
+      --text-muted: var(--text3);
+      --border1: var(--bdr);
+      --card: var(--card-bg);
+      --surface: #F8F8F9;
+      --surface2: #F5F5F7;
+      --surface3: #EFEFF1;
+      --gold: var(--accent);
+      --hover: #F5F5F7;
+      --hover-bg: rgba(16, 18, 22, 0.04);
+      --input-bg: #FFFFFF;
+      --bg2: var(--hdr-pill);
+      /* ── Board design tokens (spacing / radius / shadow / motion) ──
+         Used by the Order Pipeline (Kanban) dashboard styling. */
+      --sp-1: 4px;
+      --sp-2: 8px;
+      --sp-3: 12px;
+      --sp-4: 16px;
+      --rad-sm: 6px;
+      --rad-md: 8px;
+      --rad-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(16,18,22,0.05);
+      --shadow-md: 0 4px 14px rgba(16,18,22,0.09), 0 1px 3px rgba(16,18,22,0.05);
+      --shadow-lg: 0 10px 30px rgba(16,18,22,0.13), 0 2px 6px rgba(16,18,22,0.06);
+      --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+      --dur-fast: 0.16s;
+      --dur-med: 0.28s;
+      --focus-ring: 0 0 0 3px rgba(92,103,229,0.22);
+
+      /* ── Kanban stage hues ──
+         Distinct per stage on purpose — which column an order sits in is
+         information, so the hues must stay tellable apart at a glance.
+         Component rules derive head/body/edge from these. */
+      --s-intake:   #4C63E0;
+      --s-sketch:   #C2810C;
+      --s-estimate: #D0642A;
+      --s-deposit:  #1F9A68;
+      --s-material: #8848CC;
+      --s-bench:    #2874C0;
+      --s-contact:  #C2810C;
+      --s-ready:    #1888A8;
+      --s-repair:   #C1502A;
+      --s-complete: #1F9A68;
+      /* Blend strengths for deriving a stage's column head and body from
+         its hue. Dark needs a stronger mix to read at all. */
+      --mix-head: 13%; --mix-head-fg: 72%; --mix-body: 5%;
+    }
+
+    /* ── Dark ──
+       Designed, not derived: inverting lightness collapses the stage hues
+       into one muddy band, so those get raised chroma instead of a flipped
+       L. Every component reads these tokens, which is what let the old
+       hand-written dark patch layer be deleted entirely. */
+    :root[data-theme="dark"] {
+      --bg: #0B0C0E;
+      --card-bg: #131417;
+      --card-head-bg: #131417;
+      --hdr: #131417;
+      --nav: #0E0F12;
+      --subnav: #0E0F12;
+      --hdr-pill: #17191D;
+      --hdr-bdr: #23252B;
+
+      --bdr: #23252B;
+      --bdr-light: #1B1D22;
+
+      --text: #E9EAEC;
+      --text2: #A8ACB5;
+      --text3: #8E939D;
+      --text-dim: #82868F;
+
+      --accent: #6E79F0;
+      --accent-mid: #8B94F5;
+      --accent-light: #A9AFF8;
+      --accent-bg: #1B1D3A;
+      --accent-border: #2A2E52;
+      --accent-ink: #0B0C0E;
+      --accent-fg: #A9AFF8;
+      --accent-rgb: 110, 121, 240;
+
+      --sb-bg: #0E0F12;
+      --sb-fg: #B4B8C0;
+      --sb-dim: #8E939D;
+      --sb-hover: #17191D;
+      --sb-active-bg: #1E2040;
+      --sb-active-fg: #A0A8F8;
+
+      --ok: #35B584;      --ok-bg: #15301F;    --ok-fg: #55D3A0;    --ok-line: #1E4634;
+      --danger: #EE6C6C;  --danger-bg: #351B1B; --danger-fg: #F49B9B; --danger-line: #4A2626;
+      --warn: #E0B44E;    --warn-bg: #322915;  --warn-fg: #E8C46E;  --warn-line: #4A3C1C;
+      --info: #6B9BF0;    --info-bg: #16233D;  --info-fg: #9EBEF7;  --info-line: #26355A;
+
+      --surface: #17191D;
+      --surface2: #1A1C21;
+      --surface3: #1F2127;
+      --hover: #1A1C21;
+      --hover-bg: rgba(255, 255, 255, 0.05);
+      --input-bg: #17191D;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+      --shadow-lg: 0 10px 30px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.45);
+      --focus-ring: 0 0 0 3px rgba(110,121,240,0.3);
+
+      --s-intake:   #7C8AF5;
+      --s-sketch:   #DFB248;
+      --s-estimate: #EE8A54;
+      --s-deposit:  #35C68C;
+      --s-material: #AE7EF0;
+      --s-bench:    #5098E8;
+      --s-contact:  #DFB248;
+      --s-ready:    #38B2D8;
+      --s-repair:   #EE8A6C;
+      --s-complete: #35C68C;
+      --mix-head: 18%; --mix-head-fg: 86%; --mix-body: 8%;
+    }
+

@@ -21,6 +21,36 @@ const CHROMIUM_PATH = require('./lib/chromium-path')();
 const SHOTS = process.argv.includes('--shots');
 const SHOT_DIR = process.env.SHOT_DIR || '/tmp/theme-shots';
 
+// Without orders in storage the board renders empty, so .o-card, .o-badge,
+// the deadline tags and every stage colour never paint — which is most of
+// what a person actually looks at. Seed across many stages, both deadline
+// states, and every badge variant cardHTML() can emit.
+const SEED_ORDERS = [
+  { id:'u-theme-1', name:'Marisol Vega', desc:'Reset a 1.2ct old European cut into a low-profile bezel solitaire',
+    stage:'intake-custom', deadline:'2026-08-14', price:2400, pickup:'Studio', contactSource:'Instagram', notionId:'n1' },
+  { id:'u-theme-2', name:'Dana Whitfield', desc:'Repair — re-tip 4 prongs, tighten centre stone',
+    stage:'intake-repair', deadline:'2026-07-28', price:180, pickup:'Bell Market', notionId:'n2' },
+  { id:'u-theme-3', name:'Colby Nakamura', desc:'Signet ring with family crest engraving',
+    stage:'sketch-needs', deadline:'2026-07-20', price:1275, pickup:'Mueller Market', notionId:'n3' },
+  { id:'u-theme-4', name:'Renee Ostrowski', desc:'Pendant — 0.8ct pear moissanite on an 18in cable chain',
+    stage:'quote', deadline:'2026-08-20', price:640, contactedAt:'2026-07-22', notionId:'n4' },
+  { id:'u-theme-5', name:'Marcus Delacroix-Bell', desc:'Custom cuff, 12mm sterling, hand-stamped',
+    stage:'deposit-wait', deadline:'2026-08-30', price:1050, assignee:'Stevie', notionId:'n5' },
+  { id:'u-theme-6', name:'Odalys Beltran', desc:'Bezel-set opal ring — waiting on an 8mm cabochon',
+    stage:'materials', deadline:'2026-08-10', price:520, assignee:'Vanessa', notionId:'n6' },
+  { id:'u-theme-7', name:'Harriet Okonkwo', desc:'Three-stone anniversary band, channel set',
+    stage:'build', deadline:'2026-07-29', price:2890, assignee:'Kyle', notionId:'n7' },
+  { id:'u-theme-8', name:'Blaise Toussaint', desc:'Sketch approved — needs a deposit conversation',
+    stage:'contact-need', deadline:'2026-08-01', price:1680, notionId:'n8' },
+  { id:'u-theme-9', name:'Ingrid Solheim', desc:'Pearl strand restring, 18in, knotted silk',
+    stage:'ready-pick', deadline:'2026-07-18', price:140, pickup:'Sunset Valley', notionId:'n9' },
+  { id:'u-theme-10', name:'Rafael Quintanilla', desc:'Wedding set — polish and rhodium replate',
+    stage:'complete', deadline:'2026-07-15', price:3400, pickup:'Studio', notionId:'n10' },
+  // No notionId: exercises the "unsynced" warning chip.
+  { id:'u-theme-11', name:'Sunny Petrossian', desc:'Toe ring set, sterling, 3pc',
+    stage:'build', deadline:'2026-08-05', price:95, assignee:'Kyle' },
+];
+
 const TAB_TARGETS = [
   'home', 'dashboard', 'production', 'customers', 'gmail', 'sales',
   'bestsellers', 'notes', 'supplier', 'order-history', 'materials',
@@ -173,7 +203,13 @@ async function run({ baseUrl } = {}) {
       try { localStorage.setItem('sts-theme', t); } catch (e) {}
     }, theme);
     await page.goto(baseUrl, { waitUntil: 'load' });
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(1400);   // let the async storage boot settle
+    await page.evaluate(async (seed) => {
+      const existing = ((await stsStoreGet('orders')) || []).filter(o => !String(o.id).startsWith('u-theme'));
+      await stsStoreSet('orders', existing.concat(seed));
+    }, SEED_ORDERS);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(1200);
 
     const actual = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
     if (actual !== theme) {
@@ -194,6 +230,20 @@ async function run({ baseUrl } = {}) {
         card:    g('.stat-card, .card, .home-widget', 'backgroundColor'),
       };
     });
+
+    await page.evaluate((t) => { try { switchTab(t, null); } catch (e) {} }, 'dashboard');
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => ({
+      cards: document.querySelectorAll('.o-card').length,
+      badges: document.querySelectorAll('.o-badge').length,
+      tags: document.querySelectorAll('.o-tag, .tag').length,
+    }));
+    if (!painted.cards) {
+      say(`FAIL  ${theme}: seeded orders did not render — the audit would be checking an empty app`);
+      failures++;
+    } else {
+      say(`PASS  ${theme}: board painted ${painted.cards} cards, ${painted.badges} badges, ${painted.tags} tags`);
+    }
 
     for (const tab of TAB_TARGETS) {
       await page.evaluate((t) => { try { switchTab(t, null); } catch (e) {} }, tab);
@@ -218,6 +268,10 @@ async function run({ baseUrl } = {}) {
         failures++;
       }
     }
+    await page.evaluate(async () => {
+      const kept = ((await stsStoreGet('orders')) || []).filter(o => !String(o.id).startsWith('u-theme'));
+      await stsStoreSet('orders', kept);
+    }).catch(() => {});
     await ctx.close();
   }
 
