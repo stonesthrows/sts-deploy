@@ -1,0 +1,997 @@
+<title>STS Workflow — 10 Redesigns</title>
+<style id="tokenSheet"></style>
+<style>
+#stage *,#stage *::before,#stage *::after{box-sizing:border-box;margin:0;padding:0}
+
+#stage{
+  font-family:var(--font);font-size:var(--fs,14px);
+  background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  transition:background .3s ease,color .3s ease;
+}
+#stage button,#stage input,#stage select{font:inherit;color:inherit}
+#stage a{color:inherit;text-decoration:none}
+
+.app{display:grid;grid-template-columns:var(--sidebar-w,232px) 1fr;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{
+  background:var(--sidebar-bg);color:var(--sidebar-fg);
+  border-right:var(--sidebar-border,1px solid var(--border));
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 16px 14px;flex-shrink:0}
+.brand-mark{
+  width:32px;height:32px;border-radius:var(--radius-sm);
+  background:var(--brand-mark-bg);
+  display:grid;place-items:center;font-size:16px;flex-shrink:0;
+}
+.brand-name{font-family:var(--font-head);font-weight:var(--brand-weight,700);font-size:14px;color:var(--brand-fg);line-height:1.2;display:block}
+.brand-sub{font-size:10.5px;color:var(--sidebar-dim);letter-spacing:.04em;display:block;margin-top:1px}
+.sb-nav{flex:1;padding:0 8px 12px}
+.sb-section{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--sidebar-dim);padding:14px 8px 5px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:9px;
+  padding:7px 9px;border-radius:var(--radius-sm);
+  font-size:13px;color:var(--sidebar-fg);cursor:pointer;
+  transition:background .14s,color .14s;
+  margin-bottom:1px;
+}
+.sb-item:hover{background:var(--sidebar-hover)}
+.sb-item.active{background:var(--sidebar-active-bg);color:var(--sidebar-active-fg);font-weight:600}
+.sb-ico{width:17px;text-align:center;flex-shrink:0;font-size:13px}
+.sb-badge{
+  margin-left:auto;background:var(--accent);color:var(--accent-ink);
+  font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;
+}
+.sb-foot{padding:10px;border-top:1px solid var(--border);flex-shrink:0}
+.sb-foot button{
+  width:100%;text-align:left;background:none;cursor:pointer;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--sidebar-dim);font-size:12px;font-weight:600;padding:7px 10px;
+}
+
+/* ── Topbar ── */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{
+  display:flex;align-items:center;gap:10px;
+  padding:0 var(--pad,22px);height:var(--topbar-h,54px);flex-shrink:0;
+  background:var(--topbar-bg);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;
+}
+.topbar-title{font-family:var(--font-head);font-size:var(--title-size,15px);font-weight:var(--title-weight,700);letter-spacing:var(--title-track,-.01em)}
+.spacer{flex:1}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--pill-bg);border:1px solid var(--pill-border);
+  border-radius:var(--pill-radius,20px);padding:4px 11px;
+  font-size:11.5px;color:var(--text2);
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
+.icon-btn{
+  background:none;border:1px solid transparent;border-radius:var(--radius-sm);
+  padding:5px 8px;font-size:14px;cursor:pointer;line-height:1;
+  transition:background .14s;
+}
+.icon-btn:hover{background:var(--hover)}
+.theme-toggle{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  background:var(--pill-bg);border:1px solid var(--pill-border);
+  border-radius:var(--pill-radius,20px);padding:4px 11px;
+  font-size:11.5px;font-weight:600;color:var(--text2);
+}
+.theme-toggle:hover{background:var(--hover)}
+
+/* ── View switch ── */
+.vs{
+  display:flex;gap:var(--vs-gap,2px);padding:var(--vs-pad,10px 22px 0);
+  background:var(--subnav-bg);border-bottom:1px solid var(--border);
+}
+.vs-btn{
+  background:none;border:none;cursor:pointer;
+  padding:8px 14px;font-size:12.5px;font-weight:600;
+  color:var(--text3);border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .14s,border-color .14s,background .14s;
+}
+.vs-btn:hover{color:var(--text)}
+.vs-btn.active{color:var(--accent-text);border-bottom-color:var(--accent);background:var(--vs-active-bg,transparent)}
+
+.view{display:none;padding:var(--view-pad,20px 22px 36px)}
+.view.active{display:block}
+
+/* ── Dashboard ── */
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.greeting{font-family:var(--font-head);font-size:var(--greet-size,22px);font-weight:var(--greet-weight,700);letter-spacing:var(--greet-track,-.02em);line-height:1.1}
+.dash-date{font-size:12.5px;color:var(--text3);margin-top:3px}
+.btn{
+  background:var(--accent);color:var(--accent-ink);cursor:pointer;
+  border:var(--btn-border,none);border-radius:var(--radius-sm);
+  padding:7px 15px;font-size:12.5px;font-weight:600;
+  box-shadow:var(--btn-shadow,none);transition:filter .14s,transform .14s;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(1px)}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap,12px);margin-bottom:var(--gap,12px)}
+.kpi{
+  display:flex;align-items:center;gap:12px;
+  background:var(--card);border:var(--card-border,1px solid var(--border));
+  border-radius:var(--radius);padding:14px 16px;
+  box-shadow:var(--shadow);cursor:pointer;
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s;
+}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.kpi-ico{
+  width:38px;height:38px;border-radius:var(--radius-sm);
+  display:grid;place-items:center;font-size:17px;flex-shrink:0;
+}
+.t-gold{background:var(--tone-gold)}
+.t-purple{background:var(--tone-purple)}
+.t-red{background:var(--tone-red)}
+.t-green{background:var(--tone-green)}
+.kpi-num{font-family:var(--font-num,var(--font-head));font-size:var(--kpi-size,25px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi-lbl{font-size:10.5px;color:var(--text2);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--gap,12px);align-items:start}
+.dash-col{display:flex;flex-direction:column;gap:var(--gap,12px);min-width:0}
+.dash-split{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap,12px)}
+
+.card{
+  background:var(--card);border:var(--card-border,1px solid var(--border));
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  transition:box-shadow .16s var(--ease);
+}
+.card:hover{box-shadow:var(--shadow-lg)}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 14px;background:var(--card-head-bg);
+  border-bottom:1px solid var(--border-soft);
+  font-size:12.5px;font-weight:700;color:var(--card-head-fg);
+  letter-spacing:var(--head-track,0);text-transform:var(--head-case,none);
+}
+.card-link{font-size:11.5px;font-weight:600;color:var(--accent-text);cursor:pointer;background:none;border:none;padding:2px 6px;border-radius:5px}
+.card-link:hover{background:var(--accent-soft)}
+.card-body{padding:12px 14px}
+
+/* Sales */
+.sales-total{display:flex;align-items:baseline;gap:9px;margin-bottom:10px}
+.sales-num{font-family:var(--font-num,var(--font-head));font-size:26px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sales-delta{font-size:12px;font-weight:700;color:var(--ok-text)}
+.sales-sub{font-size:11.5px;color:var(--text3)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;font-size:12.5px;border-top:1px solid var(--border-soft)}
+.row:first-child{border-top:none}
+.row-dim{color:var(--text3);font-size:11.5px}
+.row-num{font-weight:700;font-variant-numeric:tabular-nums}
+
+/* Trip */
+.trip-route{font-size:13px;font-weight:600;line-height:1.35}
+.trip-miles{font-family:var(--font-num,var(--font-head));font-size:22px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
+.trip-when{font-size:11.5px;color:var(--text3)}
+
+/* Studio chips */
+.studio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px}
+.studio-chip{
+  background:var(--chip-bg);border:1px solid var(--border-soft);
+  border-radius:var(--radius-sm);padding:10px 11px;
+}
+.studio-n{font-family:var(--font-num,var(--font-head));font-size:19px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.studio-l{font-size:10.5px;color:var(--text2);margin-top:4px;font-weight:600}
+
+/* Calendar + packages */
+.list{padding:4px 0}
+.li{display:flex;align-items:flex-start;gap:10px;padding:8px 14px;border-top:1px solid var(--border-soft);font-size:12.5px}
+.li:first-child{border-top:none}
+.li-time{color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums;flex-shrink:0;min-width:38px;font-weight:600}
+.li-main{flex:1;min-width:0;line-height:1.35}
+.li-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.tag{
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;
+  white-space:nowrap;flex-shrink:0;letter-spacing:.02em;
+}
+.tag.ok{background:var(--tag-ok-bg);color:var(--tag-ok-fg)}
+.tag.soon{background:var(--tag-soon-bg);color:var(--tag-soon-fg)}
+.tag.late{background:var(--tag-late-bg);color:var(--tag-late-fg)}
+.tag.done{background:var(--tag-done-bg);color:var(--tag-done-fg)}
+
+/* ── Kanban ── */
+.board-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.board-title{font-family:var(--font-head);font-size:var(--greet-size,22px);font-weight:var(--greet-weight,700);letter-spacing:var(--greet-track,-.02em)}
+.board{display:flex;gap:var(--col-gap,10px);overflow-x:auto;padding-bottom:14px;align-items:flex-start;scrollbar-width:thin}
+.board::-webkit-scrollbar{height:8px}
+.board::-webkit-scrollbar-track{background:var(--border-soft);border-radius:4px}
+.board::-webkit-scrollbar-thumb{background:var(--text3);border-radius:4px;opacity:.5}
+
+.k-col{
+  /* 144px keeps all eight stages on screen at laptop width, the way the
+     real board does (.k-col there floors at 120px). Columns still flex
+     wider on big displays, and the track scrolls rather than the body. */
+  flex:1 1 0;min-width:var(--col-min,144px);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  /* Stage colour is derived here, NOT on #stage — a custom property
+     substitutes var() at the element that declares it, and --sc is only
+     set on .k-col. Declared on #stage these would all resolve against an
+     unset --sc and collapse to invalid (i.e. transparent). Designs tune
+     the blend with the --mix-* percentages, which are safe on #stage
+     because they carry no var() of their own. */
+  --k-head-bg:color-mix(in srgb,var(--sc) var(--mix-head,14%),var(--card));
+  --k-head-fg:color-mix(in srgb,var(--sc) var(--mix-head-fg,74%),var(--text));
+  --k-count-bg:color-mix(in srgb,var(--sc) var(--mix-count,22%),transparent);
+  --k-body-bg:color-mix(in srgb,var(--sc) var(--mix-body,6%),var(--card));
+}
+.k-head{
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
+  padding:9px 12px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em;
+  background:var(--k-head-bg);color:var(--k-head-fg);
+}
+.k-count{
+  background:var(--k-count-bg);border-radius:20px;padding:1px 7px;
+  font-size:10px;font-weight:700;min-width:20px;text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+.k-body{
+  background:var(--k-body-bg);padding:8px;min-height:150px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.k-empty{
+  text-align:center;padding:14px 8px;color:var(--text3);
+  font-size:11.5px;font-style:italic;
+  border:1.5px dashed var(--border);border-radius:var(--radius-sm);
+}
+.o-card{
+  background:var(--o-card-bg);
+  border:var(--o-border,1px solid var(--border));
+  border-left:var(--o-edge-w,3px) solid var(--sc);
+  border-radius:var(--radius-sm);padding:10px 11px 9px;
+  box-shadow:var(--shadow);cursor:grab;
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease);
+}
+.o-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.o-flag{
+  display:flex;align-items:center;gap:5px;
+  margin:-10px -11px 8px;padding:5px 11px;
+  background:var(--flag-bg);color:var(--flag-fg);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+}
+.o-name{font-size:12.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.o-desc{font-size:11.5px;color:var(--text2);line-height:1.4;margin-top:5px}
+.o-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.o-badge{
+  font-size:10px;font-weight:600;padding:2px 6px;border-radius:5px;
+  background:var(--badge-bg);color:var(--badge-fg);
+  border:1px solid var(--border-soft);
+  /* A pickup name like "Chaparral Crossing" is wider than a column at the
+     144px floor. Ellipsize rather than let it paint past the card edge. */
+  white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+}
+.o-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px;flex-wrap:wrap}
+.o-price{font-family:var(--font-num,var(--font-head));font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;margin-left:auto}
+
+/* ── Responsive ── */
+@container stage (max-width:1080px){
+  .dash-grid{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+}
+@container stage (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .dash-split{grid-template-columns:1fr}
+  .studio-grid{grid-template-columns:repeat(2,1fr)}
+  #stage{--pad:14px;--view-pad:16px 14px 30px}
+  .vs{padding:8px 14px 0;overflow-x:auto}
+  .k-col{min-width:80vw}
+  /* The topbar runs out of room before anything else does. Drop the two
+     least essential items — the sync pill and the ⌘K hint — rather than
+     let the icon buttons push the page into horizontal scroll. */
+  .topbar{gap:6px}
+  .pill{display:none}
+  .topbar-title::after{display:none}
+}
+@container stage (max-width:460px){
+  .kpi-row{grid-template-columns:1fr}
+}
+</style>
+<style id="extraSheet"></style>
+<style>
+.sts *,.sts *::before,.sts *::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#14161A; --paper:#FFFFFF; --sunk:#F4F5F7;
+  --edge:#E2E4E8; --edge2:#EDEEF1; --muted:#6B7078;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#EDEEF1; --paper:#0F1013; --sunk:#16181C;
+    --edge:#24262B; --edge2:#1C1E22; --muted:#8B9098;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#EDEEF1; --paper:#0F1013; --sunk:#16181C;
+  --edge:#24262B; --edge2:#1C1E22; --muted:#8B9098;
+}
+:root[data-theme="light"]{
+  --ink:#14161A; --paper:#FFFFFF; --sunk:#F4F5F7;
+  --edge:#E2E4E8; --edge2:#EDEEF1; --muted:#6B7078;
+}
+body{
+  margin:0;background:var(--sunk);color:var(--ink);
+  font-family:var(--ui);
+  -webkit-font-smoothing:antialiased;
+}
+/* The page scrolls naturally with a sticky bar rather than a locked
+   100vh shell with an inner scroller — the Artifact host owns the
+   document wrapper, and a fixed-height layout breaks if it nests us. */
+.sts{display:flex;flex-direction:column;min-height:100dvh}
+
+/* ── Control bar ── */
+.sts-bar{
+  position:sticky;top:0;z-index:10;
+  flex-shrink:0;background:var(--paper);
+  border-bottom:1px solid var(--edge);
+}
+.sts-row{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px 8px;
+}
+.sts-mark{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  white-space:nowrap;
+}
+.sts-mark b{color:var(--ink);font-weight:600}
+.sts-spacer{flex:1}
+.sts-seg{
+  display:flex;border:1px solid var(--edge);border-radius:7px;
+  overflow:hidden;flex-shrink:0;
+}
+.sts-seg button{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  background:none;border:none;color:var(--muted);
+  padding:6px 10px;cursor:pointer;line-height:1;
+  transition:background .15s,color .15s;
+}
+.sts-seg button + button{border-left:1px solid var(--edge)}
+.sts-seg button:hover{color:var(--ink)}
+.sts-seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+/* ── Design chips: a contact sheet's frame strip ── */
+.sts-strip{
+  display:flex;gap:6px;overflow-x:auto;
+  padding:0 14px 9px;
+  scrollbar-width:none;-ms-overflow-style:none;
+  scroll-snap-type:x proximity;
+  overscroll-behavior-x:contain;
+}
+.sts-strip::-webkit-scrollbar{display:none}
+.sts-chip{
+  display:flex;align-items:baseline;gap:6px;flex-shrink:0;
+  background:none;border:1px solid var(--edge);border-radius:7px;
+  padding:6px 11px 6px 9px;cursor:pointer;
+  color:var(--muted);font-family:var(--ui);
+  scroll-snap-align:start;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.sts-chip:hover{border-color:var(--muted);color:var(--ink)}
+.sts-chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.sts-chip[aria-pressed="true"] .sts-n{color:var(--paper);opacity:.55}
+.sts-n{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  font-variant-numeric:tabular-nums;color:var(--muted);opacity:.8;
+}
+.sts-nm{font-size:12.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.sts-thesis{
+  padding:0 14px 10px;font-size:11.5px;line-height:1.45;
+  color:var(--muted);max-width:70ch;
+}
+
+/* ── Stage frame ── */
+.sts-frame{flex:1;min-height:0;background:var(--sunk)}
+/* No background here — the chrome sheet loads after the design sheets and
+   would win the #stage specificity tie, painting every design white. */
+#stage{
+  transform-origin:top left;
+  /* Makes the mockup's converted @container rules resolve against the
+     stage's own width rather than the phone's. */
+  container-type:inline-size;
+  container-name:stage;
+}
+/* The preview scrolls as one document — sticky chrome inside a scaled,
+   nested scroll container produces artifacts, and stickiness is not what
+   is being evaluated here. */
+#stage .app{min-height:0}
+#stage .sidebar{position:static;height:auto}
+#stage .topbar{position:static}
+
+:where(button):focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+@media (max-width:560px){
+  .sts-row{padding:8px 11px 7px;gap:7px}
+  .sts-strip{padding:0 11px 8px}
+  .sts-thesis{padding:0 11px 9px;font-size:11px}
+  .sts-mark{font-size:9px;letter-spacing:.1em}
+  .sts-seg button{padding:6px 8px;font-size:9.5px}
+}
+</style>
+
+<div class="sts">
+  <div class="sts-bar">
+    <div class="sts-row">
+      <span class="sts-mark">Stones Throw <b>Redesigns</b></span>
+      <span class="sts-spacer"></span>
+      <div class="sts-seg" role="group" aria-label="Preview theme">
+        <button type="button" id="mLight" aria-pressed="true">Light</button>
+        <button type="button" id="mDark" aria-pressed="false">Dark</button>
+      </div>
+      <div class="sts-seg" role="group" aria-label="Preview width">
+        <button type="button" id="wDesk" aria-pressed="true">Desktop</button>
+        <button type="button" id="wPhone" aria-pressed="false">Phone</button>
+      </div>
+    </div>
+    <div class="sts-strip" role="group" aria-label="Choose a design">
+        <button class="sts-chip" type="button" data-i="0"
+          aria-pressed="true">
+          <span class="sts-n">01</span><span class="sts-nm">Atelier</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="1"
+          aria-pressed="false">
+          <span class="sts-n">02</span><span class="sts-nm">Workbench</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="2"
+          aria-pressed="false">
+          <span class="sts-n">03</span><span class="sts-nm">Editorial</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="3"
+          aria-pressed="false">
+          <span class="sts-n">04</span><span class="sts-nm">Glass</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="4"
+          aria-pressed="false">
+          <span class="sts-n">05</span><span class="sts-nm">Brutalist</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="5"
+          aria-pressed="false">
+          <span class="sts-n">06</span><span class="sts-nm">Terminal</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="6"
+          aria-pressed="false">
+          <span class="sts-n">07</span><span class="sts-nm">Warm Craft</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="7"
+          aria-pressed="false">
+          <span class="sts-n">08</span><span class="sts-nm">Soft</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="8"
+          aria-pressed="false">
+          <span class="sts-n">09</span><span class="sts-nm">Product</span>
+        </button>
+        <button class="sts-chip" type="button" data-i="9"
+          aria-pressed="false">
+          <span class="sts-n">10</span><span class="sts-nm">Bento</span>
+        </button>
+    </div>
+    <p class="sts-thesis" id="thesis"></p>
+  </div>
+
+  <div class="sts-frame" id="frame">
+    <div id="stage" data-mock="light">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">💎</div>
+        <div>
+          <span class="brand-name">Stones Throw Studio</span>
+          <span class="brand-sub">Order Workflow</span>
+        </div>
+      </div>
+      <nav class="sb-nav">
+        
+        <div class="sb-item active"><span class="sb-ico">🏠</span>Dashboard</div>
+        <div class="sb-section">Orders</div>
+        <div class="sb-item"><span class="sb-ico">✚</span>New Order</div>
+        <div class="sb-item"><span class="sb-ico">📋</span>Custom Orders<span class="sb-badge">6</span></div>
+        <div class="sb-item"><span class="sb-ico">📬</span>Ready to Ship</div>
+        <div class="sb-item"><span class="sb-ico">👥</span>Customers</div>
+        <div class="sb-section">Inventory</div>
+        <div class="sb-item"><span class="sb-ico">📦</span>To Restock</div>
+        <div class="sb-item"><span class="sb-ico">💎</span>Adjust Inventory</div>
+        <div class="sb-item"><span class="sb-ico">📊</span>Production Report</div>
+        <div class="sb-item"><span class="sb-ico">🔄</span>Replenishment</div>
+        <div class="sb-section">Supplies</div>
+        <div class="sb-item"><span class="sb-ico">📦</span>Order Materials</div>
+        <div class="sb-item"><span class="sb-ico">📋</span>Order History</div>
+        <div class="sb-item"><span class="sb-ico">🧱</span>Materials Library</div>
+        <div class="sb-section">More</div>
+        <div class="sb-item"><span class="sb-ico">🚗</span>Trips</div>
+        <div class="sb-item"><span class="sb-ico">📝</span>Notes</div>
+        <div class="sb-item"><span class="sb-ico">🎨</span>Designs</div>
+        <div class="sb-item"><span class="sb-ico">📊</span>Sales</div>
+        <div class="sb-item"><span class="sb-ico">🏆</span>Best Sellers</div>
+        <div class="sb-item"><span class="sb-ico">⛓️</span>PJ Calc</div>
+      </nav>
+      <div class="sb-foot"><button>⚙ Integrations</button></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <span class="topbar-title">Dashboard</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot"></span>Notion <span style="color:var(--text3)">2m ago</span></span>
+        <button class="theme-toggle" onclick="toggleTheme()">
+          <span id="themeIcon">◐</span><span id="themeLabel">Dark</span>
+        </button>
+        <button class="icon-btn" title="Team messages">💬</button>
+        <button class="icon-btn" title="Integrations">🔌</button>
+      </header>
+      <div class="vs">
+        <button class="vs-btn active" onclick="showView('view-dash',this)">🏠 Dashboard</button>
+        <button class="vs-btn" onclick="showView('view-board',this)">📋 Order Pipeline</button>
+      </div>
+      <section id="view-dash" class="view active">
+        <div class="dash-head">
+          <div>
+            <div class="greeting">Good morning, Kyle</div>
+            <div class="dash-date">Sunday, July 26 · 3 orders due this week</div>
+          </div>
+          <button class="btn">⟳ Refresh</button>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-ico t-gold">📋</div>
+            <div>
+              <div class="kpi-num">14</div>
+              <div class="kpi-lbl">Active Orders</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-purple">🔨</div>
+            <div>
+              <div class="kpi-num">5</div>
+              <div class="kpi-lbl">At the Bench</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-red">⏰</div>
+            <div>
+              <div class="kpi-num">6</div>
+              <div class="kpi-lbl">Due This Week</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-ico t-green">✅</div>
+            <div>
+              <div class="kpi-num">3</div>
+              <div class="kpi-lbl">Ready to Pick Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="dash-col">
+            <div class="dash-split">
+              <div class="card">
+              <div class="card-head"><span>💰 Weekend Sales</span><button class="card-link">Sales →</button></div>
+              <div class="card-body">
+                <div class="sales-total">
+                  <span class="sales-num">$2,100</span>
+                  <span class="sales-delta">▲ +12%</span>
+                </div>
+                <div class="sales-sub" style="margin-bottom:8px">18 transactions · vs last weekend</div>
+                <div class="row">
+                  <span>Saturday <span class="row-dim">· Mueller Market</span></span>
+                  <span class="row-num">$1,240</span>
+                </div>
+                <div class="row">
+                  <span>Sunday <span class="row-dim">· Bell Market</span></span>
+                  <span class="row-num">$860</span>
+                </div>
+              </div>
+            </div>
+              <div class="card">
+              <div class="card-head"><span>🚗 Latest Trip</span><button class="card-link">Trips →</button></div>
+              <div class="card-body">
+                <div class="trip-route">Studio → Mueller Market</div>
+                <div class="trip-miles">14.2 mi</div>
+                <div class="trip-when">Fri Jul 25, 7:40 AM</div>
+                <div class="row" style="margin-top:9px"><span class="row-dim">Year to date</span><span class="row-num">2,318 mi YTD</span></div>
+              </div>
+            </div>
+            </div>
+            <div class="card">
+            <div class="card-head"><span>📋 Orders in Studio</span><button class="card-link">View pipeline →</button></div>
+            <div class="studio-grid">
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Sketch</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Estimating</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Deposit</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">1</div>
+                <div class="studio-l">Materials</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">3</div>
+                <div class="studio-l">At the Bench</div>
+              </div>
+              <div class="studio-chip">
+                <div class="studio-n">2</div>
+                <div class="studio-l">Ready</div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <div class="dash-col">
+            <div class="card">
+            <div class="card-head"><span>📅 Calendar</span><button class="card-link">Open full →</button></div>
+            <div class="list">
+              <div class="li">
+                <span class="li-time">9:00</span>
+                <span class="li-main">Bench block — Okonkwo band</span>
+                <span class="tag ok">Today</span>
+              </div>
+              <div class="li">
+                <span class="li-time">13:30</span>
+                <span class="li-main">Marisol Vega — sizing</span>
+                <span class="tag soon">Next</span>
+              </div>
+              <div class="li">
+                <span class="li-time">16:00</span>
+                <span class="li-main">Market load-out</span>
+                <span class="tag ok">Today</span>
+              </div>
+            </div>
+          </div>
+            <div class="card">
+            <div class="card-head"><span>📦 Packages</span><button class="card-link">+ New</button></div>
+            <div class="list">
+              <div class="li">
+                <span class="li-time">📥</span>
+                <span class="li-main">Stuller — 8mm opal cab<div class="li-sub">exp Jul 28</div></span>
+                <span class="tag soon">In Transit</span>
+              </div>
+              <div class="li">
+                <span class="li-time">📥</span>
+                <span class="li-main">Rio Grande — solder<div class="li-sub">today</div></span>
+                <span class="tag soon">Out for Delivery</span>
+              </div>
+              <div class="li">
+                <span class="li-time">📤</span>
+                <span class="li-main">Ingrid Solheim<div class="li-sub">Jul 24</div></span>
+                <span class="tag done">Delivered</span>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </section>
+      <section id="view-board" class="view">
+        <div class="board-bar">
+          <div>
+            <div class="board-title">Order Pipeline</div>
+            <div class="dash-date">16 active orders across 8 stages</div>
+          </div>
+          <button class="btn">✚ New Order</button>
+        </div>
+        <div class="board">
+          <div class="k-col" style="--sc:var(--s1)">
+            <div class="k-head"><span>Intake</span><span class="k-count">3</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Marisol Vega</div>
+              <div class="o-desc">Reset grandmother's 1.2ct old European cut into a low-profile bezel solitaire, 14k yellow</div>
+              <div class="o-badges"><span class="o-badge">📍 Studio</span><span class="o-badge">💬 Instagram</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 12d</span>
+                <span class="o-price">$2,400</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Dana Whitfield</div>
+              <div class="o-desc">Repair — re-tip 4 prongs, tighten center stone, full polish</div>
+              <div class="o-badges"><span class="o-badge">📍 Bell Market</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 3d</span>
+                <span class="o-price">$180</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Theo Marchetti</div>
+              <div class="o-desc">Estimate — matching wedding band, hammered 14k yellow, 4mm</div>
+              
+              <div class="o-foot">
+                <span class="tag ok">Due in 21d</span>
+                <span class="o-price">$890</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s2)">
+            <div class="k-head"><span>Sketch</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Priya Raghunathan</div>
+              <div class="o-desc">Sapphire trilogy ring, 18k white, milgrain edge, 2.1ct center</div>
+              <div class="o-badges"><span class="o-badge">👤 Kyle</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 8d</span>
+                <span class="o-price">$3,150</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Colby Nakamura</div>
+              <div class="o-desc">Signet ring with family crest engraving, sterling</div>
+              <div class="o-badges"><span class="o-badge">📍 Mueller Market</span></div>
+              <div class="o-foot">
+                <span class="tag late">Overdue 2d</span>
+                <span class="o-price">$1,275</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s3)">
+            <div class="k-head"><span>Estimating</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Renee Ostrowski</div>
+              <div class="o-desc">Pendant — 0.8ct pear moissanite on 18in cable chain</div>
+              <div class="o-badges"><span class="o-badge">✓ Contacted Jul 22</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 15d</span>
+                <span class="o-price">$640</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Aggie Lindqvist</div>
+              <div class="o-desc">Resize 3 rings, sizes 6 → 7.5</div>
+              
+              <div class="o-foot">
+                <span class="tag soon">Due in 5d</span>
+                <span class="o-price">$210</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s4)">
+            <div class="k-head"><span>Deposit</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Marcus Delacroix-Bell</div>
+              <div class="o-desc">Custom cuff, 12mm sterling, hand-stamped botanical</div>
+              <div class="o-badges"><span class="o-badge">👤 Stevie</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 18d</span>
+                <span class="o-price">$1,050</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Yuki Tanaka</div>
+              <div class="o-desc">Earrings — emerald-cut studs, 14k white, 1.4ctw</div>
+              <div class="o-badges"><span class="o-badge">📍 Chaparral Crossing</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 9d</span>
+                <span class="o-price">$780</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s5)">
+            <div class="k-head"><span>Materials</span><span class="k-count">1</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Odalys Beltrán</div>
+              <div class="o-desc">Bezel-set opal ring — waiting on 8mm cabochon from Stuller</div>
+              <div class="o-badges"><span class="o-badge">👤 Vanessa</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 11d</span>
+                <span class="o-price">$520</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s6)">
+            <div class="k-head"><span>At the Bench</span><span class="k-count">3</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Harriet Okonkwo</div>
+              <div class="o-desc">Three-stone anniversary band, channel set, 14k yellow</div>
+              <div class="o-badges"><span class="o-badge">👤 Kyle</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 4d</span>
+                <span class="o-price">$2,890</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Devon Applewhite</div>
+              <div class="o-desc">Rebuild worn shank on 1940s filigree, preserve original detail</div>
+              <div class="o-badges"><span class="o-badge">👤 Vanessa</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 6d</span>
+                <span class="o-price">$445</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Sunny Petrossian</div>
+              <div class="o-desc">Toe ring set, sterling, 3pc</div>
+              <div class="o-badges"><span class="o-badge">👤 Stevie</span></div>
+              <div class="o-foot">
+                <span class="tag ok">Due in 10d</span>
+                <span class="o-price">$95</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s7)">
+            <div class="k-head"><span>Contact Customer</span><span class="k-count">1</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              <div class="o-flag">📞 Contact Customer</div>
+              <div class="o-name">Blaise Toussaint</div>
+              <div class="o-desc">Sketch approved — needs deposit conversation before ordering stone</div>
+              <div class="o-badges"><span class="o-badge">💬 Referral</span></div>
+              <div class="o-foot">
+                <span class="tag soon">Due in 7d</span>
+                <span class="o-price">$1,680</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="k-col" style="--sc:var(--s8)">
+            <div class="k-head"><span>Ready to Pickup/Ship</span><span class="k-count">2</span></div>
+            <div class="k-body">
+              <div class="o-card">
+              
+              <div class="o-name">Ingrid Solheim</div>
+              <div class="o-desc">Pearl strand restring, 18in, knotted silk</div>
+              <div class="o-badges"><span class="o-badge">📍 Sunset Valley</span></div>
+              <div class="o-foot">
+                <span class="tag done">Ready</span>
+                <span class="o-price">$140</span>
+              </div>
+            </div>
+              <div class="o-card">
+              
+              <div class="o-name">Rafael Quintanilla</div>
+              <div class="o-desc">Wedding set — polish + rhodium replate, both bands</div>
+              <div class="o-badges"><span class="o-badge">📍 Studio</span></div>
+              <div class="o-foot">
+                <span class="tag done">Ready</span>
+                <span class="o-price">$3,400</span>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var D = [{"n":"Atelier","t":"The current blue-and-gold identity, done properly — serif headings, real whitespace, calmer elevation.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif; --font-num:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;\n  --radius:12px; --radius-sm:8px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:14px; --greet-size:25px; --greet-weight:600; --greet-track:-.015em;\n  --title-weight:600;\n\n  --bg:#EEF4F8; --card:#FFFFFF; --card-head-bg:#F6FAFC; --card-head-fg:#1D3A4A;\n  --border:#D3E2EC; --border-soft:#E4EEF4;\n  --text:#16303D; --text2:#4B6C7E; --text3:#7C99A9;\n  --accent:#B8862B; --accent-ink:#FFFFFF; --accent-text:#8E6417; --accent-soft:#FBF3E2;\n  --hover:#EDF5F9; --ok:#4E9E6E; --ok-text:#2F7A50;\n\n  --sidebar-bg:#173442; --sidebar-fg:#C3D9E4; --sidebar-dim:#7398A9;\n  --sidebar-hover:#1F4354; --sidebar-active-bg:#255064; --sidebar-active-fg:#F0DBAE;\n  --sidebar-border:1px solid #234B5D;\n  --brand-mark-bg:linear-gradient(140deg,#D8A94A,#8E6417); --brand-fg:#F0DBAE;\n  --topbar-bg:#FFFFFF; --subnav-bg:#F6FAFC;\n  --pill-bg:#F1F7FA; --pill-border:#D9E7EF;\n  --shadow:0 1px 2px rgba(22,48,61,.05),0 1px 3px rgba(22,48,61,.05);\n  --shadow-lg:0 10px 26px rgba(22,48,61,.11),0 3px 7px rgba(22,48,61,.06);\n\n  --tone-gold:#FBF1DC; --tone-purple:#F0EBF8; --tone-red:#FBE7E2; --tone-green:#E4F3EA;\n  --chip-bg:#F6FAFC; --badge-bg:#F2F8FB; --badge-fg:#4B6C7E;\n  --tag-ok-bg:#EAF3F8; --tag-ok-fg:#3E687E;\n  --tag-soon-bg:#FDF0DC; --tag-soon-fg:#8A5B12;\n  --tag-late-bg:#FBE3DD; --tag-late-fg:#A63A22;\n  --tag-done-bg:#E2F2E8; --tag-done-fg:#2C6B48;\n  --flag-bg:#FDF0DC; --flag-fg:#8A5B12;\n\n  --s1:#4A72E8; --s2:#C99A1E; --s3:#D4713A; --s4:#2E9A68;\n  --s5:#8E5CC4; --s6:#2B6FB8; --s7:#C7912A; --s8:#1E86A8;\n  --mix-head:13%; --mix-head-fg:72%; --mix-count:20%; --mix-body:5%;\n  --o-card-bg:#FFFFFF;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#0D171E; --card:#152430; --card-head-bg:#1A2C39; --card-head-fg:#CFE2ED;\n  --border:#26404F; --border-soft:#1F3542;\n  --text:#E4EFF5; --text2:#9BB6C4; --text3:#6E8E9E;\n  --accent:#D8A94A; --accent-ink:#1A1206; --accent-text:#E8C87E; --accent-soft:#2C2416;\n  --hover:#1D3241; --ok:#5FBE85; --ok-text:#79CE9B;\n\n  --sidebar-bg:#0A131A; --sidebar-fg:#A9C4D2; --sidebar-dim:#5E7E8F;\n  --sidebar-hover:#132330; --sidebar-active-bg:#1B3646; --sidebar-active-fg:#F0DBAE;\n  --sidebar-border:1px solid #1C303C;\n  --topbar-bg:#101D26; --subnav-bg:#101D26;\n  --pill-bg:#16262F; --pill-border:#26404F;\n  --shadow:0 1px 2px rgba(0,0,0,.34); --shadow-lg:0 12px 30px rgba(0,0,0,.5);\n\n  --tone-gold:#33291A; --tone-purple:#2A2438; --tone-red:#37211D; --tone-green:#1B3327;\n  --chip-bg:#1A2C39; --badge-bg:#1C2F3C; --badge-fg:#9BB6C4;\n  --tag-ok-bg:#1B3040; --tag-ok-fg:#96BCD2;\n  --tag-soon-bg:#392C15; --tag-soon-fg:#E5BE6E;\n  --tag-late-bg:#3D2019; --tag-late-fg:#F0998A;\n  --tag-done-bg:#193527; --tag-done-fg:#79CE9B;\n  --flag-bg:#392C15; --flag-fg:#E5BE6E;\n\n  --s1:#7A9BFF; --s2:#E8C05A; --s3:#F0946A; --s4:#4FCB93;\n  --s5:#B48BEA; --s6:#5FA3E8; --s7:#E8BC5E; --s8:#4FBEDF;\n  --mix-head:17%; --mix-head-fg:82%; --mix-count:26%; --mix-body:7%;\n  --o-card-bg:#1A2C39;\n}","x":"\n.greeting,.board-title,.brand-name{font-style:normal}\n.card-head{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:13.5px;font-weight:600}\n.kpi-num,.sales-num,.trip-miles,.studio-n{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif}\n.k-head{border-bottom:1px solid color-mix(in srgb,var(--sc) 20%,transparent)}"},{"n":"Workbench","t":"Information-dense and utilitarian. Minimal chrome, tabular numbers, far more orders visible per screen.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;\n  --fs:13px; --radius:4px; --radius-sm:3px; --ease:cubic-bezier(.3,0,.2,1);\n  --gap:8px; --pad:14px; --view-pad:14px; --topbar-h:44px; --sidebar-w:200px;\n  --greet-size:17px; --greet-weight:700; --greet-track:-.01em;\n  --title-size:13px; --kpi-size:22px; --col-gap:6px; --col-min:142px;\n  --vs-pad:0 14px; --vs-gap:0;\n\n  --bg:#E9EBEE; --card:#FFFFFF; --card-head-bg:#F3F4F6; --card-head-fg:#333A44;\n  --border:#C6CBD3; --border-soft:#DFE2E7;\n  --text:#1B1F26; --text2:#4E5762; --text3:#79828F;\n  --accent:#0B6E4F; --accent-ink:#FFFFFF; --accent-text:#0B6E4F; --accent-soft:#E2F1EB;\n  --hover:#EDEFF2; --ok:#0B8E5F; --ok-text:#0B7A50;\n\n  --sidebar-bg:#20262E; --sidebar-fg:#BCC4CE; --sidebar-dim:#727C88;\n  --sidebar-hover:#2A313A; --sidebar-active-bg:#0B6E4F; --sidebar-active-fg:#FFFFFF;\n  --sidebar-border:1px solid #333B45;\n  --brand-mark-bg:#0B6E4F; --brand-fg:#E6EAEF;\n  --topbar-bg:#FFFFFF; --subnav-bg:#F3F4F6;\n  --pill-bg:#F3F4F6; --pill-border:#D5DAE1; --pill-radius:3px;\n  --shadow:0 1px 0 rgba(27,31,38,.06); --shadow-lg:0 2px 6px rgba(27,31,38,.13);\n\n  --tone-gold:#FAF0D8; --tone-purple:#EDE9F6; --tone-red:#FAE4E0; --tone-green:#E2F1EB;\n  --chip-bg:#F3F4F6; --badge-bg:#EFF1F4; --badge-fg:#4E5762;\n  --tag-ok-bg:#EDEFF2; --tag-ok-fg:#4E5762;\n  --tag-soon-bg:#FDF0D5; --tag-soon-fg:#8A6410;\n  --tag-late-bg:#FBE0DA; --tag-late-fg:#A83318;\n  --tag-done-bg:#DFF0E8; --tag-done-fg:#0B6E4F;\n  --flag-bg:#FDF0D5; --flag-fg:#8A6410;\n\n  --s1:#3A62D8; --s2:#B8890F; --s3:#C7602A; --s4:#128057;\n  --s5:#7B45BC; --s6:#1F5FA8; --s7:#B8890F; --s8:#0D7595;\n  --mix-head:15%; --mix-head-fg:78%; --mix-count:22%; --mix-body:5%;\n  --o-card-bg:#FFFFFF;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#101216; --card:#181B20; --card-head-bg:#1E2229; --card-head-fg:#C3CAD3;\n  --border:#2C313A; --border-soft:#23272E;\n  --text:#E2E6EB; --text2:#98A2AE; --text3:#6E7885;\n  --accent:#2ABF88; --accent-ink:#04140D; --accent-text:#3FD79C; --accent-soft:#12281F;\n  --hover:#22262D; --ok:#2ABF88; --ok-text:#3FD79C;\n\n  --sidebar-bg:#0B0D11; --sidebar-fg:#AEB7C2; --sidebar-dim:#646E7B;\n  --sidebar-hover:#161A20; --sidebar-active-bg:#12563E; --sidebar-active-fg:#7BEBBD;\n  --sidebar-border:1px solid #1D2128;\n  --brand-mark-bg:#12563E; --brand-fg:#DDE3EA;\n  --topbar-bg:#14171C; --subnav-bg:#14171C;\n  --pill-bg:#1B1F25; --pill-border:#2C313A;\n  --shadow:0 1px 0 rgba(0,0,0,.4); --shadow-lg:0 3px 10px rgba(0,0,0,.55);\n\n  --tone-gold:#2E2717; --tone-purple:#252131; --tone-red:#301D1A; --tone-green:#14291F;\n  --chip-bg:#1E2229; --badge-bg:#20252C; --badge-fg:#98A2AE;\n  --tag-ok-bg:#22272E; --tag-ok-fg:#98A2AE;\n  --tag-soon-bg:#332815; --tag-soon-fg:#E0B458;\n  --tag-late-bg:#361D17; --tag-late-fg:#F08E75;\n  --tag-done-bg:#12281F; --tag-done-fg:#3FD79C;\n  --flag-bg:#332815; --flag-fg:#E0B458;\n\n  --s1:#6E8FF5; --s2:#DFB444; --s3:#EE8A56; --s4:#31CE93;\n  --s5:#A87BE8; --s6:#5098E0; --s7:#DFB444; --s8:#3EB4D4;\n  --mix-head:16%; --mix-head-fg:85%; --mix-count:25%; --mix-body:6%;\n  --o-card-bg:#1C2026;\n}","x":"\n/* Dense mode: tighter everything, more rows on screen */\n.kpi{padding:9px 11px;gap:9px}\n.kpi-ico{width:30px;height:30px;font-size:14px}\n.kpi-lbl{font-size:9.5px;margin-top:2px}\n.card-head{padding:7px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}\n.card-body{padding:9px 11px}\n.li{padding:5px 11px;font-size:12px}\n.studio-grid{padding:9px 11px;gap:6px}\n.studio-chip{padding:7px 9px}\n.o-card{padding:7px 9px 6px;border-radius:3px}\n.o-name{font-size:12px}\n.o-desc{font-size:11px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}\n.o-foot{margin-top:5px}\n.o-badges{margin-top:4px;gap:3px}\n.k-head{padding:6px 9px;font-size:9.5px}\n.k-body{padding:6px;gap:6px;min-height:120px}\n.vs-btn{padding:11px 12px;border-radius:0;font-size:12px}\n.sb-item{padding:5px 8px;font-size:12.5px;border-radius:3px}\n.sb-section{padding:11px 8px 3px;font-size:9.5px}\n.tag{font-size:9.5px;padding:1px 5px;border-radius:3px}\n.o-badge{font-size:9.5px;border-radius:2px}\n.pill,.theme-toggle{font-size:11px;padding:3px 9px}"},{"n":"Editorial","t":"Laid out like a magazine. Large serif display type, generous margins, muted paper stock, one vermilion accent.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif; --font-num:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;\n  --radius:3px; --radius-sm:2px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:22px; --pad:34px; --view-pad:32px 34px 48px; --topbar-h:64px; --sidebar-w:236px;\n  --greet-size:38px; --greet-weight:400; --greet-track:-.025em;\n  --title-size:16px; --title-weight:400; --kpi-size:34px;\n  --col-gap:16px; --vs-pad:0 34px; --vs-gap:20px;\n  /* Editorial's wide margins + 16px column gap leave less track, so the\n     floor drops to keep all eight stages on screen at laptop width. */\n  --col-min:134px;\n  --head-case:uppercase; --head-track:.12em;\n\n  --bg:#F7F4EE; --card:#FFFDF9; --card-head-bg:transparent; --card-head-fg:#6B6154;\n  --border:#DCD3C2; --border-soft:#E8E1D4;\n  --text:#1F1B16; --text2:#5E564A; --text3:#8C8377;\n  --accent:#A63A28; --accent-ink:#FFFDF9; --accent-text:#A63A28; --accent-soft:#F7E9E5;\n  --hover:#F1ECE2; --ok:#4A7A52; --ok-text:#3D6B45;\n\n  --sidebar-bg:#F7F4EE; --sidebar-fg:#3C362D; --sidebar-dim:#948A7C;\n  --sidebar-hover:#EFE9DE; --sidebar-active-bg:transparent; --sidebar-active-fg:#A63A28;\n  --sidebar-border:1px solid #DCD3C2;\n  --brand-mark-bg:#1F1B16; --brand-fg:#1F1B16; --brand-weight:400;\n  --topbar-bg:#F7F4EE; --subnav-bg:#F7F4EE;\n  --pill-bg:transparent; --pill-border:#DCD3C2; --pill-radius:2px;\n  --shadow:none; --shadow-lg:0 6px 20px rgba(31,27,22,.09);\n  --card-border:1px solid #DCD3C2;\n\n  --tone-gold:#F3E7CE; --tone-purple:#EBE5F0; --tone-red:#F7E2DC; --tone-green:#E3EEE1;\n  --chip-bg:#F7F4EE; --badge-bg:transparent; --badge-fg:#5E564A;\n  --tag-ok-bg:transparent; --tag-ok-fg:#8C8377;\n  --tag-soon-bg:transparent; --tag-soon-fg:#9A6A14;\n  --tag-late-bg:#A63A28; --tag-late-fg:#FFFDF9;\n  --tag-done-bg:transparent; --tag-done-fg:#3D6B45;\n  --flag-bg:#A63A28; --flag-fg:#FFFDF9;\n\n  --s1:#2F4C9E; --s2:#9A7412; --s3:#A63A28; --s4:#3D6B45;\n  --s5:#6B4A8E; --s6:#1F5A80; --s7:#9A7412; --s8:#2A6E7A;\n  --o-card-bg:#FFFDF9;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#14120F; --card:#1C1A16; --card-head-fg:#9A9084;\n  --border:#332E26; --border-soft:#28241E;\n  --text:#F0EADF; --text2:#B0A695; --text3:#847B6E;\n  --accent:#E0654B; --accent-ink:#14120F; --accent-text:#EE7C63; --accent-soft:#2E1E19;\n  --hover:#221F1A; --ok:#6FA878; --ok-text:#84BC8D;\n  --card-border:1px solid #332E26;\n\n  --sidebar-bg:#14120F; --sidebar-fg:#CFC6B8; --sidebar-dim:#7A7266;\n  --sidebar-hover:#1E1B16; --sidebar-active-fg:#EE7C63;\n  --sidebar-border:1px solid #332E26;\n  --brand-mark-bg:#F0EADF; --brand-fg:#F0EADF;\n  --topbar-bg:#14120F; --subnav-bg:#14120F;\n  --pill-border:#332E26;\n  --shadow:none; --shadow-lg:0 8px 26px rgba(0,0,0,.6);\n\n  --tone-gold:#332B18; --tone-purple:#282133; --tone-red:#33201B; --tone-green:#1D2E20;\n  --chip-bg:#1C1A16; --badge-fg:#B0A695;\n  --tag-ok-fg:#847B6E;\n  --tag-soon-fg:#D8A648;\n  --tag-late-bg:#E0654B; --tag-late-fg:#14120F;\n  --tag-done-fg:#84BC8D;\n  --flag-bg:#E0654B; --flag-fg:#14120F;\n\n  --s1:#7F9BEE; --s2:#D8A648; --s3:#EE7C63; --s4:#84BC8D;\n  --s5:#AE8FD8; --s6:#5E9CC8; --s7:#D8A648; --s8:#5BB3BE;\n  --o-card-bg:#1C1A16;\n}","x":"\n/* Editorial runs the board unfilled — rules and whitespace do the work */\n.k-col{\n  --k-head-bg:transparent; --k-head-fg:var(--sc);\n  --k-count-bg:transparent; --k-body-bg:transparent;\n}\n.greeting{font-style:italic}\n.board-title{font-style:italic}\n.card-head{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;font-size:10.5px;font-weight:700;border-bottom:1px solid var(--border)}\n.kpi{border-radius:0;border:none;border-top:2px solid var(--text);padding:14px 0 0;background:transparent;box-shadow:none}\n.kpi:hover{transform:none;box-shadow:none;border-top-color:var(--accent)}\n.kpi-ico{display:none}\n.kpi-num{font-size:var(--kpi-size);font-weight:400}\n.kpi-lbl{font-size:10px;letter-spacing:.12em}\n.k-col{box-shadow:none;border-radius:0}\n.k-head{border-bottom:2px solid var(--sc);padding:0 0 7px;letter-spacing:.12em;font-size:10px;margin-bottom:10px}\n.k-body{padding:0;background:transparent;gap:12px}\n.o-card{border:none;border-left:none;border-top:1px solid var(--border);border-radius:0;padding:12px 0 13px;box-shadow:none;background:transparent}\n.o-card:hover{transform:none;box-shadow:none;background:transparent}\n.o-card:first-child{border-top:none}\n.o-name{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:16px;font-weight:400;letter-spacing:-.01em}\n.o-desc{font-size:12.5px;line-height:1.5;margin-top:4px}\n.o-badge{border:none;padding:2px 0;margin-right:9px;text-transform:uppercase;letter-spacing:.07em;font-size:9.5px}\n.o-price{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:15px;font-weight:400}\n.tag{border-radius:2px;text-transform:uppercase;letter-spacing:.08em;font-size:9.5px;padding:2px 0}\n.tag.late,.tag.done{padding:2px 7px}\n.sb-item.active{border-left:2px solid var(--accent);margin-left:-2px;padding-left:11px;border-radius:0}\n.vs-btn{padding:10px 0;font-size:11px;text-transform:uppercase;letter-spacing:.12em;border-radius:0}\n.card{overflow:visible}\n.card-body,.list,.studio-grid{padding-left:0;padding-right:0}\n.card{background:transparent;border:none;border-top:1px solid var(--border);border-radius:0;box-shadow:none}\n.card:hover{box-shadow:none}\n.card-head{padding:12px 0 8px;background:transparent}\n.li{padding:8px 0}\n.studio-chip{background:transparent;border:none;border-left:1px solid var(--border);padding-left:11px;border-radius:0}\n.brand-name{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:15px}\n.brand-mark{background:transparent;border:1px solid var(--border);color:var(--text)}"},{"n":"Glass","t":"Glassmorphic. Translucent layered surfaces over a live gradient field, backdrop blur, luminous accents.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;\n  --radius:18px; --radius-sm:12px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:14px; --greet-size:26px; --greet-weight:700; --greet-track:-.025em;\n\n  --bg:#EDF0FB; --card:rgba(255,255,255,.62); --card-head-bg:rgba(255,255,255,.34);\n  --card-head-fg:#2A2455;\n  --border:rgba(255,255,255,.72); --border-soft:rgba(120,110,190,.16);\n  --text:#221D48; --text2:#5A5288; --text3:#8781AC;\n  --accent:#6D5EF8; --accent-ink:#FFFFFF; --accent-text:#5A48E8; --accent-soft:rgba(109,94,248,.13);\n  --hover:rgba(255,255,255,.55); --ok:#22B48C; --ok-text:#149472;\n\n  --sidebar-bg:rgba(255,255,255,.42); --sidebar-fg:#3A3370; --sidebar-dim:#8781AC;\n  --sidebar-hover:rgba(255,255,255,.6); --sidebar-active-bg:rgba(109,94,248,.16); --sidebar-active-fg:#4A38DC;\n  --sidebar-border:1px solid rgba(255,255,255,.6);\n  --brand-mark-bg:linear-gradient(140deg,#8B7CFF,#5A48E8); --brand-fg:#221D48;\n  --topbar-bg:rgba(255,255,255,.5); --subnav-bg:transparent;\n  --pill-bg:rgba(255,255,255,.5); --pill-border:rgba(255,255,255,.75);\n  --shadow:0 4px 20px rgba(70,60,150,.09);\n  --shadow-lg:0 14px 40px rgba(70,60,150,.19);\n  --card-border:1px solid rgba(255,255,255,.72);\n\n  --tone-gold:rgba(250,190,90,.32); --tone-purple:rgba(150,110,245,.26);\n  --tone-red:rgba(245,110,120,.26); --tone-green:rgba(60,200,150,.26);\n  --chip-bg:rgba(255,255,255,.45); --badge-bg:rgba(255,255,255,.5); --badge-fg:#5A5288;\n  --tag-ok-bg:rgba(255,255,255,.6); --tag-ok-fg:#5A5288;\n  --tag-soon-bg:rgba(250,180,70,.26); --tag-soon-fg:#8A5A08;\n  --tag-late-bg:rgba(245,90,110,.26); --tag-late-fg:#A81E3C;\n  --tag-done-bg:rgba(40,195,145,.26); --tag-done-fg:#0E7A5C;\n  --flag-bg:rgba(250,180,70,.3); --flag-fg:#8A5A08;\n\n  --s1:#5A72F5; --s2:#E0A420; --s3:#F0713C; --s4:#20BC8C;\n  --s5:#9B5CE8; --s6:#3C86E0; --s7:#E0A420; --s8:#20A8C8;\n  --mix-head-fg:72%;\n  --glass-head:rgba(255,255,255,.5); --glass-body:rgba(255,255,255,.35);\n  --k-count-bg:rgba(255,255,255,.55);\n  --o-card-bg:rgba(255,255,255,.66);\n  --glow1:#A78BFA; --glow2:#F0A8D0; --glow3:#7DD3FC; --glow4:#FDE68A;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#0A0818; --card:rgba(40,34,80,.5); --card-head-bg:rgba(60,52,110,.4);\n  --card-head-fg:#D8D2F5;\n  --border:rgba(150,138,235,.2); --border-soft:rgba(150,138,235,.13);\n  --text:#EDEAFB; --text2:#A8A0D8; --text3:#7E77AC;\n  --accent:#8B7CFF; --accent-ink:#0A0818; --accent-text:#A99CFF; --accent-soft:rgba(139,124,255,.18);\n  --hover:rgba(90,80,160,.3); --ok:#3FD9A8; --ok-text:#4FE0B4;\n\n  --sidebar-bg:rgba(28,22,58,.55); --sidebar-fg:#C4BDEC; --sidebar-dim:#7E77AC;\n  --sidebar-hover:rgba(70,60,130,.4); --sidebar-active-bg:rgba(139,124,255,.22); --sidebar-active-fg:#C0B4FF;\n  --sidebar-border:1px solid rgba(150,138,235,.16);\n  --brand-fg:#EDEAFB;\n  --topbar-bg:rgba(28,22,58,.5);\n  --pill-bg:rgba(60,52,110,.4); --pill-border:rgba(150,138,235,.22);\n  --shadow:0 4px 22px rgba(0,0,0,.35); --shadow-lg:0 16px 44px rgba(0,0,0,.55);\n  --card-border:1px solid rgba(150,138,235,.2);\n\n  --tone-gold:rgba(240,180,80,.2); --tone-purple:rgba(160,120,250,.24);\n  --tone-red:rgba(245,110,130,.2); --tone-green:rgba(60,215,160,.2);\n  --chip-bg:rgba(60,52,110,.35); --badge-bg:rgba(70,60,125,.4); --badge-fg:#A8A0D8;\n  --tag-ok-bg:rgba(70,60,125,.45); --tag-ok-fg:#A8A0D8;\n  --tag-soon-bg:rgba(240,175,70,.22); --tag-soon-fg:#F5C468;\n  --tag-late-bg:rgba(245,90,120,.24); --tag-late-fg:#FF93A8;\n  --tag-done-bg:rgba(50,215,160,.2); --tag-done-fg:#5FE8B8;\n  --flag-bg:rgba(240,175,70,.24); --flag-fg:#F5C468;\n\n  --s1:#7E92FF; --s2:#F0BE50; --s3:#FF9160; --s4:#3FD9A8;\n  --s5:#B87DFF; --s6:#5FA5FF; --s7:#F0BE50; --s8:#48C8E8;\n  --mix-head-fg:88%;\n  --glass-head:rgba(45,38,88,.55); --glass-body:rgba(35,29,72,.45);\n  --k-count-bg:rgba(0,0,0,.28);\n  --o-card-bg:rgba(52,44,96,.55);\n  --glow1:#5B21B6; --glow2:#9D174D; --glow3:#0E7490; --glow4:#3730A3;\n}","x":"\n/* Glass blends the stage hue into a translucent pane, not an opaque card */\n.k-col{\n  --k-head-bg:color-mix(in srgb,var(--sc) 22%,var(--glass-head));\n  --k-body-bg:color-mix(in srgb,var(--sc) 8%,var(--glass-body));\n}\n#stage{position:relative;overflow-x:hidden}\n#stage::before{\n  content:'';position:absolute;inset:-25%;z-index:-1;pointer-events:none;\n  background:\n    radial-gradient(46% 42% at 18% 22%,var(--glow1) 0%,transparent 62%),\n    radial-gradient(40% 38% at 82% 16%,var(--glow2) 0%,transparent 62%),\n    radial-gradient(48% 45% at 72% 82%,var(--glow3) 0%,transparent 62%),\n    radial-gradient(38% 36% at 26% 86%,var(--glow4) 0%,transparent 62%);\n  filter:blur(52px);opacity:.62;\n  animation:drift 26s ease-in-out infinite alternate;\n}\n@keyframes drift{\n  0%{transform:translate3d(0,0,0) scale(1)}\n  50%{transform:translate3d(2.5%,-2%,0) scale(1.07)}\n  100%{transform:translate3d(-2%,2.5%,0) scale(1.03)}\n}\n@media (prefers-reduced-motion:reduce){body::before{animation:none}}\n.sidebar,.topbar,.card,.kpi,.k-col,.o-card,.pill,.theme-toggle{\n  backdrop-filter:blur(18px) saturate(1.7);\n  -webkit-backdrop-filter:blur(18px) saturate(1.7);\n}\n.k-col{border:1px solid var(--border)}\n.o-card{border:1px solid var(--border);border-left:3px solid var(--sc)}\n.card-head{border-bottom:1px solid var(--border-soft)}\n.vs{border-bottom:1px solid var(--border-soft)}\n.btn{box-shadow:0 4px 16px color-mix(in srgb,var(--accent) 42%,transparent)}\n.kpi-ico{backdrop-filter:none;-webkit-backdrop-filter:none}"},{"n":"Brutalist","t":"Zero radius, heavy rules, hard offset shadows, monospace labels, unmixed primaries. Loud and unmistakable.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:'Helvetica Neue',Helvetica,Arial,sans-serif; --font-num:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;\n  --radius:0px; --radius-sm:0px; --ease:steps(1,end);\n  --gap:10px; --greet-size:30px; --greet-weight:800; --greet-track:-.04em;\n  --title-weight:800; --kpi-size:32px; --col-gap:10px;\n  --head-case:uppercase; --head-track:.1em; --vs-gap:0;\n\n  --bg:#F2F0E8; --card:#FFFFFF; --card-head-bg:#0D0D0D; --card-head-fg:#FFFFFF;\n  --border:#0D0D0D; --border-soft:#0D0D0D;\n  --text:#0D0D0D; --text2:#3E3E3E; --text3:#6B6B6B;\n  --accent:#1B3FE0; --accent-ink:#FFFFFF; --accent-text:#1B3FE0; --accent-soft:#DCE2FC;\n  --hover:#EAE7DC; --ok:#0F9B4E; --ok-text:#0A7A3C;\n  --card-border:2px solid #0D0D0D;\n  --btn-border:2px solid #0D0D0D; --btn-shadow:3px 3px 0 #0D0D0D;\n\n  --sidebar-bg:#FFE94A; --sidebar-fg:#0D0D0D; --sidebar-dim:#5E5A2E;\n  --sidebar-hover:#0D0D0D; --sidebar-active-bg:#0D0D0D; --sidebar-active-fg:#FFE94A;\n  --sidebar-border:3px solid #0D0D0D;\n  --brand-mark-bg:#0D0D0D; --brand-fg:#0D0D0D; --brand-weight:800;\n  --topbar-bg:#FFFFFF; --subnav-bg:#F2F0E8;\n  --pill-bg:#FFFFFF; --pill-border:#0D0D0D; --pill-radius:0px;\n  --shadow:3px 3px 0 #0D0D0D; --shadow-lg:6px 6px 0 #0D0D0D;\n\n  --tone-gold:#FFE94A; --tone-purple:#D8B4FE; --tone-red:#FF6B5A; --tone-green:#4ADE80;\n  --chip-bg:#F2F0E8; --badge-bg:#FFFFFF; --badge-fg:#0D0D0D;\n  --tag-ok-bg:#FFFFFF; --tag-ok-fg:#0D0D0D;\n  --tag-soon-bg:#FFE94A; --tag-soon-fg:#0D0D0D;\n  --tag-late-bg:#FF3B2F; --tag-late-fg:#FFFFFF;\n  --tag-done-bg:#4ADE80; --tag-done-fg:#0D0D0D;\n  --flag-bg:#FF3B2F; --flag-fg:#FFFFFF;\n\n  --s1:#1B3FE0; --s2:#FFC400; --s3:#FF6B00; --s4:#00A85A;\n  --s5:#9333EA; --s6:#0070D8; --s7:#FFC400; --s8:#00A0C0;\n  --k-solid-fg:#FFFFFF; --k-solid-body:#FFFFFF;\n  --k-count-bg:rgba(0,0,0,.28);\n  --o-card-bg:#FFFFFF;\n  --o-edge-w:6px;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#0A0A0A; --card:#151515; --card-head-bg:#F2F0E8; --card-head-fg:#0A0A0A;\n  --border:#F2F0E8; --border-soft:#F2F0E8;\n  --text:#F2F0E8; --text2:#B8B5AC; --text3:#8A8780;\n  --accent:#5C7CFF; --accent-ink:#0A0A0A; --accent-text:#7E97FF; --accent-soft:#1A2044;\n  --hover:#1F1F1F; --ok:#3EE07E; --ok-text:#52E890;\n  --card-border:2px solid #F2F0E8;\n  --btn-border:2px solid #F2F0E8; --btn-shadow:3px 3px 0 #F2F0E8;\n\n  --sidebar-bg:#D4FF3F; --sidebar-fg:#0A0A0A; --sidebar-dim:#4E5A20;\n  --sidebar-hover:#0A0A0A; --sidebar-active-bg:#0A0A0A; --sidebar-active-fg:#D4FF3F;\n  --sidebar-border:3px solid #F2F0E8;\n  --brand-mark-bg:#0A0A0A; --brand-fg:#0A0A0A;\n  --topbar-bg:#151515; --subnav-bg:#0A0A0A;\n  --pill-bg:#151515; --pill-border:#F2F0E8;\n  --shadow:3px 3px 0 #F2F0E8; --shadow-lg:6px 6px 0 #F2F0E8;\n\n  --tone-gold:#D4FF3F; --tone-purple:#B07EF5; --tone-red:#FF5A48; --tone-green:#3EE07E;\n  --chip-bg:#0A0A0A; --badge-bg:#151515; --badge-fg:#F2F0E8;\n  --tag-ok-bg:#151515; --tag-ok-fg:#F2F0E8;\n  --tag-soon-bg:#D4FF3F; --tag-soon-fg:#0A0A0A;\n  --tag-late-bg:#FF3B2F; --tag-late-fg:#FFFFFF;\n  --tag-done-bg:#3EE07E; --tag-done-fg:#0A0A0A;\n  --flag-bg:#FF3B2F; --flag-fg:#FFFFFF;\n\n  --s1:#5C7CFF; --s2:#E8D63A; --s3:#FF8A3C; --s4:#2FCE7E;\n  --s5:#B07EF5; --s6:#3D9BFF; --s7:#E8D63A; --s8:#2FC4E8;\n  --k-solid-fg:#0A0A0A; --k-solid-body:#151515;\n  --k-count-bg:rgba(0,0,0,.24);\n  --o-card-bg:#1A1A1A;\n}","x":"\n/* Brutalist takes the stage hue at full strength — no blending */\n.k-col{\n  --k-head-bg:var(--sc); --k-head-fg:var(--k-solid-fg);\n  --k-body-bg:var(--k-solid-body);\n}\n.brand-name,.topbar-title,.greeting,.board-title{text-transform:uppercase}\n.greeting{line-height:1}\n.sb-section{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9.5px;letter-spacing:.14em}\n.sb-item{font-weight:600;border:2px solid transparent}\n.sb-item:hover{color:var(--sidebar-active-fg)}\n.sb-item.active{border-color:var(--border)}\n.sb-badge{border-radius:0;border:2px solid var(--border)}\n.brand-mark{color:var(--sidebar-bg)}\n.card-head{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:10.5px;font-weight:700}\n.kpi{border-width:2px}\n.kpi:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow-lg)}\n.kpi-ico{border:2px solid var(--border)}\n.kpi-lbl{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9.5px;letter-spacing:.08em}\n.k-col{border:2px solid var(--border);box-shadow:var(--shadow)}\n.k-head{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;border-bottom:2px solid var(--border);font-size:10px;letter-spacing:.1em}\n.k-count{border-radius:0;color:inherit}\n.o-card{border:2px solid var(--border);border-left:var(--o-edge-w) solid var(--sc);box-shadow:none}\n.o-card:hover{transform:translate(-2px,-2px);box-shadow:3px 3px 0 var(--border)}\n.o-name{font-weight:800;text-transform:uppercase;letter-spacing:-.01em;font-size:12px}\n.o-badge{border:2px solid var(--border);border-radius:0;font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9px}\n.tag{border-radius:0;border:2px solid var(--border);font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9px;padding:1px 5px}\n.o-price{font-size:13px}\n.vs{border-bottom:3px solid var(--border)}\n.vs-btn{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;text-transform:uppercase;letter-spacing:.08em;border:2px solid transparent;border-bottom:none;font-size:11px}\n.vs-btn.active{border-color:var(--border);background:var(--card);color:var(--text)}\n.topbar{border-bottom:3px solid var(--border)}\n.pill,.theme-toggle{border-width:2px;font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:10.5px;font-weight:700}\n.card{border-width:2px}\n.studio-chip{border:2px solid var(--border)}\n.studio-l{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9.5px}\n.li{border-top:2px solid var(--border)}\n.li-time{font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace}\n.icon-btn{border:2px solid transparent}\n.icon-btn:hover{border-color:var(--border)}\n.k-empty{border:2px dashed var(--border);font-style:normal;font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;text-transform:uppercase;font-size:10px}"},{"n":"Terminal","t":"Monospace throughout, command-bar driven, phosphor accent. Dark-native and keyboard-forward.","k":"\n#stage{\n  --font:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace; --font-head:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace; --font-num:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;\n  --fs:12.5px; --radius:0px; --radius-sm:0px; --ease:steps(2,end);\n  --gap:8px; --pad:16px; --view-pad:16px; --topbar-h:40px; --sidebar-w:212px;\n  --greet-size:18px; --greet-weight:700; --greet-track:0;\n  --title-size:12.5px; --kpi-size:26px; --col-gap:6px; --col-min:146px;\n  --vs-pad:0 16px; --vs-gap:0; --head-case:uppercase; --head-track:.1em;\n\n  --bg:#F0F4F1; --card:#FFFFFF; --card-head-bg:#E4EDE7; --card-head-fg:#12301F;\n  --border:#BFD2C6; --border-soft:#D6E3DA;\n  --text:#0C2016; --text2:#3E5D4C; --text3:#6E8A7B;\n  --accent:#0A8F4A; --accent-ink:#FFFFFF; --accent-text:#0A7A40; --accent-soft:#DCF0E4;\n  --hover:#E8F1EB; --ok:#0A8F4A; --ok-text:#0A7A40;\n\n  --sidebar-bg:#0C2016; --sidebar-fg:#8FCFA8; --sidebar-dim:#4E7A60;\n  --sidebar-hover:#123024; --sidebar-active-bg:#0A8F4A; --sidebar-active-fg:#04120A;\n  --sidebar-border:1px solid #1C4030;\n  --brand-mark-bg:#0A8F4A; --brand-fg:#B0E8C4;\n  --topbar-bg:#FFFFFF; --subnav-bg:#E4EDE7;\n  --pill-bg:#FFFFFF; --pill-border:#BFD2C6; --pill-radius:0px;\n  --shadow:none; --shadow-lg:0 0 0 1px var(--accent);\n  --card-border:1px solid #BFD2C6;\n\n  --tone-gold:#F5E9C8; --tone-purple:#E4DCF2; --tone-red:#F8DED8; --tone-green:#D6EEDE;\n  --chip-bg:#F0F4F1; --badge-bg:#EDF3EF; --badge-fg:#3E5D4C;\n  --tag-ok-bg:#EDF3EF; --tag-ok-fg:#3E5D4C;\n  --tag-soon-bg:#F8EBCC; --tag-soon-fg:#7A5A0A;\n  --tag-late-bg:#F8D8D0; --tag-late-fg:#A02818;\n  --tag-done-bg:#D0EEDC; --tag-done-fg:#0A6E38;\n  --flag-bg:#F8EBCC; --flag-fg:#7A5A0A;\n\n  --s1:#1E5FD0; --s2:#A88010; --s3:#C05820; --s4:#0A8F4A;\n  --s5:#7038B8; --s6:#1660A0; --s7:#A88010; --s8:#0A7A90;\n  --mix-head:16%; --mix-head-fg:80%; --mix-count:24%; --mix-body:0%;\n  --o-card-bg:#FFFFFF;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#050C08; --card:#0A150F; --card-head-bg:#0E1F16; --card-head-fg:#6FE8A0;\n  --border:#1A3826; --border-soft:#132C1D;\n  --text:#B4F0CC; --text2:#6EB88A; --text3:#4A8060;\n  --accent:#2AF57C; --accent-ink:#04120A; --accent-text:#2AF57C; --accent-soft:#0C2E1A;\n  --hover:#102818; --ok:#2AF57C; --ok-text:#2AF57C;\n  --card-border:1px solid #1A3826;\n\n  --sidebar-bg:#040A06; --sidebar-fg:#7ED8A0; --sidebar-dim:#3E6E50;\n  --sidebar-hover:#0C1E12; --sidebar-active-bg:#2AF57C; --sidebar-active-fg:#04120A;\n  --sidebar-border:1px solid #143020;\n  --brand-mark-bg:#2AF57C; --brand-fg:#8FF5B8;\n  --topbar-bg:#0A150F; --subnav-bg:#0A150F;\n  --pill-bg:#0C1C12; --pill-border:#1A3826;\n  --shadow:none; --shadow-lg:0 0 0 1px var(--accent),0 0 16px rgba(42,245,124,.16);\n\n  --tone-gold:#2A2410; --tone-purple:#221838; --tone-red:#2E1410; --tone-green:#0C3018;\n  --chip-bg:#0C1C12; --badge-bg:#0E2216; --badge-fg:#6EB88A;\n  --tag-ok-bg:#0E2216; --tag-ok-fg:#6EB88A;\n  --tag-soon-bg:#2E2810; --tag-soon-fg:#E8C848;\n  --tag-late-bg:#331410; --tag-late-fg:#FF6E56;\n  --tag-done-bg:#0C3018; --tag-done-fg:#2AF57C;\n  --flag-bg:#2E2810; --flag-fg:#E8C848;\n\n  --s1:#4E8CFF; --s2:#E8C848; --s3:#FF8A48; --s4:#2AF57C;\n  --s5:#B070FF; --s6:#38A8FF; --s7:#E8C848; --s8:#28D8E8;\n  --mix-head:14%; --mix-head-fg:100%; --mix-count:22%; --mix-body:0%;\n  --o-card-bg:#0C1A12;\n}","x":"\n.brand-name::before{content:'$ '}\n.brand-name{font-size:12.5px;font-weight:700;letter-spacing:-.02em}\n.brand-sub::before{content:'// '}\n.sb-section::before{content:'── '}\n.sb-item::before{content:'';width:0}\n.sb-item.active::before{content:'▸ ';margin-right:-4px;width:auto}\n.sb-item{font-size:12px;padding:4px 8px}\n.sb-section{font-size:9.5px;letter-spacing:.12em;padding:12px 8px 3px}\n.topbar-title::before{content:'~/ '}\n.greeting::before{content:'> ';color:var(--accent)}\n.board-title::before{content:'> ';color:var(--accent)}\n.card-head{font-size:10.5px;font-weight:700;border-bottom:1px dashed var(--border)}\n.card-head span:first-child::before{content:'[ ';color:var(--text3)}\n.card-head span:first-child::after{content:' ]';color:var(--text3)}\n.kpi{border-radius:0;padding:11px 13px}\n.kpi:hover{transform:none;box-shadow:var(--shadow-lg)}\n.kpi-ico{border-radius:0;width:32px;height:32px;font-size:15px}\n.kpi-lbl{font-size:9.5px;letter-spacing:.08em}\n.k-col{border:1px solid var(--border)}\n.k-head{border-bottom:1px solid var(--border);font-size:10px;letter-spacing:.1em}\n.k-count{border-radius:0}\n.k-body{padding:6px;gap:6px}\n.o-card{border:1px solid var(--border);border-left:3px solid var(--sc);box-shadow:none;padding:8px 9px}\n.o-card:hover{transform:none;box-shadow:var(--shadow-lg)}\n.o-name{font-size:12px;font-weight:700}\n.o-name::before{content:'● ';color:var(--sc)}\n.o-desc{font-size:11px;line-height:1.45;color:var(--text2)}\n.o-badge{border-radius:0;font-size:9.5px;border:1px solid var(--border-soft)}\n.tag{border-radius:0;font-size:9.5px;padding:1px 5px;border:1px solid currentColor}\n.vs-btn{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;border-radius:0;padding:9px 13px}\n.vs-btn::before{content:'[';opacity:.45;margin-right:3px}\n.vs-btn::after{content:']';opacity:.45;margin-left:3px}\n.pill,.theme-toggle{border-radius:0;font-size:11px}\n.btn{border-radius:0;font-weight:700;letter-spacing:.04em}\n.studio-chip{border-radius:0}\n.studio-l{font-size:9.5px;letter-spacing:.05em}\n.li{border-top:1px dashed var(--border-soft)}\n.k-empty{border:1px dashed var(--border);border-radius:0;font-style:normal;font-size:10.5px}\n.k-empty::before{content:'— '}\n.k-empty::after{content:' —'}"},{"n":"Warm Craft","t":"The bench itself — kraft paper and linen texture, warm neutrals, gold-foil accents, hand-drawn edges.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif; --font-num:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;\n  --radius:10px; --radius-sm:7px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:14px; --greet-size:27px; --greet-weight:400; --greet-track:-.02em;\n  --title-weight:600; --kpi-size:27px;\n\n  --bg:#EBE1D2; --card:#FBF6ED; --card-head-bg:#F2E9DA; --card-head-fg:#4E3E2A;\n  --border:#D4C2A4; --border-soft:#E2D5BE;\n  --text:#33281B; --text2:#6B5A44; --text3:#94836C;\n  --accent:#A87526; --accent-ink:#FFF9EE; --accent-text:#8A5F17; --accent-soft:#F5E9D2;\n  --hover:#F2E9DA; --ok:#5A7A46; --ok-text:#48663A;\n\n  --sidebar-bg:#2E2419; --sidebar-fg:#D6C6AC; --sidebar-dim:#8E7C62;\n  --sidebar-hover:#3A2E20; --sidebar-active-bg:#4A3A26; --sidebar-active-fg:#EFCE84;\n  --sidebar-border:1px solid #453626;\n  --brand-mark-bg:linear-gradient(140deg,#EFCE84,#A87526); --brand-fg:#EFCE84; --brand-weight:400;\n  --topbar-bg:#FBF6ED; --subnav-bg:#F2E9DA;\n  --pill-bg:#F5EFE2; --pill-border:#DDCDB0;\n  --shadow:0 1px 2px rgba(51,40,27,.07),0 2px 5px rgba(51,40,27,.05);\n  --shadow-lg:0 10px 24px rgba(51,40,27,.14);\n\n  --tone-gold:#F5E4C0; --tone-purple:#E8DFEC; --tone-red:#F5DDD2; --tone-green:#DFE9D4;\n  --chip-bg:#F5EFE2; --badge-bg:#F5EFE2; --badge-fg:#6B5A44;\n  --tag-ok-bg:#F0E7D6; --tag-ok-fg:#6B5A44;\n  --tag-soon-bg:#F7E3BC; --tag-soon-fg:#8A5F17;\n  --tag-late-bg:#F2D4C6; --tag-late-fg:#9E3E1E;\n  --tag-done-bg:#DDE8CE; --tag-done-fg:#4A6636;\n  --flag-bg:#F7E3BC; --flag-fg:#8A5F17;\n\n  --s1:#3E5C9E; --s2:#B08418; --s3:#BE6428; --s4:#5A8248;\n  --s5:#7A5896; --s6:#356C9A; --s7:#B08418; --s8:#3A7E88;\n  --mix-head:15%; --mix-head-fg:74%; --mix-count:22%; --mix-body:6%;\n  --o-card-bg:#FFFCF5;\n  --grain:rgba(120,95,60,.055); --grain2:rgba(120,95,60,.03);\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#15110C; --card:#211B13; --card-head-bg:#2A2218; --card-head-fg:#D8C6A6;\n  --border:#3D3222; --border-soft:#2E2619;\n  --text:#EFE3CE; --text2:#B4A386; --text3:#8A7A62;\n  --accent:#D9A84E; --accent-ink:#1A1408; --accent-text:#E8BE72; --accent-soft:#332815;\n  --hover:#2A2218; --ok:#8AB070; --ok-text:#9EC484;\n\n  --sidebar-bg:#0F0C08; --sidebar-fg:#C4B394; --sidebar-dim:#7A6A52;\n  --sidebar-hover:#1A150E; --sidebar-active-bg:#2E2416; --sidebar-active-fg:#EFCE84;\n  --sidebar-border:1px solid #2A2216;\n  --topbar-bg:#1A150E; --subnav-bg:#1A150E;\n  --pill-bg:#241D14; --pill-border:#3D3222;\n  --shadow:0 1px 3px rgba(0,0,0,.4); --shadow-lg:0 12px 28px rgba(0,0,0,.58);\n\n  --tone-gold:#332815; --tone-purple:#2A2230; --tone-red:#331F16; --tone-green:#232E1C;\n  --chip-bg:#2A2218; --badge-bg:#2A2218; --badge-fg:#B4A386;\n  --tag-ok-bg:#2A2218; --tag-ok-fg:#B4A386;\n  --tag-soon-bg:#3A2C14; --tag-soon-fg:#E8BE72;\n  --tag-late-bg:#3A2016; --tag-late-fg:#EE9270;\n  --tag-done-bg:#243218; --tag-done-fg:#9EC484;\n  --flag-bg:#3A2C14; --flag-fg:#E8BE72;\n\n  --s1:#7C98E0; --s2:#DFB44E; --s3:#E88E56; --s4:#8EBE72;\n  --s5:#AE8ACE; --s6:#5E9ECE; --s7:#DFB44E; --s8:#5EB4BE;\n  --mix-head:17%; --mix-head-fg:84%; --mix-count:25%; --mix-body:7%;\n  --o-card-bg:#261F16;\n  --grain:rgba(255,225,180,.028); --grain2:rgba(255,225,180,.016);\n}","x":"\n/* Linen weave — pure CSS, no image requests */\n#stage{\n  background-image:\n    repeating-linear-gradient(90deg,var(--grain) 0 1px,transparent 1px 3px),\n    repeating-linear-gradient(0deg,var(--grain2) 0 1px,transparent 1px 3px);\n}\n.card,.kpi,.k-col{\n  background-image:repeating-linear-gradient(45deg,var(--grain2) 0 1px,transparent 1px 4px);\n}\n.greeting,.board-title{font-style:italic}\n.card-head{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:13.5px;font-weight:600}\n.brand-name{font-size:14.5px}\n.kpi-num,.sales-num,.trip-miles,.studio-n,.o-price{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-weight:600}\n/* Gold foil rule under the stage header */\n.k-head{\n  border-bottom:2px solid transparent;\n  border-image:linear-gradient(90deg,var(--sc),transparent) 1;\n}\n.o-card{border-left-style:solid}\n.btn{background:linear-gradient(140deg,var(--accent),color-mix(in srgb,var(--accent) 60%,#6A4410))}\n.sb-badge{background:linear-gradient(140deg,#EFCE84,#A87526);color:#2E2419}\n.tag{border-radius:20px}\n.o-badge{border-radius:20px}"},{"n":"Soft","t":"Neumorphic calm. Low contrast, extruded surfaces, generous radius — nothing shouts at you.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;\n  --radius:20px; --radius-sm:13px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:16px; --pad:26px; --view-pad:24px 26px 40px;\n  --greet-size:25px; --greet-weight:700; --greet-track:-.025em; --kpi-size:26px;\n\n  --bg:#E7EBF2; --card:#E7EBF2; --card-head-bg:transparent; --card-head-fg:#4C5670;\n  --border:transparent; --border-soft:rgba(140,152,180,.2);\n  --text:#3B455C; --text2:#69738C; --text3:#959DB4;\n  --accent:#6C8BD8; --accent-ink:#FFFFFF; --accent-text:#5578CC; --accent-soft:rgba(108,139,216,.14);\n  --hover:rgba(255,255,255,.6); --ok:#54B08C; --ok-text:#3F9878;\n  --card-border:none;\n\n  --sidebar-bg:#E7EBF2; --sidebar-fg:#4C5670; --sidebar-dim:#6E7690;\n  --sidebar-hover:rgba(255,255,255,.55); --sidebar-active-bg:#E7EBF2; --sidebar-active-fg:#5578CC;\n  --sidebar-border:none;\n  --brand-mark-bg:linear-gradient(145deg,#7E9CE4,#5578CC); --brand-fg:#3B455C;\n  --topbar-bg:#E7EBF2; --subnav-bg:#E7EBF2;\n  --pill-bg:#E7EBF2; --pill-border:transparent;\n  --shadow:6px 6px 13px rgba(163,177,200,.55),-6px -6px 13px rgba(255,255,255,.92);\n  --shadow-lg:9px 9px 20px rgba(163,177,200,.6),-9px -9px 20px rgba(255,255,255,.95);\n  --inset:inset 3px 3px 7px rgba(163,177,200,.55),inset -3px -3px 7px rgba(255,255,255,.9);\n\n  --tone-gold:#F0E2C4; --tone-purple:#E2DCF0; --tone-red:#F2DCDC; --tone-green:#D8ECE2;\n  --chip-bg:#E7EBF2; --badge-bg:#E7EBF2; --badge-fg:#69738C;\n  --tag-ok-bg:#E1E6EF; --tag-ok-fg:#69738C;\n  --tag-soon-bg:#F2E4C6; --tag-soon-fg:#8A6A20;\n  --tag-late-bg:#F2D8D8; --tag-late-fg:#A84A4A;\n  --tag-done-bg:#D6EAE0; --tag-done-fg:#3F8A6C;\n  --flag-bg:#F2E4C6; --flag-fg:#8A6A20;\n\n  --s1:#6C8BD8; --s2:#D8A852; --s3:#DE8A62; --s4:#54B08C;\n  --s5:#A085D8; --s6:#5E9CD8; --s7:#D8A852; --s8:#5AAEC0;\n  --mix-head-fg:62%; --mix-count:18%;\n  --o-card-bg:#E7EBF2;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#242832; --card:#242832; --card-head-fg:#A8B0C4;\n  --border:transparent; --border-soft:rgba(255,255,255,.06);\n  --text:#D3DAE8; --text2:#9AA3B8; --text3:#767E92;\n  --accent:#7F9CEC; --accent-ink:#191C24; --accent-text:#93ACF2; --accent-soft:rgba(127,156,236,.16);\n  --hover:rgba(255,255,255,.05); --ok:#5CC49C; --ok-text:#6ED4AC;\n\n  --sidebar-bg:#242832; --sidebar-fg:#B4BCD0; --sidebar-dim:#767E92;\n  --sidebar-hover:rgba(255,255,255,.05); --sidebar-active-bg:#242832; --sidebar-active-fg:#93ACF2;\n  --brand-fg:#D3DAE8;\n  --topbar-bg:#242832; --subnav-bg:#242832;\n  --pill-bg:#242832;\n  --shadow:6px 6px 13px rgba(14,16,22,.66),-6px -6px 13px rgba(48,54,68,.55);\n  --shadow-lg:9px 9px 20px rgba(14,16,22,.72),-9px -9px 20px rgba(50,56,72,.58);\n  --inset:inset 3px 3px 7px rgba(14,16,22,.66),inset -3px -3px 7px rgba(48,54,68,.5);\n\n  --tone-gold:#3A3220; --tone-purple:#2E2A3E; --tone-red:#3A2828; --tone-green:#22362E;\n  --chip-bg:#242832; --badge-bg:#242832; --badge-fg:#9AA3B8;\n  --tag-ok-bg:#2A2E3A; --tag-ok-fg:#9AA3B8;\n  --tag-soon-bg:#3E3420; --tag-soon-fg:#E0B863;\n  --tag-late-bg:#3E2828; --tag-late-fg:#F0908E;\n  --tag-done-bg:#22382E; --tag-done-fg:#6ED4AC;\n  --flag-bg:#3E3420; --flag-fg:#E0B863;\n\n  --s1:#7F9CEC; --s2:#E0B863; --s3:#EE9C72; --s4:#5CC49C;\n  --s5:#B096E8; --s6:#6EACE8; --s7:#E0B863; --s8:#68BED0;\n  --o-card-bg:#242832;\n}","x":"\n/* Soft carries the column on extrusion alone — no fills behind the stage */\n.k-col{--k-head-bg:transparent; --k-body-bg:transparent}\n.sidebar{box-shadow:var(--shadow)}\n.topbar{border-bottom:none;box-shadow:0 4px 12px rgba(0,0,0,.04)}\n.vs{border-bottom:none}\n.card,.kpi{border:none;box-shadow:var(--shadow)}\n.card:hover,.kpi:hover{box-shadow:var(--shadow-lg)}\n.card-head{border-bottom:1px solid var(--border-soft);font-weight:700}\n.k-col{box-shadow:var(--shadow);background:var(--card);padding:6px}\n.k-head{padding:11px 12px 9px;letter-spacing:.06em}\n.k-count{box-shadow:var(--inset);color:var(--k-head-fg)}\n.k-body{background:transparent;padding:6px}\n.o-card{\n  border:none;border-left:none;box-shadow:var(--shadow);\n  border-radius:var(--radius-sm);position:relative;overflow:hidden;\n}\n.o-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sc);border-radius:4px 0 0 4px}\n.o-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}\n.o-card{padding-left:15px}\n.pill,.theme-toggle{box-shadow:var(--shadow);border:none;border-radius:20px}\n.pill:hover,.theme-toggle:hover{background:var(--card);box-shadow:var(--inset)}\n.icon-btn{box-shadow:var(--shadow);border:none;border-radius:11px}\n.icon-btn:hover{background:var(--card);box-shadow:var(--inset)}\n.btn{box-shadow:var(--shadow);border:none;border-radius:13px}\n.btn:hover{filter:none;box-shadow:var(--shadow-lg)}\n.btn:active{box-shadow:var(--inset)}\n.sb-item.active{box-shadow:var(--inset)}\n.studio-chip{border:none;box-shadow:var(--inset);border-radius:13px}\n.tag{border-radius:20px;padding:3px 9px}\n.o-badge{border:none;border-radius:20px;padding:3px 8px;box-shadow:var(--inset)}\n.k-empty{border:none;box-shadow:var(--inset);border-radius:13px}\n.kpi-ico{box-shadow:var(--shadow);border-radius:13px}\n.sb-foot{border-top:1px solid var(--border-soft)}\n.sb-foot button{border:none;box-shadow:var(--shadow);border-radius:11px}"},{"n":"Product","t":"Modern SaaS discipline — hairline borders, tight neutral greys, small confident type. Dark-first.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;\n  --fs:13.5px; --radius:8px; --radius-sm:6px; --ease:cubic-bezier(.4,0,.2,1);\n  --gap:10px; --pad:18px; --view-pad:18px 18px 34px; --topbar-h:48px; --sidebar-w:216px;\n  --greet-size:19px; --greet-weight:600; --greet-track:-.02em;\n  --title-size:13.5px; --title-weight:600; --kpi-size:23px; --col-gap:8px;\n  --vs-pad:0 18px; --vs-gap:1px;\n\n  --bg:#FBFBFC; --card:#FFFFFF; --card-head-bg:#FFFFFF; --card-head-fg:#3C4048;\n  --border:#E5E6E9; --border-soft:#EFEFF1;\n  --text:#16171A; --text2:#61656E; --text3:#8B8F98;\n  --accent:#5C67E5; --accent-ink:#FFFFFF; --accent-text:#4F5AD8; --accent-soft:#EEEFFD;\n  --hover:#F5F5F7; --ok:#2A9E6E; --ok-text:#1F8A5E;\n\n  --sidebar-bg:#F8F8F9; --sidebar-fg:#3C4048; --sidebar-dim:#8B8F98;\n  --sidebar-hover:#EFEFF1; --sidebar-active-bg:#EAEBFC; --sidebar-active-fg:#4F5AD8;\n  --sidebar-border:1px solid #E5E6E9;\n  --brand-mark-bg:linear-gradient(145deg,#7C86F0,#4F5AD8); --brand-fg:#16171A;\n  --topbar-bg:#FFFFFF; --subnav-bg:#FFFFFF;\n  --pill-bg:#F5F5F7; --pill-border:#E5E6E9; --pill-radius:6px;\n  --shadow:0 1px 2px rgba(16,18,22,.05);\n  --shadow-lg:0 4px 14px rgba(16,18,22,.09),0 1px 3px rgba(16,18,22,.05);\n\n  --tone-gold:#FCF1DA; --tone-purple:#EEEBFC; --tone-red:#FCE7E4; --tone-green:#E2F4EC;\n  --chip-bg:#F8F8F9; --badge-bg:#F5F5F7; --badge-fg:#61656E;\n  --tag-ok-bg:#F2F2F4; --tag-ok-fg:#61656E;\n  --tag-soon-bg:#FDF0D8; --tag-soon-fg:#8A6412;\n  --tag-late-bg:#FCE2DE; --tag-late-fg:#B0341F;\n  --tag-done-bg:#DFF2E9; --tag-done-fg:#1F7A54;\n  --flag-bg:#FDF0D8; --flag-fg:#8A6412;\n\n  --s1:#4C63E0; --s2:#C08C10; --s3:#D06424; --s4:#1F9A68;\n  --s5:#8848CC; --s6:#2874C0; --s7:#C08C10; --s8:#1888A8;\n  --mix-head:0%; --mix-head-fg:76%; --mix-count:14%; --mix-body:3.5%;\n  --o-card-bg:#FFFFFF;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#0B0C0E; --card:#131417; --card-head-bg:#131417; --card-head-fg:#C6C9CF;\n  --border:#23252B; --border-soft:#1B1D22;\n  --text:#E9EAEC; --text2:#8B8F99; --text3:#686C76;\n  --accent:#6E79F0; --accent-ink:#FFFFFF; --accent-text:#8B94F5; --accent-soft:#1B1D3A;\n  --hover:#1A1C21; --ok:#35B584; --ok-text:#45C795;\n\n  --sidebar-bg:#0E0F12; --sidebar-fg:#B4B8C0; --sidebar-dim:#686C76;\n  --sidebar-hover:#17191D; --sidebar-active-bg:#1E2040; --sidebar-active-fg:#A0A8F8;\n  --sidebar-border:1px solid #1B1D22;\n  --brand-fg:#E9EAEC;\n  --topbar-bg:#0E0F12; --subnav-bg:#0E0F12;\n  --pill-bg:#17191D; --pill-border:#23252B;\n  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-lg:0 6px 20px rgba(0,0,0,.55);\n\n  --tone-gold:#2E2716; --tone-purple:#231F3A; --tone-red:#301C19; --tone-green:#152E24;\n  --chip-bg:#17191D; --badge-bg:#1A1C21; --badge-fg:#8B8F99;\n  --tag-ok-bg:#1C1E24; --tag-ok-fg:#8B8F99;\n  --tag-soon-bg:#322915; --tag-soon-fg:#E0B44E;\n  --tag-late-bg:#361D18; --tag-late-fg:#F08A72;\n  --tag-done-bg:#15301F; --tag-done-fg:#45C795;\n  --flag-bg:#322915; --flag-fg:#E0B44E;\n\n  --s1:#7C8AF5; --s2:#DFB248; --s3:#EE8A54; --s4:#35C68C;\n  --s5:#AE7EF0; --s6:#5098E8; --s7:#DFB248; --s8:#38B2D8;\n  --mix-head:0%; --mix-head-fg:88%; --mix-count:20%; --mix-body:4.5%;\n  --o-card-bg:#17191D;\n}","x":"\n.sidebar{padding-top:2px}\n.sb-item{font-size:13px;padding:6px 8px;font-weight:500}\n.sb-section{font-size:10.5px;letter-spacing:.06em;text-transform:none;font-weight:600}\n.card-head{font-size:12.5px;font-weight:600;letter-spacing:-.005em}\n.kpi{padding:12px 14px}\n.kpi-ico{width:32px;height:32px;font-size:15px;border-radius:7px}\n.kpi-lbl{font-size:10.5px;text-transform:none;letter-spacing:0;color:var(--text3);font-weight:500}\n.k-col{border:1px solid var(--border)}\n.k-head{border-bottom:1px solid var(--border);text-transform:none;font-size:12px;letter-spacing:-.005em;padding:10px 12px}\n.k-count{background:var(--k-count-bg);color:inherit;font-size:10.5px}\n.o-card{border:1px solid var(--border);border-left:2px solid var(--sc)}\n.o-name{font-size:12.5px;font-weight:600}\n.o-desc{font-size:11.5px;color:var(--text3)}\n.o-badge{font-weight:500;border-radius:4px}\n.tag{border-radius:4px;font-weight:600;font-size:10px}\n.vs-btn{font-size:12.5px;font-weight:500;padding:9px 12px;border-radius:0}\n.vs-btn.active{font-weight:600}\n.btn{font-weight:500;border-radius:6px;padding:6px 13px;font-size:12.5px}\n.pill,.theme-toggle{font-size:11.5px;font-weight:500}\n/* Keyboard-shortcut affordance, the genre's signature */\n.topbar-title::after{\n  content:'⌘K';margin-left:12px;font-size:10px;font-weight:600;\n  color:var(--text3);border:1px solid var(--border);\n  border-radius:4px;padding:2px 6px;vertical-align:middle;\n}\n.studio-chip{border-radius:7px}\n.card-head{border-bottom:1px solid var(--border)}"},{"n":"Bento","t":"The dashboard as a mosaic. Mixed-size tiles, per-tile colour identity, playful proportion, fast to scan.","k":"\n#stage{\n  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-head:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif; --font-num:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;\n  --radius:22px; --radius-sm:15px; --ease:cubic-bezier(.22,1,.36,1);\n  --gap:12px; --pad:22px; --view-pad:22px 22px 40px;\n  --greet-size:27px; --greet-weight:800; --greet-track:-.032em; --kpi-size:30px;\n\n  --bg:#EFF0F4; --card:#FFFFFF; --card-head-bg:transparent; --card-head-fg:#2A2D38;\n  --border:transparent; --border-soft:rgba(25,27,34,.08);\n  --text:#191B22; --text2:#5A5E6C; --text3:#8A8E9C;\n  --accent:#FF6B4A; --accent-ink:#FFFFFF; --accent-text:#E2482A; --accent-soft:#FFE9E3;\n  --hover:#F4F5F8; --ok:#18B87E; --ok-text:#0E9A66;\n  --card-border:none;\n\n  --sidebar-bg:#FFFFFF; --sidebar-fg:#3A3E4A; --sidebar-dim:#71768A;\n  --sidebar-hover:#F2F3F7; --sidebar-active-bg:#191B22; --sidebar-active-fg:#FFFFFF;\n  --sidebar-border:none;\n  --brand-mark-bg:linear-gradient(145deg,#FF8A6A,#E2482A); --brand-fg:#191B22; --brand-weight:800;\n  --topbar-bg:#EFF0F4; --subnav-bg:#EFF0F4;\n  --pill-bg:#FFFFFF; --pill-border:transparent;\n  --shadow:0 2px 8px rgba(25,27,34,.05);\n  --shadow-lg:0 10px 28px rgba(25,27,34,.11);\n\n  --tone-gold:#FFEFC4; --tone-purple:#E9E2FE; --tone-red:#FFE0DA; --tone-green:#D4F5E6;\n  --chip-bg:#F4F5F8; --badge-bg:#F4F5F8; --badge-fg:#5A5E6C;\n  --tag-ok-bg:#F0F1F5; --tag-ok-fg:#5A5E6C;\n  --tag-soon-bg:#FFEDC8; --tag-soon-fg:#8A5E08;\n  --tag-late-bg:#FFDCD6; --tag-late-fg:#C8341A;\n  --tag-done-bg:#D0F2E2; --tag-done-fg:#0A7A52;\n  --flag-bg:#FFDCD6; --flag-fg:#C8341A;\n\n  --s1:#4A6CF0; --s2:#E8A80C; --s3:#FF6B4A; --s4:#18B87E;\n  --s5:#9250EA; --s6:#2E8CE0; --s7:#E8A80C; --s8:#12ACC8;\n  --mix-head:100%; --mix-body:7%;\n  --k-solid-fg:#FFFFFF; --k-count-bg:rgba(255,255,255,.28);\n  --o-card-bg:#FFFFFF;\n}\n#stage[data-mock=\"dark\"]{\n  --bg:#0D0E12; --card:#181A21; --card-head-fg:#DCDEE6;\n  --border:transparent; --border-soft:rgba(255,255,255,.07);\n  --text:#ECEDF2; --text2:#9EA3B2; --text3:#767B8A;\n  --accent:#FF7E5E; --accent-ink:#160806; --accent-text:#FF9478; --accent-soft:#2E1A16;\n  --hover:#20232B; --ok:#2ACE92; --ok-text:#3ADCA0;\n\n  --sidebar-bg:#131419; --sidebar-fg:#B8BCC8; --sidebar-dim:#767B8A;\n  --sidebar-hover:#1D1F27; --sidebar-active-bg:#ECEDF2; --sidebar-active-fg:#131419;\n  --brand-fg:#ECEDF2;\n  --topbar-bg:#0D0E12; --subnav-bg:#0D0E12;\n  --pill-bg:#181A21;\n  --shadow:0 2px 8px rgba(0,0,0,.4); --shadow-lg:0 12px 32px rgba(0,0,0,.6);\n\n  --tone-gold:#3A3018; --tone-purple:#2A2340; --tone-red:#3A211B; --tone-green:#123A2A;\n  --chip-bg:#20232B; --badge-bg:#20232B; --badge-fg:#9EA3B2;\n  --tag-ok-bg:#20232B; --tag-ok-fg:#9EA3B2;\n  --tag-soon-bg:#3E3218; --tag-soon-fg:#E8B84A;\n  --tag-late-bg:#3E211A; --tag-late-fg:#FF8E72;\n  --tag-done-bg:#12382A; --tag-done-fg:#3ADCA0;\n  --flag-bg:#3E211A; --flag-fg:#FF8E72;\n\n  --s1:#7288F5; --s2:#E8BC3E; --s3:#FF8E6E; --s4:#2ACE92;\n  --s5:#AE78F0; --s6:#4A9EEA; --s7:#E8BC3E; --s8:#2EC2DC;\n  --mix-head:88%; --mix-body:8%;\n  --k-solid-fg:#0D0E12; --k-count-bg:rgba(0,0,0,.22);\n  --o-card-bg:#1E212A;\n}","x":"\n/* Bento gives each stage a saturated header band, so the label inverts */\n.k-col{--k-head-fg:var(--k-solid-fg)}\n.topbar{border-bottom:none}\n.vs{border-bottom:none;background:transparent}\n.vs-btn{border-radius:20px;border-bottom:none;margin-bottom:0;padding:7px 15px}\n.vs-btn.active{background:var(--text);color:var(--bg);border-bottom-color:transparent}\n.sidebar{border-right:none}\n.card,.kpi{border:none;box-shadow:var(--shadow)}\n.card-head{padding:14px 16px 8px;font-size:13px;font-weight:800;letter-spacing:-.015em}\n.card-body{padding:0 16px 15px}\n.list{padding:0 0 6px}\n.li{padding:8px 16px}\n\n/* The bento mosaic — tiles of deliberately unequal weight */\n.dash-grid{\n  display:grid;\n  grid-template-columns:repeat(6,1fr);\n  gap:var(--gap);\n  align-items:stretch;\n}\n.dash-col{display:contents}\n.dash-split{display:contents}\n.dash-col > .card:nth-child(1){grid-column:span 4}\n.dash-col > .card:nth-child(2){grid-column:span 2}\n.dash-split > .card:nth-child(1){grid-column:span 4}\n.dash-split > .card:nth-child(2){grid-column:span 2}\n.dash-col:first-child > .card{grid-column:span 6}\n.dash-col:last-child > .card:nth-child(1){grid-column:span 3}\n.dash-col:last-child > .card:nth-child(2){grid-column:span 3}\n\n/* Tile identity: each gets a tinted top band */\n.dash-split > .card:nth-child(1){background:linear-gradient(180deg,var(--tone-green) 0,var(--card) 74px)}\n.dash-split > .card:nth-child(2){background:linear-gradient(180deg,var(--tone-purple) 0,var(--card) 74px)}\n.dash-col:first-child > .card:last-child{background:linear-gradient(180deg,var(--tone-gold) 0,var(--card) 74px)}\n.dash-col:last-child > .card:nth-child(1){background:linear-gradient(180deg,var(--tone-red) 0,var(--card) 74px)}\n.dash-col:last-child > .card:nth-child(2){background:linear-gradient(180deg,var(--tone-green) 0,var(--card) 74px)}\n\n.kpi{border-radius:var(--radius);padding:16px 18px;flex-direction:column;align-items:flex-start;gap:14px}\n.kpi-ico{width:42px;height:42px;font-size:19px;border-radius:14px}\n.kpi-num{font-size:var(--kpi-size)}\n.kpi-lbl{font-size:11px;text-transform:none;letter-spacing:-.005em;color:var(--text3);font-weight:600}\n\n.k-col{box-shadow:var(--shadow);border-radius:var(--radius);overflow:hidden}\n.k-head{padding:12px 14px;font-size:11px;letter-spacing:.03em;text-transform:none;font-weight:800}\n.k-count{border-radius:20px;color:inherit}\n.k-body{padding:10px}\n.o-card{\n  border:none;border-left:none;border-radius:var(--radius-sm);\n  box-shadow:var(--shadow);position:relative;padding-left:14px;overflow:hidden;\n}\n.o-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--sc)}\n.tag{border-radius:20px;padding:3px 9px;font-weight:700}\n.o-badge{border:none;border-radius:20px;padding:3px 8px}\n.studio-chip{border:none;background:var(--chip-bg);border-radius:var(--radius-sm);padding:13px}\n.studio-grid{padding:0 16px 16px}\n.btn{border-radius:20px;padding:8px 18px;font-weight:700}\n.pill,.theme-toggle{border-radius:20px;box-shadow:var(--shadow)}\n.icon-btn{border-radius:12px}\n.sb-item{border-radius:11px}\n.k-empty{border:none;background:var(--chip-bg);border-radius:var(--radius-sm)}\n\n@container stage (max-width:1080px){\n  .dash-grid{grid-template-columns:repeat(2,1fr)}\n  .dash-col > .card,.dash-split > .card,\n  .dash-col:first-child > .card,\n  .dash-col:last-child > .card:nth-child(1),\n  .dash-col:last-child > .card:nth-child(2){grid-column:span 2}\n}"}];
+  var K = 'sts-allinone';
+  var tokenSheet = document.getElementById('tokenSheet');
+  var extraSheet = document.getElementById('extraSheet');
+  var stage = document.getElementById('stage');
+  var frame = document.getElementById('frame');
+  var thesis = document.getElementById('thesis');
+  var chips = [].slice.call(document.querySelectorAll('.sts-chip'));
+
+  // The Artifact host supplies the document head; add the viewport meta if
+  // it didn't, or a phone lays the page out at a 980px default and nothing
+  // responsive fires.
+  if (!document.querySelector('meta[name="viewport"]')) {
+    var mv = document.createElement('meta');
+    mv.name = 'viewport';
+    mv.content = 'width=device-width,initial-scale=1,viewport-fit=cover';
+    document.head.appendChild(mv);
+  }
+
+  var st = { i:0, mock:'light', width:'desktop' };
+  try { var s = JSON.parse(localStorage.getItem(K)||'null'); if(s) st = Object.assign(st, s); } catch(e){}
+  if (st.i < 0 || st.i >= D.length) st.i = 0;
+
+  function save(){ try{ localStorage.setItem(K, JSON.stringify(st)); }catch(e){} }
+
+  function press(el, on){ el.setAttribute('aria-pressed', on ? 'true':'false'); }
+
+  // Desktop mode renders the stage at a true 1400px and scales it down to
+  // fit, so a phone shows the layout being judged rather than the mobile
+  // fallback. zoom (not transform) so the scroll box sizes itself.
+  // 1520px, not a rounder 1400: the board needs 1222px of track for eight
+  // columns at their 144px floor, and 1400 leaves only 1124 — the last two
+  // stages would clip. Pinch-zoom stays enabled for reading detail.
+  var DESK = 1520;
+  // Viewport height minus the sticky bar — how much room the stage has.
+  function avail(){
+    var bar = document.querySelector('.sts-bar');
+    return Math.max(240, (window.innerHeight || 640) - (bar ? bar.offsetHeight : 0));
+  }
+  function fit(){
+    if (st.width === 'desktop'){
+      var k = Math.min(1, (frame.clientWidth || 360) / DESK);
+      stage.style.width = DESK + 'px';
+      stage.style.zoom = k;
+      // Undo the scale so the stage still fills the viewport; otherwise the
+      // frame's own background shows as a band under short designs.
+      stage.style.minHeight = (avail() / k) + 'px';
+    } else {
+      stage.style.width = '100%';
+      stage.style.zoom = '1';
+      stage.style.minHeight = avail() + 'px';
+    }
+  }
+
+  function render(){
+    var d = D[st.i];
+    tokenSheet.textContent = d.k;
+    extraSheet.textContent = d.x;
+    stage.setAttribute('data-mock', st.mock);
+    thesis.textContent = d.t;
+    chips.forEach(function(c,i){ press(c, i === st.i); });
+    press(document.getElementById('mLight'), st.mock === 'light');
+    press(document.getElementById('mDark'),  st.mock === 'dark');
+    press(document.getElementById('wDesk'),  st.width === 'desktop');
+    press(document.getElementById('wPhone'), st.width === 'phone');
+    // Keep the mockup's own theme button honest about what it will do.
+    var ti = stage.querySelector('#themeIcon'), tl = stage.querySelector('#themeLabel');
+    if (ti) ti.textContent = st.mock === 'dark' ? '☀' : '◐';
+    if (tl) tl.textContent = st.mock === 'dark' ? 'Light' : 'Dark';
+    fit();
+  }
+
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      st.i = +c.getAttribute('data-i'); save(); render();
+      c.scrollIntoView({block:'nearest', inline:'nearest'});
+    });
+  });
+  document.getElementById('mLight').onclick = function(){ st.mock='light'; save(); render(); };
+  document.getElementById('mDark').onclick  = function(){ st.mock='dark';  save(); render(); };
+  document.getElementById('wDesk').onclick  = function(){ st.width='desktop'; save(); render(); };
+  document.getElementById('wPhone').onclick = function(){ st.width='phone';   save(); render(); };
+
+  // Handlers the mockup markup itself calls.
+  window.toggleTheme = function(){ st.mock = st.mock==='dark'?'light':'dark'; save(); render(); };
+  window.showView = function(id, el){
+    stage.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    stage.querySelector('#'+id).classList.add('active');
+    stage.querySelectorAll('.vs-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+    var t = stage.querySelector('.topbar-title');
+    if (t) t.textContent = id === 'view-dash' ? 'Dashboard' : 'Order Pipeline';
+    frame.scrollTop = 0;
+  };
+
+  var rt;
+  addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(fit, 90); });
+  render();
+})();
+</script>

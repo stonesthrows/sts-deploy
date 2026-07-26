@@ -179,3 +179,8 @@ ${cards}
 
 fs.writeFileSync(path.join(OUT, 'index.html'), index, 'utf8');
 console.log(`  ✓ index.html          Gallery (${DESIGNS.length} concepts)`);
+
+// ── Single-page version (publishable as one Artifact) ────────
+const { html: allInOne } = require('./all-in-one');
+fs.writeFileSync(path.join(OUT, 'all-in-one.html'), allInOne, 'utf8');
+console.log(`  ✓ all-in-one.html     All ${DESIGNS.length} in one page (${Math.round(allInOne.length / 1024)}KB)`);

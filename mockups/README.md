@@ -4,7 +4,13 @@ Ten redesign concepts for `jewelry-workflow.html`, each with its own light and
 dark mode. **Design exploration only** — nothing here is wired to Notion, Square,
 or any data source, and nothing in the live app imports from this folder.
 
-Open **`index.html`** to browse all ten side by side.
+Two ways in:
+
+- **`index.html`** — the gallery, all ten previewed side by side. Best on a
+  desktop.
+- **`all-in-one.html`** — every design in a single self-contained page with a
+  switcher. This is the one that gets published as an Artifact for phone
+  viewing.
 
 ## The ten
 
@@ -57,6 +63,22 @@ node mockups/_build/build.js
 CSS), or `_build/data.js` (fixtures), then re-run. The **output** is plain
 self-contained HTML — no build step, no external requests, no dependencies —
 consistent with how the rest of the app ships.
+
+### How `all-in-one.html` differs
+
+`_build/all-in-one.js` scopes every design's CSS to a `#stage` wrapper so all
+ten can share one document: `:root` becomes `#stage`, and the mockup's theme
+attribute is `data-mock` rather than `data-theme` (the Artifact viewer stamps
+`data-theme` on the root element, and the two would fight).
+
+Its width media queries are rewritten as **container queries** against the
+stage. Media queries resolve against the viewport, so on a phone the mockup
+would drop to its mobile layout even in Desktop mode — which is the layout
+Desktop mode exists to bypass. Desktop mode renders the stage at 1520px (the
+width where all eight stages fit) and scales it down; pinch-zoom reads detail.
+
+The scoping is regression-tested: for every design × theme, 23 computed style
+properties are compared against the standalone file and must match exactly.
 
 ## Not part of the deploy
 
