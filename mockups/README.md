@@ -4,13 +4,28 @@ Ten redesign concepts for `jewelry-workflow.html`, each with its own light and
 dark mode. **Design exploration only** — nothing here is wired to Notion, Square,
 or any data source, and nothing in the live app imports from this folder.
 
-Two ways in:
+## Where the files live
 
-- **`index.html`** — the gallery, all ten previewed side by side. Best on a
-  desktop.
-- **`all-in-one.html`** — every design in a single self-contained page with a
-  switcher. This is the one that gets published as an Artifact for phone
-  viewing.
+This folder holds **only the generator and this README**, and is on the
+deny-list in `functions/_middleware.js` — nothing under `/mockups/` is served.
+
+The built pages go to **`../m-e5807cb1bd/`** at the repo root, which *is*
+served, so they open on a phone with no login:
+
+| | |
+|---|---|
+| **Phone** | https://sts-deploy.pages.dev/m-e5807cb1bd/all-in-one.html |
+| **Desktop** | https://sts-deploy.pages.dev/m-e5807cb1bd/ |
+
+`all-in-one.html` is every design in one page with a switcher; `index.html` is
+the side-by-side gallery, better on a large screen.
+
+The directory name is deliberately unguessable. It is not access control — it
+just keeps internal design work from being found by trying obvious URLs. The
+mockups contain no customer data and no credentials (every name, order and
+figure in them is invented), but they do carry the studio name, staff first
+names, market locations and supplier names. Change the name by editing
+`PUBLIC_DIR` in `_build/build.js` and re-running; delete the old directory.
 
 ## The ten
 

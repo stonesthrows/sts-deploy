@@ -14,7 +14,16 @@ const path = require('path');
 const { page, esc } = require('./shell');
 
 const DESIGNS = [...require('./designs-a'), ...require('./designs-b')];
-const OUT = path.join(__dirname, '..');
+
+// Output goes to an unguessable top-level directory, not into mockups/.
+// Cloudflare Pages serves the repo as static assets, and these need to be
+// reachable without a login so they open on a phone — but there is no
+// reason for them to be discoverable by poking at URLs. mockups/ itself
+// (this generator, the README) is on the deny-list in
+// functions/_middleware.js.
+const PUBLIC_DIR = 'm-e5807cb1bd';
+const OUT = path.join(__dirname, '..', '..', PUBLIC_DIR);
+fs.mkdirSync(OUT, { recursive: true });
 
 // ── The 10 design files ──────────────────────────────────────
 for (const d of DESIGNS) {

@@ -22,6 +22,8 @@ const BLOCKED_PREFIX = [
   '/stuller-sync/',
   '/sts-worker-v2/',
   '/.claude/',
+  '/mockups/',        // redesign mockup sources; the built pages are served
+                      // from an unguessable directory instead (see mockups/README.md)
 ];
 
 // Individual files with sensitive or non-public content
