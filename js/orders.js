@@ -191,7 +191,7 @@ function cardHTML(o) {
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
         <div class="o-name">${esc(o.name)}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
-        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+        <div class="o-card-actions">
           <button class="card-intake-btn"
                   title="Open and edit this order in the Intake app"
                   onclick="event.stopPropagation(); editOrderInIntake('${o.id}')">📱</button>

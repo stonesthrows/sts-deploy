@@ -245,6 +245,32 @@ async function run({ baseUrl } = {}) {
       say(`PASS  ${theme}: board painted ${painted.cards} cards, ${painted.badges} badges, ${painted.tags} tags`);
     }
 
+    // Legibility isn't only contrast. The board squeezes columns to ~120px,
+    // and the card's action cluster is a fixed ~100px, so if the header ever
+    // stops wrapping the name gets crushed to one character per line —
+    // perfectly contrasty and completely unreadable. Guard both directions:
+    // the name must stay readable AND the buttons must stay inside the card.
+    const fit = await page.evaluate(() => {
+      let minCps = 99, outside = 0, sample = null;
+      for (const c of document.querySelectorAll('.o-card')) {
+        const n = c.querySelector('.o-name'), a = c.querySelector('.o-card-actions');
+        if (!n) continue;
+        const nb = n.getBoundingClientRect(), cb = c.getBoundingClientRect();
+        const cps = nb.width / (parseFloat(getComputedStyle(n).fontSize) * 0.55);
+        if (cps < minCps) { minCps = cps; sample = n.textContent.trim().slice(0, 16); }
+        if (a) { const ab = a.getBoundingClientRect();
+                 if (ab.right > cb.right + 1 || ab.left < cb.left - 1) outside++; }
+      }
+      return { minCps: Math.round(minCps * 10) / 10, outside, sample };
+    });
+    if (fit.minCps < 6 || fit.outside) {
+      say(`FAIL  ${theme}: order-card header — ${fit.minCps} chars/line on "${fit.sample}", ` +
+          `${fit.outside} action cluster(s) painting outside the card`);
+      failures++;
+    } else {
+      say(`PASS  ${theme}: order-card names readable (${fit.minCps} chars/line) and actions contained`);
+    }
+
     for (const tab of TAB_TARGETS) {
       await page.evaluate((t) => { try { switchTab(t, null); } catch (e) {} }, tab);
       await page.waitForTimeout(220);

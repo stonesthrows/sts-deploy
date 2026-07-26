@@ -597,13 +597,17 @@
     .o-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--bdr); }
     .o-card.o-card-etsy    { background: var(--warn-bg) !important; border-color: var(--warn) !important; border-left-color: var(--warn) !important; }
     .o-card.o-card-shopify { background: var(--ok-bg) !important; border-color: var(--ok) !important; border-left-color: var(--ok) !important; }
-    /* min-width:0 is load-bearing: as a flex item in .o-card-header its
-       default floor is min-content (the longest word in the name), and the
-       button cluster beside it is flex-shrink:0 — so in a squeezed column
-       the header line outgrows the card and the buttons paint outside it
-       (.o-card does not clip). Letting the name shrink and break keeps them
-       in. */
-    .o-name { font-size: 13px; font-weight: 700; letter-spacing: -0.1px; line-height: 1.3; color: var(--text); margin-bottom: 4px; min-width: 0; overflow-wrap: anywhere; }
+    /* min-width:0 keeps the name from forcing the header wider than the card
+       (its flex floor would otherwise be the longest word, and the action
+       cluster does not shrink). The flex-basis gives it a readable floor:
+       below that the header wraps and the buttons take their own row, rather
+       than the name being squeezed to a single character per line.
+       overflow-wrap stays for the pathological case of one very long word. */
+    .o-name {
+      font-size: 13px; font-weight: 700; letter-spacing: -0.1px; line-height: 1.3;
+      color: var(--text); margin-bottom: 4px;
+      flex: 1 1 9ch; min-width: 0; overflow-wrap: anywhere;
+    }
     .o-unsynced { font-size: 10px; font-weight: 600; color: var(--warn-fg); background: var(--warn-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
     .o-desc { font-size: 11.5px; color: var(--text2); line-height: 1.45; margin-bottom: var(--sp-2); }
     .o-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-1); }
@@ -2228,9 +2232,21 @@
     /* ── Card Collapse ───────────────────────── */
     .o-card-header {
       display: flex;
-      justify-content: space-between;
       align-items: flex-start;
       gap: 6px;
+      /* The action cluster is a fixed ~100px and the board can squeeze a
+         column to ~110px, so the two cannot share a line there. Wrapping
+         drops the buttons to their own row instead of crushing the name to
+         one character per line — which is what the earlier min-width:0 fix
+         traded the overflow for. */
+      flex-wrap: wrap;
+    }
+    .o-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      margin-left: auto;   /* stays right-aligned on whichever row it lands */
     }
     .o-chevron {
       color: var(--text3);
