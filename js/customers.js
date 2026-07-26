@@ -242,7 +242,7 @@ function renderCustomers() {
           <div class="c-avatar-wrap">
             <div class="c-avatar">${initials(c.name)}</div>
             <div>
-              <div class="c-name">${esc(c.name)}</div>
+              <div class="c-name">${esc(c.name)} <span class="msg-badge" id="ct-msg-badge-${idx}"></span></div>
               <div class="c-email">${esc(c.email)}</div>
             </div>
           </div>
@@ -261,6 +261,8 @@ function renderCustomers() {
         <div class="ct-expand" id="ct-expand-${idx}"></div>
       </div>`;
   }).join('');
+
+  if (typeof renderAllMessageBadges === 'function') renderAllMessageBadges();
 }
 
 // Picks the customer's "main" order for the outside-the-card Intake
@@ -570,6 +572,21 @@ function buildCustomerExpandHtml(idx) {
         <div id="ct-gmail-${idx}"><div class="ct-exp-gmail-msg">⏳ Loading…</div></div>
       </div>
 
+      <!-- Team Messages -->
+      <div class="ct-exp-section">
+        <div class="ct-exp-section-title">Team Messages</div>
+        <div class="msg-thread" id="ct-msg-${idx}"></div>
+        <div class="msg-compose">
+          <textarea class="msg-compose-input" id="ct-msg-input-${idx}"
+            placeholder="Ask a question or leave a note about ${esc(c.name)}…"
+            onkeydown="handleMessageComposeKey(event,${idx})" onclick="event.stopPropagation()"></textarea>
+          <div class="msg-compose-foot">
+            <span class="msg-sig" id="ct-msg-sig-${idx}"></span>
+            <button class="btn btn-gold btn-sm" onclick="sendCustomerMessage(${idx});event.stopPropagation()">Send</button>
+          </div>
+        </div>
+      </div>
+
     </div>`;
 }
 
@@ -603,6 +620,10 @@ async function saveCustomerEdit(idx) {
   if (!name) { status.textContent = 'Name is required.'; return; }
 
   status.textContent = 'Saving…';
+
+  if (typeof rekeyCustomerMessages === 'function' && name.toLowerCase() !== c.name.toLowerCase()) {
+    rekeyCustomerMessages(c.name, name);
+  }
 
   c.name         = name;
   c.email        = email;
@@ -643,6 +664,7 @@ async function saveCustomerEdit(idx) {
     expand.dataset.loaded = '1';
     expand.innerHTML = buildCustomerExpandHtml(idx);
     loadCustomerGmail(c.email, idx);
+    if (typeof loadMessagesForCustomer === 'function') loadMessagesForCustomer(c.name, idx);
   }, 50);
 }
 
@@ -655,6 +677,7 @@ function refreshOpenCustomerExpands() {
     expand.dataset.loaded = '1';
     expand.innerHTML = buildCustomerExpandHtml(parseInt(idx));
     if (c) loadCustomerGmail(c.email, parseInt(idx));
+    if (c && typeof loadMessagesForCustomer === 'function') loadMessagesForCustomer(c.name, parseInt(idx));
   });
 }
 
@@ -677,6 +700,7 @@ function toggleCustomerRow(idx) {
 
   expand.innerHTML = buildCustomerExpandHtml(idx);
   loadCustomerGmail(c.email, idx);
+  if (typeof loadMessagesForCustomer === 'function') loadMessagesForCustomer(c.name, idx);
 }
 
 function loadCustomerGmail(email, idx) {

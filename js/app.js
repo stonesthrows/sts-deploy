@@ -548,6 +548,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof loadCustomersFromCache === 'function') loadCustomersFromCache();
     if (typeof loadCustomersFromNotion === 'function') loadCustomersFromNotion();
 
+    // Load Team Messages (Customer Card Q&A threads) and start their poller
+    if (typeof loadMessages === 'function') loadMessages();
+
     // Replay any writes queued while offline, push any local orders missing
     // a notionId, then pull everything from Notion
     const replay = (typeof notionReplayQueue === 'function') ? notionReplayQueue() : Promise.resolve();

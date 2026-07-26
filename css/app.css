@@ -1616,6 +1616,46 @@
     }
     .ct-exp-gmail-msg { font-size: 13px; color: var(--text2); padding: 6px 0; }
 
+    /* ── Team Messages (Customer Card) ───────── */
+    .msg-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #FFF5E8; color: #B05A10;
+      font-size: 10px; font-weight: 700;
+      padding: 1px 7px; border-radius: 10px;
+      vertical-align: middle;
+    }
+    .msg-thread {
+      display: flex; flex-direction: column; gap: 8px;
+      max-height: 320px; overflow-y: auto;
+      padding: 4px 2px 10px;
+    }
+    .msg-bubble {
+      max-width: 78%;
+      padding: 8px 12px;
+      border-radius: var(--rad-md);
+      background: #fff;
+      border: 1px solid #EDE8E2;
+    }
+    .msg-bubble-self { align-self: flex-end; background: var(--accent-bg); border-color: var(--accent-border); }
+    .msg-bubble-other { align-self: flex-start; }
+    .msg-bubble.saving { opacity: 0.55; }
+    .msg-bubble-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; }
+    .msg-author { font-size: 11px; font-weight: 700; color: var(--text2); }
+    .msg-time { font-size: 10.5px; color: var(--text3); }
+    .msg-bubble-text { font-size: 13px; color: var(--text); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+    .msg-compose { border-top: 1px solid #F0EDE8; padding-top: 10px; margin-top: 4px; }
+    .msg-compose-input {
+      width: 100%; box-sizing: border-box; font-size: 13px; font-family: inherit;
+      padding: 9px 11px; border: 1px solid #D8D0C8; border-radius: var(--rad-sm);
+      background: #FDFAF6; color: var(--text); resize: vertical; min-height: 56px; outline: none;
+      transition: border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+    }
+    .msg-compose-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .msg-compose-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .msg-sig { font-size: 11px; color: var(--text3); margin-left: auto; }
+    .msg-sig a { color: var(--accent); text-decoration: none; }
+    .msg-sig a:hover { text-decoration: underline; }
+
     /* ── Inline customer edit form ───────────── */
     .ct-exp-edit-form {
       padding: 10px 20px 12px;
