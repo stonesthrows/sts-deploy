@@ -9,6 +9,7 @@
 var MESSAGES_DATA   = [];   // flat array of { notionPageId, customerKey, customerName, author, text, createdAt }
 var _messagesLoaded  = false;
 var _messagesPoller  = null;
+var _msgPrevUnread   = null;  // unread total at the last poll; null until first load
 
 const MSG_STAFF_NAME_KEY = 'sts-staff-name';
 const MSG_LASTVIEWED_KEY = 'sts-msg-lastviewed';
@@ -31,6 +32,7 @@ function loadMessages() {
       MESSAGES_DATA = res.data || [];
       _msgRenderOpenThreads();
       if (typeof renderAllMessageBadges === 'function') renderAllMessageBadges();
+      _msgCheckForNew();
     })
     .catch(function(err) {
       _messagesLoaded = true;
@@ -92,17 +94,30 @@ function markMessagesViewed(customerKey) {
 }
 
 function unreadMessageCount(customerKey) {
-  var map   = _msgLastViewedMap();
-  var since = map[customerKey];
-  var msgs  = messagesFor(customerKey);
+  var map    = _msgLastViewedMap();
+  var since  = map[customerKey];
+  var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
+  // Your own messages are never unread to you — without this, sending a
+  // message would pop a "new message" bubble back at yourself.
+  var msgs = messagesFor(customerKey).filter(function(m) {
+    return !myName || m.author !== myName;
+  });
   if (!since) return msgs.length;
   return msgs.filter(function(m) { return m.createdAt > since; }).length;
+}
+
+function totalUnreadMessages() {
+  if (typeof CUSTOMERS === 'undefined') return 0;
+  return CUSTOMERS.reduce(function(n, c) {
+    return n + unreadMessageCount(custKey(c.name));
+  }, 0);
 }
 
 // Updates the "N unread" chip on every currently-rendered customer row.
 // Safe to call at any time — looks elements up by id and skips rows that
 // aren't in the DOM (e.g. filtered out by search/sub-tab).
 function renderAllMessageBadges() {
+  renderMessageBell();
   if (typeof CUSTOMERS === 'undefined') return;
   CUSTOMERS.forEach(function(c, idx) {
     var el = document.getElementById('ct-msg-badge-' + idx);
@@ -110,6 +125,75 @@ function renderAllMessageBadges() {
     var count = unreadMessageCount(custKey(c.name));
     el.innerHTML = count > 0 ? '💬 ' + count : '';
   });
+}
+
+// ── Topbar bell + popup bubble ───────────────
+// The per-card badges only help when you're already looking at the
+// Customers tab; the topbar bell is the app-wide signal that a teammate
+// asked something. Bubble auto-fades, badge persists until the thread is
+// actually read.
+var MSG_POP_MS = 6000;
+
+function renderMessageBell() {
+  var badge = document.getElementById('msgBellBadge');
+  if (!badge) return;
+  var total = totalUnreadMessages();
+  badge.textContent = total > 0 ? String(total) : '';
+}
+
+function showMessagePop(count) {
+  var pop = document.getElementById('msgPop');
+  var btn = document.querySelector('.msg-bell-btn');
+  if (!pop || !btn || count <= 0) return;
+  pop.textContent = count + ' new message' + (count === 1 ? '' : 's');
+
+  // The markup already lives at body level (see jewelry-workflow.html).
+  // Re-home it only if something moved it — never as part of the first
+  // show, since moving the node while opening it leaves it unpainted.
+  if (pop.parentElement !== document.body) document.body.appendChild(pop);
+  pop.classList.add('open');
+
+  // The bubble is position:fixed (see app.css), so place it in viewport
+  // coords under the bell, clamped to stay on-screen, and aim the tail at
+  // the icon's centre wherever the body ends up.
+  var r      = btn.getBoundingClientRect();
+  var iconCx = r.left + r.width / 2;
+  var w      = pop.offsetWidth;
+  var left   = Math.min(Math.max(8, iconCx - w / 2), window.innerWidth - w - 8);
+  pop.style.top  = (r.bottom + 10) + 'px';
+  pop.style.left = left + 'px';
+  pop.style.setProperty('--msg-tail-x', (iconCx - left) + 'px');
+
+  clearTimeout(pop._t);
+  pop._t = setTimeout(function() { pop.classList.remove('open'); }, MSG_POP_MS);
+}
+
+function hideMessagePop() {
+  var pop = document.getElementById('msgPop');
+  if (!pop) return;
+  clearTimeout(pop._t);
+  pop.classList.remove('open');
+}
+
+// Fixed coords go stale on resize/rotate — just dismiss rather than leave
+// the bubble floating away from its icon.
+window.addEventListener('resize', function() { hideMessagePop(); });
+
+function messageBellClick() {
+  hideMessagePop();
+  if (typeof sbNav === 'function') sbNav('custom-orders', 'customers');
+  else if (typeof switchTab === 'function') switchTab('customers');
+}
+
+// Pops the bubble when the unread total grows (someone asked something),
+// and once on the first load after boot if messages are already waiting.
+// The bubble always shows the current unread total so it agrees with the
+// badge rather than reporting a separate per-arrival delta.
+function _msgCheckForNew() {
+  var total = totalUnreadMessages();
+  var grew  = (_msgPrevUnread === null) ? total > 0 : total > _msgPrevUnread;
+  _msgPrevUnread = total;
+  if (grew) showMessagePop(total);
 }
 
 // ── Render ───────────────────────────────────
@@ -128,6 +212,10 @@ function renderMessageThread(idx, customerKey) {
   markMessagesViewed(customerKey);
   var badge = document.getElementById('ct-msg-badge-' + idx);
   if (badge) badge.innerHTML = '';
+  // Reading a thread drops the global count — rebaseline so the next
+  // arrival still registers as growth rather than being swallowed.
+  renderMessageBell();
+  _msgPrevUnread = totalUnreadMessages();
 
   var msgs   = messagesFor(customerKey);
   var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';

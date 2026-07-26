@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STS Orders">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="css/app.css?v=20260726a">
+  <link rel="stylesheet" href="css/app.css?v=20260726b">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -185,6 +185,10 @@
     <span class="conn-age" id="connAge"></span>
   </div>
   <button class="theme-btn rq-mobile-edit-toggle" id="rqMobileEditToggle" onclick="rqToggleMobileEditMode()" title="Edit Restock Queue items">✎ Edit</button>
+  <div class="msg-bell-wrap" id="msgBellWrap">
+    <button class="msg-bell-btn" onclick="messageBellClick()" title="Team Messages" aria-label="Team Messages">💬</button>
+    <span class="msg-bell-badge" id="msgBellBadge"></span>
+  </div>
   <button class="theme-btn" onclick="openIntegrationsModal()" title="Configure API keys and integrations" style="font-size:15px;">🔌</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">🗺️</button>
 </div>
@@ -3511,7 +3515,7 @@
 <script src="js/sales.js?v=20260720b"></script>
 <script src="js/production.js?v=20260724a"></script>
 <script src="js/notes.js?v=40"></script>
-<script src="js/customer-messages.js?v=1"></script>
+<script src="js/customer-messages.js?v=2"></script>
 <script src="js/restock.js?v=13"></script>
 <script src="js/restock-sessions.js?v=4"></script>
 <script src="js/supplier-history.js?v=2"></script>
@@ -3640,6 +3644,12 @@ function closeDataMapModal() { document.getElementById('dataMapModalBg').classLi
     <button class="btn btn-danger"    onclick="removePhoto()">🗑 Remove</button>
   </div>
 </div>
+
+<!-- Team Messages popup — must be a direct child of <body>, not nested in
+     .content or the fixed .topbar: nested there it is laid out but never
+     painted. showMessagePop() positions it under the 💬 bell in viewport
+     coords, so its DOM position here is deliberate. -->
+<div class="msg-pop" id="msgPop" onclick="messageBellClick()"></div>
 
 </body>
 </html>
