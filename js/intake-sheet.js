@@ -135,6 +135,9 @@ function psRenderPanes() {
     photos.innerHTML =
       '<div class="ps-label">Reference Photos <span style="font-weight:400;text-transform:none;letter-spacing:0;">— shown by the client, not the sketch</span></div>'
       + '<div class="rp-grid" id="rp-grid"></div>'
+      // ＋ Add can only see this device's library; the QR handoff
+      // (js/intake-phone.js) pulls straight off the customer's phone.
+      + '<button type="button" class="rp-phone-btn" onclick="ipOpen()">📱 From their phone</button>'
       + '<div class="rp-hint">' + RP_MAX_PHOTOS + ' max — synced to Notion with the order</div>';
     rpRenderGrid();
   }

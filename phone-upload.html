@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Send Photos — Stones Throw Studio</title>
+  <meta name="theme-color" content="#1E3D50">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <!--
+    CUSTOMER-FACING PHOTO HANDOFF  —  /phone-upload?token=…
+    Opened by scanning the QR the intake app shows on the Photos tab of the
+    bottom sheet. No login, no app: the unguessable token in the URL is the
+    capability (same model as approval.html). Deliberately standalone —
+    no js/api-auth.js, no service worker, nothing from the studio app —
+    because this runs on a stranger's phone.
+
+    Photos are downscaled here (same 1280px / q0.82 as the intake gallery's
+    _rpResizeFile) so a 12MP camera roll doesn't push 5MB per photo over a
+    shop-floor connection.
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #4E7A94;
+      --hdr:     #1E3D50;
+      --accent:  #C9983A;
+      --card:    #FFFFFF;
+      --bdr:     #C8DFEE;
+      --text:    #1A2E38;
+      --text2:   #4A6878;
+      --text3:   #6A8898;
+      --ok:      #2E7D5B;
+      --err:     #B4443C;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; font-size: 16px; -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      max-width: 520px; margin: 0 auto;
+      padding: calc(20px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+    }
+    .hdr { text-align: center; color: #fff; margin-bottom: 18px; }
+    .hdr .mark { font-size: 30px; }
+    .hdr h1 { font-size: 20px; font-weight: 700; margin-top: 6px; letter-spacing: .2px; }
+    .hdr p { font-size: 14px; opacity: .85; margin-top: 4px; }
+
+    .card {
+      background: var(--card); border-radius: 16px; padding: 20px 18px;
+      box-shadow: 0 8px 28px rgba(10,30,45,0.22);
+    }
+    .job {
+      font-size: 13px; color: var(--text3); text-align: center;
+      padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--bdr);
+    }
+    .job strong { color: var(--text2); font-weight: 700; }
+
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; min-height: 56px; border: none; border-radius: 13px;
+      font-family: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-gold { background: var(--accent); color: #fff; }
+    .btn-gold:active { background: #B4862F; }
+    .btn-plain {
+      background: #fff; color: var(--text2);
+      border: 1.5px solid var(--bdr); margin-top: 10px; min-height: 50px; font-size: 15px;
+    }
+    .btn:disabled { opacity: .5; cursor: default; }
+
+    .count { text-align: center; font-size: 13.5px; color: var(--text3); margin-top: 14px; }
+
+    .grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .thumb {
+      position: relative; width: 84px; height: 84px; border-radius: 10px;
+      overflow: hidden; border: 1px solid var(--bdr); background: #EBF5FB;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb .badge {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 700; color: #fff; background: rgba(15,35,50,0.55);
+    }
+    .thumb.sent .badge { background: rgba(46,125,91,0.62); }
+    .thumb.failed .badge { background: rgba(180,68,60,0.66); }
+    .thumb.sending .badge { background: rgba(15,35,50,0.5); font-size: 13px; font-weight: 600; }
+
+    .note { font-size: 12.5px; color: var(--text3); text-align: center; margin-top: 16px; line-height: 1.5; }
+    .msg { font-size: 14px; border-radius: 10px; padding: 11px 13px; margin-top: 14px; text-align: center; }
+    .msg.err { background: #FBECEA; color: var(--err); }
+
+    .state { text-align: center; padding: 12px 4px; }
+    .state .big { font-size: 44px; }
+    .state h2 { font-size: 19px; font-weight: 700; margin: 10px 0 6px; }
+    .state p { font-size: 14.5px; color: var(--text2); line-height: 1.55; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="mark">💍</div>
+    <h1>Stones Throw Studio</h1>
+    <p id="sub">Send photos to the design table</p>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div class="card" id="screen-load">
+    <div class="state"><p>Opening your upload link…</p></div>
+  </div>
+
+  <!-- ── Dead / expired link ── -->
+  <div class="card hidden" id="screen-dead">
+    <div class="state">
+      <div class="big">🔗</div>
+      <h2>This link has expired</h2>
+      <p id="dead-msg">Ask Kyle to show the QR code again and re-scan it.</p>
+    </div>
+  </div>
+
+  <!-- ── Upload ── -->
+  <div class="card hidden" id="screen-main">
+    <div class="job hidden" id="job"></div>
+
+    <button class="btn btn-gold" id="pick-btn" onclick="pick()">📷 Choose Photos</button>
+    <input type="file" id="file-input" accept="image/*" multiple class="hidden" onchange="filesChosen(this)">
+
+    <div class="grid" id="grid"></div>
+    <div class="count" id="count"></div>
+    <div id="msg-slot"></div>
+
+    <button class="btn btn-plain hidden" id="done-btn" onclick="finish()">Done — that's all of them</button>
+
+    <div class="note">
+      Photos go straight to your jeweler's design notes for this piece.
+      Nothing is posted publicly.
+    </div>
+  </div>
+
+  <!-- ── Finished ── -->
+  <div class="card hidden" id="screen-done">
+    <div class="state">
+      <div class="big">✅</div>
+      <h2>Got them, thank you!</h2>
+      <p>Your photos are on Kyle's screen. You can close this page.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const MAX_DIM = 1280;
+const JPEG_QUALITY = 0.82;
+
+const token = new URLSearchParams(location.search).get('token') || '';
+let maxPhotos = 6;
+let sentCount = 0;
+let busy = false;
+
+const $ = id => document.getElementById(id);
+function show(id) {
+  ['screen-load', 'screen-dead', 'screen-main', 'screen-done']
+    .forEach(s => $(s).classList.toggle('hidden', s !== id));
+}
+function die(text) {
+  if (text) $('dead-msg').textContent = text;
+  show('screen-dead');
+}
+
+// ── Open the session ────────────────────────────────────────
+async function init() {
+  if (!token) return die('That link is missing its code. Ask Kyle to show the QR again.');
+  try {
+    const r = await fetch('/api/phone-upload?token=' + encodeURIComponent(token));
+    const data = await r.json();
+    if (!r.ok) return die(data.error || '');
+    const s = data.session || {};
+    maxPhotos = s.max || 6;
+    sentCount = s.count || 0;
+    if (s.label) {
+      $('job').textContent = 'For: ' + s.label;
+      $('job').classList.remove('hidden');
+    }
+    show('screen-main');
+    render();
+  } catch (e) {
+    die('Could not reach the studio. Check your connection and re-scan.');
+  }
+}
+
+function pick() {
+  if (sentCount >= maxPhotos) return;
+  $('file-input').click();
+}
+
+// ── Downscale before sending ────────────────────────────────
+// Matches the intake gallery's own resize so what Kyle receives is
+// byte-for-byte the size he'd have gotten picking the file himself.
+function resize(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode'));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          blob => blob ? resolve(blob) : reject(new Error('encode')),
+          'image/jpeg', JPEG_QUALITY
+        );
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Tiles render optimistically as "sending" and settle to ✓ or ✕, so a slow
+// shop-floor connection still shows the customer something is happening.
+const tiles = [];   // {url, state:'sending'|'sent'|'failed'}
+
+function render() {
+  $('grid').innerHTML = tiles.map(t =>
+    '<div class="thumb ' + t.state + '"><img src="' + t.url + '" alt="">'
+    + '<div class="badge">' + (t.state === 'sent' ? '✓' : t.state === 'failed' ? '✕' : 'Sending…') + '</div></div>'
+  ).join('');
+
+  const room = Math.max(0, maxPhotos - sentCount);
+  $('count').textContent = sentCount
+    ? sentCount + ' of ' + maxPhotos + ' sent' + (room ? ' — ' + room + ' more if you like' : ' — that\'s the limit')
+    : 'Pick as many as ' + maxPhotos + ' photos.';
+
+  $('pick-btn').disabled = busy || !room;
+  $('pick-btn').textContent = busy ? 'Sending…' : (sentCount ? '📷 Add More Photos' : '📷 Choose Photos');
+  $('done-btn').classList.toggle('hidden', !sentCount || busy);
+}
+
+function warn(text) {
+  $('msg-slot').innerHTML = text ? '<div class="msg err">' + text + '</div>' : '';
+}
+
+async function filesChosen(input) {
+  const files = [...(input.files || [])];
+  input.value = '';
+  if (!files.length || busy) return;
+
+  warn('');
+  busy = true;
+  render();
+
+  for (const file of files) {
+    if (sentCount >= maxPhotos) { warn('Only the first ' + maxPhotos + ' photos could be sent.'); break; }
+
+    const tile = { url: '', state: 'sending' };
+    let blob;
+    try {
+      blob = await resize(file);
+      tile.url = URL.createObjectURL(blob);
+    } catch (e) {
+      tile.state = 'failed';
+      tiles.push(tile);
+      render();
+      warn('One of those files could not be read — try a different photo.');
+      continue;
+    }
+    tiles.push(tile);
+    render();
+
+    try {
+      const r = await fetch('/api/phone-upload?token=' + encodeURIComponent(token), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: blob,
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        tile.state = 'failed';
+        warn(data.error || 'That photo did not go through — tap Add More to retry.');
+        // A 404 means the session died mid-upload; nothing else will land.
+        if (r.status === 404) { busy = false; return die(data.error || ''); }
+      } else {
+        tile.state = 'sent';
+        sentCount++;
+      }
+    } catch (e) {
+      tile.state = 'failed';
+      warn('Lost connection — tap Add More to retry.');
+    }
+    render();
+  }
+
+  busy = false;
+  render();
+}
+
+async function finish() {
+  try {
+    await fetch('/api/phone-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'done', token }),
+    });
+  } catch (e) { /* the photos already landed — the flag is a nicety */ }
+  show('screen-done');
+}
+
+init();
+</script>
+</body>
+</html>
