@@ -19,6 +19,9 @@
 /phone.html
   Cache-Control: no-store, no-cache, must-revalidate
 
+/phone-upload.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
 # JS files — revalidate on every load
 /js/*
   Cache-Control: no-cache, must-revalidate

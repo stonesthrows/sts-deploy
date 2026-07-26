@@ -29,6 +29,8 @@ const PUBLIC = new Set([
   'approval',        // customer estimate-approval page — auth is the unguessable KV token
   'send-approval',   // called from intake (no api-auth); only mails the address on file for the token
   'approval-image',  // <img> src in the approval email/page — can't send X-STS-Key; auth is the unguessable KV token
+  'phone-upload',    // customer's phone uploading reference photos — auth is the unguessable KV token,
+                     // except 'create' which re-checks APP_SHARED_KEY inside the handler
 ]);
 
 // Only our own deploys (prod + Pages previews) and local dev may read
