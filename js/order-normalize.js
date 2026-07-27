@@ -506,7 +506,23 @@ const ECOM_STAMP_RX = /\bstamp(?:ing|ed)?\b|\bengrav/i;
 // first ring (has a size), else the priciest remaining item. The add-on's
 // price moves onto that piece so the money strip still reconciles with
 // Shopify's total — folded in, not printed as its own line.
-function foldEcomAddons(items) {
+// Personalization apps write the customer's text into line-item properties,
+// but plenty of stamping orders arrive with it typed into the ORDER note
+// instead ("Date Stamp: 08-08-2023") — Shopify's Notes field, which isn't
+// attached to any line item. The bench needs the literal characters to stamp,
+// so when the add-on carries no personalization of its own, look for a labeled
+// stamp line in the note before falling back to "see order".
+const ECOM_STAMP_NOTE_RX = new RegExp(
+  '^[ \\t]*(?:note[ \\t]*[:\\-][ \\t]*)?' +
+  '(?:date[ \\t]+stamp|stamp(?:ing|ed)?|engrav(?:ing|ed|e)?|inscription)' +
+  '[ \\t]*[:\\-][ \\t]*(.+)$', 'im');
+
+function stampTextFromNote(o) {
+  const m = ECOM_STAMP_NOTE_RX.exec(String((o && (o.buyerNote || o.notes)) || ''));
+  return m ? m[1].trim() : '';
+}
+
+function foldEcomAddons(items, o) {
   const addons = items.filter(it => ECOM_ADDON_RX.test(it.raw || it.name || ''));
   if (!addons.length || addons.length === items.length) return items;
   const pieces = items.filter(it => addons.indexOf(it) === -1);
@@ -515,9 +531,10 @@ function foldEcomAddons(items) {
                    pieces.slice().sort((a, b) => b.price - a.price)[0];
     if (!target) return;
     if (ECOM_STAMP_RX.test(ad.raw || ad.name || '')) {
-      // The date/text the customer typed at checkout; the variant carries
-      // the how ("Date Stamped, Block Uppercase").
-      const text = ad.pers || '';
+      // The date/text the customer typed at checkout — a line-item property
+      // when a personalization app captured it, otherwise the order note.
+      // The variant carries the how ("Date Stamped, Block Uppercase").
+      const text = ad.pers || stampTextFromNote(o) || '';
       if (text)     target.stamp      = target.stamp ? target.stamp + '; ' + text : text;
       if (ad.other) target.stampStyle = target.stampStyle ? target.stampStyle + ', ' + ad.other : ad.other;
       if (!text && !ad.other) target.stampStyle = 'see order — stamping requested';
@@ -594,7 +611,7 @@ function ecomPrintItems(o) {
       other:  src.specOther       || '',
       pers:   src.personalization || '',
     };
-  }));
+  }), o);
 }
 
 // Extra query params printOrder() merges into the work-order-print.html URL.
