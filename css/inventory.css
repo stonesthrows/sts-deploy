@@ -486,6 +486,13 @@
 .dsn-card:hover .dsn-card-thumb:not(.dsn-card-thumb-empty) { transform:scale(1.04); }
 .dsn-card-thumb-empty { display:flex; align-items:center; justify-content:center; height:100%; background:var(--card-head-bg); }
 .dsn-img-badge { position:absolute; bottom:6px; right:6px; background:rgba(26,46,56,.6); color:var(--accent-ink); font-size:11px; font-weight:700; border-radius:10px; padding:2px 7px; }
+.dsn-family-del-btn {
+  position:absolute; top:6px; right:6px; width:22px; height:22px; line-height:20px; text-align:center;
+  background:rgba(26,46,56,.6); color:var(--accent-ink); border:none; border-radius:50%;
+  font-size:12px; cursor:pointer; padding:0;
+  transition:background var(--dur-fast) var(--ease-smooth);
+}
+.dsn-family-del-btn:hover { background:var(--danger); color:var(--danger-fg); }
 .dsn-card-body { padding:11px 13px 13px; }
 .dsn-cat-chip { display:inline-block; background:var(--accent-bg); color:var(--accent-fg); border:1px solid var(--accent-border); border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.2px; padding:2px 8px; margin-bottom:5px; }
 .dsn-card-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; }

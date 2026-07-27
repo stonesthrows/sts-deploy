@@ -18,6 +18,7 @@ const DSN_STACK_FAMILY = 'Stackable Rings'; // collection backing the Stackable 
 let _designsSearch   = '';      // library search query, lowercased (empty = no search)
 let _dsnSearchTimer  = null;
 let _designsFamilyOpen = null;  // design-family drill-in (null = top level)
+let _designsFolders  = [];      // manually-created empty folder names (no design tagged in yet)
 let _designsImgQueue = [];      // base64 strings staged for current edit session
 let _designsImgEditMode = false;
 
@@ -40,6 +41,12 @@ let _designsPricingFamilyFilter = null; // family name to scope Pricing Sheet ro
 async function _designsApiFetch(id) {
   const url = id ? `/api/designs?id=${encodeURIComponent(id)}` : '/api/designs';
   const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Load failed (${resp.status})`);
+  return resp.json();
+}
+
+async function _designsApiFetchFolders() {
+  const resp = await fetch('/api/designs?folders=1');
   if (!resp.ok) throw new Error(`Load failed (${resp.status})`);
   return resp.json();
 }
@@ -70,6 +77,8 @@ async function designsLoad() {
     try { _designs = JSON.parse(localStorage.getItem(DESIGNS_KEY) || '[]'); }
     catch { _designs = []; }
   }
+  try { _designsFolders = await _designsApiFetchFolders(); }
+  catch { _designsFolders = []; }
 }
 
 // ── Init (fired by TAB_HOOKS) ─────────────────
@@ -145,6 +154,8 @@ function designsShowLibrary() {
   document.getElementById('designs-guide-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = '';
+  const folderBtn = document.getElementById('dsn-folder-btn');
+  if (folderBtn) folderBtn.style.display = '';
   designsCloseGearMenu();
   const addRow = document.getElementById('dsn-img-add-row');
   if (addRow) addRow.style.display = 'none';
@@ -167,6 +178,8 @@ async function designsShowForm(id) {
   document.getElementById('designs-guide-wrap').style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = 'none';
+  const folderBtn = document.getElementById('dsn-folder-btn');
+  if (folderBtn) folderBtn.style.display = 'none';
 
   if (id) {
     // Show brief skeleton while fetching full design from KV
@@ -210,8 +223,13 @@ function _dsnFamilyMembers() {
 
 // Collections = families with 2+ members, alphabetical.
 function _dsnCollections() {
-  return [..._dsnFamilyMembers()]
-    .filter(([, members]) => members.length > 1)
+  const derived = _dsnFamilyMembers(); // name -> members[] (from designs' family tags)
+  const names = new Set([
+    ...[...derived].filter(([, members]) => members.length > 1).map(([name]) => name),
+    ..._designsFolders, // manually-created folders show even with 0 or 1 members
+  ]);
+  return [...names]
+    .map(name => [name, derived.get(name) || []])
     .sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -267,13 +285,19 @@ function _dsnFamilyCardHtml(fam, members) {
     ? `<div class="dsn-family-collage${thumbs.length === 1 ? ' cols-1' : ''}">${thumbs.map(t => `<div style="background-image:url('${t}')"></div>`).join('')}</div>`
     : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">📁</span></div>`;
   const names = members.map(m => m.name || 'Untitled').join(' · ');
+  // Only manually-created folders can be empty (0 members) — offer a way to
+  // remove one created by mistake before any design has been tagged into it.
+  const delBtn = members.length === 0
+    ? `<button type="button" class="dsn-family-del-btn" data-fam="${escHtml(fam)}" title="Delete empty folder"
+         onclick="event.stopPropagation();dsnFolderDelete(this.dataset.fam)">✕</button>`
+    : '';
   return `
     <div class="dsn-card" data-fam="${escHtml(fam)}" onclick="designsOpenFamily(this.dataset.fam)">
-      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} designs</span></div>
+      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} design${members.length === 1 ? '' : 's'}</span>${delBtn}</div>
       <div class="dsn-card-body">
         <div class="dsn-cat-chip">📁 Design Family</div>
         <div class="dsn-card-name">${escHtml(fam)}</div>
-        <div class="dsn-card-preview">${escHtml(names.slice(0, 90))}${names.length > 90 ? '…' : ''}</div>
+        <div class="dsn-card-preview">${names ? escHtml(names.slice(0, 90)) + (names.length > 90 ? '…' : '') : 'Empty folder — add designs from the design form'}</div>
       </div>
     </div>`;
 }
@@ -325,8 +349,12 @@ function designsRenderLibrary() {
   const list = document.getElementById('designs-list');
   if (!list) return;
 
-  // Drop the drill-in if the family no longer exists (rename / delete)
-  if (_designsFamilyOpen && !_designs.some(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen))) {
+  // Drop the drill-in if the family no longer exists (rename / delete). A
+  // manually-created folder with zero designs still "exists" as long as it's
+  // tracked in _designsFolders — don't kick the user out of an empty one.
+  if (_designsFamilyOpen
+      && !_designs.some(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen))
+      && !_designsFolders.some(f => f.toLowerCase() === _designsFamilyOpen.toLowerCase())) {
     _designsFamilyOpen = null;
   }
   const famBar   = document.getElementById('dsn-family-bar');
@@ -379,6 +407,13 @@ function designsRenderLibrary() {
         <div style="font-size:13px;margin-bottom:10px">No designs match “${escHtml(_designsSearch)}”.</div>
         <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
       </div>`;
+    } else if (_designsFamilyOpen) {
+      list.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+        <div style="font-size:36px;margin-bottom:12px">📁</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">This folder is empty</div>
+        <div style="font-size:12px">Open a design and set its <strong>Design Family</strong> to<br>“${escHtml(_designsFamilyOpen)}” to add it here.</div>
+      </div>`;
     } else {
       list.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3);font-size:13px">No designs match this view.</div>`;
     }
@@ -402,7 +437,7 @@ function designsCloseFamily() {
 function _dsnFamilyDatalistRefresh() {
   const dl = document.getElementById('dsn-family-list');
   if (!dl) return;
-  const fams = [...new Set(_designs.flatMap(_dsnFamiliesOf))].sort((a, b) => a.localeCompare(b));
+  const fams = [...new Set([...(_designs.flatMap(_dsnFamiliesOf)), ..._designsFolders])].sort((a, b) => a.localeCompare(b));
   dl.innerHTML = fams.map(f => `<option value="${escHtml(f)}"></option>`).join('');
 }
 
@@ -462,6 +497,49 @@ function designsSetCatFilter(cat) {
   designsRenderLibrary();
 }
 
+// ── Folders (Design Families, created empty) ─────
+async function dsnFolderCreate() {
+  const name = (prompt('New folder name (this becomes a Design Family — tag designs into it from the design form):') || '').trim();
+  if (!name) return;
+  if (name.length > 60) { alert('Folder name is too long (max 60 characters).'); return; }
+  const existing = _dsnCollections().map(([n]) => n.toLowerCase());
+  if (existing.includes(name.toLowerCase())) { alert(`A folder named "${name}" already exists.`); return; }
+
+  try {
+    const resp = await fetch('/api/designs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: name }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `Save failed (${resp.status})`);
+    }
+  } catch (e) {
+    alert('Could not create folder: ' + e.message);
+    return;
+  }
+
+  if (!_designsFolders.some(f => f.toLowerCase() === name.toLowerCase())) _designsFolders.push(name);
+  designsSetSubTab('families');
+}
+
+async function dsnFolderDelete(name) {
+  if (!name) return;
+  if (!confirm(`Delete empty folder "${name}"? This only removes the folder — it has no designs in it yet.`)) return;
+
+  try {
+    const resp = await fetch(`/api/designs?folder=${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error(`Delete failed (${resp.status})`);
+  } catch (e) {
+    alert('Could not delete folder: ' + e.message);
+    return;
+  }
+
+  _designsFolders = _designsFolders.filter(f => f.toLowerCase() !== name.toLowerCase());
+  designsRenderLibrary();
+}
+
 // ════════════════════════════════════════════
 //  GUIDE VIEW — read-only formatted Design Guide
 //  Library card click lands here; ✎ Edit opens the form.
@@ -486,6 +564,8 @@ async function designsShowGuide(id) {
   if (priceBtn) priceBtn.style.display = 'none';
   const newBtn = document.getElementById('dsn-new-btn');
   if (newBtn) newBtn.style.display = 'none';
+  const folderBtn = document.getElementById('dsn-folder-btn');
+  if (folderBtn) folderBtn.style.display = 'none';
   document.getElementById('designs-library').style.display    = 'none';
   document.getElementById('designs-form-wrap').style.display  = 'none';
   document.getElementById('designs-guide-wrap').style.display = '';

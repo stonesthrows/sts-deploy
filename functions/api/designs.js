@@ -6,6 +6,10 @@
 //  KV structure:
 //    "designs:index"      → JSON array of index entries (no images)
 //    "designs:item:{id}"  → JSON of full design (includes images)
+//    "designs:folders"    → JSON array of folder names (Design Family
+//                            folders created empty, before any design
+//                            has been tagged into them — see GET ?folders=1
+//                            / POST {folder} / DELETE ?folder=)
 // ════════════════════════════════════════════
 
 const CORS = {
@@ -25,14 +29,20 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-// GET /api/designs          → index array [{id, name, category, thumb, imgCount, preview, createdAt, updatedAt}]
-// GET /api/designs?id=xxx   → full design object (includes images)
+// GET /api/designs           → index array [{id, name, category, thumb, imgCount, preview, createdAt, updatedAt}]
+// GET /api/designs?id=xxx    → full design object (includes images)
+// GET /api/designs?folders=1 → array of manually-created empty folder names
 export async function onRequestGet(context) {
   const kv = context.env.STS_DESIGNS;
   if (!kv) return json({ error: 'KV binding STS_DESIGNS not configured' }, 503);
 
   const { searchParams } = new URL(context.request.url);
   const id = searchParams.get('id');
+
+  if (searchParams.get('folders')) {
+    const folders = await kv.get('designs:folders');
+    return new Response(folders || '[]', { headers: { 'Content-Type': 'application/json', ...CORS } });
+  }
 
   if (id) {
     const val = await kv.get(`designs:item:${id}`);
@@ -44,6 +54,24 @@ export async function onRequestGet(context) {
   return new Response(index || '[]', { headers: { 'Content-Type': 'application/json', ...CORS } });
 }
 
+// POST /api/designs  body: { folder: "Name" }
+// Creates an empty Design Family folder (no design tagged into it yet) so it
+// shows up in the Design Families grid before any design references it.
+async function _createFolder(kv, name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return json({ error: 'Folder name is required' }, 400);
+  if (trimmed.length > 60) return json({ error: 'Folder name is too long (max 60 characters)' }, 400);
+
+  const raw = await kv.get('designs:folders');
+  let folders = [];
+  try { folders = raw ? JSON.parse(raw) : []; } catch { folders = []; }
+  if (!folders.some(f => f.toLowerCase() === trimmed.toLowerCase())) {
+    folders.push(trimmed);
+    await kv.put('designs:folders', JSON.stringify(folders));
+  }
+  return json({ ok: true, folders });
+}
+
 // POST /api/designs  body: full design object (may include .thumb)
 // Creates or updates a design; rebuilds its index entry.
 export async function onRequestPost(context) {
@@ -53,6 +81,10 @@ export async function onRequestPost(context) {
   let design;
   try { design = await context.request.json(); }
   catch { return json({ error: 'Invalid JSON body' }, 400); }
+
+  if (design && !design.id && typeof design.folder === 'string') {
+    return _createFolder(kv, design.folder);
+  }
 
   if (!design || !design.id) return json({ error: 'Missing design.id' }, 400);
 
@@ -133,6 +165,18 @@ export async function onRequestPatch(context) {
   return json({ ok: true });
 }
 
+// DELETE /api/designs?folder=Name
+// Removes a manually-created empty folder. No-op on the designs themselves —
+// this key only tracks folders that don't have a design tagged into them yet.
+async function _deleteFolder(kv, name) {
+  const raw = await kv.get('designs:folders');
+  let folders = [];
+  try { folders = raw ? JSON.parse(raw) : []; } catch { folders = []; }
+  folders = folders.filter(f => f.toLowerCase() !== (name || '').toLowerCase());
+  await kv.put('designs:folders', JSON.stringify(folders));
+  return json({ ok: true, folders });
+}
+
 // DELETE /api/designs?id=xxx
 export async function onRequestDelete(context) {
   const kv = context.env.STS_DESIGNS;
@@ -140,6 +184,8 @@ export async function onRequestDelete(context) {
 
   const { searchParams } = new URL(context.request.url);
   const id = searchParams.get('id');
+  const folder = searchParams.get('folder');
+  if (!id && folder) return _deleteFolder(kv, folder);
   if (!id) return json({ error: 'Missing id' }, 400);
 
   await kv.delete(`designs:item:${id}`);
