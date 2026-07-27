@@ -50,5 +50,7 @@
     "pj-wrap": "16px 20px 30px|680px",
     "tl-health": "none|16px"
   },
-  "_pageErrors": []
+  "_pageErrors": [
+    "Cannot read properties of null (reading 'style')"
+  ]
 }
