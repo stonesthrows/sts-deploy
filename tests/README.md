@@ -49,6 +49,16 @@ the browser).
   left behind by a reload mid-consult is adopted into the library on the
   next boot.
 
+- **`intake-phone.js`** — drives the customer phone handoff
+  (`js/intake-phone.js` + `phone-upload.html`) from both ends: the studio
+  mints a session and renders the QR, photos landing server-side are
+  polled and pulled into the Reference Photos gallery exactly once, and
+  closing the dialog deletes the server-side copies. Then the customer
+  page itself — dead link, live upload, the 1280px downscale before
+  sending, and "I'm done". `/api/phone-upload` is answered by an
+  in-memory stand-in that mirrors the real Function's contract, since
+  `lib/server.js` can't run Functions (see the known limitation below).
+
 ## Setup (one-time)
 
 ```
@@ -64,6 +74,7 @@ node run.js              # all suites, combined pass/fail
 node fingerprint.js      # just the fingerprint diff
 node offline-storage.js  # just the offline/storage suite
 node intake-ai-notes.js  # just the intake AI note taker suite
+node intake-phone.js     # just the customer phone handoff suite
 ```
 
 Each suite starts its own copy of the repo's `serve.js` on port 3177 (see

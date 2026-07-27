@@ -646,6 +646,64 @@
     .rp-add span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
     .rp-add:disabled { opacity: 0.4; cursor: not-allowed; }
     .rp-hint { font-size: 12px; color: var(--text2); margin-top: 4px; }
+    /* "From their phone" sits beside the grid, not inside it — it isn't a
+       photo slot, and it stays reachable once the grid is full. */
+    .rp-phone-btn {
+      display: inline-flex; align-items: center; gap: 7px; margin-top: 10px;
+      border: 1px solid var(--accent-border); background: var(--accent-bg);
+      color: var(--accent-fg); border-radius: 10px; padding: 9px 13px; min-height: 42px;
+      font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .rp-phone-btn:active { background: var(--accent-border); }
+
+    /* ═══ Customer phone handoff dialog (js/intake-phone.js) ═══
+       Above the bottom sheet (which it's launched from), so its own
+       z-index clears #qa-panel's 151. */
+    #ip-scrim {
+      position: fixed; inset: 0; z-index: 200; background: rgba(10,16,22,0.55);
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    #ip-scrim.open { opacity: 1; pointer-events: auto; }
+    #ip-modal {
+      position: fixed; z-index: 201; left: 50%; top: 50%;
+      transform: translate(-50%, -48%) scale(.97);
+      width: min(360px, 92vw); max-height: 88dvh; overflow-y: auto;
+      background: var(--card-bg); color: var(--text); border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.34);
+      padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
+      opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s var(--ease-smooth);
+    }
+    #ip-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+    .ip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .ip-title { font-size: 16px; font-weight: 800; }
+    .ip-close {
+      border: none; background: none; color: var(--text3); font-size: 17px;
+      cursor: pointer; padding: 4px 6px; line-height: 1; font-family: inherit;
+    }
+    .ip-qr {
+      width: 190px; height: 190px; margin: 2px auto 12px; padding: 8px;
+      background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: 12px;
+    }
+    .ip-qr svg { display: block; width: 100%; height: 100%; }
+    .ip-steps { font-size: 13.5px; color: var(--text2); text-align: center; line-height: 1.5; }
+    .ip-status {
+      font-size: 13.5px; font-weight: 600; text-align: center;
+      border-radius: 10px; padding: 10px 12px; margin-top: 12px;
+      background: var(--info-bg); color: var(--info-fg);
+    }
+    .ip-status.ip-live { background: var(--warn-bg); color: var(--warn-fg); }
+    .ip-status.ip-ok   { background: var(--ok-bg); color: var(--ok-fg); }
+    .ip-status.ip-err  { background: var(--danger-bg); color: var(--danger-fg); }
+    .ip-link {
+      font-size: 11px; color: var(--text3); text-align: center; margin-top: 10px;
+      word-break: break-all; line-height: 1.4;
+    }
+    .ip-btn {
+      width: 100%; min-height: 46px; margin-top: 10px; border: none; border-radius: 11px;
+      background: var(--accent); color: var(--accent-ink); font-family: inherit;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .ip-btn.ip-btn-plain { background: var(--card-bg); color: var(--text2); border: 1.5px solid var(--bdr-light); }
 
     /* ═══ Client-facing review screen (brief 4.2) + signature (4.3) ═══ */
     .rv-rows { border: 1px solid var(--bdr-light); border-radius: 12px; overflow: hidden; }
@@ -1824,6 +1882,17 @@
   </footer>
 </div>
 
+<!-- ═══ Customer phone photo handoff (js/intake-phone.js) — QR the customer
+     scans to send reference photos straight from their own library ═══ -->
+<div id="ip-scrim" onclick="ipClose()"></div>
+<div id="ip-modal" role="dialog" aria-label="Send photos from customer's phone">
+  <div class="ip-head">
+    <div class="ip-title">📱 Customer's Phone</div>
+    <button type="button" class="ip-close" onclick="ipClose()" aria-label="Close">✕</button>
+  </div>
+  <div id="ip-body"></div>
+</div>
+
 <!-- ═══ Quick add-on slide-over (brief 4.1) — standing add-ons + embedded
      Square catalog search; reachable from any step, never leaves it ═══ -->
 <div id="qa-scrim" onclick="qaClose()"></div>
@@ -1961,8 +2030,10 @@
 <script src="js/order-widgets.js?v=20260724a"></script>
 <script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
-<script src="js/intake-sheet.js?v=4"></script>
-<script src="js/intake.js?v=41"></script>
+<script src="js/qrcode-lib.js?v=1"></script>
+<script src="js/intake-sheet.js?v=6"></script>
+<script src="js/intake-phone.js?v=1"></script>
+<script src="js/intake.js?v=42"></script>
 <script src="js/intake-paper.js?v=5"></script>
 <script src="js/intake-ai-notes.js?v=3"></script>
 </body>

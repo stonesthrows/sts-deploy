@@ -8,6 +8,7 @@ const fingerprint = require('./fingerprint');
 const offlineStorage = require('./offline-storage');
 const intakeAiNotes = require('./intake-ai-notes');
 const themeAudit = require('./theme-audit');
+const intakePhone = require('./intake-phone');
 
 async function main() {
   const server = await startServer();
@@ -34,6 +35,11 @@ async function main() {
   const ai = await intakeAiNotes.run({ baseUrl: server.baseUrl });
   console.log(ai.lines.join('\n'));
   overallPass = overallPass && ai.pass;
+
+  console.log('\n── Customer phone handoff suite ───────────');
+  const ph = await intakePhone.run({ baseUrl: server.baseUrl });
+  console.log(ph.lines.join('\n'));
+  overallPass = overallPass && ph.pass;
 
   server.stop();
 
