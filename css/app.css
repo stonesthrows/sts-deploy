@@ -1629,6 +1629,12 @@
        points the tail at the icon via --msg-tail-x (which also keeps the
        bubble on-screen on narrow viewports without a media query). */
     .msg-pop {
+      /* Component-local default, not a theme token — showMessagePop() in
+         js/customer-messages.js overrides it per-element to aim the tail at
+         the icon. Declared here so the value has a definition to fall back
+         on (and so the pre-push token check can see one) without putting a
+         runtime geometry value in the :root theme block. */
+      --msg-tail-x: 50%;
       display: none; position: fixed;
       background: var(--text); color: var(--accent-ink);
       font-size: 13px; font-weight: 600; white-space: nowrap;

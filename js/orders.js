@@ -2296,6 +2296,10 @@ function buildVariantBagUrl(o) {
   });
   if (o.repairNotes) p.set('repairNotes', o.repairNotes);
   if (rings.length) p.set('rings', JSON.stringify(rings));
+  // Real marketplace tax beats the template's computed 8%. Shipping already
+  // rides along in the params above via o.shipping.
+  const bagMoney = typeof ecomMoney === 'function' ? ecomMoney(o) : null;
+  if (bagMoney && bagMoney.tax !== null) p.set('tax', String(bagMoney.tax));
   const gift = o.gift || {};
   if (gift.recipient || gift.occasion || gift.surprise) {
     p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');

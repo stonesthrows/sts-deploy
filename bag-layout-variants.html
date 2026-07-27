@@ -407,8 +407,9 @@
         stamping: '08-08-2023', stampingStyle: 'Date Stamped, Block Uppercase',
       }],
       items: [{ desc: 'Rising Sun Ring with 14k Gold Motif', amount: 305 }],
-      // Ships to Ohio — out of state, so no Texas sales tax on the bag.
-      deposit: 0, fullyPaid: '1', taxApplies: false,
+      // Ships to Ohio — out of state, so no Texas sales tax. Shopify settled
+      // this order at 305 + 0 tax + 8 shipping = 313; the bag must agree.
+      deposit: 0, fullyPaid: '1', taxApplies: false, tax: 0, shipping: 8,
     },
   };
 
@@ -432,6 +433,7 @@
     deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
     fullyPaid: q.get('fullyPaid') || '',
     taxApplies: q.get('taxApplies') !== '0',
+    tax: q.get('tax') || '',
     items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
   };
 
@@ -636,9 +638,16 @@
   // taxApplies=0 → out-of-state Shopify/Etsy order (see orderTaxApplies in
   // js/order-normalize.js). The cell stays on the bag showing $0.00 with a
   // reason, so a zero reads as deliberate rather than a missed line.
+  // Tax, in order of trust: what the marketplace actually charged (?tax=),
+  // then the out-of-state rule, then the computed 8% for manual orders. The
+  // label follows suit so nobody reads a settled amount as an estimate — the
+  // literal "8%" only shows when 8% is genuinely what was applied.
   const taxApplies = src.taxApplies !== false;
-  const tax  = taxApplies ? sub * 0.08 : 0;
-  if (!taxApplies) document.getElementById('m-tax-lbl').textContent = 'Tax · Out of State';
+  const taxGiven = (src.tax !== '' && src.tax != null && !isNaN(parseFloat(src.tax)))
+    ? parseFloat(src.tax) : null;
+  const tax = taxGiven !== null ? taxGiven : (taxApplies ? sub * 0.08 : 0);
+  document.getElementById('m-tax-lbl').textContent =
+    taxGiven !== null ? 'Tax' : (taxApplies ? 'Tax 8%' : 'Tax · Out of State');
   const ship = parseFloat(src.shipping) || 0;
   const dep  = parseFloat(src.deposit) || 0;
   const tot  = sub + tax + ship;
