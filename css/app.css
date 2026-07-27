@@ -5393,7 +5393,20 @@
     .topbar { left: 0; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
     .content { margin-left: 0; padding-top: calc(70px + env(safe-area-inset-top, 0px)); }
     .sb-menu-btn { display: flex !important; margin-left: -8px; }
-    .botnav { display: none !important; }
+
+    /* Bottom tab bar: the top-level categories, always on screen so the
+       phone never needs a drawer open just to switch Orders/Inventory/
+       Supplies. "More" (4th slot) reaches everything else via the same
+       drawer the topbar hamburger opens. */
+    .botnav { display: flex !important; }
+    .botnav-item {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .botnav-item:active { background: var(--sb-hover); }
+    /* The drawer sits at z-index 300, the bottom bar at 500 — without this
+       the persistent bar would float visibly on top of the open drawer. */
+    body:has(#appSidebar.sb-open) .botnav { display: none !important; }
 
     /* Set while the drawer is open — freezes the page behind it so closing
        the drawer returns you to where you were, not to the top. */

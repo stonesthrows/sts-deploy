@@ -22,6 +22,17 @@
     'pj-ref':            'PJ Reference',
   };
 
+  // Which bottom-bar tab a given sidebar/tab id belongs under. Anything not
+  // listed here (home, and the standalone tabs the sidebar files under
+  // "More" — triplog, notes, designs, sales, bestsellers, pj-calc, pj-ref,
+  // calendar) falls back to 'more', so opening one from the drawer still
+  // lights up the bottom bar's More tab instead of leaving it blank.
+  const BOTNAV_MAP = {
+    dashboard: 'custom-orders', production: 'custom-orders', customers: 'custom-orders',
+    'to-restock': 'inventory', 'inv-adjust': 'inventory', 'prod-report': 'inventory', replenish: 'inventory',
+    supplier: 'supplies', 'order-history': 'supplies', materials: 'supplies',
+  };
+
   // ── Home dashboard init ──────────────────────────────
   window.homeTabInit = function() {
     // Greeting
@@ -509,6 +520,17 @@
     }
     const titleEl = document.getElementById('sbPageTitle');
     if (titleEl) titleEl.textContent = SB_TITLES[tabId] || tabId;
+    _botnavSetActive(tabId);
+  };
+
+  window._botnavSetActive = function(tabId) {
+    const key = BOTNAV_MAP[tabId] || 'more';
+    document.querySelectorAll('.botnav-item').forEach(b => {
+      const active = b.getAttribute('data-target') === key;
+      b.classList.toggle('active', active);
+      if (active) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
   };
 
   window._sbSync = function() {
@@ -532,12 +554,22 @@
   const _sbDrawerMode = () => window.matchMedia('(max-width: 768px)').matches;
   const _sbIsOpen  = () => !!(_sbEl() && _sbEl().classList.contains('sb-open'));
 
+  // Two triggers open the same drawer now (topbar hamburger, bottom-bar
+  // More), so aria-expanded has to be kept in sync on both, and focus has
+  // to return to *whichever one* was actually used, not always the
+  // hamburger — a keyboard user tabbed to More expects Enter to send them
+  // back to More, not jump them across the screen to the hamburger.
+  const _sbAllBtns = () => [_sbBtn(), document.getElementById('botnavMoreBtn')].filter(Boolean);
+  let _sbReturnFocusTo = null;
+
   window.sbOpen = function() {
-    const sb = _sbEl(), ov = _sbOverlay(), btn = _sbBtn();
+    const sb = _sbEl(), ov = _sbOverlay();
     if (!sb || _sbIsOpen()) return;
+    const active = document.activeElement;
+    _sbReturnFocusTo = (active && active !== document.body && document.body.contains(active)) ? active : null;
     sb.classList.add('sb-open');
     if (ov) ov.classList.add('active');
-    if (btn) btn.setAttribute('aria-expanded', 'true');
+    _sbAllBtns().forEach(b => b.setAttribute('aria-expanded', 'true'));
     document.body.classList.add('sb-scroll-lock');
     if (_sbDrawerMode()) {
       const first = sb.querySelector('.sb-item');
@@ -546,16 +578,20 @@
   };
 
   window.sbClose = function() {
-    const sb = _sbEl(), ov = _sbOverlay(), btn = _sbBtn();
+    const sb = _sbEl(), ov = _sbOverlay();
     if (!sb) return;
     // If the drawer is closing out from under the keyboard, hand focus back
-    // to the button that opened it rather than dropping it on <body>.
+    // to whichever trigger opened it rather than dropping it on <body>.
     const focusWasInside = _sbDrawerMode() && sb.contains(document.activeElement);
     sb.classList.remove('sb-open');
     if (ov) ov.classList.remove('active');
-    if (btn) btn.setAttribute('aria-expanded', 'false');
+    _sbAllBtns().forEach(b => b.setAttribute('aria-expanded', 'false'));
     document.body.classList.remove('sb-scroll-lock');
-    if (focusWasInside && btn) btn.focus();
+    if (focusWasInside) {
+      const back = _sbReturnFocusTo || _sbBtn();
+      if (back) back.focus();
+    }
+    _sbReturnFocusTo = null;
   };
 
   window.sbToggle = function() {

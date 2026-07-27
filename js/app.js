@@ -215,12 +215,16 @@ function _scrollTabIntoView(el) {
 function _scrollActiveIntoView() {
   _scrollTabIntoView(document.querySelector('.nav-tab.active'));
   _scrollTabIntoView(document.querySelector('.sub-nav.active .sub-nav-tab.active'));
-  // Mirror active state onto the mobile bottom quick-bar
-  document.querySelectorAll('.botnav-item').forEach(b => {
-    const t = b.getAttribute('data-target');
-    b.classList.toggle('active', t === (document.querySelector('.nav-tab.active')?.getAttribute('data-parent')
-      || document.querySelector('.nav-tab.active')?.getAttribute('data-tab')));
-  });
+  // Mirror active state onto the mobile bottom quick-bar. Delegates to
+  // home.js's _botnavSetActive (keyed off the tab-panel that's actually
+  // showing) rather than re-deriving from .nav-tab.active here — that
+  // hidden legacy bar has no entry for 'home' or the sidebar's "More"
+  // grouping, so a second, independent derivation drifts out of sync with
+  // the sidebar highlight the moment either one changes.
+  if (typeof window._botnavSetActive === 'function') {
+    const panel = document.querySelector('.tab-panel.active');
+    if (panel) window._botnavSetActive(panel.id.replace(/^tab-/, ''));
+  }
 }
 
 // Connection-health pill in the header. Reflects whether the last Notion
