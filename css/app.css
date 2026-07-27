@@ -5357,6 +5357,21 @@
 
   /* ── Mobile adjustments ───────────────────────────── */
   @media (max-width: 768px) {
+    /* Mobile chrome adds up to more than the hardcoded desktop constants
+       scattered through this file assume (topbar + optional sub-nav strip
+       + bottom bar). Express it once here and let the full-height panels
+       below subtract it, instead of hand-tuning four magic numbers that
+       drift the next time the chrome changes. */
+    :root { --m-subnav-h: 46px; }
+    /* Direct tabs (Home, Trips, Gmail, Notes, Designs) show no strip. */
+    body { --m-sub-offset: 0px; }
+    body:has(.sub-nav.active) { --m-sub-offset: var(--m-subnav-h); }
+    body {
+      --m-top:    calc(70px + env(safe-area-inset-top, 0px) + var(--m-sub-offset));
+      --m-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      --m-chrome: calc(var(--m-top) + var(--m-bottom));
+    }
+
     .sidebar {
       /* Wider drawer than the desktop rail: it is the only navigation on a
          phone, so the rows get room to hit a 44px target. */
@@ -5391,7 +5406,16 @@
     .sb-foot-btn { padding: 12px; min-height: 44px; box-sizing: border-box; font-size: 13px; }
 
     .topbar { left: 0; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
-    .content { margin-left: 0; padding-top: calc(70px + env(safe-area-inset-top, 0px)); }
+    .content {
+      margin-left: 0;
+      padding-top: var(--m-top);
+      /* Must be restated here: the `padding: 12px 12px` shorthand in the
+         640px block below resets the bottom padding set earlier in the
+         file, which strands the last ~44px of every scrolling page under
+         the bottom bar. Matching --m-bottom exactly means the fixed-height
+         panels fill the screen with no leftover scroll. */
+      padding-bottom: var(--m-bottom);
+    }
     .sb-menu-btn { display: flex !important; margin-left: -8px; }
 
     /* Bottom tab bar: the top-level categories, always on screen so the
@@ -5407,6 +5431,50 @@
     /* The drawer sits at z-index 300, the bottom bar at 500 — without this
        the persistent bar would float visibly on top of the open drawer. */
     body:has(#appSidebar.sb-open) .botnav { display: none !important; }
+
+    /* ── Sub-nav strip ─────────────────────────────────
+       The second level: which view *within* the section the bottom bar
+       selected. A scrollable tab strip pinned under the topbar — the
+       conventional pairing with a bottom tab bar, and the only route to
+       Print Order Bag and PJ Reference, which have no sidebar row.
+       Beats the `.sub-nav { display: none !important }` kill-switch above
+       on specificity (0,2,0 vs 0,1,0), not source order. */
+    .sub-nav.active {
+      display: flex !important;
+      position: fixed;
+      top: calc(50px + env(safe-area-inset-top, 0px));
+      left: 0; right: 0;
+      height: var(--m-subnav-h);
+      box-sizing: border-box;
+      z-index: 149;              /* just under the topbar's 150 */
+      align-items: stretch;      /* tabs fill the strip = full-height target */
+      padding-left: max(8px, env(safe-area-inset-left, 0px));
+      padding-right: max(8px, env(safe-area-inset-right, 0px));
+    }
+    .sub-nav-tab {
+      min-height: 0;             /* the strip owns the height now */
+      flex-shrink: 0;
+      padding: 0 14px;
+      font-size: 12.5px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sub-nav-tab:active { background: var(--sb-hover); }
+
+    /* Embedded mode (the restock queue served standalone in an iframe)
+       hides the topbar, so the strip and bottom bar go with it. */
+    body.sts-embed .sub-nav { display: none !important; }
+    body.sts-embed .botnav  { display: none !important; }
+
+    /* Panels that fill the screen and scroll internally. Each hardcoded a
+       desktop chrome constant (100px / 116px) that predates the sub-nav
+       strip and the bottom bar; without this their bottom edge slides
+       under the bottom bar. Same selectors as the originals so these win
+       on source order at equal specificity. */
+    .rq-page,
+    .sot-layout,
+    .tab-panel.active.notes-page {
+      height: calc(100dvh - var(--m-chrome));
+    }
 
     /* Set while the drawer is open — freezes the page behind it so closing
        the drawer returns you to where you were, not to the top. */
