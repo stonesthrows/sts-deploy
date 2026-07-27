@@ -496,9 +496,17 @@
   };
 
   window._sbSetActive = function(tabId) {
-    document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('sb-active'));
+    document.querySelectorAll('.sb-item').forEach(i => {
+      i.classList.remove('sb-active');
+      i.removeAttribute('aria-current');
+    });
     const target = document.querySelector('.sb-item[data-sb="' + tabId + '"]');
-    if (target) target.classList.add('sb-active');
+    if (target) {
+      target.classList.add('sb-active');
+      // The highlight is colour-only; aria-current is what tells a screen
+      // reader which of the 18 rows you are actually on.
+      target.setAttribute('aria-current', 'page');
+    }
     const titleEl = document.getElementById('sbPageTitle');
     if (titleEl) titleEl.textContent = SB_TITLES[tabId] || tabId;
   };
@@ -513,15 +521,135 @@
     }
   };
 
-  window.sbToggle = function() {
-    document.getElementById('appSidebar').classList.toggle('sb-open');
-    document.getElementById('sidebarOverlay').classList.toggle('active');
+  // ── Mobile drawer ────────────────────────────────────
+  // Below 769px the sidebar is the *only* navigation in the app, so it gets
+  // the full drawer treatment: scroll lock, swipe-to-close, Escape, and
+  // focus handoff. Above it the sidebar is a static rail and every one of
+  // these is a no-op.
+  const _sbEl      = () => document.getElementById('appSidebar');
+  const _sbOverlay = () => document.getElementById('sidebarOverlay');
+  const _sbBtn     = () => document.getElementById('sbMenuBtn');
+  const _sbDrawerMode = () => window.matchMedia('(max-width: 768px)').matches;
+  const _sbIsOpen  = () => !!(_sbEl() && _sbEl().classList.contains('sb-open'));
+
+  window.sbOpen = function() {
+    const sb = _sbEl(), ov = _sbOverlay(), btn = _sbBtn();
+    if (!sb || _sbIsOpen()) return;
+    sb.classList.add('sb-open');
+    if (ov) ov.classList.add('active');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('sb-scroll-lock');
+    if (_sbDrawerMode()) {
+      const first = sb.querySelector('.sb-item');
+      if (first) first.focus();
+    }
   };
 
   window.sbClose = function() {
-    document.getElementById('appSidebar').classList.remove('sb-open');
-    document.getElementById('sidebarOverlay').classList.remove('active');
+    const sb = _sbEl(), ov = _sbOverlay(), btn = _sbBtn();
+    if (!sb) return;
+    // If the drawer is closing out from under the keyboard, hand focus back
+    // to the button that opened it rather than dropping it on <body>.
+    const focusWasInside = _sbDrawerMode() && sb.contains(document.activeElement);
+    sb.classList.remove('sb-open');
+    if (ov) ov.classList.remove('active');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('sb-scroll-lock');
+    if (focusWasInside && btn) btn.focus();
   };
+
+  window.sbToggle = function() {
+    if (_sbIsOpen()) sbClose(); else sbOpen();
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && _sbIsOpen() && _sbDrawerMode()) { sbClose(); return; }
+
+    // The open drawer covers the page like a modal, so keep Tab inside it —
+    // otherwise focus walks off into content the user cannot see or scroll to.
+    if (e.key === 'Tab' && _sbIsOpen() && _sbDrawerMode()) {
+      const sb = _sbEl();
+      const stops = sb ? sb.querySelectorAll('.sb-item, .sb-foot-btn') : [];
+      if (!stops.length) return;
+      const first = stops[0], last = stops[stops.length - 1];
+      const inside = sb.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault(); first.focus();
+      }
+      return;
+    }
+
+    // The nav rows are <div role="button">, so Enter/Space have to be wired
+    // up by hand to match what a real button would do.
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    const item = e.target.closest && e.target.closest('.sb-item');
+    if (!item) return;
+    e.preventDefault();
+    item.click();
+  });
+
+  // Rotating a phone to landscape (or resizing a desktop window down past
+  // the breakpoint and back) must never leave a stuck overlay or a locked
+  // body behind.
+  window.addEventListener('resize', function() {
+    if (!_sbDrawerMode() && _sbIsOpen()) sbClose();
+  });
+
+  // ── Swipe the drawer closed ──────────────────────────
+  (function sbSwipeToClose() {
+    let startX = 0, startY = 0, axis = null, tracking = false, width = 0;
+
+    function reset(sb, ov) {
+      sb.style.transition = '';
+      sb.style.transform  = '';
+      if (ov) ov.style.opacity = '';
+      tracking = false; axis = null;
+    }
+
+    document.addEventListener('touchstart', function(e) {
+      if (!_sbDrawerMode() || !_sbIsOpen() || e.touches.length !== 1) return;
+      const sb = _sbEl();
+      const ov = _sbOverlay();
+      if (!sb || !(sb.contains(e.target) || (ov && ov.contains(e.target)))) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      width  = sb.offsetWidth || 1;
+      axis = null; tracking = true;
+      sb.style.transition = 'none';
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+      if (!tracking) return;
+      const sb = _sbEl(), ov = _sbOverlay();
+      if (!sb) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (axis === null) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        // Vertical: this is a scroll of the nav list, not a swipe. Let it go.
+        if (axis === 'y') { reset(sb, ov); return; }
+      }
+      const off = Math.min(0, dx);          // drag left only
+      sb.style.transform = 'translateX(' + off + 'px)';
+      if (ov) ov.style.opacity = String(1 - Math.min(1, -off / width));
+    }, { passive: true });
+
+    function end(e) {
+      if (!tracking) return;
+      const sb = _sbEl(), ov = _sbOverlay();
+      if (!sb) { tracking = false; return; }
+      const dx = (e.changedTouches && e.changedTouches[0])
+        ? e.changedTouches[0].clientX - startX : 0;
+      const shouldClose = axis === 'x' && -dx > width * 0.3;
+      reset(sb, ov);
+      if (shouldClose) sbClose();
+    }
+    document.addEventListener('touchend', end, { passive: true });
+    document.addEventListener('touchcancel', end, { passive: true });
+  })();
 
   document.addEventListener('DOMContentLoaded', function() {
     // On a completely fresh session (no saved nav), default to the home dashboard
