@@ -33,10 +33,21 @@ const ORDER_KIND_TO_LAYOUT = {
 // Fallback inference for orders created before orderKind existed.
 // Priority: explicit orderKind → id prefix → orderType → stage → contactSource.
 function inferOrderKind(o) {
-  if (o.orderKind && ORDER_KINDS.includes(o.orderKind)) return o.orderKind;
   const id = String(o.id || '');
-  if (id.indexOf('shopify-') === 0) return 'shopify';
-  if (id.indexOf('etsy-') === 0)    return 'etsy';
+  const byId = id.indexOf('shopify-') === 0 ? 'shopify'
+             : id.indexOf('etsy-') === 0    ? 'etsy'
+             : '';
+  // The id prefix is stamped by the importer and never changes, so it beats a
+  // stored kind of 'custom' — 'custom' is what everything falls back to when
+  // the real kind goes missing (a Notion round-trip that didn't carry it, an
+  // order imported before orderKind existed). Because normalizeOrder writes
+  // inferOrderKind's answer back onto the order, a lost kind used to be
+  // self-perpetuating: every later normalize re-affirmed 'custom' and the
+  // order could never be recognised as a website order again.
+  // A deliberate reclassification (repair/resize/estimate) still wins.
+  if (byId && (!o.orderKind || o.orderKind === 'custom')) return byId;
+  if (o.orderKind && ORDER_KINDS.includes(o.orderKind)) return o.orderKind;
+  if (byId) return byId;
   const t = o.orderType;
   if (t === 'resize')      return 'resize';
   if (t === 'repair')      return 'repair';
