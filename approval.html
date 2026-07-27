@@ -22,6 +22,12 @@
     header { text-align:center; margin-bottom:18px; }
     header .shop { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:#E8C878; font-weight:700; }
     header h1 { font-size:22px; margin:6px 0 0; font-weight:700; color:#ffffff; }
+    /* Intro line under the header — mirrors the email's greeting, custom
+       text from the Approval step or the same stock fallback. */
+    header .greet {
+      margin:10px auto 0; max-width:46ch; font-size:15px; line-height:1.5;
+      color:rgba(255,255,255,.88); white-space:pre-wrap; text-align:center;
+    }
     .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
     .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 12px; font-weight:700; }
     .sketch { width:100%; border-radius:10px; display:block; background:#F4F4F2; border:1px solid var(--line); }
@@ -81,6 +87,7 @@
     <header>
       <div class="shop" id="shop">Stones Throw Studio</div>
       <h1>Your Custom Estimate</h1>
+      <p class="greet hidden" id="greet"></p>
     </header>
 
     <div id="loading" class="muted" style="padding:50px 0;">Loading your estimate…</div>
@@ -235,9 +242,27 @@
       document.body.appendChild(box);
     }
 
+    // First name only, matching the email greeting in send-approval.js.
+    function firstName(full) {
+      var n = String(full || '').trim().split(/\s+/)[0];
+      return n || 'there';
+    }
+
+    // Greeting under the header — only when Kyle actually wrote one on the
+    // Approval step. Blank leaves the page bare as it always was; the email
+    // still falls back to its stock intro (see send-approval.js), because
+    // an email opening with no greeting at all reads wrong.
+    function renderGreeting(r) {
+      var intro = String(r.greeting || '').trim();
+      if (!intro) { $('greet').textContent = ''; $('greet').classList.add('hidden'); return; }
+      $('greet').textContent = 'Hi ' + firstName(r.customerName) + ', ' + intro;
+      $('greet').classList.remove('hidden');
+    }
+
     function render(r) {
       REC = r;
       if (r.shopName) $('shop').textContent = r.shopName;
+      renderGreeting(r);
       renderGallery(r);
       renderEstimate(r);
       // Compare mode shows a per-option note (set inside renderOptionTable /

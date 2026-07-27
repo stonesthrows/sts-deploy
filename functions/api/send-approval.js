@@ -144,15 +144,17 @@ function buildHtml(rec, link) {
   // card above) — the shared note only applies to the single-option case.
   const note = (!hasOptions && rec.notesForCustomer)
     ? `<p style="margin:18px 0 0;color:#3a4656;white-space:pre-wrap">${esc(rec.notesForCustomer)}</p>` : '';
-  const intro = hasOptions
+  // Kyle can type his own intro on the Approval step; blank falls back to
+  // the stock wording. "Hi <first name>," is always prepended either way.
+  const intro = String(rec.greeting || '').trim() || (hasOptions
     ? "here are the design options for your piece — take a look at each and let me know which one you'd like, or if it's good to go."
-    : "here's the estimate for your piece. Take a look and let me know if it's good to go.";
+    : "here's the estimate for your piece. Take a look and let me know if it's good to go.");
 
   return `<div style="background:#4E7A94;padding:32px 16px;font-family:-apple-system,Segoe UI,Arial,sans-serif">
    <div style="background:#FAFAF9;max-width:600px;margin:0 auto;padding:32px 28px;border-radius:12px;border:1px solid #E4E2DD">
     <div style="max-width:560px;margin:0 auto;color:#2b3648">
     <h2 style="color:#4E7A94;font-weight:700;margin:0 0 4px">Your custom estimate is ready</h2>
-    <p style="margin:0 0 18px;color:#5a6675">Hi ${esc(firstName(rec.customerName))}, ${intro}</p>
+    <p style="margin:0 0 18px;color:#5a6675;white-space:pre-wrap">Hi ${esc(firstName(rec.customerName))}, ${esc(intro)}</p>
     ${title}
     ${gallery}
     ${estimate}

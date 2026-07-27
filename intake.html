@@ -1783,6 +1783,17 @@
           <table class="w-full text-[15px]" id="ap-est-summary"></table>
         </div>
 
+        <!-- Greeting — the intro line directly under the header, on both the
+             email (send-approval.js) and the approval page (approval.html).
+             Left blank the email falls back to its stock wording and the
+             approval page shows no intro at all.
+             "Hi <first name>," is always prepended. -->
+        <div class="fg mt-3">
+          <label>Greeting <span style="font-weight:400;text-transform:none;letter-spacing:0;">→ the line under the header, in the email and on the approval page</span></label>
+          <textarea id="f-approval-greeting" rows="2" placeholder="Leave blank for the standard intro — “here are the design options for your piece…”"></textarea>
+          <p style="font-size:12px;color:var(--text3);margin-top:6px;">“Hi <span id="ap-greeting-name">there</span>,” is added automatically in front of this. Left blank, the email uses the standard intro and the approval page shows none.</p>
+        </div>
+
         <!-- Note to customer (prefilled from the Items & Price step; Compare mode shows it
              read-only here — edited on Items & Price, this is just a final check before sending) -->
         <div class="fg mt-3">
@@ -2033,7 +2044,7 @@
 <script src="js/qrcode-lib.js?v=1"></script>
 <script src="js/intake-sheet.js?v=6"></script>
 <script src="js/intake-phone.js?v=1"></script>
-<script src="js/intake.js?v=42"></script>
+<script src="js/intake.js?v=43"></script>
 <script src="js/intake-paper.js?v=5"></script>
 <script src="js/intake-ai-notes.js?v=3"></script>
 </body>

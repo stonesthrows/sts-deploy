@@ -712,6 +712,11 @@ function intakeRenderApproval() {
   apHideSendChip();
   const compareOn = _estVariants && _estVariants.length > 1;
 
+  // Show the name the email will actually greet, so the hint under the
+  // greeting box matches what the customer sees (server prepends "Hi X,").
+  const greetName = g('ap-greeting-name');
+  if (greetName) greetName.textContent = (g('f-firstname')?.value || '').trim() || 'there';
+
   // Prefill note from earlier step if still blank — single-option only;
   // compare mode gets per-option notes below.
   const noteEl = g('f-approval-note');
@@ -954,6 +959,9 @@ async function sendForApproval(isTest = false) {
     total: crowned ? crowned.total : fin.total,
     options,
     notesForCustomer: crowned ? (crowned.notes || '') : (g('f-approval-note')?.value || '').trim(),
+    // Custom intro line under the header — used by both the email and the
+    // approval page. Blank → the stock wording (single-estimate vs Compare).
+    greeting: (g('f-approval-greeting')?.value || '').trim(),
     shopName: 'Stones Throw Studio',
   };
 
@@ -1526,7 +1534,7 @@ function intakeReset() {
   if (typeof window !== 'undefined') window._intakeApproval = null;
   apClearAttachedImage();
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
-   'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes', 'f-approval-note', 'f-approval-email',
+   'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes', 'f-approval-note', 'f-approval-greeting', 'f-approval-email',
    'f-piece-type', 'f-sizing', 'f-ringsize2', 'f-stamping', 'f-stamping2',
    'f-gemstones', 'f-repair-notes', 'f-resize-from', 'f-resize-to',
    'f-sensitivity-note',

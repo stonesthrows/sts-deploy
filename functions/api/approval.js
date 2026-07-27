@@ -16,6 +16,7 @@
 //      lines:[{label,amount}], total,        ← customer-facing charges (no cost basis) for the crowned/only option
 //      options,                              ← optional [{label,lines,total,image,crowned}] from Compare (Option A/B/C)
 //      notesForCustomer,
+//      greeting,                             ← optional custom intro line, email + approval page (blank = stock wording)
 //      status: 'sent' | 'approved' | 'changes',
 //      response, sentAt, respondedAt
 //    }
@@ -208,6 +209,7 @@ export async function onRequestPost(context) {
       total:         Number(body.total)   || 0,
       options,
       notesForCustomer: body.notesForCustomer || '',
+      greeting:      String(body.greeting || '').slice(0, 1000),
       shopName:      body.shopName || 'Stones Throw Studio',
       status:        'sent',
       response:      '',
