@@ -40,6 +40,9 @@ export async function onRequestGet(context) {
           email
           note
           totalPriceSet { shopMoney { amount } }
+          subtotalPriceSet { shopMoney { amount } }
+          totalTaxSet { shopMoney { amount } }
+          totalShippingPriceSet { shopMoney { amount } }
           lineItems(first: 15) {
             nodes {
               title
@@ -109,7 +112,10 @@ export async function onRequestGet(context) {
       .join('\n');
 
     const addr = o.shippingAddress;
-    const shipping = addr
+    // Named shipToLine, not "shipping" — the row below now also carries a
+    // `shipping` MONEY amount, and two different meanings under one name in
+    // the same scope is exactly how a total ends up with an address in it.
+    const shipToLine = addr
       ? [addr.address1, addr.address2, addr.city, addr.province, addr.zip, addr.country].filter(Boolean).join(', ')
       : '';
 
@@ -119,7 +125,7 @@ export async function onRequestGet(context) {
 
     const notes = [
       `Shopify Order ${o.name}`,
-      shipping ? `Ship to: ${shipping}` : '',
+      shipToLine ? `Ship to: ${shipToLine}` : '',
       o.note    ? `Note: ${o.note}`     : '',
     ].filter(Boolean).join('\n');
 
@@ -129,6 +135,13 @@ export async function onRequestGet(context) {
       name:   customerName,
       email:  o.email || '',
       price:  parseFloat(o.totalPriceSet?.shopMoney?.amount || 0),
+      // Authoritative money breakdown. Without it the bag could only show a
+      // grand total and had to guess the rest — it recomputed an 8% sales tax
+      // and dropped shipping entirely, so a paid order printed a total the
+      // customer was never charged. Shopify already settled all of this.
+      subtotal: parseFloat(o.subtotalPriceSet?.shopMoney?.amount || 0),
+      tax:      parseFloat(o.totalTaxSet?.shopMoney?.amount || 0),
+      shipping: parseFloat(o.totalShippingPriceSet?.shopMoney?.amount || 0),
       desc:   linesSummary,
       lineItems,
       notes,

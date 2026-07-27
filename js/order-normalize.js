@@ -381,6 +381,12 @@ function shopifyToOrder(so) {
     name:              so.name || '',
     email:             so.email || '',
     price:             so.price || 0,
+    // Authoritative amounts from Shopify (newer proxy). undefined on orders
+    // imported before the proxy sent them, which the bag treats as "no data"
+    // and falls back to computing — see ecomMoney().
+    subtotal:          so.subtotal,
+    tax:               so.tax,
+    shipping:          so.shipping,
     desc:              desc || so.desc || '',
     items,
     ringSize,
@@ -474,6 +480,24 @@ function orderTaxApplies(o) {
   return TAX_HOME_STATE_RX.test(orderTaxState(o));
 }
 
+// ── Bag money ────────────────────────────────────────────────────────
+// A marketplace order is a record of a transaction that already happened, so
+// the amounts Shopify/Etsy settled always beat anything recomputed here — the
+// bag should agree with what the customer was actually charged.
+// Returns null when nothing authoritative is present (manual orders, or ecom
+// orders imported before the proxy sent a breakdown) so callers keep their
+// existing fallback rather than printing a confident zero.
+function ecomMoney(o) {
+  const num = v => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+  const subtotal = num(o && o.subtotal), tax = num(o && o.tax), shipping = num(o && o.shipping);
+  if (subtotal === null && tax === null && shipping === null) return null;
+  return { subtotal, tax, shipping };
+}
+
 // Re-sync backfill for ecom orders imported before newer proxy fields
 // existed (spec'd items, Etsy's ship-by deadline). Fills only what's
 // missing or machine-vintage — never overwrites human-edited data.
@@ -481,6 +505,15 @@ function orderTaxApplies(o) {
 function backfillEcomOrder(o, fresh) {
   let changed = false;
   if (!o.deadline && fresh.deadline) { o.deadline = fresh.deadline; changed = true; }
+  // The money breakdown arrived with a newer proxy, so orders imported before
+  // it existed have no subtotal/tax/shipping and their bags fall back to
+  // guessing. Fill them in on re-sync — only when absent, so a hand-corrected
+  // amount is never clobbered by a machine value.
+  ['subtotal', 'tax', 'shipping'].forEach(k => {
+    if ((o[k] === undefined || o[k] === '') && fresh[k] !== undefined && fresh[k] !== '') {
+      o[k] = fresh[k]; changed = true;
+    }
+  });
   const specless = it => it && it.metal === undefined && it.width === undefined &&
                          it.finish === undefined && !it.ringSize;
   const items = Array.isArray(o.items) ? o.items : [];
