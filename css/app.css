@@ -2608,45 +2608,22 @@
     .nav { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
     .nav::-webkit-scrollbar { display: none; }
     .nav-tab { flex-shrink: 0; }
-    /* ── Bottom tab bar — mobile only ─────────────────
-       Icon-only at rest; only the active item spells out its label. The
-       five slots are the high-traffic destinations — everything else
-       stays in the ☰ sidebar drawer, which is unchanged.
-       --botnav-h is the bar's rendered height (8px pad + 44px hit target
-       + 10px pad, plus the home-indicator inset). Full-height panels
-       subtract it further down so nothing hides underneath. */
-    :root { --botnav-h: calc(62px + env(safe-area-inset-bottom, 0px)); }
+    /* Bottom tab bar — mobile only */
     .botnav {
       display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
-      justify-content: space-between; align-items: center; gap: 3px;
-      padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px));
       background: var(--card); border-top: 1px solid var(--border1);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     .botnav-item {
-      flex: 0 1 auto; min-width: 0;
-      display: flex; flex-direction: row; align-items: center; justify-content: center;
-      gap: 6px; padding: 9px 10px; border-radius: 999px;
-      cursor: pointer; color: var(--text2); font-size: 11.5px;
-      min-height: 44px; border: none; background: none; text-decoration: none;
-      transition: color var(--dur-fast) var(--ease-smooth),
-                  background var(--dur-fast) var(--ease-smooth);
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 8px 4px 6px; gap: 2px; cursor: pointer; color: var(--text2); font-size: 10px;
+      min-height: 56px; border: none; background: none; text-decoration: none;
     }
-    .botnav-item .bn-icon {
-      width: 22px; height: 22px; flex-shrink: 0;
-      fill: none; stroke: currentColor; stroke-width: 1.6;
-      stroke-linecap: round; stroke-linejoin: round;
-    }
-    /* Collapsed to nothing until this item is the active one. */
-    .botnav-item .bn-label {
-      max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
-      transition: max-width var(--dur-med) var(--ease-smooth), opacity var(--dur-fast);
-    }
-    .botnav-item.active { background: var(--accent-bg); color: var(--accent); }
-    .botnav-item.active .bn-label { max-width: 72px; opacity: 1; }
-    .botnav-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    @media (prefers-reduced-motion: reduce) {
-      .botnav-item, .botnav-item .bn-label { transition: none; }
-    }
+    .botnav-item .bn-icon { font-size: 20px; line-height: 1; }
+    .botnav-item.active { color: var(--accent); }
+    .botnav-item.active .bn-icon { filter: drop-shadow(0 0 1px rgba(var(--accent-rgb),0.5)); }
+    /* Push page content above the bottom bar */
+    .content { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 
     .sub-nav.active { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
     .sub-nav::-webkit-scrollbar { display: none; }
@@ -5350,22 +5327,9 @@
     }
     .sidebar.sb-open { transform: translateX(0); }
     .topbar { left: 0; }
+    .content { margin-left: 0; padding-top: 70px; }
     .sb-menu-btn { display: flex !important; }
-    /* Bottom bar is phones-only; it carries the five high-traffic slots
-       while the ☰ drawer keeps everything else. Content clears it here
-       (and only here) so desktop isn't left with dead space. */
-    .content {
-      margin-left: 0; padding-top: 70px;
-      padding-bottom: calc(var(--botnav-h) + 12px);
-    }
-    /* A handful of panels size themselves off the viewport rather than
-       flowing inside .content, so they never see the padding above and
-       would slide under the bar. Give the height back here, in the nav's
-       own block, instead of editing each tab's rule. */
-    .tab-panel.active.notes-page,
-    .rq-page      { height: calc(100vh - 100px - var(--botnav-h)); }
-    .sot-layout   { height: calc(100vh - 116px - var(--botnav-h)); }
-    #bag-frame    { height: calc(100dvh - 236px - var(--botnav-h)); }
+    .botnav { display: none !important; }
   }
   @media (min-width: 769px) {
     .botnav { display: none !important; }

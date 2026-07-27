@@ -501,12 +501,6 @@
     if (target) target.classList.add('sb-active');
     const titleEl = document.getElementById('sbPageTitle');
     if (titleEl) titleEl.textContent = SB_TITLES[tabId] || tabId;
-    // Mirror onto the mobile bottom bar. Only five destinations live
-    // there, so navigating anywhere else via the drawer correctly leaves
-    // every slot unlit rather than lighting a stale one.
-    document.querySelectorAll('.botnav-item').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-sb') === tabId);
-    });
   };
 
   window._sbSync = function() {
