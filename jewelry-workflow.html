@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260727a">
-  <link rel="stylesheet" href="css/app.css?v=20260727a">
+  <link rel="stylesheet" href="css/app.css?v=20260727c">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -47,7 +47,7 @@
     </div>
   </div>
   <nav class="sb-nav">
-    <div class="sb-item sb-active" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
+    <div class="sb-item sb-active sb-item-desktop-only" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
 
     <div class="sb-section">Orders</div>
     <div class="sb-item" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</div>
@@ -55,24 +55,24 @@
     <div class="sb-item" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
     <div class="sb-item" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
 
-    <div class="sb-section">Inventory</div>
+    <div class="sb-section sb-item-desktop-only">Inventory</div>
     <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
-    <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
-    <div class="sb-item" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
-    <div class="sb-item" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
 
-    <div class="sb-section">Supplies</div>
+    <div class="sb-section sb-item-desktop-only">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
-    <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
-    <div class="sb-item" data-sb="materials"     onclick="sbNav('supplies','materials',this)">🧱 Materials Library</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="materials"     onclick="sbNav('supplies','materials',this)">🧱 Materials Library</div>
 
-    <div class="sb-section">More</div>
-    <div class="sb-item" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
+    <div class="sb-section sb-item-desktop-only">More</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
     <div class="sb-item" data-sb="notes"    onclick="sbNavDirect('notes',this)">📝 Notes</div>
     <div class="sb-item" data-sb="designs"  onclick="sbNavDirect('designs',this)">🎨 Designs</div>
-    <div class="sb-item" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
-    <div class="sb-item" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
-    <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
   </nav>
   <div style="padding:10px 10px 14px;border-top:1px solid var(--bdr);flex-shrink:0;">
     <button onclick="openIntegrationsModal()" style="width:100%;background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--sb-fg);font-size:12px;font-weight:600;padding:8px 10px;cursor:pointer;text-align:left;letter-spacing:0.04em;">⚙ Integrations</button>
