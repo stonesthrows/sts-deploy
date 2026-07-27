@@ -33,7 +33,9 @@
 //      as several Square items, and un-merged each fragment rounds its
 //      own ceil() up to 1+. Retired and non-stock items (services,
 //      gift cards, .Discontinued categories) are skipped — see
-//      _bsRestockEligible.
+//      _bsRestockEligible. Permanent jewelry is skipped only while it
+//      has no Square stock count: welds aren't stock, but the premade
+//      chain bracelets are, and those stay on the list.
 //  Loaded ONLY by jewelry-workflow.html, after inventory.js (needs
 //  INV_LOCATION_ID + INV_*_CAT_IDS) and sales.js (reuses statCard()).
 //  Uses toast() from app.js. Touches NO other tab's code or data.
@@ -372,6 +374,15 @@ function _bsCatNamesOf(itemId) {
   return entry.cats.map(function(c){ return (_bsCatMap.catNames[c] || ''); });
 }
 
+// Permanent jewelry, by app family or by raw Square category name —
+// INV_PERM_CAT_IDS is empty until someone assigns categories in ⚙ Manage
+// Items, so in practice these arrive as the Square name "Permanent
+// Jewelry" rather than the 'Perm. Jewelry' family label.
+function _bsIsPermJewelry(itemId) {
+  if (_bsAppCategory(itemId) === 'Perm. Jewelry') return true;
+  return _bsCatNamesOf(itemId).some(function(n){ return /perm(anent)?[\s.]*jewel/i.test(n); });
+}
+
 // Should this item ever appear in restock focus? Skips retired
 // categories, non-stock product types (services, gift cards) and the
 // service line items Square still files as REGULAR. Items with no
@@ -572,11 +583,12 @@ function bsRestockFocus(vel) {
     var g = groups[key];
     if (!g) {
       g = groups[key] = {
-        ids: [], name: name, cat: _bsAppCategory(id),
+        ids: [], name: name, cat: _bsAppCategory(id), pj: false,
         vel: 0, rev: 0, have: null, need: 0, make: 0,
       };
     }
     g.ids.push(id);
+    g.pj = g.pj || _bsIsPermJewelry(id);
     g.vel += v;
     g.rev += vel.revenue[id] || 0;
     // Prefer a real family label over the Uncategorized fallback
@@ -590,6 +602,11 @@ function bsRestockFocus(vel) {
   var rows = [];
   Object.keys(groups).forEach(function(key) {
     var g = groups[key];
+    // Permanent jewelry is welded per customer, not stocked, so an
+    // untracked PJ row can never be "covered" and would sit at the top
+    // forever. Premade chain bracelets ARE stocked, so the test is
+    // tracking, not category: a PJ row with a Square count stays.
+    if (g.pj && _bsOnHandReady && g.have == null) return;
     g.need = Math.ceil(g.vel * BS_COVER_WEEKENDS);
     // Square reports negative counts for stock sold but never received.
     // Floor at 0: it means "none on hand", not "owes 19".
