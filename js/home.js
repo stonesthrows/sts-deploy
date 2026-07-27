@@ -15,6 +15,7 @@
     'triplog':           'Trips',
     'gmail':             'Gmail',
     'notes':             'Notes',
+    'designs':           'Designs',
     'sales':             'Sales',
     'bestsellers':       'Best Sellers',
     'calendar':          'Calendar',
@@ -521,6 +522,8 @@
     const titleEl = document.getElementById('sbPageTitle');
     if (titleEl) titleEl.textContent = SB_TITLES[tabId] || tabId;
     _botnavSetActive(tabId);
+    // A fresh page always starts with the strip showing.
+    if (typeof window._subnavReset === 'function') window._subnavReset();
   };
 
   window._botnavSetActive = function(tabId) {
@@ -631,7 +634,44 @@
   // body behind.
   window.addEventListener('resize', function() {
     if (!_sbDrawerMode() && _sbIsOpen()) sbClose();
+    // Crossing up to desktop must not strand the strip in its hidden state.
+    if (!_sbDrawerMode() && typeof window._subnavReset === 'function') window._subnavReset();
   });
+
+  // ── Auto-hide the sub-nav strip on scroll-down ───────
+  // Reclaims 46px of chrome once you're reading rather than navigating.
+  // Only fires where the document itself scrolls — the full-height panels
+  // (restock queue, supplier, notes) scroll internally and are already
+  // sized to fit exactly, so the strip correctly stays put there; hiding
+  // it would open a gap they can't fill.
+  (function subnavAutoHide() {
+    const REVEAL_AT = 64;   // near the top, always show it
+    const THRESH    = 6;    // ignore jitter and rubber-banding
+    let lastY = 0, ticking = false;
+
+    function show() { document.body.classList.remove('subnav-hidden'); }
+
+    function apply() {
+      ticking = false;
+      if (!_sbDrawerMode()) { show(); lastY = 0; return; }
+      const y = Math.max(0, window.scrollY || window.pageYOffset || 0);
+      if (y <= REVEAL_AT) { show(); lastY = y; return; }
+      const dy = y - lastY;
+      // Below the threshold, leave lastY alone so small moves accumulate
+      // instead of being swallowed one frame at a time.
+      if (Math.abs(dy) < THRESH) return;
+      if (dy > 0) document.body.classList.add('subnav-hidden');
+      else show();
+      lastY = y;
+    }
+
+    window.addEventListener('scroll', function() {
+      if (!ticking) { ticking = true; requestAnimationFrame(apply); }
+    }, { passive: true });
+
+    // Navigating, or crossing back to desktop, always brings it back.
+    window._subnavReset = function() { show(); lastY = 0; };
+  })();
 
   // ── Swipe the drawer closed ──────────────────────────
   (function sbSwipeToClose() {

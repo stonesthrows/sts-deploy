@@ -5450,7 +5450,15 @@
       align-items: stretch;      /* tabs fill the strip = full-height target */
       padding-left: max(8px, env(safe-area-inset-left, 0px));
       padding-right: max(8px, env(safe-area-inset-right, 0px));
+      transition: transform .22s ease;
     }
+    /* Auto-hide on scroll-down — gives the 46px back on long pages. The
+       strip slides up behind the topbar, which is opaque and sits a layer
+       above it (150 vs 149), so it disappears cleanly. Content padding is
+       deliberately NOT adjusted: the strip is always shown at scroll-top,
+       and once you've scrolled past that the padding is off-screen anyway,
+       so there is nothing to reflow and no gap to leave behind. */
+    body.subnav-hidden .sub-nav.active { transform: translateY(-100%); }
     .sub-nav-tab {
       min-height: 0;             /* the strip owns the height now */
       flex-shrink: 0;
@@ -5485,6 +5493,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .sidebar { transition: none; }
+    .sub-nav.active { transition: none; }
   }
 
   /* ── New Order two-column layout ─────────────────── */

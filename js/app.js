@@ -215,16 +215,6 @@ function _scrollTabIntoView(el) {
 function _scrollActiveIntoView() {
   _scrollTabIntoView(document.querySelector('.nav-tab.active'));
   _scrollTabIntoView(document.querySelector('.sub-nav.active .sub-nav-tab.active'));
-  // Mirror active state onto the mobile bottom quick-bar. Delegates to
-  // home.js's _botnavSetActive (keyed off the tab-panel that's actually
-  // showing) rather than re-deriving from .nav-tab.active here — that
-  // hidden legacy bar has no entry for 'home' or the sidebar's "More"
-  // grouping, so a second, independent derivation drifts out of sync with
-  // the sidebar highlight the moment either one changes.
-  if (typeof window._botnavSetActive === 'function') {
-    const panel = document.querySelector('.tab-panel.active');
-    if (panel) window._botnavSetActive(panel.id.replace(/^tab-/, ''));
-  }
 }
 
 // Connection-health pill in the header. Reflects whether the last Notion
@@ -252,6 +242,11 @@ function _showPanel(id) {
   runTabHook(id);
   _syncAria();
   _scrollActiveIntoView();
+  // The one place every nav indicator follows the panel: sidebar row,
+  // topbar title, and bottom bar (home.js's _sbSetActive drives all three).
+  // The sub-nav strip calls switchSubTab() directly, which would otherwise
+  // leave all of them pointing at whatever you navigated away from.
+  if (typeof window._sbSetActive === 'function') window._sbSetActive(id);
 }
 
 // Universal entry point — jump to ANY tab by id, whether it's a direct
