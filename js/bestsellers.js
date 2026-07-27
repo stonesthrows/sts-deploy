@@ -26,7 +26,14 @@
 //      recipe with a wider window). The formula is shown on the card.
 //    · Restock focus = ceil(unit velocity × BS_COVER_WEEKENDS) − on
 //      hand, clamped at 0; on-hand pulled live from Square, pooled
-//      across each item's variations.
+//      across each item's variations. Square can report a NEGATIVE count
+//      (sold without ever being received) — that is floored at 0 for the
+//      math, or it reads as "you are 19 in the hole" and invents work.
+//      Rows are merged by item name first: the same product often exists
+//      as several Square items, and un-merged each fragment rounds its
+//      own ceil() up to 1+. Retired and non-stock items (services,
+//      gift cards, .Discontinued categories) are skipped — see
+//      _bsRestockEligible.
 //  Loaded ONLY by jewelry-workflow.html, after inventory.js (needs
 //  INV_LOCATION_ID + INV_*_CAT_IDS) and sales.js (reuses statCard()).
 //  Uses toast() from app.js. Touches NO other tab's code or data.
@@ -36,6 +43,13 @@ var BS_LOOKBACK_WEEKENDS = 12;           // velocity window (final weekends with
 var BS_COVER_WEEKENDS    = 4;            // restock focus covers this many market weekends
 var BS_TOP_N             = 8;            // bars per category card
 var BS_BACKFILL_START    = '2025-01-04'; // first Saturday of 2025
+
+// Restock focus never asks for these. Category names are matched
+// case-insensitively; a leading dot is Square's convention here for
+// "not a live category" (.Discontinued). Names match whole words, so
+// "Repair" is skipped but "Repair Cuff" would not be.
+var BS_SKIP_CAT_RE  = /^\.|discontinued|retired/i;
+var BS_SKIP_NAME_RE = /^(repair|resize|sizing|shipping|deposit|gift ?card|custom order|upgrade to .*chain)$/i;
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
@@ -211,7 +225,9 @@ function bsToggleSort() {
 }
 
 // ── Category map (item → Square categories) ────
-var BS_CAT_CACHE_KEY = 'sts-bs-catmap';
+// v2 entries carry product_type; the bump forces one refetch so restock
+// focus can tell a service apart from a piece of stock.
+var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v2';
 var BS_CAT_TTL_MS    = 7 * 24 * 60 * 60 * 1000;
 
 // The app's product families, in display order. Each entry unions every
@@ -280,7 +296,10 @@ async function _bsEnsureCatMap(itemIds) {
         var cats = (d.categories || []).map(function(c){ return c.id; });
         if (d.reporting_category && d.reporting_category.id && cats.indexOf(d.reporting_category.id) < 0) cats.push(d.reporting_category.id);
         if (d.category_id && cats.indexOf(d.category_id) < 0) cats.push(d.category_id);
-        return { cats: cats, name: d.name || '', vars: (d.variations || []).map(function(v){ return v.id; }) };
+        return {
+          cats: cats, name: d.name || '', ptype: d.product_type || 'REGULAR',
+          vars: (d.variations || []).map(function(v){ return v.id; }),
+        };
       };
       Object.keys(items).forEach(function(id){ _bsCatMap.items[id] = entryFromItem(items[id]); });
       batch.forEach(function(id) {
@@ -343,6 +362,26 @@ function _bsAppCategory(itemId) {
   }
   var name = _bsCatMap.catNames[entry.cats[0]];
   return name || 'Uncategorized';
+}
+
+// Raw Square category names for an item (not the app family label) —
+// what the skip rules read.
+function _bsCatNamesOf(itemId) {
+  var entry = _bsCatMap && _bsCatMap.items[itemId];
+  if (!entry || !entry.cats) return [];
+  return entry.cats.map(function(c){ return (_bsCatMap.catNames[c] || ''); });
+}
+
+// Should this item ever appear in restock focus? Skips retired
+// categories, non-stock product types (services, gift cards) and the
+// service line items Square still files as REGULAR. Items with no
+// catalog entry stay eligible — an unresolved lookup shouldn't silently
+// drop a real seller.
+function _bsRestockEligible(itemId) {
+  var entry = _bsCatMap && _bsCatMap.items[itemId];
+  if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
+  if (BS_SKIP_NAME_RE.test(String(_bsNameOf(itemId)).trim())) return false;
+  return !_bsCatNamesOf(itemId).some(function(n){ return n && BS_SKIP_CAT_RE.test(n); });
 }
 
 function _bsAllItemIds() {
@@ -493,6 +532,7 @@ function _bsLoadOnHand(vel) {
   var idSet = {};
   Object.keys(vel.units).forEach(function(itemId) {
     if (vel.units[itemId] <= 0) return;
+    if (!_bsRestockEligible(itemId)) return;
     Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
   });
   var ids = Object.keys(idSet);
@@ -513,21 +553,51 @@ function _bsLoadOnHand(vel) {
 
 // Restock rows: focus = what to make to cover BS_COVER_WEEKENDS at the
 // current unit velocity. Untracked on-hand shows '—' and is kept visible.
+//
+// One row per product NAME, not per Square item id: the same piece is
+// often several catalog items (old listings, per-market re-adds), and a
+// row each means four fragments at 0.3/wknd ask for 2 apiece instead of
+// one row at 1.2/wknd asking for 5. Velocity, revenue and tracked stock
+// are summed across the merged ids.
 function bsRestockFocus(vel) {
   var varsByItem = _bsVarsByItem();
-  var rows = [];
+  var groups = {}; // nameKey -> row
+
   Object.keys(vel.units).forEach(function(id) {
     var v = vel.units[id];
     if (!(v > 0)) return;
-    var need = Math.ceil(v * BS_COVER_WEEKENDS);
-    var have = _bsOnHandReady ? _bsItemOnHand(id, varsByItem) : null;
-    var make = Math.max(0, need - (have || 0));
-    if (_bsOnHandReady && have != null && make <= 0) return; // covered
-    rows.push({
-      id: id, name: _bsNameOf(id), cat: _bsAppCategory(id),
-      vel: v, rev: vel.revenue[id] || 0, have: have, need: need, make: make,
-    });
+    if (!_bsRestockEligible(id)) return;
+    var name = _bsNameOf(id);
+    var key = name.trim().toLowerCase();
+    var g = groups[key];
+    if (!g) {
+      g = groups[key] = {
+        ids: [], name: name, cat: _bsAppCategory(id),
+        vel: 0, rev: 0, have: null, need: 0, make: 0,
+      };
+    }
+    g.ids.push(id);
+    g.vel += v;
+    g.rev += vel.revenue[id] || 0;
+    // Prefer a real family label over the Uncategorized fallback
+    if (g.cat === 'Uncategorized') g.cat = _bsAppCategory(id);
+    if (_bsOnHandReady) {
+      var have = _bsItemOnHand(id, varsByItem);
+      if (have != null) g.have = (g.have || 0) + have;
+    }
   });
+
+  var rows = [];
+  Object.keys(groups).forEach(function(key) {
+    var g = groups[key];
+    g.need = Math.ceil(g.vel * BS_COVER_WEEKENDS);
+    // Square reports negative counts for stock sold but never received.
+    // Floor at 0: it means "none on hand", not "owes 19".
+    g.make = Math.max(0, g.need - Math.max(0, g.have || 0));
+    if (_bsOnHandReady && g.have != null && g.make <= 0) return; // covered
+    rows.push(g);
+  });
+
   rows.sort(function(a, b){ return (b.make - a.make) || (b.rev - a.rev); });
   return rows;
 }
@@ -713,7 +783,11 @@ function _bsRenderRestock(vel) {
         + '<td class="sales-td-label">' + _bsEsc(r.name) + '</td>'
         + '<td class="sales-td-muted">' + _bsEsc(r.cat) + '</td>'
         + '<td>' + (Math.round(r.vel * 10) / 10) + '</td>'
-        + '<td>' + (r.have != null ? r.have : '<span class="sales-td-muted" title="Not tracked in Square — counted as 0">—</span>') + '</td>'
+        + '<td>' + (r.have == null
+            ? '<span class="sales-td-muted" title="Not tracked in Square — counted as 0">—</span>'
+            : r.have < 0
+              ? '<span class="sales-td-warn" title="Square count is negative (sold without being received) — counted as 0">' + r.have + '</span>'
+              : r.have) + '</td>'
         + '<td>' + r.need + '</td>'
         + '<td class="sales-td-total">' + r.make + '</td>'
         + '</tr>';
