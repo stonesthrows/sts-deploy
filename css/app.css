@@ -5330,6 +5330,10 @@
     .content { margin-left: 0; padding-top: 70px; }
     .sb-menu-btn { display: flex !important; }
     .botnav { display: none !important; }
+    /* Trim the drawer to five destinations on phones — Orders (unchanged),
+       To Restock, Order Materials, Notes, Designs. Desktop keeps the full
+       sidebar; this class only takes effect in this media query. */
+    .sb-item-desktop-only { display: none; }
   }
   @media (min-width: 769px) {
     .botnav { display: none !important; }
