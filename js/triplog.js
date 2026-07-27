@@ -95,7 +95,7 @@ async function tlFetch() {
     tlRender();
   } catch (err) {
     document.getElementById('tlBody').innerHTML =
-      `<tr><td colspan="6" style="text-align:center;padding:32px;color:#c0392b">
+      `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--danger)">
         Error: ${err.message}.<br>
         <span style="font-size:12px;color:var(--text-dim)">Check the proxy or TripLog API key.</span>
       </td></tr>`;

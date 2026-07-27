@@ -670,7 +670,7 @@ async function calScanGmail() {
     calRenderScanResults();
   } catch (err) {
     console.error('Gmail scan error', err);
-    list.innerHTML = '<div class="cal-empty" style="padding:16px;color:#c00">Scan failed — try reconnecting.</div>';
+    list.innerHTML = '<div class="cal-empty" style="padding:16px;color:var(--danger)">Scan failed — try reconnecting.</div>';
   }
 }
 

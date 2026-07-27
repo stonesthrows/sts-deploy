@@ -7,6 +7,7 @@ const { startServer } = require('./lib/server');
 const fingerprint = require('./fingerprint');
 const offlineStorage = require('./offline-storage');
 const intakeAiNotes = require('./intake-ai-notes');
+const themeAudit = require('./theme-audit');
 const intakePhone = require('./intake-phone');
 
 async function main() {
@@ -24,6 +25,11 @@ async function main() {
   const os = await offlineStorage.run({ baseUrl: server.baseUrl });
   console.log(os.lines.join('\n'));
   overallPass = overallPass && os.pass;
+
+  console.log('\n── Theme audit ────────────────────────────');
+  const th = await themeAudit.run({ baseUrl: server.baseUrl });
+  console.log(th.lines.join('\n'));
+  overallPass = overallPass && th.pass;
 
   console.log('\n── Intake AI note taker suite ─────────────');
   const ai = await intakeAiNotes.run({ baseUrl: server.baseUrl });

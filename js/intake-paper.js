@@ -128,6 +128,9 @@ function _paperDrawTemplate(ctx, w, h, zones) {
   ctx.fillStyle = '#FDF8EE';                       // warm paper on the dark desk
   ctx.fillRect(0, 0, w, h);
   const M = Math.round(Math.min(w, h) * 0.04);
+  // Deliberately literal, not a theme token: this canvas is exported as a
+  // work-order image printed on paper, so it stays ink-on-paper like
+  // css/print-setup.css rather than following the screen theme.
   ctx.fillStyle = '#C9983A';
   ctx.font = '800 12px -apple-system, system-ui, sans-serif';
   ctx.fillText('STONES THROW STUDIO  ·  WORK ORDER', M, M + 4);

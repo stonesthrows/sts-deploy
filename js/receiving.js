@@ -44,7 +44,7 @@ async function rcvOpen() {
   } catch (e) {
     _rcvMaterials = [];
     document.getElementById('rcvLines').innerHTML =
-      '<div style="font-size:12px;color:#e55;margin-bottom:6px;">Could not load materials — ' + escHtml(e.message || String(e)) + '</div>';
+      '<div style="font-size:12px;color:var(--danger);margin-bottom:6px;">Could not load materials — ' + escHtml(e.message || String(e)) + '</div>';
     return;
   }
   if (!_rcvMaterials.length) {

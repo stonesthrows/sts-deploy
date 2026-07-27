@@ -295,7 +295,7 @@ async function _invMgrFetchCatalog() {
 
   } catch (e) {
     if (catalogEl) {
-      catalogEl.innerHTML = `<div style="padding:28px 12px;text-align:center;color:#dc2626;font-size:13px;">⚠ ${_invMgrEsc(e.message)}</div>`;
+      catalogEl.innerHTML = `<div style="padding:28px 12px;text-align:center;color:var(--danger);font-size:13px;">⚠ ${_invMgrEsc(e.message)}</div>`;
     }
   } finally {
     _invMgrFetching = false;
@@ -346,7 +346,7 @@ function _invMgrRenderLeft() {
     <span style="color:var(--text-dim);font-size:10px;">⠿⠿</span>
     <span style="flex:1;">${nameSafe}</span>
     <span style="font-size:10.5px;color:var(--text-dim);font-weight:400;">${group.items.length} items</span>
-    <span style="font-size:10px;background:var(--accent-bg,#F5EDDF);color:var(--accent,#8B6914);border-radius:4px;padding:1px 5px;">CAT</span>
+    <span style="font-size:10px;background:var(--accent-bg,var(--warn-bg));color:var(--accent,var(--warn-fg));border-radius:4px;padding:1px 5px;">CAT</span>
   </div>`;
 
     items.forEach(item => {
@@ -482,7 +482,7 @@ function _invMgrRenderRight() {
     const chips = entries.map((e, idx) => {
       const icon  = e.type === 'category' ? '📁 ' : '';
       const nSafe = _invMgrEsc(e.name);
-      return `<div style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-bg,#F5EDDF);border:1px solid var(--accent,#C9A96E);border-radius:20px;padding:2px 6px 2px 9px;font-size:11.5px;color:var(--text);margin:2px;max-width:100%;">
+      return `<div style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-bg,var(--warn-bg));border:1px solid var(--accent,var(--accent-mid));border-radius:20px;padding:2px 6px 2px 9px;font-size:11.5px;color:var(--text);margin:2px;max-width:100%;">
         <span title="${nSafe}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">${icon}${nSafe}</span>
         <button onclick="invMgrRemove('${key}',${idx})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1;flex-shrink:0;" title="Remove">✕</button>
       </div>`;

@@ -46,7 +46,7 @@ async function bgabInit() {
     _bgabLoaded = true;
   } catch (e) {
     document.getElementById('bgab-event-list').innerHTML =
-      `<div style="padding:32px;text-align:center;color:#dc2626;">⚠ ${_esc(e.message)}</div>`;
+      `<div style="padding:32px;text-align:center;color:var(--danger);">⚠ ${_esc(e.message)}</div>`;
     return;
   }
   bgabRenderList();
@@ -61,8 +61,8 @@ function bgabRenderList() {
   }
   el.innerHTML = _bgabEvents.map(ev => {
     const badge = ev.type === 'May Market'
-      ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">May Market</span>'
-      : '<span style="background:#ede9fe;color:#7c3aed;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Art Bazaar</span>';
+      ? '<span style="background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">May Market</span>'
+      : '<span style="background:var(--accent-bg);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Art Bazaar</span>';
     return `
     <div class="bgab-event-card" onclick="bgabOpenEvent('${ev.notionPageId}')">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -162,7 +162,7 @@ function _bgabRenderItems() {
     }));
     summaryHtml = `<div style="display:flex;gap:20px;padding:12px 4px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text-dim);">
       <span>Brought: <span style="color:var(--text)">${totalBrought}</span></span>
-      <span>Sold: <span style="color:var(--accent,#C9983A)">${totalSold}</span></span>
+      <span>Sold: <span style="color:var(--accent,var(--accent))">${totalSold}</span></span>
       <span>Remaining: <span style="color:var(--text)">${totalBrought - totalSold}</span></span>
     </div>`;
   }
@@ -490,7 +490,7 @@ async function bgabImpSwitchSub(sub, el) {
     bgabImpRenderItems(sub);
   } catch (e) {
     document.getElementById('bgab-imp-items').innerHTML =
-      `<div style="padding:32px;text-align:center;color:#dc2626;">⚠ ${_esc(e.message)}</div>`;
+      `<div style="padding:32px;text-align:center;color:var(--danger);">⚠ ${_esc(e.message)}</div>`;
   }
 }
 
@@ -512,7 +512,7 @@ function bgabImpRenderItems(sub) {
       ${isAdded ? '' : `onmouseenter="this.style.background='var(--hover-bg,#f5f5f5)'" onmouseleave="this.style.background=''"`}>
       <input type="checkbox" ${isChecked ? 'checked' : ''} ${isAdded ? 'disabled' : ''}
         onchange="bgabImpToggle('${item.id}','${sub}')"
-        style="width:16px;height:16px;flex-shrink:0;accent-color:var(--accent,#C9983A);cursor:${isAdded ? 'default' : 'pointer'};">
+        style="width:16px;height:16px;flex-shrink:0;accent-color:var(--accent,var(--accent));cursor:${isAdded ? 'default' : 'pointer'};">
       <span style="flex:1;font-size:14px;color:${isAdded ? 'var(--text-dim)' : 'var(--text)'};">${nameSafe}</span>
       ${isAdded ? '<span style="font-size:11px;color:var(--text-dim);background:var(--card-head-bg);padding:2px 8px;border-radius:4px;flex-shrink:0;">already added</span>' : ''}
     </label>`;

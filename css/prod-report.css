@@ -1,8 +1,9 @@
 /* ── Production Report redesign (scoped to #tab-prod-report only) ──
    The report markup itself is rendered by js/restock.js into the three
    container divs above; that file is frozen on a parallel branch, so all
-   styling here is CSS-only, scoped under this tab's id, and where the JS
-   inlines hardcoded colors we out-specific them with [style*=…] hooks. */
+   styling here is CSS-only and scoped under this tab's id. (It used to
+   out-specific hardcoded inline colours with [style*=…] hooks; the JS now
+   emits design tokens directly, so those are gone.) */
 
 /* Header: put the title and sync buttons on one row (the shared
    .rq-header-bar is block-level; scoped so the Restock tab is untouched) */
@@ -27,12 +28,12 @@
   display: flex; flex-direction: column; gap: var(--sp-2);
 }
 #prod-report-body::-webkit-scrollbar { width: 5px; }
-#prod-report-body::-webkit-scrollbar-thumb { background: #C4B49A; border-radius: 3px; }
+#prod-report-body::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 3px; }
 
 /* "✎ Edit Rates" link sits directly on the page background — lift its
    contrast there (the in-card "+ Add item" reuse of .rq-adjust-link keeps
    the base styling) */
-#prod-report-rates > .rq-adjust-link { color: rgba(255,255,255,0.82); font-size: 11px; }
+#prod-report-rates > .rq-adjust-link { color: var(--text2); font-size: 11px; }
 #prod-report-rates > .rq-adjust-link:hover { color: var(--accent-light); }
 /* Rates editor floats on the page background → full card treatment */
 #prod-report-rates .rq-edit-row { background: var(--card-bg); border-color: var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); margin-top: 0; }
@@ -87,32 +88,10 @@
 #tab-prod-report .rq-sbar-footer .rq-sbar-pieces {
   background: var(--hover); border-radius: 5px; padding: 2px 8px; line-height: 1.6;
 }
-/* JS inlines a #ccc separator dot between start/stop times */
-#tab-prod-report .rq-sbar-time-row span[style*="#ccc"] { color: var(--bdr) !important; }
-
-/* Inline edit row: swap the hardcoded cream (#F5F0EB) / #fff inputs for
-   theme-aware tokens so midnight inherits correctly */
+/* Inline edit row: theme-aware tokens so both themes inherit correctly */
 #prod-report-body .rq-edit-row { background: var(--hover); border-color: var(--bdr-light); border-radius: var(--rad-sm); }
 #tab-prod-report .rq-edit-input { background: var(--input-bg); color: var(--text); }
 #tab-prod-report .rq-edit-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
-
-/* Loading / empty placeholders (JS inlines #B0A898 on the page bg) */
-#prod-report-body > div[style*="#B0A898"] { color: rgba(255,255,255,0.78) !important; }
-/* Error placeholder (JS inlines a dark red that vanishes on the blue bg) */
-#prod-report-body > div[style*="#A0402A"] { color: #FAD4CA !important; }
-
-/* ── Midnight ──
-   Shared .btn-outline hardcodes a white background; re-surface it for dark
-   (same scoped fix the Calendar and Adjust Inventory passes used). */
-body.theme-midnight #tab-prod-report .btn-outline { background: var(--card-bg); }
-/* js/restock.js inlines light-theme greens/reds (profit, Save buttons,
-   summary profit <b>) — brighten them for dark via [style*=…] hooks.
-   Post-merge follow-up: move these inline colors to classes in restock.js. */
-body.theme-midnight #tab-prod-report [style*="#3A7A4A"] { color: #7FC79A !important; }
-body.theme-midnight #tab-prod-report button[style*="#3A7A4A"] { border-color: #3F6B4F !important; }
-body.theme-midnight #tab-prod-report [style*="#A0402A"] { color: #E08A80 !important; }
-body.theme-midnight #tab-prod-report .rq-sbar-del:hover { border-color: #E08A80; color: #E08A80; }
-body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A4A50; }
 
 /* ── Report controls: date range + view toggle (one row above the content) ── */
 #prod-report-controls { padding: var(--sp-2) 20px 0; flex-shrink: 0; }
@@ -127,7 +106,7 @@ body.theme-midnight #prod-report-body::-webkit-scrollbar-thumb { background: #4A
   padding: 4px 10px; cursor: pointer;
 }
 #prod-report-controls .rq-report-view-btn + .rq-report-view-btn { border-left: 1px solid var(--bdr-light); }
-#prod-report-controls .rq-report-view-btn.rq-view-on { background: var(--accent); color: #fff; font-weight: 600; }
+#prod-report-controls .rq-report-view-btn.rq-view-on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 #prod-report-controls .rq-report-view-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Aggregate (By Design / By Category) table ── */

@@ -900,7 +900,7 @@ function ohRender() {
       var cats = Array.from(new Set((o.lineItems || []).map(function(li){ return li.category; })));
       if (cats.length) {
         amtHtml += '<span class="oh-cat-dots">' + cats.map(function(c) {
-          return '<span class="oh-dot" style="background:' + (OH_CAT_COLOR[c] || '#888') + '" title="' + ohEsc(c) + '"></span>';
+          return '<span class="oh-dot" style="background:' + (OH_CAT_COLOR[c] || 'var(--text3)') + '" title="' + ohEsc(c) + '"></span>';
         }).join('') + '</span>';
       }
       var tip      = o.notes ? ' title="' + ohEsc(o.notes) + '"' : '';

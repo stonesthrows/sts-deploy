@@ -431,7 +431,7 @@ async function _invLoadSub(sub) {
     _invLoadSplit(sub);
   } catch (e) {
     _invSetPanelHtml(sub,
-      '<div style="padding:32px;text-align:center;color:#dc2626;font-size:13px;">' +
+      '<div style="padding:32px;text-align:center;color:var(--danger);font-size:13px;">' +
       '⚠ ' + _esc(e.message) + '</div>'
     );
   }
@@ -510,7 +510,7 @@ function _invRenderSub(sub) {
       <div style="font-size:12px;max-width:340px;margin:0 auto;line-height:1.6;">
         The Square categories mapped to this tab returned 0 items.<br>
         Check the browser console for details, or use
-        <button onclick="invMgrOpen()" style="background:none;border:none;color:var(--accent,#C9983A);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;">⚙ Manage Items</button>
+        <button onclick="invMgrOpen()" style="background:none;border:none;color:var(--accent,var(--accent));cursor:pointer;font-size:12px;padding:0;text-decoration:underline;">⚙ Manage Items</button>
         to assign the correct Square categories to this tab.
       </div>
     </div>`);
@@ -1140,7 +1140,7 @@ function invOpenQueueAllLowModal(itemId) {
   list.innerHTML = lowVars.map((v, i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--card-head-bg);border:1px solid var(--bdr);">
       <input type="checkbox" class="inv-qal-check" data-idx="${i}" checked
-        style="width:16px;height:16px;accent-color:var(--accent,#C9983A);flex-shrink:0;cursor:pointer;">
+        style="width:16px;height:16px;accent-color:var(--accent,var(--accent));flex-shrink:0;cursor:pointer;">
       <span style="min-width:72px;font-size:13px;font-weight:600;color:var(--text);">${_esc(v.varName || '(Default)')}</span>
       <span style="font-size:11px;color:var(--text-dim);min-width:64px;">stock: ${v.curQty}</span>
       <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);">
