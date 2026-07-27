@@ -5206,6 +5206,10 @@
     left: 0; top: 0;
     width: 196px;
     height: 100vh;
+    /* dvh so the drawer ends at the *visible* viewport bottom on mobile
+       Safari/Chrome — with 100vh alone the last nav row sits behind the
+       collapsing URL bar and can never be tapped. */
+    height: 100dvh;
     background: var(--sb-bg);
     border-right: 1px solid var(--bdr);
     display: flex;
@@ -5213,12 +5217,19 @@
     z-index: 200;
     overflow-y: auto;
     overflow-x: hidden;
+    /* Flicking past the end of the nav list must not scroll the page
+       underneath the open drawer. */
+    overscroll-behavior: contain;
   }
   .sidebar::-webkit-scrollbar { width: 4px; }
   .sidebar::-webkit-scrollbar-thumb { background: var(--bdr); border-radius: 2px; }
 
+  /* The sidebar is a fixed, full-height surface, so on a notched phone in
+     standalone PWA mode its top row lands under the status bar and its
+     bottom row under the home indicator. Pad by the insets (0 everywhere
+     else, so this is a no-op on desktop). */
   .sidebar-brand {
-    padding: 14px 14px 13px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px 13px;
     border-bottom: 1px solid var(--bdr);
     display: flex;
     align-items: center;
@@ -5274,16 +5285,40 @@
   }
   .sb-badge:empty { display: none; }
 
+  /* ── Sidebar footer ───────────────────────────────── */
+  .sidebar-foot {
+    padding: 10px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--bdr);
+    flex-shrink: 0;
+  }
+  .sb-foot-btn {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--bdr);
+    border-radius: 8px;
+    color: var(--sb-fg);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    cursor: pointer;
+    text-align: left;
+    letter-spacing: 0.04em;
+  }
+  .sb-foot-btn:hover { background: var(--sb-hover); color: var(--text); }
+
   /* ── Topbar ───────────────────────────────────────── */
   .topbar {
     position: fixed;
     top: 0; left: 196px; right: 0;
-    height: 50px;
+    /* Grow by the status-bar inset and pad the content down into the part
+       that is actually visible — otherwise the ☰ button and page title sit
+       under the clock when the PWA runs standalone on a notched phone. */
+    height: calc(50px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 18px 0;
     background: var(--hdr);
     border-bottom: 1px solid var(--hdr-bdr);
     display: flex;
     align-items: center;
-    padding: 0 18px;
     gap: 12px;
     z-index: 150;
   }
@@ -5297,16 +5332,20 @@
   .sb-menu-btn {
     display: none;
     align-items: center; justify-content: center;
-    width: 32px; height: 32px;
+    /* 44px is the minimum comfortable touch target; the negative margin
+       keeps the glyph optically aligned with the 18px topbar padding. */
+    width: 44px; height: 44px;
+    margin-left: -11px;
     background: none; border: none; cursor: pointer;
     color: var(--accent-light); font-size: 20px; line-height: 1;
     flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* ── Content offset ───────────────────────────────── */
   .content {
     margin-left: 196px;
-    padding-top: 70px; /* 50px topbar + 20px original gap */
+    padding-top: calc(70px + env(safe-area-inset-top, 0px)); /* 50px topbar + 20px original gap */
   }
 
   /* ── Sidebar overlay (mobile) ─────────────────────── */
@@ -5315,24 +5354,152 @@
     position: fixed; inset: 0;
     background: rgba(0,0,0,.45);
     z-index: 190;
+    /* Swallow the touch so the page behind the drawer cannot be scrolled
+       or rubber-banded; taps still land, so tap-to-close keeps working. */
+    touch-action: none;
+    overscroll-behavior: contain;
   }
   .sidebar-overlay.active { display: block; }
 
   /* ── Mobile adjustments ───────────────────────────── */
   @media (max-width: 768px) {
-    .sidebar {
-      transform: translateX(-100%);
-      transition: transform .2s ease;
-      z-index: 300;
+    /* Mobile chrome adds up to more than the hardcoded desktop constants
+       scattered through this file assume (topbar + optional sub-nav strip
+       + bottom bar). Express it once here and let the full-height panels
+       below subtract it, instead of hand-tuning four magic numbers that
+       drift the next time the chrome changes. */
+    :root { --m-subnav-h: 46px; }
+    /* Direct tabs (Home, Trips, Gmail, Notes, Designs) show no strip. */
+    body { --m-sub-offset: 0px; }
+    body:has(.sub-nav.active) { --m-sub-offset: var(--m-subnav-h); }
+    body {
+      --m-top:    calc(70px + env(safe-area-inset-top, 0px) + var(--m-sub-offset));
+      --m-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      --m-chrome: calc(var(--m-top) + var(--m-bottom));
     }
-    .sidebar.sb-open { transform: translateX(0); }
-    .topbar { left: 0; }
-    .content { margin-left: 0; padding-top: 70px; }
-    .sb-menu-btn { display: flex !important; }
-    .botnav { display: none !important; }
+
+    .sidebar {
+      /* Wider drawer than the desktop rail: it is the only navigation on a
+         phone, so the rows get room to hit a 44px target. */
+      width: min(280px, 82vw);
+      /* Landscape notch sits over the drawer's left edge. */
+      padding-left: env(safe-area-inset-left, 0px);
+      transform: translateX(-100%);
+      transition: transform .2s ease, visibility 0s linear .2s;
+      z-index: 300;
+      /* Closed = fully out of the tab order and the accessibility tree.
+         Without this the off-canvas rail still swallows every Tab press
+         before the page content gets one. */
+      visibility: hidden;
+    }
+    .sidebar.sb-open {
+      transform: translateX(0);
+      visibility: visible;
+      transition: transform .2s ease, visibility 0s;
+    }
+    /* Comfortable targets — the desktop rail's 9px/12.5px rows are ~33px
+       tall, well under the 44px minimum. */
+    .sb-item {
+      padding: 11px 16px;
+      min-height: 44px;
+      box-sizing: border-box;
+      font-size: 14px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sb-item:active { background: var(--sb-hover); }
+    .sb-section { padding: 16px 16px 5px; font-size: 10px; }
+    .sb-badge { font-size: 10px; padding: 2px 6px; }
+    .sb-foot-btn { padding: 12px; min-height: 44px; box-sizing: border-box; font-size: 13px; }
+
+    .topbar { left: 0; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+    .content {
+      margin-left: 0;
+      padding-top: var(--m-top);
+      /* Must be restated here: the `padding: 12px 12px` shorthand in the
+         640px block below resets the bottom padding set earlier in the
+         file, which strands the last ~44px of every scrolling page under
+         the bottom bar. Matching --m-bottom exactly means the fixed-height
+         panels fill the screen with no leftover scroll. */
+      padding-bottom: var(--m-bottom);
+    }
+    .sb-menu-btn { display: flex !important; margin-left: -8px; }
+
+    /* Bottom tab bar: the top-level categories, always on screen so the
+       phone never needs a drawer open just to switch Orders/Inventory/
+       Supplies. "More" (4th slot) reaches everything else via the same
+       drawer the topbar hamburger opens. */
+    .botnav { display: flex !important; }
+    .botnav-item {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .botnav-item:active { background: var(--sb-hover); }
+    /* The drawer sits at z-index 300, the bottom bar at 500 — without this
+       the persistent bar would float visibly on top of the open drawer. */
+    body:has(#appSidebar.sb-open) .botnav { display: none !important; }
+
+    /* ── Sub-nav strip ─────────────────────────────────
+       The second level: which view *within* the section the bottom bar
+       selected. A scrollable tab strip pinned under the topbar — the
+       conventional pairing with a bottom tab bar, and the only route to
+       Print Order Bag and PJ Reference, which have no sidebar row.
+       Beats the `.sub-nav { display: none !important }` kill-switch above
+       on specificity (0,2,0 vs 0,1,0), not source order. */
+    .sub-nav.active {
+      display: flex !important;
+      position: fixed;
+      top: calc(50px + env(safe-area-inset-top, 0px));
+      left: 0; right: 0;
+      height: var(--m-subnav-h);
+      box-sizing: border-box;
+      z-index: 149;              /* just under the topbar's 150 */
+      align-items: stretch;      /* tabs fill the strip = full-height target */
+      padding-left: max(8px, env(safe-area-inset-left, 0px));
+      padding-right: max(8px, env(safe-area-inset-right, 0px));
+      transition: transform .22s ease;
+    }
+    /* Auto-hide on scroll-down — gives the 46px back on long pages. The
+       strip slides up behind the topbar, which is opaque and sits a layer
+       above it (150 vs 149), so it disappears cleanly. Content padding is
+       deliberately NOT adjusted: the strip is always shown at scroll-top,
+       and once you've scrolled past that the padding is off-screen anyway,
+       so there is nothing to reflow and no gap to leave behind. */
+    body.subnav-hidden .sub-nav.active { transform: translateY(-100%); }
+    .sub-nav-tab {
+      min-height: 0;             /* the strip owns the height now */
+      flex-shrink: 0;
+      padding: 0 14px;
+      font-size: 12.5px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sub-nav-tab:active { background: var(--sb-hover); }
+
+    /* Embedded mode (the restock queue served standalone in an iframe)
+       hides the topbar, so the strip and bottom bar go with it. */
+    body.sts-embed .sub-nav { display: none !important; }
+    body.sts-embed .botnav  { display: none !important; }
+
+    /* Panels that fill the screen and scroll internally. Each hardcoded a
+       desktop chrome constant (100px / 116px) that predates the sub-nav
+       strip and the bottom bar; without this their bottom edge slides
+       under the bottom bar. Same selectors as the originals so these win
+       on source order at equal specificity. */
+    .rq-page,
+    .sot-layout,
+    .tab-panel.active.notes-page {
+      height: calc(100dvh - var(--m-chrome));
+    }
+
+    /* Set while the drawer is open — freezes the page behind it so closing
+       the drawer returns you to where you were, not to the top. */
+    body.sb-scroll-lock { overflow: hidden; }
   }
   @media (min-width: 769px) {
     .botnav { display: none !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar { transition: none; }
+    .sub-nav.active { transition: none; }
   }
 
   /* ── New Order two-column layout ─────────────────── */

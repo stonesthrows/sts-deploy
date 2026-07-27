@@ -215,12 +215,6 @@ function _scrollTabIntoView(el) {
 function _scrollActiveIntoView() {
   _scrollTabIntoView(document.querySelector('.nav-tab.active'));
   _scrollTabIntoView(document.querySelector('.sub-nav.active .sub-nav-tab.active'));
-  // Mirror active state onto the mobile bottom quick-bar
-  document.querySelectorAll('.botnav-item').forEach(b => {
-    const t = b.getAttribute('data-target');
-    b.classList.toggle('active', t === (document.querySelector('.nav-tab.active')?.getAttribute('data-parent')
-      || document.querySelector('.nav-tab.active')?.getAttribute('data-tab')));
-  });
 }
 
 // Connection-health pill in the header. Reflects whether the last Notion
@@ -248,6 +242,11 @@ function _showPanel(id) {
   runTabHook(id);
   _syncAria();
   _scrollActiveIntoView();
+  // The one place every nav indicator follows the panel: sidebar row,
+  // topbar title, and bottom bar (home.js's _sbSetActive drives all three).
+  // The sub-nav strip calls switchSubTab() directly, which would otherwise
+  // leave all of them pointing at whatever you navigated away from.
+  if (typeof window._sbSetActive === 'function') window._sbSetActive(id);
 }
 
 // Universal entry point — jump to ANY tab by id, whether it's a direct

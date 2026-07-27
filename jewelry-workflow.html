@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260727a">
-  <link rel="stylesheet" href="css/app.css?v=20260727a">
+  <link rel="stylesheet" href="css/app.css?v=20260727f">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -46,36 +46,37 @@
       <span class="logo-sub">Order Workflow</span>
     </div>
   </div>
-  <nav class="sb-nav">
-    <div class="sb-item sb-active" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
+  <nav class="sb-nav" aria-label="Main">
+    <div class="sb-item sb-active" role="button" tabindex="0" data-sb="home" onclick="sbNavDirect('home',this)">🏠 Dashboard</div>
 
     <div class="sb-section">Orders</div>
-    <div class="sb-item" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</div>
-    <div class="sb-item" data-sb="dashboard"    onclick="sbNav('custom-orders','dashboard',this)">📋 Custom Orders <span class="sb-badge" id="sb-badge-active"></span></div>
-    <div class="sb-item" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
-    <div class="sb-item" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
+    <div class="sb-item" role="button" tabindex="0" onclick="window.open('intake.html','_blank')" title="Opens the standalone Intake app">✚ New Order ↗</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="dashboard"    onclick="sbNav('custom-orders','dashboard',this)">📋 Custom Orders <span class="sb-badge" id="sb-badge-active"></span></div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="production"   onclick="sbNav('custom-orders','production',this)">📬 Ready to Ship</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="customers"    onclick="sbNav('custom-orders','customers',this)">👥 Customers</div>
 
     <div class="sb-section">Inventory</div>
-    <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
-    <div class="sb-item" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
-    <div class="sb-item" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
-    <div class="sb-item" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
 
     <div class="sb-section">Supplies</div>
-    <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
-    <div class="sb-item" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
-    <div class="sb-item" data-sb="materials"     onclick="sbNav('supplies','materials',this)">🧱 Materials Library</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="order-history" onclick="sbNav('supplies','order-history',this)">📋 Order History</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="materials"     onclick="sbNav('supplies','materials',this)">🧱 Materials Library</div>
 
     <div class="sb-section">More</div>
-    <div class="sb-item" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
-    <div class="sb-item" data-sb="notes"    onclick="sbNavDirect('notes',this)">📝 Notes</div>
-    <div class="sb-item" data-sb="designs"  onclick="sbNavDirect('designs',this)">🎨 Designs</div>
-    <div class="sb-item" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
-    <div class="sb-item" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
-    <div class="sb-item" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="triplog"  onclick="sbNavDirect('triplog',this)">🚗 Trips</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="gmail"    onclick="sbNavDirect('gmail',this)">📧 Gmail</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="notes"    onclick="sbNavDirect('notes',this)">📝 Notes</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="designs"  onclick="sbNavDirect('designs',this)">🎨 Designs</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="sales"   onclick="sbNav('more','sales',this)">📊 Sales</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="bestsellers" onclick="sbNav('more','bestsellers',this)">🏆 Best Sellers</div>
+    <div class="sb-item" role="button" tabindex="0" data-sb="pj-calc" onclick="sbNav('more','pj-calc',this)">⛓️ PJ Calc</div>
   </nav>
-  <div style="padding:10px 10px 14px;border-top:1px solid var(--bdr);flex-shrink:0;">
-    <button onclick="openIntegrationsModal()" style="width:100%;background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--sb-fg);font-size:12px;font-weight:600;padding:8px 10px;cursor:pointer;text-align:left;letter-spacing:0.04em;">⚙ Integrations</button>
+  <div class="sidebar-foot">
+    <button class="sb-foot-btn" onclick="openIntegrationsModal()">⚙ Integrations</button>
   </div>
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="sbClose()"></div>
@@ -190,7 +191,8 @@
 
 <!-- ══ TOPBAR ═══════════════════════════════════════ -->
 <div class="topbar" id="appTopbar">
-  <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation">☰</button>
+  <button class="sb-menu-btn" id="sbMenuBtn" onclick="sbToggle()" aria-label="Toggle navigation"
+          aria-controls="appSidebar" aria-expanded="false">☰</button>
   <span class="topbar-title" id="sbPageTitle">Custom Orders</span>
   <div class="topbar-spacer"></div>
   <div class="header-pill sync-pill" id="connPill" onclick="if(typeof syncPillClick==='function')syncPillClick()" title="Notion sync status — click to refresh now" role="button" tabindex="0">
@@ -3515,7 +3517,7 @@
 <script src="js/order-normalize.js?v=20260727b"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260727a"></script>
-<script src="js/app.js?v=20260727a"></script>
+<script src="js/app.js?v=20260727f"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260727a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
@@ -3624,24 +3626,26 @@
 <input type="file" id="cameraInput" accept="image/*" capture="environment"
        style="display:none" onchange="handlePhoto(this)">
 
-<!-- Mobile bottom tab bar (#6) -->
+<!-- Mobile bottom tab bar — top-level categories, always visible on a
+     phone; "More" opens the same drawer the topbar hamburger does. -->
 <nav class="botnav" aria-label="Quick navigation">
-  <button class="botnav-item" data-target="custom-orders" onclick="switchParent('custom-orders', document.querySelector('.nav-tab[data-parent=custom-orders]'))">
-    <span class="bn-icon">✏️</span>Orders
+  <button class="botnav-item" data-target="custom-orders" onclick="sbNav('custom-orders','dashboard')">
+    <span class="bn-icon">📋</span>Orders
   </button>
-  <button class="botnav-item" data-target="inventory" onclick="switchParent('inventory', document.querySelector('.nav-tab[data-parent=inventory]'))">
+  <button class="botnav-item" data-target="inventory" onclick="sbNav('inventory','to-restock')">
     <span class="bn-icon">💎</span>Inventory
   </button>
-  <button class="botnav-item" data-target="supplies" onclick="switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'))">
+  <button class="botnav-item" data-target="supplies" onclick="sbNav('supplies','supplier')">
     <span class="bn-icon">📦</span>Supplies
   </button>
-  <button class="botnav-item" data-target="gmail" onclick="switchTab('gmail', document.querySelector('.nav-tab[data-tab=gmail]'))">
-    <span class="bn-icon">📧</span>Gmail
+  <button class="botnav-item active" id="botnavMoreBtn" data-target="more" onclick="sbToggle()"
+          aria-haspopup="true" aria-controls="appSidebar" aria-expanded="false" aria-current="page">
+    <span class="bn-icon">☰</span>More
   </button>
 </nav>
 
 <!-- ══ SIDEBAR NAV JS ════════════════════════════════ -->
-<script src="js/home.js?v=20260720a"></script>
+<script src="js/home.js?v=20260727f"></script>
 <!-- ═════════════════════════════════════════════════ -->
 
 <script>
