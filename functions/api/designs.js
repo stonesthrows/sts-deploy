@@ -54,13 +54,20 @@ export async function onRequestGet(context) {
   return new Response(index || '[]', { headers: { 'Content-Type': 'application/json', ...CORS } });
 }
 
-// POST /api/designs  body: { folder: "Name" }
+// POST /api/designs  body: { folder: "Name" or "Parent/Child/Grandchild" }
 // Creates an empty Design Family folder (no design tagged into it yet) so it
 // shows up in the Design Families grid before any design references it.
+// Folders nest via '/'-delimited paths — the same string space as a
+// design's `families` entries — so a folder and a family tag are the same
+// thing; a path just has more than one segment.
+function _normalizeFolderPath(raw) {
+  return (raw || '').split('/').map(p => p.trim()).filter(Boolean).join('/');
+}
+
 async function _createFolder(kv, name) {
-  const trimmed = (name || '').trim();
+  const trimmed = _normalizeFolderPath(name);
   if (!trimmed) return json({ error: 'Folder name is required' }, 400);
-  if (trimmed.length > 60) return json({ error: 'Folder name is too long (max 60 characters)' }, 400);
+  if (trimmed.length > 120) return json({ error: 'Folder path is too long (max 120 characters)' }, 400);
 
   const raw = await kv.get('designs:folders');
   let folders = [];

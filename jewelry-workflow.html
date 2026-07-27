@@ -2158,7 +2158,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260727a">
+<link rel="stylesheet" href="css/inventory.css?v=20260727b">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2242,16 +2242,14 @@
     </div>
     <div id="dsn-family-grid-wrap" style="display:none">
       <div class="dsn-family-grid-head">
-        <div class="dsn-family-grid-title">📁 Collections</div>
+        <button type="button" class="btn btn-outline btn-sm" id="dsn-crumb-back" style="display:none"
+                onclick="designsCloseFamily()" title="Up one level">← Back</button>
+        <div class="dsn-breadcrumb" id="dsn-breadcrumb" aria-label="Folder path"></div>
         <div class="dsn-family-grid-count" id="dsn-family-count"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="dsn-compare-costs-btn" style="display:none"
+                onclick="dsnPricingOpenForFamily(_designsFamilyOpen)">💲 Compare costs</button>
       </div>
       <div class="dsn-grid" id="dsn-family-grid"></div>
-    </div>
-    <div id="dsn-family-bar" class="dsn-family-bar" style="display:none">
-      <button class="btn btn-outline btn-sm" onclick="designsCloseFamily()">← Design Families</button>
-      <div class="dsn-family-title">📁 <span id="dsn-family-title"></span></div>
-      <div style="flex:1"></div>
-      <button class="btn btn-outline btn-sm" onclick="dsnPricingOpenForFamily(_designsFamilyOpen)">💲 Compare costs</button>
     </div>
     <div class="dsn-grid" id="designs-list"></div>
   </div>
@@ -3612,7 +3610,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=18"></script>
+<script src="js/designs.js?v=19"></script>
 <script src="js/triplog.js?v=20260727a"></script>
 <script src="js/inventory.js?v=20260727a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>

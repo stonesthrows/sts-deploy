@@ -210,27 +210,64 @@ function _dsnFamiliesOf(d) {
   return legacy ? [legacy] : [];
 }
 
-// family name -> [designs]. Built from every design, not the filtered view, so a
-// family's size (and therefore whether it's a collection) doesn't shift with filters.
-// A design in 2+ families is counted as a member of each.
-function _dsnFamilyMembers() {
-  const m = new Map();
-  for (const d of _designs) {
-    for (const f of _dsnFamiliesOf(d)) m.set(f, (m.get(f) || []).concat(d));
-  }
-  return m;
+// ── Folder tree (Design Families) ────────────────
+// A folder is just a '/'-delimited path living in the same string space as
+// design.families — e.g. "Rings/Stackable/Wave Collection". A design "in"
+// a folder has that exact path in its families[]; a folder "contains"
+// every path one segment longer that starts with "path/". Nesting is a
+// mobile-friendly drill-down (breadcrumb + one screen per level) rather
+// than a wide sidebar tree.
+
+// Every path that should exist as a node: every ancestor segment of every
+// design's family tag, plus every ancestor segment of every
+// manually-created (possibly still-empty) folder.
+function _dsnAllFolderPaths() {
+  const paths = new Set();
+  const addAncestors = (full) => {
+    const parts = (full || '').split('/').map(p => p.trim()).filter(Boolean);
+    let acc = '';
+    for (const part of parts) { acc = acc ? `${acc}/${part}` : part; paths.add(acc); }
+  };
+  _designs.forEach(d => _dsnFamiliesOf(d).forEach(addAncestors));
+  _designsFolders.forEach(addAncestors);
+  return paths;
 }
 
-// Collections = families with 2+ members, alphabetical.
-function _dsnCollections() {
-  const derived = _dsnFamilyMembers(); // name -> members[] (from designs' family tags)
-  const names = new Set([
-    ...[...derived].filter(([, members]) => members.length > 1).map(([name]) => name),
-    ..._designsFolders, // manually-created folders show even with 0 or 1 members
-  ]);
-  return [...names]
-    .map(name => [name, derived.get(name) || []])
-    .sort((a, b) => a[0].localeCompare(b[0]));
+// Direct child paths exactly one segment below parentPath (falsy = top level).
+function _dsnFolderChildPaths(parentPath) {
+  const depth  = parentPath ? parentPath.split('/').length + 1 : 1;
+  const prefix = parentPath ? parentPath + '/' : '';
+  return [..._dsnAllFolderPaths()]
+    .filter(p => p.split('/').length === depth && (!parentPath || p.startsWith(prefix)))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+// Designs tagged with this exact path (not a deeper subfolder).
+function _dsnFolderDirectDesigns(path) {
+  return _designs.filter(d => _dsnFamiliesOf(d).includes(path));
+}
+
+// Designs tagged with this path, or with anything nested underneath it.
+function _dsnFolderDescendantDesigns(path) {
+  const prefix = path + '/';
+  return _designs.filter(d => _dsnFamiliesOf(d).some(f => f === path || f.startsWith(prefix)));
+}
+
+// A folder shows in the tree if it was explicitly created, has 2+ designs
+// filed directly in it, or has visible content underneath it — the same
+// "don't clutter the grid with a one-off family typo" rule the flat
+// version used, extended so a deliberately-nested subfolder always
+// surfaces its ancestors even when an ancestor holds nothing directly.
+function _dsnVisibleFolderPaths() {
+  const explicit = new Set(_designsFolders.map(f => f.trim()).filter(Boolean));
+  const byDepthDesc = [..._dsnAllFolderPaths()].sort((a, b) => b.split('/').length - a.split('/').length);
+  const visible = new Set();
+  for (const path of byDepthDesc) {
+    const directCount    = _dsnFolderDirectDesigns(path).length;
+    const hasVisibleChild = _dsnFolderChildPaths(path).some(c => visible.has(c));
+    if (explicit.has(path) || directCount > 1 || hasVisibleChild) visible.add(path);
+  }
+  return visible;
 }
 
 // All search terms must hit somewhere on the design (AND across terms).
@@ -238,6 +275,14 @@ function _dsnMatchesSearch(d) {
   if (!_designsSearch) return true;
   const hay = [d.name, d.category, ..._dsnFamiliesOf(d), d.preview]
     .filter(Boolean).join(' ').toLowerCase();
+  return _designsSearch.split(/\s+/).every(t => hay.includes(t));
+}
+
+// Every term must hit the folder's own path or one of its descendant designs' names.
+function _dsnFolderMatchesSearch(path) {
+  if (!_designsSearch) return true;
+  const desc = _dsnFolderDescendantDesigns(path);
+  const hay = [path, ...desc.map(m => m.name || '')].join(' ').toLowerCase();
   return _designsSearch.split(/\s+/).every(t => hay.includes(t));
 }
 
@@ -279,59 +324,106 @@ function _dsnDesignCardHtml(d) {
     </div>`;
 }
 
-function _dsnFamilyCardHtml(fam, members) {
-  const thumbs = members.filter(m => m.thumb).slice(0, 4).map(m => m.thumb);
+function _dsnFolderCardHtml(path) {
+  const desc = _dsnFolderDescendantDesigns(path);
+  const thumbs = desc.filter(m => m.thumb).slice(0, 4).map(m => m.thumb);
   const collage = thumbs.length
     ? `<div class="dsn-family-collage${thumbs.length === 1 ? ' cols-1' : ''}">${thumbs.map(t => `<div style="background-image:url('${t}')"></div>`).join('')}</div>`
     : `<div class="dsn-card-thumb dsn-card-thumb-empty"><span style="font-size:22px">📁</span></div>`;
-  const names = members.map(m => m.name || 'Untitled').join(' · ');
-  // Only manually-created folders can be empty (0 members) — offer a way to
-  // remove one created by mistake before any design has been tagged into it.
-  const delBtn = members.length === 0
-    ? `<button type="button" class="dsn-family-del-btn" data-fam="${escHtml(fam)}" title="Delete empty folder"
-         onclick="event.stopPropagation();dsnFolderDelete(this.dataset.fam)">✕</button>`
+  const name = path.split('/').pop();
+  // A folder can only be deleted if it holds nothing anywhere underneath it
+  // — not just directly, since a subfolder with its own content shouldn't
+  // vanish along with an empty-looking parent.
+  const isEmpty = desc.length === 0 && !_dsnFolderChildPaths(path).length;
+  const delBtn = isEmpty
+    ? `<button type="button" class="dsn-family-del-btn" data-path="${escHtml(path)}" title="Delete empty folder"
+         onclick="event.stopPropagation();dsnFolderDelete(this.dataset.path)">✕</button>`
     : '';
+  const names = desc.map(m => m.name || 'Untitled').join(' · ');
+  const preview = isEmpty
+    ? 'Empty folder — add designs or a subfolder'
+    : escHtml(names.slice(0, 90)) + (names.length > 90 ? '…' : '');
   return `
-    <div class="dsn-card" data-fam="${escHtml(fam)}" onclick="designsOpenFamily(this.dataset.fam)">
-      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${members.length} design${members.length === 1 ? '' : 's'}</span>${delBtn}</div>
+    <div class="dsn-card" data-path="${escHtml(path)}" onclick="designsOpenFamily(this.dataset.path)">
+      <div class="dsn-card-thumb-wrap">${collage}<span class="dsn-img-badge">${desc.length} design${desc.length === 1 ? '' : 's'}</span>${delBtn}</div>
       <div class="dsn-card-body">
-        <div class="dsn-cat-chip">📁 Design Family</div>
-        <div class="dsn-card-name">${escHtml(fam)}</div>
-        <div class="dsn-card-preview">${names ? escHtml(names.slice(0, 90)) + (names.length > 90 ? '…' : '') : 'Empty folder — add designs from the design form'}</div>
+        <div class="dsn-cat-chip">📁 Folder</div>
+        <div class="dsn-card-name">${escHtml(name)}</div>
+        <div class="dsn-card-preview">${preview}</div>
       </div>
     </div>`;
 }
 
-// Every term must hit the family name or one of its members' names.
-function _dsnFamilyMatchesSearch(fam, members) {
-  if (!_designsSearch) return true;
-  const hay = [fam, ...members.map(m => m.name || '')].join(' ').toLowerCase();
-  return _designsSearch.split(/\s+/).every(t => hay.includes(t));
+// Breadcrumb trail for the current folder path — every ancestor segment is
+// clickable (jumps straight there), the current segment is plain text.
+function _dsnBreadcrumbHtml() {
+  if (!_designsFamilyOpen) return `<span class="dsn-crumb current">📁 Design Families</span>`;
+  const root = `<button type="button" class="dsn-crumb" onclick="designsOpenFamily('')">📁 Design Families</button>`;
+  const parts = _designsFamilyOpen.split('/');
+  let acc = '';
+  const trail = parts.map((part, i) => {
+    acc = acc ? `${acc}/${part}` : part;
+    const isLast = i === parts.length - 1;
+    return isLast
+      ? `<span class="dsn-crumb-sep">›</span><span class="dsn-crumb current">${escHtml(part)}</span>`
+      : `<span class="dsn-crumb-sep">›</span><button type="button" class="dsn-crumb" data-path="${escHtml(acc)}" onclick="designsOpenFamily(this.dataset.path)">${escHtml(part)}</button>`;
+  }).join('');
+  return root + trail;
 }
 
-// Design Families tab — a grid of collection cards, each drilling into its members.
-function _dsnRenderFamiliesGrid() {
+// Design Families tab — one folder level at a time: subfolders first, then
+// any designs filed directly at this path. Root shows only folders (no
+// loose designs) to match prior behavior; drill into a folder to see both
+// its subfolders and its own designs, same as a file browser.
+function _dsnRenderFolderLevel() {
   const grid = document.getElementById('dsn-family-grid');
   if (!grid) return;
 
-  const fams = _dsnCollections().filter(([fam, members]) => _dsnFamilyMatchesSearch(fam, members));
-  const count = document.getElementById('dsn-family-count');
-  if (count) count.textContent = fams.length ? `${fams.length} collection${fams.length !== 1 ? 's' : ''}` : '';
+  const path = _designsFamilyOpen; // null = root
+  const visible = _dsnVisibleFolderPaths();
+  let childPaths = _dsnFolderChildPaths(path).filter(p => visible.has(p));
+  let directDesigns = path ? _dsnFolderDirectDesigns(path) : [];
+  if (path && _designsCatFilter !== 'all') directDesigns = directDesigns.filter(d => d.category === _designsCatFilter);
 
-  if (!fams.length) {
-    grid.innerHTML = _designsSearch
-      ? `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
-           <div style="font-size:13px;margin-bottom:10px">No collections match “${escHtml(_designsSearch)}”.</div>
-           <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
-         </div>`
-      : `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
-           <div style="font-size:36px;margin-bottom:12px">📁</div>
-           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No design families yet</div>
-           <div style="font-size:12px">Give two or more designs the same <strong>Design Family</strong><br>and they'll group into a collection here.</div>
-         </div>`;
+  if (_designsSearch) {
+    childPaths = childPaths.filter(_dsnFolderMatchesSearch);
+    directDesigns = directDesigns.filter(_dsnMatchesSearch);
+  }
+
+  const count = document.getElementById('dsn-family-count');
+  if (count) {
+    const parts = [];
+    if (childPaths.length) parts.push(`${childPaths.length} folder${childPaths.length !== 1 ? 's' : ''}`);
+    if (directDesigns.length) parts.push(`${directDesigns.length} design${directDesigns.length !== 1 ? 's' : ''}`);
+    count.textContent = parts.join(', ');
+  }
+
+  if (!childPaths.length && !directDesigns.length) {
+    if (_designsSearch) {
+      grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+        <div style="font-size:13px;margin-bottom:10px">Nothing here matches “${escHtml(_designsSearch)}”.</div>
+        <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
+      </div>`;
+    } else if (!path) {
+      grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+        <div style="font-size:36px;margin-bottom:12px">📁</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No design families yet</div>
+        <div style="font-size:12px">Click <strong>📁 Add Folder</strong>, or give two or more designs<br>the same <strong>Design Family</strong> to group them here.</div>
+      </div>`;
+    } else {
+      grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
+        <div style="font-size:36px;margin-bottom:12px">📁</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">This folder is empty</div>
+        <div style="font-size:12px">Open a design and set its <strong>Design Family</strong> to<br>“${escHtml(path)}”, or add a subfolder here.</div>
+      </div>`;
+    }
     return;
   }
-  grid.innerHTML = fams.map(([fam, members]) => _dsnFamilyCardHtml(fam, members)).join('');
+
+  grid.innerHTML = childPaths.map(_dsnFolderCardHtml).join('') + directDesigns.map(_dsnDesignCardHtml).join('');
 }
 
 function designsSetSubTab(tab) {
@@ -349,40 +441,41 @@ function designsRenderLibrary() {
   const list = document.getElementById('designs-list');
   if (!list) return;
 
-  // Drop the drill-in if the family no longer exists (rename / delete). A
-  // manually-created folder with zero designs still "exists" as long as it's
-  // tracked in _designsFolders — don't kick the user out of an empty one.
-  if (_designsFamilyOpen
-      && !_designs.some(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen))
-      && !_designsFolders.some(f => f.toLowerCase() === _designsFamilyOpen.toLowerCase())) {
+  // Drop the drill-in if the folder no longer exists (rename / delete). A
+  // manually-created folder with nothing in it yet still "exists" as long
+  // as it's a known path (explicit, or an ancestor of a design/folder) —
+  // don't kick the user out of an empty one.
+  if (_designsFamilyOpen && !_dsnAllFolderPaths().has(_designsFamilyOpen)) {
     _designsFamilyOpen = null;
   }
-  const famBar   = document.getElementById('dsn-family-bar');
-  const famTitle = document.getElementById('dsn-family-title');
-  if (famBar)   famBar.style.display = _designsFamilyOpen ? 'flex' : 'none';
-  if (famTitle) famTitle.textContent = _designsFamilyOpen || '';
 
-  // Families tab shows collection cards; drilling into one swaps in that family's
-  // members, so the design grid owns both the drill-in and the All Designs tab.
-  const famGridView = _designsSubTab === 'families' && !_designsFamilyOpen;
+  const isFolderBrowser = _designsSubTab === 'families';
+
+  const crumbBack = document.getElementById('dsn-crumb-back');
+  if (crumbBack) crumbBack.style.display = _designsFamilyOpen ? '' : 'none';
+  const compareBtn = document.getElementById('dsn-compare-costs-btn');
+  if (compareBtn) compareBtn.style.display = _designsFamilyOpen ? '' : 'none';
+  const crumb = document.getElementById('dsn-breadcrumb');
+  if (crumb) crumb.innerHTML = _dsnBreadcrumbHtml();
 
   const subtabs = document.getElementById('dsn-subtabs');
   if (subtabs) subtabs.style.display = _designsFamilyOpen ? 'none' : '';
   const catBar = document.getElementById('dsn-filter-bar');
-  // Stackable Rings is a single-collection view — the category filter is redundant there.
-  if (catBar) catBar.style.display = (famGridView || _designsSubTab === 'stackable') ? 'none' : '';
+  // Stackable Rings is a single-collection view — the category filter is
+  // redundant there. At Families-root there's nothing to filter yet either.
+  if (catBar) catBar.style.display = ((isFolderBrowser && !_designsFamilyOpen) || _designsSubTab === 'stackable') ? 'none' : '';
   const famWrap = document.getElementById('dsn-family-grid-wrap');
-  if (famWrap) famWrap.style.display = famGridView ? '' : 'none';
-  list.style.display = famGridView ? 'none' : '';
+  if (famWrap) famWrap.style.display = isFolderBrowser ? '' : 'none';
+  list.style.display = isFolderBrowser ? 'none' : '';
 
   const search = document.getElementById('dsn-search');
   if (search) {
-    search.placeholder = famGridView
-      ? 'Search collections — family or design name…'
+    search.placeholder = isFolderBrowser
+      ? 'Search folders and designs…'
       : 'Search designs — name, collection, category, or details…';
   }
 
-  if (famGridView) { _dsnRenderFamiliesGrid(); return; }
+  if (isFolderBrowser) { _dsnRenderFolderLevel(); return; }
 
   let filtered = _designs;
   if (_designsSubTab === 'stackable') {
@@ -390,7 +483,6 @@ function designsRenderLibrary() {
   } else if (_designsCatFilter !== 'all') {
     filtered = filtered.filter(d => d.category === _designsCatFilter);
   }
-  if (_designsFamilyOpen) filtered = filtered.filter(d => _dsnFamiliesOf(d).includes(_designsFamilyOpen));
   if (_designsSearch) filtered = filtered.filter(_dsnMatchesSearch);
 
   if (filtered.length === 0) {
@@ -407,13 +499,6 @@ function designsRenderLibrary() {
         <div style="font-size:13px;margin-bottom:10px">No designs match “${escHtml(_designsSearch)}”.</div>
         <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
       </div>`;
-    } else if (_designsFamilyOpen) {
-      list.innerHTML = `
-      <div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3)">
-        <div style="font-size:36px;margin-bottom:12px">📁</div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">This folder is empty</div>
-        <div style="font-size:12px">Open a design and set its <strong>Design Family</strong> to<br>“${escHtml(_designsFamilyOpen)}” to add it here.</div>
-      </div>`;
     } else {
       list.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:52px 32px;color:var(--text3);font-size:13px">No designs match this view.</div>`;
     }
@@ -423,15 +508,22 @@ function designsRenderLibrary() {
   list.innerHTML = filtered.map(_dsnDesignCardHtml).join('');
 }
 
+// Opens any path directly — a folder card's child path, or a breadcrumb's
+// ancestor path. Pass '' (or nothing) to jump back to the root.
 function designsOpenFamily(fam) {
   _designsFamilyOpen = fam || null;
   designsRenderLibrary();
 }
 
+// "← Back" — one level up, not all the way to root (breadcrumb segments
+// handle jumping further back). Hidden at Families-root, see the
+// crumbBack toggle in designsRenderLibrary.
 function designsCloseFamily() {
-  designsSetSubTab('families');
+  if (!_designsFamilyOpen) return;
+  const parts = _designsFamilyOpen.split('/');
+  parts.pop();
+  designsOpenFamily(parts.join('/'));
 }
-
 // Existing family names → datalist so the form autocompletes and
 // spelling stays consistent across a family's members.
 function _dsnFamilyDatalistRefresh() {
@@ -497,19 +589,31 @@ function designsSetCatFilter(cat) {
   designsRenderLibrary();
 }
 
-// ── Folders (Design Families, created empty) ─────
+// ── Folders (Design Families, nested) ────────────
+// Typing a name containing '/' creates the whole chain in one step;
+// otherwise the new folder is filed under whichever folder is currently
+// open (so "Add Folder" always creates relative to where you're standing,
+// same as a file browser's "New Folder").
 async function dsnFolderCreate() {
-  const name = (prompt('New folder name (this becomes a Design Family — tag designs into it from the design form):') || '').trim();
-  if (!name) return;
-  if (name.length > 60) { alert('Folder name is too long (max 60 characters).'); return; }
-  const existing = _dsnCollections().map(([n]) => n.toLowerCase());
-  if (existing.includes(name.toLowerCase())) { alert(`A folder named "${name}" already exists.`); return; }
+  const parent = _designsSubTab === 'families' ? _designsFamilyOpen : null;
+  const raw = (prompt(parent
+    ? `New folder inside "${parent}":`
+    : 'New top-level folder name (type "Parent/Child" to nest it in one step):') || '').trim();
+  if (!raw) return;
+
+  const fullPath = (parent ? `${parent}/${raw}` : raw)
+    .split('/').map(p => p.trim()).filter(Boolean).join('/');
+  if (!fullPath) return;
+  if (fullPath.length > 120) { alert('Folder path is too long (max 120 characters).'); return; }
+
+  const existing = new Set([..._dsnAllFolderPaths()].map(p => p.toLowerCase()));
+  if (existing.has(fullPath.toLowerCase())) { alert(`"${fullPath}" already exists.`); return; }
 
   try {
     const resp = await fetch('/api/designs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder: name }),
+      body: JSON.stringify({ folder: fullPath }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
@@ -520,23 +624,35 @@ async function dsnFolderCreate() {
     return;
   }
 
-  if (!_designsFolders.some(f => f.toLowerCase() === name.toLowerCase())) _designsFolders.push(name);
-  designsSetSubTab('families');
+  if (!_designsFolders.some(f => f.toLowerCase() === fullPath.toLowerCase())) _designsFolders.push(fullPath);
+
+  // Land back where the folder was created (not all the way at root) —
+  // designsSetSubTab() would reset _designsFamilyOpen, so switch tabs
+  // manually and then open the parent path.
+  _designsSubTab = 'families';
+  document.querySelectorAll('.dsn-subtab').forEach(b => {
+    const on = b.dataset.subtab === 'families';
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  designsOpenFamily(parent || '');
 }
 
-async function dsnFolderDelete(name) {
-  if (!name) return;
-  if (!confirm(`Delete empty folder "${name}"? This only removes the folder — it has no designs in it yet.`)) return;
+async function dsnFolderDelete(path) {
+  if (!path) return;
+  const hasContent = _dsnFolderDescendantDesigns(path).length > 0 || _dsnFolderChildPaths(path).length > 0;
+  if (hasContent) { alert('This folder still has designs or subfolders in it — empty it first.'); return; }
+  if (!confirm(`Delete empty folder "${path.split('/').pop()}"?`)) return;
 
   try {
-    const resp = await fetch(`/api/designs?folder=${encodeURIComponent(name)}`, { method: 'DELETE' });
+    const resp = await fetch(`/api/designs?folder=${encodeURIComponent(path)}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error(`Delete failed (${resp.status})`);
   } catch (e) {
     alert('Could not delete folder: ' + e.message);
     return;
   }
 
-  _designsFolders = _designsFolders.filter(f => f.toLowerCase() !== name.toLowerCase());
+  _designsFolders = _designsFolders.filter(f => f.toLowerCase() !== path.toLowerCase());
   designsRenderLibrary();
 }
 
