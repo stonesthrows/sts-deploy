@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260727a">
-  <link rel="stylesheet" href="css/app.css?v=20260727a">
+  <link rel="stylesheet" href="css/app.css?v=20260727b">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -3515,7 +3515,7 @@
 <script src="js/order-normalize.js?v=20260727c"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260727a"></script>
-<script src="js/app.js?v=20260727a"></script>
+<script src="js/app.js?v=20260727b"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260727a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
@@ -3624,24 +3624,45 @@
 <input type="file" id="cameraInput" accept="image/*" capture="environment"
        style="display:none" onchange="handlePhoto(this)">
 
-<!-- Mobile bottom tab bar (#6) -->
+<!-- Icon sprite for the mobile bottom bar. Stroked with currentColor so
+     the active pill can tint the icon via the --accent token; emoji
+     couldn't take a colour. -->
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="bn-new" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+  <symbol id="bn-orders" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h6M10 16h4"/></symbol>
+  <symbol id="bn-ship" viewBox="0 0 24 24"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z"/><path d="M4 8.5 12 13l8-4.5M12 13v7"/></symbol>
+  <symbol id="bn-restock" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></symbol>
+  <symbol id="bn-notes" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/></symbol>
+</svg>
+
+<!-- Mobile bottom tab bar — icon-only, active item reveals its label.
+     Routes through sbNav/sbNavDirect so the bar and the ☰ drawer can
+     never disagree about where you are; _sbSetActive() owns .active. -->
 <nav class="botnav" aria-label="Quick navigation">
-  <button class="botnav-item" data-target="custom-orders" onclick="switchParent('custom-orders', document.querySelector('.nav-tab[data-parent=custom-orders]'))">
-    <span class="bn-icon">✏️</span>Orders
+  <button class="botnav-item" data-action="new-order" aria-label="New order"
+          onclick="window.open('intake.html','_blank')">
+    <svg class="bn-icon"><use href="#bn-new"/></svg><span class="bn-label">New</span>
   </button>
-  <button class="botnav-item" data-target="inventory" onclick="switchParent('inventory', document.querySelector('.nav-tab[data-parent=inventory]'))">
-    <span class="bn-icon">💎</span>Inventory
+  <button class="botnav-item" data-sb="dashboard" aria-label="Custom orders"
+          onclick="sbNav('custom-orders','dashboard')">
+    <svg class="bn-icon"><use href="#bn-orders"/></svg><span class="bn-label">Orders</span>
   </button>
-  <button class="botnav-item" data-target="supplies" onclick="switchParent('supplies', document.querySelector('.nav-tab[data-parent=supplies]'))">
-    <span class="bn-icon">📦</span>Supplies
+  <button class="botnav-item" data-sb="production" aria-label="Ready to ship"
+          onclick="sbNav('custom-orders','production')">
+    <svg class="bn-icon"><use href="#bn-ship"/></svg><span class="bn-label">Ship</span>
   </button>
-  <button class="botnav-item" data-target="gmail" onclick="switchTab('gmail', document.querySelector('.nav-tab[data-tab=gmail]'))">
-    <span class="bn-icon">📧</span>Gmail
+  <button class="botnav-item" data-sb="to-restock" aria-label="Restock queue"
+          onclick="sbNav('inventory','to-restock')">
+    <svg class="bn-icon"><use href="#bn-restock"/></svg><span class="bn-label">Restock</span>
+  </button>
+  <button class="botnav-item" data-sb="notes" aria-label="Notes"
+          onclick="sbNavDirect('notes')">
+    <svg class="bn-icon"><use href="#bn-notes"/></svg><span class="bn-label">Notes</span>
   </button>
 </nav>
 
 <!-- ══ SIDEBAR NAV JS ════════════════════════════════ -->
-<script src="js/home.js?v=20260720a"></script>
+<script src="js/home.js?v=20260727b"></script>
 <!-- ═════════════════════════════════════════════════ -->
 
 <script>

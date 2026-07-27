@@ -215,12 +215,9 @@ function _scrollTabIntoView(el) {
 function _scrollActiveIntoView() {
   _scrollTabIntoView(document.querySelector('.nav-tab.active'));
   _scrollTabIntoView(document.querySelector('.sub-nav.active .sub-nav-tab.active'));
-  // Mirror active state onto the mobile bottom quick-bar
-  document.querySelectorAll('.botnav-item').forEach(b => {
-    const t = b.getAttribute('data-target');
-    b.classList.toggle('active', t === (document.querySelector('.nav-tab.active')?.getAttribute('data-parent')
-      || document.querySelector('.nav-tab.active')?.getAttribute('data-tab')));
-  });
+  // The bottom bar's active state is owned by _sbSetActive() in home.js —
+  // its slots are sub-tab ids (production, to-restock…) which the parent
+  // id available here can't resolve.
 }
 
 // Connection-health pill in the header. Reflects whether the last Notion
