@@ -53,6 +53,49 @@ var BS_BACKFILL_START    = '2025-01-04'; // first Saturday of 2025
 var BS_SKIP_CAT_RE  = /^\.|discontinued|retired/i;
 var BS_SKIP_NAME_RE = /^(repair|resize|sizing|shipping|deposit|gift ?card|custom order|upgrade to .*chain)$/i;
 
+// The whole-name list above only catches a service billed under exactly
+// that word. Square's real tickets carry qualifiers — "USPS First Class
+// Shipping", "Resize Ring-Texas" — so these terms are matched as words
+// ANYWHERE in the name. Kept to words no piece is named after: nothing
+// in the catalog is a "… shipping …" or "… resize …". Ambiguous words
+// (repair, sizing on its own) stay whole-name only, so a hypothetical
+// "Repair Cuff" product would survive.
+var BS_SKIP_NAME_ANY_RE = /\b(shipping|postage|re-?siz(e|ed|ing)|gift ?card|deposit)\b/i;
+
+// Restock focus ignores anything selling slower than this many units per
+// market weekend (weighted velocity, after same-piece names are merged).
+// 0.25 ≈ one sale every four markets. Anything under that is a one-off
+// or a trickle, and asking to "make 1" of forty different pieces buries
+// the handful that actually move. Raise toward 0.5 for a tighter list.
+var BS_MIN_VELOCITY = 0.25;
+
+// Square carries some pieces under two separate catalog items (an older
+// name and the current one). Restock focus merges those into one row so
+// the velocity and on-hand counts aren't split. Key = lowercased Square
+// item name, value = the name the merged row should display under.
+// Only used by restock focus — the per-category bestseller cards still
+// show Square's own names.
+var BS_ALIAS_NAMES = {
+  'chevron stacker':          'Stacker (Single Chevron)',
+  'stacker (single chevron)': 'Stacker (Single Chevron)',
+  'stacker':                  'Stacker (Regular)',
+  'stacker (regular)':        'Stacker (Regular)',
+  'square stacker':           'Stacker (Square)',
+  'stacker (square)':         'Stacker (Square)',
+  'chevron ear cuff':         'Chevron Ear Cuff',
+  'chevron ear cuffs':        'Chevron Ear Cuff',
+  // "~ Tapered" is a genuinely different hoop and stays its own row.
+  'twist hoops':              'Twist Hoops',
+  'twist hoops ~ regular':    'Twist Hoops',
+  'twist hoop (variations)':  'Twist Hoops',
+};
+
+// Display name for an item in restock focus, after alias merging.
+function _bsRestockName(itemId) {
+  var raw = String(_bsNameOf(itemId)).trim();
+  return BS_ALIAS_NAMES[raw.toLowerCase()] || raw;
+}
+
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
 var _bsOnHand          = {};    // variationId -> on-hand count
@@ -391,7 +434,9 @@ function _bsIsPermJewelry(itemId) {
 function _bsRestockEligible(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
   if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
-  if (BS_SKIP_NAME_RE.test(String(_bsNameOf(itemId)).trim())) return false;
+  var nm = String(_bsNameOf(itemId)).trim();
+  if (BS_SKIP_NAME_RE.test(nm)) return false;
+  if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
   return !_bsCatNamesOf(itemId).some(function(n){ return n && BS_SKIP_CAT_RE.test(n); });
 }
 
@@ -569,7 +614,8 @@ function _bsLoadOnHand(vel) {
 // often several catalog items (old listings, per-market re-adds), and a
 // row each means four fragments at 0.3/wknd ask for 2 apiece instead of
 // one row at 1.2/wknd asking for 5. Velocity, revenue and tracked stock
-// are summed across the merged ids.
+// are summed across the merged ids. Names that differ but mean the same
+// piece are folded together first via BS_ALIAS_NAMES.
 function bsRestockFocus(vel) {
   var varsByItem = _bsVarsByItem();
   var groups = {}; // nameKey -> row
@@ -578,8 +624,8 @@ function bsRestockFocus(vel) {
     var v = vel.units[id];
     if (!(v > 0)) return;
     if (!_bsRestockEligible(id)) return;
-    var name = _bsNameOf(id);
-    var key = name.trim().toLowerCase();
+    var name = _bsRestockName(id);
+    var key = name.toLowerCase();
     var g = groups[key];
     if (!g) {
       g = groups[key] = {
@@ -607,6 +653,9 @@ function bsRestockFocus(vel) {
     // forever. Premade chain bracelets ARE stocked, so the test is
     // tracking, not category: a PJ row with a Square count stays.
     if (g.pj && _bsOnHandReady && g.have == null) return;
+    // Too slow to be worth a bench slot. Tested on the merged velocity,
+    // so two listings of the same piece are judged together.
+    if (g.vel < BS_MIN_VELOCITY) return;
     g.need = Math.ceil(g.vel * BS_COVER_WEEKENDS);
     // Square reports negative counts for stock sold but never received.
     // Floor at 0: it means "none on hand", not "owes 19".
