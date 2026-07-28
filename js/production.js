@@ -1034,6 +1034,9 @@ var sotNotionTimer  = null;
 var sotUpdatedAt    = 0;
 var sotCatalogUrls  = {};
 var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat}
+var sotFreq         = {};     // id -> {n: weeks ordered, last: 0-based weeks-ago}
+var sotFreqLoaded   = false;
+var sotSheetIsOpen  = false;
 
 // ── Helpers ──────────────────────────────────────────────────
 function sotUid() {
@@ -1201,6 +1204,463 @@ async function sotLoadNotion() {
   } catch(e) {}
 }
 
+// ── Order-again history ──────────────────────────────────────
+// Every past week is already its own Notion page holding an Items JSON
+// blob, so "what do I reorder constantly" is derivable without any new
+// storage — just count how many distinct weeks each item appears in.
+// Cached locally so the chips paint instantly on a cold phone load and
+// the network fetch only refines them.
+var SOT_FREQ_KEY = 'sot_freq_v1';
+
+function sotFreqCacheLoad() {
+  try {
+    var d = JSON.parse(localStorage.getItem(SOT_FREQ_KEY) || 'null');
+    if (d && d.freq) { sotFreq = d.freq; sotFreqLoaded = true; }
+  } catch (e) {}
+}
+function sotFreqCacheSave() {
+  try { localStorage.setItem(SOT_FREQ_KEY, JSON.stringify({freq: sotFreq, at: Date.now()})); } catch (e) {}
+}
+
+async function sotLoadHistory() {
+  try {
+    var r = await fetch('/api/notion-sot?history=12');
+    var d = await r.json();
+    if (!d.weeks || !d.weeks.length) return;
+    var freq = {};
+    d.weeks.forEach(function (w, idx) {
+      var items;
+      try { items = JSON.parse(w.items || '{}'); } catch (e) { return; }
+      Object.keys(items).forEach(function (id) {
+        if (!freq[id]) freq[id] = {n: 0, last: idx};
+        freq[id].n++;
+        // Weeks arrive newest-first, so the first sighting of an id is also
+        // the most recent one — that's the "last time" the Reorder view
+        // prefills from. Later (older) weeks must not overwrite it.
+        if (idx <= freq[id].last || freq[id].qty === undefined) {
+          var e = items[id];
+          if (typeof e !== 'object' || e === null) e = {qty: Number(e) || 1, amount: ''};
+          freq[id].last   = Math.min(idx, freq[id].last);
+          freq[id].qty    = e.qty || 1;
+          freq[id].amount = e.amount || '';
+          freq[id].week   = w.week || '';
+        }
+      });
+    });
+    sotFreq = freq;
+    sotFreqLoaded = true;
+    sotFreqCacheSave();
+    sotRenderQuick();
+    sotRenderReorder();
+  } catch (e) {}
+}
+
+// Ranked by how many weeks it was ordered, ties broken by recency.
+// Anything already in this week's order drops out — a chip you can't
+// act on is just noise.
+function sotFrequentItems(limit) {
+  return Object.keys(sotFreq)
+    .filter(function (id) { return sotOrder[id] === undefined && sotGetItem(id); })
+    .sort(function (a, b) {
+      return (sotFreq[b].n - sotFreq[a].n) || (sotFreq[a].last - sotFreq[b].last);
+    })
+    .slice(0, limit || 8)
+    .map(sotGetItem);
+}
+
+// "Argentium® Silver Round Wire, 16-Ga., Dead-Soft" → "Argentium Silver Round Wire · 16-Ga."
+// A chip has to be readable at a glance; the full name stays in the title attr.
+function sotChipLabel(item) {
+  var parts = String(item.name || '').replace(/[®™]/g, '').split(',');
+  var head  = (parts[0] || '').trim();
+  if (head.length > 30) head = head.slice(0, 29).trim() + '…';
+  var size = parts.slice(1).map(function (p) { return p.trim(); })
+    .filter(function (p) { return /\d+\s*-?\s*(ga|gauge|mm|"|in\b)/i.test(p); })[0];
+  return size ? head + ' · ' + size : head;
+}
+
+function sotRenderQuick() {
+  var wrap = document.getElementById('sotQuickPanel');
+  if (!wrap) return;
+  var items = sotFrequentItems(8);
+  if (!items.length) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  var html = '<div class="sot-quick-hd">Order again'
+           + '<span class="sot-quick-sub">from the last 12 weeks</span></div>'
+           + '<div class="sot-quick-chips">';
+  items.forEach(function (it) {
+    var f = sotFreq[it.id] || {n: 0};
+    html += '<button class="sot-chip" title="' + sotEsc(it.name)
+          + ' — ordered in ' + f.n + ' of the last 12 weeks"'
+          + ' onclick="sotQuickAdd(\'' + sotEsc(it.id) + '\')">'
+          + '<span class="sot-chip-plus">&#65291;</span>'
+          + sotEsc(sotChipLabel(it))
+          + '<span class="sot-chip-n">' + f.n + '</span></button>';
+  });
+  wrap.innerHTML = html + '</div>';
+}
+
+function sotQuickAdd(id) {
+  sotToggleItem(id, true);
+  var cb = document.querySelector('#sot-item-' + id + ' .sot-item-cb');
+  if (cb) cb.checked = true;
+  var it = sotGetItem(id);
+  if (typeof toast === 'function' && it) toast('Added ' + sotChipLabel(it), '➕');
+}
+
+// ── Reorder view ("Last time / This time") ───────────────────
+// Phone-only second view of the same order. The catalog answers "what
+// could I buy"; this answers "what did I buy last time" — which is the
+// actual question on a restock. Every number here is either the saved
+// weekly order (sotFreq) or the Materials Library; nothing is invented,
+// and any item without a history simply doesn't get a comparison.
+var sotView   = 'reorder';   // 'reorder' | 'catalog'
+var sotReSup  = 'all';       // supplier id filter for the reorder view
+var sotMats   = null;        // normalized material name -> library record
+var sotLastSupOrder = {};    // supplier NAME -> {date, amt} of its latest order
+
+function sotNorm(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[®™]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function sotUnitAbbr(u) {
+  return u === 'gram' ? 'g' : u === 'ozt' ? 'ozt' : u === 'foot' ? 'ft' : 'pc';
+}
+
+// Exact normalized-name match only. A fuzzy match here would put a wrong
+// dollar figure next to a real item, which is worse than no figure at all.
+function sotMatFor(item) {
+  if (!sotMats || !item) return null;
+  return sotMats[sotNorm(item.name)] || null;
+}
+
+function sotLoadMaterials() {
+  fetch('/api/materials')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var list = Array.isArray(d) ? d : (d && (d.materials || d.results)) || [];
+      var idx = {};
+      list.forEach(function (m) { if (m && m.name) idx[sotNorm(m.name)] = m; });
+      sotMats = idx;
+      sotRenderReorder();
+    })
+    .catch(function () {});
+}
+
+// Latest order per supplier, for the "last order was $X on <date>" line.
+// Order totals are reliable in the history; per-line unit costs are not
+// populated for CSV/receipt imports, so nothing here tries to use them.
+function sotLoadSupplierOrders() {
+  fetch('/api/notion-orders')
+    .then(function (r) { return r.json(); })
+    .then(function (orders) {
+      if (!Array.isArray(orders)) return;
+      var latest = {};
+      orders.forEach(function (o) {
+        if (!o || !o.sup || !o.date) return;
+        if (!latest[o.sup] || o.date > latest[o.sup].date) {
+          latest[o.sup] = {date: o.date, amt: Number(o.amt) || 0};
+        }
+      });
+      sotLastSupOrder = latest;
+      sotRenderReorder();
+    })
+    .catch(function () {});
+}
+
+function sotFmtDate(iso) {
+  if (!iso) return '';
+  var d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+}
+function sotAgoLabel(weeksAgo) {
+  if (weeksAgo == null) return '';
+  if (weeksAgo <= 0) return 'last week';
+  return (weeksAgo + 1) + ' weeks ago';
+}
+
+function sotEntry(id) {
+  var e = sotOrder[id];
+  if (typeof e !== 'object' || e === null) e = {qty: Number(e) || 1, amount: ''};
+  return e;
+}
+
+// The quantity actually being ordered: unit items carry a typed amount,
+// everything else a stepper count.
+function sotOrderedQty(item, entry) {
+  if (sotGetUnit(item.desc)) return parseFloat(entry.amount) || 0;
+  return entry.qty || 1;
+}
+
+function sotLineCost(item, qty) {
+  var m = sotMatFor(item);
+  if (!m || m.currentCostPerUnit == null || !(qty > 0)) return null;
+  return {cost: Number(m.currentCostPerUnit), unit: sotUnitAbbr(m.unit), total: qty * Number(m.currentCostPerUnit), mat: m};
+}
+
+// Estimate is deliberately partial: only lines matched to a priced
+// material contribute, and the UI says how many that was.
+function sotEstTotal(ids) {
+  var total = 0, priced = 0;
+  ids.forEach(function (id) {
+    var it = sotGetItem(id); if (!it) return;
+    var lc = sotLineCost(it, sotOrderedQty(it, sotEntry(id)));
+    if (lc) { total += lc.total; priced++; }
+  });
+  return {total: total, priced: priced};
+}
+
+function sotSetView(v) {
+  sotView = v;
+  var panel = document.getElementById('tab-supplier');
+  if (panel) panel.classList.toggle('sot-view-reorder', v === 'reorder');
+  document.querySelectorAll('#sotViewSeg .sot-seg-btn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.view === v);
+    b.setAttribute('aria-selected', b.dataset.view === v ? 'true' : 'false');
+  });
+  if (v === 'reorder') sotRenderReorder();
+}
+
+function sotReSetSup(id) {
+  sotReSup = id;
+  sotRenderReorder();
+}
+
+// One card. `histId` is present whenever this item has been ordered in
+// the last 12 weeks — that's what turns the card into a comparison.
+function sotReCard(item, inOrder) {
+  var f    = sotFreq[item.id];
+  var e    = sotEntry(item.id);
+  var unit = sotGetUnit(item.desc);
+  var qty  = inOrder ? sotOrderedQty(item, e) : (f ? (unit ? parseFloat(f.amount) || 0 : f.qty) : 1);
+  var lc   = sotLineCost(item, qty);
+  var mat  = sotMatFor(item);
+  var id   = sotEsc(item.id);
+
+  var h = '<div class="sot-re-card' + (inOrder ? ' in-order' : '') + '" id="sotre-' + id + '">';
+  h += '<div class="sot-re-top">';
+  h += '<div class="sot-re-name">' + sotEsc(item.name) + '</div>';
+  if (f) h += '<span class="sot-re-freq" title="Ordered in ' + f.n + ' of the last 12 weeks">'
+            + f.n + '&#215;/12 wk</span>';
+  h += '</div>';
+
+  h += '<div class="sot-re-meta"><span class="sot-re-sku">' + sotEsc(item.id.replace(/^[a-z]+_/, '')) + '</span>';
+  if (unit) h += '<span>by the ' + sotEsc(unit) + '</span>';
+  if (mat && mat.stockLevel != null) {
+    h += '<span class="sot-re-stock' + (mat.stockConfidence === 'estimated' ? ' est' : '') + '">'
+       + 'on hand ' + mat.stockLevel + ' ' + sotUnitAbbr(mat.unit)
+       + (mat.stockConfidence === 'estimated' ? ' (est.)' : '') + '</span>';
+  }
+  h += '</div>';
+
+  // Last time / this time. Without a history the left half says so
+  // rather than showing a zero that looks like real data.
+  var lastQty = f ? (unit ? (f.amount || '—') : f.qty) : null;
+  h += '<div class="sot-re-split">';
+  h += '<div class="sot-re-half">';
+  h += '<div class="k">Last time' + (f && f.week ? ' &middot; ' + sotFmtDate(f.week) : '') + '</div>';
+  h += '<div class="v">' + (f ? sotEsc(String(lastQty)) + (unit ? ' ' + sotEsc(unit) : '') : '—') + '</div>';
+  h += '<div class="s">' + (f ? sotEsc(sotAgoLabel(f.last)) : 'no record in 12 weeks') + '</div>';
+  h += '</div>';
+  h += '<div class="sot-re-half now">';
+  h += '<div class="k">This time</div>';
+  h += '<div class="v">' + (qty ? sotEsc(String(qty)) + (unit ? ' ' + sotEsc(unit) : '') : '—') + '</div>';
+  h += '<div class="s">' + (lc ? '$' + lc.cost.toFixed(2) + '/' + lc.unit + ' &middot; $' + lc.total.toFixed(2)
+                              : 'no cost on file') + '</div>';
+  h += '</div></div>';
+
+  h += '<div class="sot-re-actions">';
+  if (inOrder) {
+    if (unit) {
+      h += '<div class="sot-amt-wrap"><input class="sot-amt-input" type="number" min="0" step="0.1" value="'
+         + sotEsc(e.amount || '') + '" placeholder="0" aria-label="Amount"'
+         + ' oninput="sotSetAmount(\'' + id + '\',this.value); sotReRefresh(\'' + id + '\')">'
+         + '<span class="sot-amt-unit">' + sotEsc(unit) + '</span></div>';
+    } else {
+      h += '<div class="sot-re-step">'
+         + '<button type="button" onclick="sotQty(\'' + id + '\',-1); sotReRefresh(\'' + id + '\')" aria-label="Decrease">&#8722;</button>'
+         + '<span>' + (e.qty || 1) + '</span>'
+         + '<button type="button" onclick="sotQty(\'' + id + '\',1); sotReRefresh(\'' + id + '\')" aria-label="Increase">+</button>'
+         + '</div>';
+    }
+    h += '<button type="button" class="sot-re-remove" onclick="sotReRemove(\'' + id + '\')">Remove</button>';
+  } else {
+    h += '<button type="button" class="sot-re-add" onclick="sotReAdd(\'' + id + '\')">'
+       + '&#65291; Add' + (f ? (unit ? ' ' + sotEsc(String(f.amount || '')) + ' ' + sotEsc(unit) : ' ' + f.qty) : '')
+       + '</button>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+// Patch the derived bits of one card in place. Replacing the card's HTML
+// would blow away focus mid-keystroke on the amount input — you'd type
+// "12" and only the "1" would land.
+function sotReRefresh(id) {
+  var el = document.getElementById('sotre-' + id);
+  var it = sotGetItem(id);
+  if (el && it) {
+    var e    = sotEntry(id);
+    var unit = sotGetUnit(it.desc);
+    var qty  = sotOrderedQty(it, e);
+    var lc   = sotLineCost(it, qty);
+    var v = el.querySelector('.sot-re-half.now .v');
+    var s = el.querySelector('.sot-re-half.now .s');
+    if (v) v.textContent = qty ? String(qty) + (unit ? ' ' + unit : '') : '—';
+    if (s) s.textContent = lc ? '$' + lc.cost.toFixed(2) + '/' + lc.unit + ' · $' + lc.total.toFixed(2)
+                              : 'no cost on file';
+    var step = el.querySelector('.sot-re-step span');
+    if (step) step.textContent = e.qty || 1;
+  }
+  sotReRenderHead();
+}
+
+function sotReAdd(id) {
+  sotToggleItem(id, true);
+  var f  = sotFreq[id];
+  var it = sotGetItem(id);
+  // Prefill from last time — the whole point of the view.
+  if (f && it) {
+    var e = sotEntry(id);
+    if (sotGetUnit(it.desc)) e.amount = f.amount || '';
+    else e.qty = f.qty || 1;
+    sotOrder[id] = e;
+    sotSave();
+  }
+  var cb = document.querySelector('#sot-item-' + id + ' .sot-item-cb');
+  if (cb) cb.checked = true;
+  sotRenderOrder();
+  sotRenderReorder();
+}
+
+function sotReRemove(id) {
+  sotRemove(id);
+  sotRenderReorder();
+}
+
+function sotReRenderHead() {
+  var head = document.getElementById('sotReHead');
+  if (!head) return;
+  var ids = Object.keys(sotOrder).filter(function (id) {
+    var it = sotGetItem(id);
+    return it && (sotReSup === 'all' || it.sup === sotReSup);
+  });
+  var est = sotEstTotal(ids);
+  var supName = '';
+  if (sotReSup !== 'all') {
+    var s = sotAllSuppliers().filter(function (x) { return x.id === sotReSup; })[0];
+    supName = s ? s.name : '';
+  }
+  var last = supName ? sotLastSupOrder[supName] : null;
+
+  var h = '<div class="sot-re-tot">';
+  h += '<div><div class="k">This order</div><div class="v">' + ids.length + ' item'
+     + (ids.length === 1 ? '' : 's') + '</div>';
+  h += '<div class="s">' + (est.priced
+        ? '$' + est.total.toFixed(2) + ' est. from ' + est.priced + ' priced item' + (est.priced === 1 ? '' : 's')
+        : 'no costs on file yet') + '</div></div>';
+  h += '<div class="sot-re-tot-cmp"><div class="k">'
+     + (last ? 'Last ' + sotEsc(supName) + ' order' : 'Last order') + '</div>';
+  h += '<div class="v">' + (last ? '$' + last.amt.toFixed(2) : '—') + '</div>';
+  h += '<div class="s">' + (last ? sotFmtDate(last.date) : (supName ? 'none on record' : 'pick a supplier')) + '</div>';
+  h += '</div></div>';
+  head.innerHTML = h;
+}
+
+function sotRenderReorder() {
+  var wrap = document.getElementById('sotReorder');
+  if (!wrap) return;
+
+  var suppliers = sotAllSuppliers();
+  var chips = '<div class="sot-re-sups"><button type="button" class="sot-re-sup'
+            + (sotReSup === 'all' ? ' active' : '') + '" onclick="sotReSetSup(\'all\')">All</button>';
+  suppliers.forEach(function (s) {
+    var n = Object.keys(sotFreq).filter(function (id) {
+      var it = sotGetItem(id); return it && it.sup === s.id;
+    }).length;
+    if (!n && sotReSup !== s.id) return;   // a supplier you've never ordered is noise here
+    chips += '<button type="button" class="sot-re-sup' + (sotReSup === s.id ? ' active' : '')
+           + '" onclick="sotReSetSup(\'' + sotEsc(s.id) + '\')">'
+           + '<span class="sot-re-pip" style="background:' + sotEsc(s.color) + '"></span>'
+           + sotEsc(s.name) + '</button>';
+  });
+  chips += '</div>';
+
+  var inSup = function (it) { return sotReSup === 'all' || it.sup === sotReSup; };
+
+  var inOrderIds = Object.keys(sotOrder).filter(function (id) {
+    var it = sotGetItem(id); return it && inSup(it);
+  });
+  var usualIds = Object.keys(sotFreq)
+    .filter(function (id) {
+      if (sotOrder[id] !== undefined) return false;
+      var it = sotGetItem(id); return it && inSup(it);
+    })
+    .sort(function (a, b) {
+      return (sotFreq[b].n - sotFreq[a].n) || (sotFreq[a].last - sotFreq[b].last);
+    })
+    .slice(0, 12);
+
+  var body = '';
+  if (inOrderIds.length) {
+    body += '<div class="sot-re-sec">In this order<span class="n">' + inOrderIds.length + '</span></div>';
+    inOrderIds.forEach(function (id) {
+      var it = sotGetItem(id); if (it) body += sotReCard(it, true);
+    });
+  }
+  if (usualIds.length) {
+    body += '<div class="sot-re-sec">You usually also order<span class="n">last 12 weeks</span></div>';
+    usualIds.forEach(function (id) {
+      var it = sotGetItem(id); if (it) body += sotReCard(it, false);
+    });
+  }
+  if (!inOrderIds.length && !usualIds.length) {
+    body += '<div class="sot-re-empty">'
+          + (sotFreqLoaded && Object.keys(sotFreq).length
+              ? 'Nothing ordered here recently. Switch supplier, or use Catalog to add something.'
+              : 'No saved weeks to compare against yet. Each week you save an order, this view learns what you bought and how much — then it prefills the next one.')
+          + '</div>';
+  }
+
+  wrap.innerHTML = chips + '<div id="sotReHead"></div>' + body;
+  sotReRenderHead();
+}
+
+// ── Mobile order sheet ───────────────────────────────────────
+// Desktop keeps the two-pane layout untouched; on a phone the same
+// .sot-order element is translated up from the bottom as a sheet, so
+// there is only ever one copy of the order markup.
+function sotSheetOpen() {
+  var panel = document.getElementById('tab-supplier');
+  if (!panel) return;
+  sotSheetIsOpen = true;
+  panel.classList.add('sot-sheet-open');
+  document.body.classList.add('sot-sheet-lock');
+}
+function sotSheetClose() {
+  var panel = document.getElementById('tab-supplier');
+  if (!panel) return;
+  sotSheetIsOpen = false;
+  panel.classList.remove('sot-sheet-open');
+  document.body.classList.remove('sot-sheet-lock');
+}
+function sotSheetToggle() {
+  if (sotSheetIsOpen) sotSheetClose(); else sotSheetOpen();
+}
+
+function sotRenderCartBar() {
+  var n   = Object.keys(sotOrder).length;
+  var cnt = document.getElementById('sotCartCount');
+  var wk  = document.getElementById('sotCartWeek');
+  if (cnt) cnt.textContent = n;
+  if (wk)  wk.textContent = sotWeekRange();
+}
+
 // ── Data helpers ─────────────────────────────────────────────
 function sotAllItems() {
   var cat = CATALOG.map(function(i) {
@@ -1241,7 +1701,9 @@ function sotRenderCatalog() {
       });
       if (items.length === 0) return;
     }
-    var collapsed = sotSupCollapsed[sup.id] ? ' collapsed' : '';
+    // An active search always overrides collapse — otherwise the matches
+    // you just typed for are hidden inside a folded supplier.
+    var collapsed = (!f && sotSupCollapsed[sup.id]) ? ' collapsed' : '';
     var checkedCount = items.filter(function(i){return sotOrder[i.id]!==undefined;}).length;
 
     html += '<div class="sot-supplier-section' + collapsed + '" id="sot-sup-' + sotEsc(sup.id) + '">';
@@ -1268,7 +1730,7 @@ function sotRenderCatalog() {
       var catItems = items.filter(function(i){return (i.cat||'Other')===cat;});
       if (!catItems.length) return;
       var catKey = sup.id + '__' + cat;
-      var catColl = sotCatCollapsed[catKey] ? ' collapsed' : '';
+      var catColl = (!f && sotCatCollapsed[catKey]) ? ' collapsed' : '';
       var dot = CAT_COLORS[cat] || '#999';
 
       html += '<div class="sot-cat-group' + catColl + '">';
@@ -1338,6 +1800,9 @@ function sotRenderOrder() {
 
   var ids = Object.keys(sotOrder);
   if (badge) badge.textContent = ids.length;
+  sotRenderCartBar();
+  sotRenderQuick();
+  sotReRenderHead();
   if (!list) return;
 
   if (ids.length === 0) {
@@ -1704,9 +2169,22 @@ function sotCopy() {
 // ── Initialization ────────────────────────────────────────────
 function sotInit() {
   sotLoad();
+  sotFreqCacheLoad();
+  // On a phone the catalog is 125 items across 12 category groups. Opening
+  // to a wall of them buries the quick-add chips, so every supplier starts
+  // collapsed and the chips do the work for a typical restock.
+  if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) {
+    sotAllSuppliers().forEach(function (s) { sotSupCollapsed[s.id] = true; });
+  }
   sotRenderCatalog();
   sotRenderOrder();
   var notesEl = document.getElementById('sotNotes');
   if (notesEl) notesEl.value = sotNotesTxt;
   sotLoadNotion();
+  sotLoadHistory();
+  // Reorder is the phone default; desktop ignores the segmented control
+  // entirely and keeps its two-pane catalog layout.
+  sotSetView('reorder');
+  sotLoadMaterials();
+  sotLoadSupplierOrders();
 }

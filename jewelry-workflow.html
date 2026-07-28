@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260728h">
+  <link rel="stylesheet" href="css/app.css?v=20260728i">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -1539,6 +1539,16 @@
 
     <!-- LEFT: Catalog -->
     <div class="sot-catalog" id="sotCatalog">
+      <!-- Phone-only view switch. Reorder = last-time/this-time comparison
+           built from saved weeks; Catalog = the full browse list. Hidden on
+           desktop, which always shows the catalog. -->
+      <div class="sot-seg" id="sotViewSeg" role="tablist">
+        <button type="button" class="sot-seg-btn active" role="tab" aria-selected="true"
+                data-view="reorder" onclick="sotSetView('reorder')">Reorder</button>
+        <button type="button" class="sot-seg-btn" role="tab" aria-selected="false"
+                data-view="catalog" onclick="sotSetView('catalog')">Catalog</button>
+      </div>
+      <div class="sot-reorder" id="sotReorder"></div>
       <div class="sot-search-wrap">
         <span class="sot-search-icon">&#128269;</span>
         <input class="sot-search" id="sotSearch" type="text" placeholder="Search items or paste a Rio Grande item #…" oninput="sotSearch(this.value)" autocomplete="off">
@@ -1560,6 +1570,8 @@
         </select>
         <button class="btn btn-gold btn-sm" onclick="sotRgAdd()" style="width:100%">&#65291; Add to Catalog</button>
       </div>
+      <!-- Quick "order again" chips, ranked from the last 12 weeks of orders -->
+      <div class="sot-quick" id="sotQuickPanel" style="display:none"></div>
       <!-- Supplier sections rendered by JS -->
       <div id="sotCatalogInner"></div>
       <!-- Add supplier button -->
@@ -1574,8 +1586,10 @@
       </div>
     </div>
 
-    <!-- RIGHT: Order Panel -->
+    <!-- RIGHT: Order Panel — on phones this same element becomes the
+         bottom sheet opened by the cart bar below. -->
     <div class="sot-order">
+      <div class="sot-grab" onclick="sotSheetClose()"></div>
       <div class="sot-order-head">
         <div class="sot-order-title-row">
           <div class="sot-order-title">
@@ -1583,6 +1597,7 @@
             <span class="sot-order-badge" id="sotOrderBadge">0</span>
           </div>
           <button class="sot-clear-btn" onclick="sotClearOrder()">Clear</button>
+          <button class="sot-sheet-close" onclick="sotSheetClose()" aria-label="Close order">&#215;</button>
         </div>
         <div class="sot-week-label" id="sotWeekLabel"></div>
       </div>
@@ -1600,6 +1615,17 @@
       </div>
     </div>
   </div>
+
+  <!-- Phone-only: persistent cart bar + sheet scrim. Hidden on desktop. -->
+  <div class="sot-sheet-scrim" onclick="sotSheetClose()"></div>
+  <button class="sot-cart-bar" onclick="sotSheetToggle()">
+    <span class="sot-cart-bub" id="sotCartCount">0</span>
+    <span class="sot-cart-txt">
+      <span class="sot-cart-lg">This week&#39;s order</span>
+      <span class="sot-cart-sm" id="sotCartWeek"></span>
+    </span>
+    <span class="sot-cart-go">Review &#8593;</span>
+  </button>
 </div>
 
 <!-- Edit Supply Item Modal -->
@@ -3621,7 +3647,7 @@
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260728d"></script>
 <script src="js/sales.js?v=20260720b"></script>
-<script src="js/production.js?v=20260727a"></script>
+<script src="js/production.js?v=20260728a"></script>
 <script src="js/notes.js?v=40"></script>
 <script src="js/customer-messages.js?v=9"></script>
 <script src="js/order-messages.js?v=2"></script>

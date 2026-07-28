@@ -4376,6 +4376,59 @@
       font-size: 13px;
       pointer-events: none;
     }
+    /* ── Quick "order again" chips ─────────────
+       Ranked from the last 12 weeks of saved orders (see sotFrequentItems
+       in js/production.js). Useful on desktop too, but this is the piece
+       that makes the phone layout work — a typical restock never has to
+       open the catalog at all. */
+    .sot-quick { margin-bottom: 18px; }
+    .sot-quick-hd {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 9px;
+    }
+    .sot-quick-sub { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; }
+    .sot-quick-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sot-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+      border-radius: 20px;
+      padding: 7px 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color var(--dur-fast) var(--ease-smooth),
+                  box-shadow var(--dur-fast) var(--ease-smooth);
+    }
+    .sot-chip:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+    .sot-chip:active { transform: translateY(1px); }
+    .sot-chip-plus { font-size: 14px; line-height: 1; color: var(--accent); }
+    .sot-chip-n {
+      font-size: 10px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent-ink);
+      background: var(--accent);
+      border-radius: 9px;
+      padding: 1px 6px;
+    }
+
+    /* Phone-only chrome — inert until the mobile block switches it on */
+    .sot-grab, .sot-sheet-close, .sot-cart-bar, .sot-sheet-scrim,
+    .sot-seg, .sot-reorder { display: none; }
+
     /* Add item form */
     .sot-add-form {
       display: none;
@@ -5133,32 +5186,391 @@
     .drawer { width: 100%; left: 0; right: 0; }
 
 
-    /* Order Materials: stacked mobile layout — search top, order below,
-       catalog (browse-by-category) collapsed until a search is active. */
+    /* ── Order Materials — phone ────────────────────────────
+       "Quick reorder" layout. The catalog is the page (suppliers start
+       collapsed, see sotInit), quick-add chips sit up top, and the order
+       lives behind a persistent cart bar that slides .sot-order up as a
+       bottom sheet. Same order markup as desktop — only positioned
+       differently — so there is never a second copy to keep in sync. */
     .sot-layout { flex-direction: column; height: auto; overflow: visible; }
-    .sot-catalog { display: contents; }
-    .sot-search-wrap { order: 1; }
-    .sot-rg-panel { order: 2; }
-    .sot-order { order: 3; width: 100%; flex: none; overflow: visible; }
-    #sotCatalogInner,
-    #sotAddSupBtn,
-    #sotAddSupForm { display: none; }
-    #sotCatalogInner { order: 4; }
-    #sotAddSupBtn { order: 5; }
-    #sotAddSupForm { order: 6; }
-    .sot-catalog.sot-searching #sotCatalogInner { display: block; }
-    .sot-catalog.sot-searching #sotAddSupBtn { display: block; }
-    .sot-catalog.sot-searching #sotAddSupForm.open { display: block; }
-    .sot-order-scroll { flex: none; overflow: visible; padding-bottom: 110px; }
-    .sot-order-foot { position: static; flex-shrink: 0; }
-    .sot-foot-row {
-      position: fixed; left: 0; right: 0;
+    .sot-catalog {
+      width: 100%;
+      border-right: 0;
+      overflow: visible;
+      padding: var(--sp-3) var(--sp-3) calc(132px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* 16px, or iOS Safari zooms the page on focus */
+    .sot-search { font-size: 16px; height: 46px; padding: 0 12px 0 34px; }
+    .sot-rg-panel input, .sot-rg-panel select,
+    .sot-add-form input, .sot-add-form select,
+    .sot-add-supplier-form input { font-size: 16px; padding: 10px 12px; }
+
+    /* Touch targets: rows, checkboxes and collapse headers */
+    .sot-supplier-head { min-height: 52px; padding: var(--sp-2) 12px; }
+    .sot-cat-head { min-height: 44px; padding: 0 8px; font-size: 12px; }
+    .sot-cat-items { padding: 0 2px 4px 10px; }
+    .sot-item { min-height: 56px; align-items: center; padding: 8px; gap: 11px; }
+    .sot-item + .sot-item { border-top: 1px solid var(--bdr-light); }
+    .sot-item-cb { width: 26px; height: 26px; margin-top: 0; }
+    .sot-item-name { font-size: 13.5px; }
+
+    /* Edit/Del are hover-gated on desktop, which makes them unreachable on
+       a touch screen. Show them inline instead. */
+    .sot-item-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 0; }
+    .sot-item-btn { min-height: 32px; padding: 4px 10px; font-size: 11px; }
+
+    .sot-quick { margin-bottom: 20px; }
+    .sot-chip { padding: 10px 14px; font-size: 13px; min-height: 42px; }
+
+    /* ── Reorder view ("Last time / This time") ──────────────
+       The catalog answers "what could I buy"; this answers "what did I
+       buy last time", which is the question a restock actually asks.
+       Segmented control swaps between the two; only one is in the flow
+       at a time so there's no hidden scroll position to restore. */
+    .sot-seg {
+      display: flex;
+      background: var(--card-head-bg);
+      border: 1px solid var(--bdr-light);
+      border-radius: var(--rad-md);
+      padding: 3px;
+      margin-bottom: var(--sp-3);
+    }
+    .sot-seg-btn {
+      flex: 1;
+      min-height: 40px;
+      border: 0;
+      background: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      cursor: pointer;
+    }
+    .sot-seg-btn.active {
+      background: var(--card-bg);
+      color: var(--text);
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
+    }
+    .sot-reorder { display: none; }
+    .sot-view-reorder .sot-reorder { display: block; }
+    /* Catalog-only furniture steps aside while Reorder is showing */
+    .sot-view-reorder .sot-search-wrap,
+    .sot-view-reorder .sot-rg-panel,
+    .sot-view-reorder .sot-quick,
+    .sot-view-reorder #sotCatalogInner,
+    .sot-view-reorder .sot-add-supplier-btn,
+    .sot-view-reorder .sot-add-supplier-form { display: none; }
+
+    .sot-re-sups { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 3px; margin-bottom: var(--sp-3); }
+    .sot-re-sup {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 7px 13px;
+      border: 1px solid var(--bdr);
+      background: var(--card-bg);
+      color: var(--text2);
+      border-radius: 18px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sot-re-sup.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent-fg); }
+    .sot-re-pip { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+
+    .sot-re-tot {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sp-3);
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: var(--rad-md);
+      padding: 11px 12px;
+      margin-bottom: var(--sp-3);
+    }
+    .sot-re-tot-cmp { margin-left: auto; text-align: right; }
+    .sot-re-tot .k { font-size: 11px; font-weight: 700; color: var(--text3); }
+    .sot-re-tot .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .sot-re-tot .s { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    .sot-re-sec {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin: 18px 2px 9px;
+    }
+    .sot-re-sec .n { margin-left: auto; font-weight: 600; letter-spacing: 0; text-transform: none; }
+
+    .sot-re-card {
+      background: var(--card-bg);
+      border: 1px solid var(--bdr);
+      border-radius: var(--rad-md);
+      padding: 11px;
+      margin-bottom: 9px;
+    }
+    .sot-re-card.in-order { box-shadow: inset 3px 0 0 var(--accent); }
+    .sot-re-top { display: flex; align-items: flex-start; gap: 9px; }
+    .sot-re-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 13.5px;
+      font-weight: 700;
+      line-height: 1.28;
+    }
+    .sot-re-freq {
+      flex: 0 0 auto;
+      font-size: 10px;
+      font-weight: 800;
+      white-space: nowrap;
+      color: var(--accent-fg);
+      background: var(--accent-bg);
+      border-radius: 5px;
+      padding: 3px 7px;
+    }
+    .sot-re-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 9px;
+      font-size: 11.5px;
+      color: var(--text3);
+      margin-top: 5px;
+    }
+    .sot-re-sku {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text2);
+      background: var(--card-head-bg);
+      border: 1px solid var(--bdr-light);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    /* Counted stock reads as fact; estimated stock must not. */
+    .sot-re-stock { color: var(--ok-fg); font-weight: 700; }
+    .sot-re-stock.est { color: var(--text3); font-weight: 500; font-style: italic; }
+
+    .sot-re-split {
+      display: flex;
+      margin-top: 10px;
+      border: 1px solid var(--bdr-light);
+      border-radius: var(--rad-sm);
+      overflow: hidden;
+    }
+    .sot-re-half { flex: 1; padding: 8px 10px; min-width: 0; }
+    .sot-re-half.now { border-left: 1px solid var(--bdr-light); background: var(--accent-bg); }
+    .sot-re-half .k {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text3);
+    }
+    .sot-re-half .v { font-size: 15px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; }
+    .sot-re-half .s { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+    .sot-re-actions { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+    .sot-re-step {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--bdr);
+      border-radius: var(--rad-sm);
+      overflow: hidden;
+    }
+    .sot-re-step button {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      background: var(--card-bg);
+      color: var(--accent);
+      font-size: 19px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .sot-re-step span {
+      min-width: 42px;
+      height: 42px;
+      line-height: 42px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      border-left: 1px solid var(--bdr-light);
+      border-right: 1px solid var(--bdr-light);
+    }
+    .sot-re-add, .sot-re-remove {
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: var(--rad-sm);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .sot-re-add {
+      flex: 1;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-bg);
+      color: var(--accent-fg);
+    }
+    .sot-re-remove {
+      margin-left: auto;
+      border: 1px solid var(--bdr);
+      background: var(--card-bg);
+      color: var(--text3);
+      font-weight: 600;
+    }
+    .sot-re-card .sot-amt-wrap { flex: 0 0 auto; }
+    .sot-re-card .sot-amt-input { font-size: 16px; min-height: 42px; }
+    .sot-re-empty {
+      background: var(--card-bg);
+      border: 1px dashed var(--bdr);
+      border-radius: var(--rad-md);
+      padding: 22px 18px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text3);
+      text-align: center;
+    }
+
+    /* Order panel → bottom sheet */
+    .sot-order {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      top: 22vh;
+      width: auto;
+      z-index: 620;
+      border-radius: var(--rad-lg) var(--rad-lg) 0 0;
+      background: var(--card-bg);
+      box-shadow: var(--shadow-lg);
+      transform: translateY(100%);
+      visibility: hidden;
+      transition: transform var(--dur-med) var(--ease-smooth),
+                  visibility var(--dur-med) var(--ease-smooth);
+    }
+    .sot-sheet-open .sot-order { transform: translateY(0); visibility: visible; }
+    body.sot-sheet-lock { overflow: hidden; }
+
+    .sot-grab {
+      display: block;
+      width: 38px; height: 4px;
+      border-radius: 2px;
+      background: var(--bdr);
+      margin: 9px auto 2px;
+      flex-shrink: 0;
+    }
+    .sot-order-head { padding: 6px 14px 11px; border-radius: var(--rad-lg) var(--rad-lg) 0 0; }
+    .sot-sheet-close {
+      display: block;
+      width: 34px; height: 34px;
+      margin-left: 6px;
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      background: var(--card-bg);
+      color: var(--text3);
+      font-size: 18px;
+      line-height: 1;
+      font-family: inherit;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .sot-order-scroll { padding: var(--sp-3) 14px; }
+
+    .sot-sheet-scrim {
+      display: block;
+      position: fixed; inset: 0;
+      z-index: 610;
+      background: rgba(0,0,0,0.38);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-med) var(--ease-smooth);
+    }
+    .sot-sheet-open .sot-sheet-scrim { opacity: 1; pointer-events: auto; }
+
+    /* Order lines: real steppers instead of 20px buttons */
+    .sot-ord-item { padding: 9px 10px; border-radius: var(--rad-md); gap: 10px; }
+    .sot-ord-sku-input { width: 78px; height: 34px; font-size: 12px; }
+    .sot-ord-item-name { font-size: 12.5px; }
+    .sot-qty-wrap { gap: 0; border: 1px solid var(--bdr); border-radius: 9px; overflow: hidden; }
+    .sot-qty-btn {
+      width: 40px; height: 40px;
+      border: 0; border-radius: 0;
+      font-size: 19px;
+      color: var(--accent);
+      background: var(--card-bg);
+    }
+    .sot-qty-val {
+      min-width: 34px; height: 40px; line-height: 40px;
+      font-size: 15px;
+      border-left: 1px solid var(--bdr-light);
+      border-right: 1px solid var(--bdr-light);
+    }
+    .sot-amt-input { width: 68px; height: 40px; font-size: 16px; }
+    .sot-ord-remove { width: 36px; height: 36px; font-size: 19px; flex-shrink: 0; }
+
+    /* Sheet footer: notes + full-width actions */
+    .sot-order-foot { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+    .sot-notes-ta { font-size: 16px; }
+    .sot-foot-row { display: flex; gap: 8px; }
+    .sot-foot-btn, .sot-rg-btn {
+      flex: 1;
+      min-height: 46px;
+      font-size: 13.5px;
+      border-radius: var(--rad-md);
+    }
+
+    /* Persistent cart bar, parked above the bottom tab bar */
+    .sot-cart-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: fixed;
+      left: 0; right: 0;
       bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       z-index: 400;
-      background: var(--card-bg);
-      padding: 10px 14px;
-      border-top: 1px solid var(--bdr-light);
-      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+      height: 56px;
+      padding: 0 14px;
+      border: 0;
+      border-top: 1px solid var(--accent);
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: 0 -3px 14px rgba(0,0,0,0.18);
+    }
+    .sot-sheet-open .sot-cart-bar { display: none; }
+    .sot-cart-bub {
+      width: 30px; height: 30px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.22);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .sot-cart-txt { display: flex; flex-direction: column; min-width: 0; }
+    .sot-cart-lg { font-size: 14px; font-weight: 700; }
+    .sot-cart-sm { font-size: 11px; opacity: 0.82; font-variant-numeric: tabular-nums; }
+    .sot-cart-go {
+      margin-left: auto;
+      flex-shrink: 0;
+      background: var(--gold);
+      color: var(--accent-ink);
+      font-size: 13px; font-weight: 800;
+      padding: 10px 16px;
+      border-radius: 9px;
     }
 
     /* Production: 2-col → 1-col */

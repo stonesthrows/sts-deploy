@@ -49,11 +49,43 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
+// Past weeks are already one Notion page each, keyed by an ISO Monday in
+// the Week title — so lexicographic sort == chronological sort. Returns
+// the raw Items blobs; the caller works out what's frequent.
+async function historyResp(token, dbId, limit) {
+  var r = await fetch(NOTION_API + '/databases/' + dbId + '/query', {
+    method: 'POST',
+    headers: notionHdrs(token),
+    body: JSON.stringify({
+      sorts: [{ property: 'Week', direction: 'descending' }],
+      page_size: Math.min(Math.max(limit, 1), 52),
+    }),
+  });
+  if (!r.ok) {
+    var e = await r.json().catch(() => ({}));
+    return jsonResp({ error: e.message || 'query failed' }, r.status);
+  }
+  var data = await r.json();
+  var cur = weekKey();
+  var weeks = (data.results || []).map(function (page) {
+    var titleRaw = ((page.properties.Week || {}).title || [])[0];
+    var itemsRaw = ((page.properties.Items || {}).rich_text || [])[0];
+    return {
+      week:  titleRaw ? titleRaw.plain_text.slice(0, 10) : '',
+      items: itemsRaw ? itemsRaw.plain_text : '{}',
+    };
+  }).filter(function (w) { return w.week && w.week !== cur; });
+  return jsonResp({ weeks: weeks });
+}
+
 export async function onRequestGet(context) {
   var token = context.env.NOTION_TOKEN;
   var dbId  = extractDbId(context.env.NOTION_SOT_DB);
   if (!token) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
   if (!dbId)  return jsonResp({ error: 'NOTION_SOT_DB not set or not a valid database ID' }, 500);
+
+  var histParam = new URL(context.request.url).searchParams.get('history');
+  if (histParam) return historyResp(token, dbId, Number(histParam) || 12);
 
   var key = weekKey();
   var r = await fetch(NOTION_API + '/databases/' + dbId + '/query', {
