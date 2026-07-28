@@ -87,6 +87,12 @@
       --hover-bg: rgba(16, 18, 22, 0.04);
       --input-bg: #FFFFFF;
       --bg2: var(--hdr-pill);
+      /* Editorial display face. Used where a surface should read as a
+         considered document rather than a dense control panel — the
+         Customer Card's headings, the inline edit form. Not a body face:
+         running text and controls stay on the system sans above. */
+      --font-head: Georgia, 'Iowan Old Style', 'Times New Roman', ui-serif, serif;
+
       /* ── Board design tokens (spacing / radius / shadow / motion) ──
          Used by the Order Pipeline (Kanban) dashboard styling. */
       --sp-1: 4px;

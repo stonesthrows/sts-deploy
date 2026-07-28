@@ -1429,8 +1429,12 @@
       background: var(--card-bg);
     }
     .ct-open .ct-expand {
-      max-height: 1200px;
-      border-top: 1px solid var(--warn-bg);
+      /* Headroom, not a real height — the panel's true height varies with
+         order count and thread length. Raised alongside the Atelier pass,
+         whose roomier padding pushed tall cards near the old 1200px ceiling
+         (past it, the tail of the messages thread silently clips). */
+      max-height: 1800px;
+      border-top: 1px solid var(--bdr);
     }
     /* ── Expand body layout ──────────────────── */
     .ct-exp-body { padding: 0; }
@@ -1442,63 +1446,85 @@
       padding: 0 20px 14px;
       border-top: 1px solid var(--warn-bg);
     }
+    /* Headings inside the opened card use the editorial display face and
+       sentence case — the card is a dossier on a person, not another
+       control panel. The rest of the app keeps its uppercase micro-labels;
+       these selectors are customer-card-only. */
     .ct-exp-section-title {
-      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.5px; color: var(--text2);
-      padding: 10px 0 8px;
-      display: flex; align-items: center; gap: 7px;
+      font-family: var(--font-head);
+      font-size: 14.5px; font-weight: 600; letter-spacing: -0.1px;
+      color: var(--text);
+      padding: 14px 0 9px;
+      display: flex; align-items: center; gap: 9px;
     }
-    /* Gold tick — matches .form-sec-label on the New Order pass */
-    .ct-exp-section-title::before,
-    .ct-info-title::before {
+    /* Hairline rule carries the heading across the column, so a section
+       reads as a band rather than a floating label. */
+    .ct-exp-section-title::after {
       content: '';
-      width: 3px; height: 11px;
-      border-radius: 2px;
-      background: var(--accent);
-      flex-shrink: 0;
+      flex: 1; height: 1px;
+      background: var(--bdr-light);
     }
-
     /* ── Contact info block ──────────────────── */
     .ct-info-block {
-      padding: 12px 20px 4px;
+      padding: 14px 20px 6px;
     }
     .ct-info-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 10px;
     }
+    /* Same heading treatment as .ct-exp-section-title — these are siblings
+       in the card, so they get the same rule. flex:1 lets the trailing
+       hairline run up to the Edit button rather than past it. */
     .ct-info-title {
-      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.5px; color: var(--text2);
-      display: flex; align-items: center; gap: 7px;
+      font-family: var(--font-head);
+      font-size: 14.5px; font-weight: 600; letter-spacing: -0.1px;
+      color: var(--text);
+      display: flex; align-items: center; gap: 9px;
+      flex: 1; min-width: 0;
+    }
+    .ct-info-title::after {
+      content: '';
+      flex: 1; height: 1px;
+      background: var(--bdr-light);
     }
     .ct-edit-toggle-btn {
       font-size: 11.5px; font-weight: 600; color: var(--accent);
       background: none; border: none; cursor: pointer; padding: 0;
     }
     .ct-edit-toggle-btn:hover { text-decoration: underline; }
+    /* Two columns of stacked label/value pairs. Reading down a short
+       column beats scanning across a 110px label gutter, and it frees the
+       horizontal room the old flex row spent on whitespace. Fields whose
+       content runs long (address, notes, style profile) span both. */
+    .ct-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 11px 20px;
+    }
     .ct-info-row {
-      display: flex; gap: 12px; align-items: baseline;
-      padding: 3px 0;
-      border-bottom: 1px solid var(--bdr-light);
+      display: flex; flex-direction: column; gap: 2px;
+      min-width: 0;
       font-size: 13px;
     }
-    .ct-info-row:last-child { border-bottom: none; }
+    .ct-info-wide { grid-column: 1 / -1; }
     .ct-info-label {
-      width: 110px; flex-shrink: 0;
-      font-size: 11px; font-weight: 700; color: var(--text2);
-      text-transform: uppercase; letter-spacing: 0.3px;
+      font-size: 10px; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.6px;
     }
-    .ct-info-val { color: var(--text); }
+    .ct-info-val { color: var(--text); overflow-wrap: anywhere; }
+    @media (max-width: 560px) {
+      .ct-info-grid { grid-template-columns: 1fr; }
+    }
     .ct-info-link { color: var(--accent); text-decoration: none; }
     .ct-info-link:hover { text-decoration: underline; }
     .ct-info-empty { color: var(--text3); font-style: italic; }
 
     /* ── Previous orders ─────────────────────── */
     .ct-prev-order {
-      padding: 7px 10px;
-      border-radius: var(--rad-sm);
+      padding: 10px 12px;
+      border-radius: var(--rad-md);
       border: 1px solid var(--bdr-light);
-      margin-bottom: 6px;
+      margin-bottom: 7px;
       background: var(--card-bg);
       transition: border-color var(--dur-fast) var(--ease-smooth),
                   box-shadow var(--dur-fast) var(--ease-smooth),
@@ -1514,8 +1540,14 @@
     }
     .ct-prev-edit-btn:hover { opacity: 1; text-decoration: underline; }
     .ct-prev-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .ct-prev-stage { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
-    .ct-prev-price { font-size: 11.5px; color: var(--text); }
+    .ct-prev-stage { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+    /* Price sits at the far edge so a column of orders can be read as a
+       column of figures. Tabular digits keep those figures aligned. */
+    .ct-prev-price {
+      margin-left: auto;
+      font-size: 13px; font-weight: 700; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
     .ct-prev-dl    { font-size: 10px; }
     .ct-prev-takein { font-size: 10.5px; color: var(--text2); }
 
@@ -1559,7 +1591,17 @@
     }
     .ct-exp-gmail-msg { font-size: 13px; color: var(--text2); padding: 6px 0; }
 
-    /* ── Team Messages (Customer Card) ───────── */
+    /* ── Team Messages (Customer Card) ─────────
+       The thread is the one part of the card that is a conversation rather
+       than a record, so it gets its own tinted ground to sit on — it reads
+       as a distinct place you talk in, not a fifth list of fields. */
+    .ct-msg-section {
+      background: var(--surface2);
+      border-top: 1px solid var(--bdr);
+      padding-bottom: 16px;
+    }
+    .ct-msg-section .ct-exp-section-title::after { background: var(--bdr); }
+
     .msg-badge {
       display: inline-flex; align-items: center; gap: 3px;
       background: var(--warn-bg); color: var(--warn-fg);
@@ -1573,14 +1615,21 @@
       padding: 4px 2px 10px;
     }
     .msg-bubble {
-      max-width: 78%;
-      padding: 8px 12px;
-      border-radius: var(--rad-md);
+      max-width: 80%;
+      padding: 9px 13px;
+      border-radius: var(--rad-lg);
       background: var(--card-bg);
       border: 1px solid var(--bdr-light);
+      box-shadow: var(--shadow-sm);
     }
-    .msg-bubble-self { align-self: flex-end; background: var(--accent-bg); border-color: var(--accent-border); }
-    .msg-bubble-other { align-self: flex-start; }
+    /* One squared corner on the side the bubble is anchored to — the
+       tail, reduced to its quietest form. */
+    .msg-bubble-self {
+      align-self: flex-end;
+      background: var(--accent-bg); border-color: var(--accent-border);
+      border-bottom-right-radius: var(--rad-sm);
+    }
+    .msg-bubble-other { align-self: flex-start; border-bottom-left-radius: var(--rad-sm); }
     .msg-bubble.saving { opacity: 0.55; }
     .msg-bubble-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; flex-wrap: wrap; }
     .msg-author { font-size: 11px; font-weight: 700; color: var(--text2); }
@@ -1592,7 +1641,7 @@
     }
     .msg-time { font-size: 10.5px; color: var(--text3); }
     .msg-bubble-text { font-size: 13px; color: var(--text); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
-    .msg-compose { border-top: 1px solid var(--warn-bg); padding-top: 10px; margin-top: 4px; }
+    .msg-compose { border-top: 1px solid var(--bdr); padding-top: 12px; margin-top: 6px; }
     .msg-order-select {
       width: 100%; box-sizing: border-box; font-size: 12.5px; font-family: inherit;
       padding: 7px 10px; margin-bottom: 6px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
@@ -1690,7 +1739,7 @@
       padding: 10px 20px 12px;
       border-top: 1px solid var(--bdr-light);
       background: var(--surface);
-      font-family: Georgia, 'Times New Roman', ui-serif, serif;
+      font-family: var(--font-head);
     }
     .ct-exp-edit-form .ct-info-title { font-size: 14px; }
     .ct-edit-grid {

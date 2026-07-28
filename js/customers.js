@@ -430,12 +430,17 @@ function buildCustomerExpandHtml(idx) {
   const safeEmail = (c.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
   // ── Info rows ────────────────────────────────
-  const infoRow = (label, val, href) => {
-    if (!val) return `<div class="ct-info-row"><span class="ct-info-label">${label}</span><span class="ct-info-val ct-info-empty">—</span></div>`;
+  // `wide` spans both columns of .ct-info-grid — for fields whose value
+  // runs long enough that half a row would wrap it awkwardly. An empty
+  // field never spans: a full row spent on a single "—" is what turned
+  // a sparse customer's contact block into a column of dashes.
+  const infoRow = (label, val, href, wide) => {
+    const cls = 'ct-info-row' + (wide && val ? ' ct-info-wide' : '');
+    if (!val) return `<div class="${cls}"><span class="ct-info-label">${label}</span><span class="ct-info-val ct-info-empty">—</span></div>`;
     const valHtml = href
       ? `<a class="ct-info-val ct-info-link" href="${esc(href)}">${esc(val)}</a>`
       : `<span class="ct-info-val">${esc(val)}</span>`;
-    return `<div class="ct-info-row"><span class="ct-info-label">${label}</span>${valHtml}</div>`;
+    return `<div class="${cls}"><span class="ct-info-label">${label}</span>${valHtml}</div>`;
   };
 
   // ── Orders ───────────────────────────────────
@@ -488,14 +493,16 @@ function buildCustomerExpandHtml(idx) {
           <span class="ct-info-title">Contact Info</span>
           <button class="ct-edit-toggle-btn" onclick="showCustomerEditForm(${idx});event.stopPropagation()">✏ Edit</button>
         </div>
-        ${infoRow('Name',    c.name)}
-        ${infoRow('Phone',   c.phone,   c.phone   ? 'tel:'    + c.phone   : null)}
-        ${infoRow('Email',   c.email,   c.email   ? 'mailto:' + c.email   : null)}
-        ${infoRow('Address', c.address)}
-        ${infoRow('Notes',   c.notes)}
-        ${infoRow('Style Profile', styleProfileText(c.styleProfile))}
-        ${infoRow('Last Contact', c.lastContact ? (typeof fmtDate==='function'?fmtDate(c.lastContact):c.lastContact) : null)}
-        ${infoRow('Lifetime Value', c.totalValue ? '$' + c.totalValue.toLocaleString() : null)}
+        <div class="ct-info-grid">
+          ${infoRow('Name',    c.name)}
+          ${infoRow('Phone',   c.phone,   c.phone   ? 'tel:'    + c.phone   : null)}
+          ${infoRow('Email',   c.email,   c.email   ? 'mailto:' + c.email   : null)}
+          ${infoRow('Address', c.address, null, true)}
+          ${infoRow('Notes',   c.notes,   null, true)}
+          ${infoRow('Style Profile', styleProfileText(c.styleProfile), null, true)}
+          ${infoRow('Last Contact', c.lastContact ? (typeof fmtDate==='function'?fmtDate(c.lastContact):c.lastContact) : null)}
+          ${infoRow('Lifetime Value', c.totalValue ? '$' + c.totalValue.toLocaleString() : null)}
+        </div>
       </div>
 
       <!-- Edit form (hidden by default) -->
@@ -573,7 +580,7 @@ function buildCustomerExpandHtml(idx) {
       </div>
 
       <!-- Team Messages -->
-      <div class="ct-exp-section">
+      <div class="ct-exp-section ct-msg-section">
         <div class="ct-exp-section-title">Team Messages</div>
         <div class="msg-thread" id="ct-msg-${idx}"></div>
         <div class="msg-compose">
