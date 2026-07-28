@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 20260727a-product-theme -->
+<!-- deploy-version: 20260728a-etsy-autosync -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -3158,6 +3158,24 @@
     </div>
 
     <div class="int-section">
+      <div class="int-section-title">🛍 Etsy Auto-Sync</div>
+      <p class="int-hint" style="margin-bottom:10px;">Automatically import new paid Etsy orders to the Kanban board.</p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <input type="checkbox" id="int-etsy-autosync" style="width:18px;height:18px;cursor:pointer;">
+        <label for="int-etsy-autosync" style="margin:0;cursor:pointer;font-weight:500;">Enable auto-sync</label>
+      </div>
+      <label for="int-etsy-autosync-interval" style="display:block;margin-top:8px;">Sync interval (minutes)</label>
+      <select id="int-etsy-autosync-interval" style="width:100%;padding:8px;border-radius:4px;border:1px solid var(--bdr);background:var(--bg);color:var(--fg);font-size:14px;">
+        <option value="15">Every 15 minutes</option>
+        <option value="30" selected>Every 30 minutes</option>
+        <option value="60">Every hour</option>
+        <option value="120">Every 2 hours</option>
+      </select>
+      <p class="int-hint" style="margin-top:8px;">Orders are checked against the past 30 days. Backfill runs automatically when you save.</p>
+      <button class="btn btn-outline btn-sm" onclick="closeIntegrationsModal(); etsySync(); setTimeout(() => openIntegrationsModal(), 100);" style="margin-top:8px;">↻ Sync Etsy Now</button>
+    </div>
+
+    <div class="int-section">
       <div class="int-section-title">🔔 Push Notifications</div>
       <p class="int-hint" style="margin-bottom:10px;">Get a real notification on this device when a teammate posts a Team Message on a customer card — tap it to jump straight to that customer's thread. This is a per-device setting (enable it separately on each phone/tablet/computer you use).</p>
       <p class="int-hint" id="pushNotifyStatus" style="font-weight:600;">Checking…</p>
@@ -3623,15 +3641,15 @@
 <script src="js/order-normalize.js?v=20260727c"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260728d"></script>
-<script src="js/app.js?v=20260728c"></script>
+<script src="js/app.js?v=20260728d"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260728a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
 <script src="js/orders.js?v=20260728e"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
-<script src="js/etsy.js?v=20260713a"></script>
-<script src="js/drive.js?v=20260728b"></script>
+<script src="js/etsy.js?v=20260728a"></script>
+<script src="js/drive.js?v=20260728c"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260728f"></script>

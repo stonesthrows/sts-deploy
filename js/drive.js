@@ -490,6 +490,14 @@ function openIntegrationsModal() {
   setField('int-anthropic-key',        localStorage.getItem('sts-anthropic-key')        || '');
   setField('int-square-token',    localStorage.getItem('sts-square-token')    || '');
   setField('int-square-location', localStorage.getItem('sts-square-location') || '');
+  const autoSyncCheckbox = document.getElementById('int-etsy-autosync');
+  if (autoSyncCheckbox) {
+    autoSyncCheckbox.checked = localStorage.getItem('sts-etsy-autosync-enabled') === 'true';
+  }
+  const intervalSelect = document.getElementById('int-etsy-autosync-interval');
+  if (intervalSelect) {
+    intervalSelect.value = localStorage.getItem('sts-etsy-autosync-interval') || '30';
+  }
   document.getElementById('integrationsModalBg').classList.add('open');
   if (typeof renderPushStatus === 'function') renderPushStatus();
 }
@@ -513,6 +521,21 @@ function saveIntegrations() {
   anthropicKey    ? localStorage.setItem('sts-anthropic-key',        anthropicKey)    : localStorage.removeItem('sts-anthropic-key');
   squareToken     ? localStorage.setItem('sts-square-token',         squareToken)     : localStorage.removeItem('sts-square-token');
   squareLocation  ? localStorage.setItem('sts-square-location',      squareLocation)  : localStorage.removeItem('sts-square-location');
+
+  // Etsy auto-sync settings
+  const autoSyncCheckbox = document.getElementById('int-etsy-autosync');
+  if (autoSyncCheckbox) {
+    autoSyncCheckbox.checked
+      ? localStorage.setItem('sts-etsy-autosync-enabled', 'true')
+      : localStorage.removeItem('sts-etsy-autosync-enabled');
+  }
+  const intervalSelect = document.getElementById('int-etsy-autosync-interval');
+  if (intervalSelect) {
+    localStorage.setItem('sts-etsy-autosync-interval', intervalSelect.value);
+  }
+  if (typeof initEtsyAutoSync === 'function') {
+    initEtsyAutoSync();
+  }
 
   // Invalidate token if client ID changed
   if (googleClientId !== prev) clearGoogleToken();
