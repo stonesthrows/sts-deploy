@@ -333,39 +333,25 @@ function _msgCheckForNew() {
   if (grew) showMessagePop(total);
 }
 
-// ── Order-card message chip ──────────────────
-// Threads are keyed per customer, so every order card for the same person
-// shows that person's thread — the chip answers "is there a conversation
-// about this customer?", not "about this specific order".
-function messageCountsForName(name) {
-  var key = custKey(name);
-  return { total: messagesFor(key).length, unread: unreadMessageCount(key) };
-}
-
-function orderMsgChipHtml(name) {
-  var c = messageCountsForName(name);
-  if (!c.total) return '';
-  var safe = String(name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  return '<span class="o-msg-chip' + (c.unread ? ' unread' : '') + '"'
-    + ' title="' + (c.unread ? c.unread + ' unread of ' + c.total : c.total)
-    + ' team message' + (c.total === 1 ? '' : 's') + ' about this customer"'
-    + ' onclick="event.stopPropagation();openMessagesForCustomer(\'' + esc(safe) + '\')">'
-    + '💬 ' + (c.unread || c.total) + '</span>';
-}
-
-// Counts for the Kanban card's message segment (js/orders.js,
-// cardActionBarHTML). Scoped to one order, matching the order card's
-// Messages tab the segment opens — a message about the customer's other
-// job belongs on that job's card, not this one.
+// ── Kanban card message segment ──────────────
+// Counts for the card's message segment (js/orders.js, cardActionBarHTML).
+// Scoped to one order, matching the order card's Messages tab the segment
+// opens — a message about the customer's other job belongs on that job's
+// card, not this one.
+//
+// This replaced an earlier customer-scoped chip that sat in the card body.
+// Both existed briefly while the action bar and the order card's tabs were
+// built in parallel; the chip's renderer outlived its markup and is gone
+// now. Widening to everything about a person is the Messages tab's scope
+// toggle, one click deeper.
 function orderMessageCounts(name, orderId) {
   var key = custKey(name);
   var mine = messagesFor(key).filter(function(m) { return m.orderId === orderId; });
   return { total: mine.length, unread: unreadMessageCount(key, orderId) };
 }
 
-// Unlike the chip above, this renders inside a button that is always
-// present, so zero messages simply means no count — the segment stays as
-// the way to start a thread.
+// Renders inside a button that is always present, so zero messages simply
+// means no count — the segment stays as the way to start a thread.
 function orderMsgBtnCountHtml(name, orderId) {
   var c = orderMessageCounts(name, orderId);
   if (!c.total) return '';
@@ -373,15 +359,12 @@ function orderMsgBtnCountHtml(name, orderId) {
     + (c.unread || c.total) + '</span>';
 }
 
-// Refresh the chips already on screen without re-rendering the board (a
+// Refresh the counts already on screen without re-rendering the board (a
 // full renderKanban() here would fight drags and collapse open cards).
+// Only the count span inside each button is replaced, so the button's own
+// handlers and title survive the refresh.
 function renderAllOrderMsgChips() {
   if (typeof ORDERS === 'undefined') return;
-  document.querySelectorAll('[data-msg-chip-for]').forEach(function(slot) {
-    slot.innerHTML = orderMsgChipHtml(slot.getAttribute('data-msg-chip-for'));
-  });
-  // Card action bars: only the count span is replaced, so the button's own
-  // handlers and title survive the refresh.
   document.querySelectorAll('[data-msg-btn-for]').forEach(function(btn) {
     var name    = btn.getAttribute('data-msg-btn-for');
     var orderId = btn.getAttribute('data-msg-btn-order');

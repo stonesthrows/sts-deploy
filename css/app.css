@@ -1800,24 +1800,6 @@
       to   { opacity: 1; transform: none; }
     }
 
-    /* ── Message chip on Kanban order cards ──── */
-    /* Empty slot must not eat flex gap when the customer has no messages. */
-    .o-msg-slot:empty { display: none; }
-    .o-msg-chip {
-      display: inline-flex; align-items: center; gap: 3px;
-      background: var(--info-bg); color: var(--text2);
-      border: 1px solid var(--info-bg);
-      font-size: 10.5px; font-weight: 700;
-      padding: 2px 7px; border-radius: 10px;
-      white-space: nowrap; cursor: pointer;
-      transition: background var(--dur-fast) var(--ease-smooth),
-                  border-color var(--dur-fast) var(--ease-smooth);
-    }
-    .o-msg-chip:hover { background: var(--info-bg); border-color: var(--info); }
-    /* Unread gets the same amber treatment as the topbar badge. */
-    .o-msg-chip.unread { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn); }
-    .o-msg-chip.unread:hover { background: var(--warn-bg); border-color: var(--warn); }
-
     /* ── Inline customer edit form ───────────── */
     .ct-exp-edit-form {
       padding: 10px 20px 12px;
@@ -2122,8 +2104,8 @@
     /* The bag-style caret is a sliver hung off the print segment, not a
        peer of it — it must not claim an equal share of the bar. */
     .card-act-caret { flex: 0 0 22px; font-size: 8px; color: var(--text3); }
-    /* Unread count — same amber family as the topbar badge and the
-       expanded card's .o-msg-chip, so "someone is waiting" reads the same
+    /* Unread count — same amber family as the topbar badge and the order
+       card's Messages tab, so "someone is waiting" reads the same
        everywhere. Read messages get a quiet neutral count instead. */
     .card-act-count {
       font-size: 9.5px; font-weight: 800; line-height: 1;

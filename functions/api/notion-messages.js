@@ -126,12 +126,19 @@ async function notifyPush(env, h, { customerKey, customerName, author, text, ord
   }
 
   const authorNorm = String(author || '').trim().toLowerCase();
+  // Land the tap where the thread actually is. A message tagged to an order
+  // opens that order's Messages tab; an untagged one still goes to the
+  // customer's thread. Tag likewise collapses per order, so two jobs for the
+  // same person don't overwrite each other's notification.
+  const deepLink = orderId
+    ? `/jewelry-workflow.html?openOrder=${encodeURIComponent(orderId)}`
+    : `/jewelry-workflow.html?openCustomer=${encodeURIComponent(customerName)}`;
   const message = {
     data: {
-      title: `💬 ${customerName}`,
+      title: orderLabel ? `💬 ${customerName} — ${orderLabel}` : `💬 ${customerName}`,
       body:  `${author || 'Someone'}: ${text}`.slice(0, 200),
-      url:   `/jewelry-workflow.html?openCustomer=${encodeURIComponent(customerName)}`,
-      tag:   `msg-${customerKey}`,
+      url:   deepLink,
+      tag:   orderId ? `msg-${customerKey}-${orderId}` : `msg-${customerKey}`,
     },
     options: { ttl: 60 * 60 * 24, urgency: 'normal' },
   };

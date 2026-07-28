@@ -599,16 +599,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // token, and never overrides a name picked by hand.
     if (typeof resolveStaffFromGoogle === 'function') resolveStaffFromGoogle();
 
-    // Push-notification deep link (?openCustomer=<name>) — jump straight to
-    // that customer's Team Messages thread. Runs after CUSTOMERS is
-    // populated above so the row lookup inside openMessagesForCustomer
-    // succeeds. Strip the param after opening so a refresh doesn't reopen it.
-    const openCustomerParam = new URLSearchParams(window.location.search).get('openCustomer');
+    // Push-notification deep links. ?openOrder=<id> lands on that order
+    // card's Messages tab — where a tagged message actually lives, and the
+    // only place a reply can be written; ?openCustomer=<name> is the
+    // untagged fallback and opens their Customer Card thread. Both run after
+    // ORDERS and CUSTOMERS are populated above, so the lookups succeed.
+    // Strip the param after opening so a refresh doesn't reopen it.
+    const params = new URLSearchParams(window.location.search);
+    const openOrderParam    = params.get('openOrder');
+    const openCustomerParam = params.get('openCustomer');
+    const dropParam = (name) => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(name);
+      window.history.replaceState({}, '', url);
+    };
+    if (openOrderParam && typeof ORDERS !== 'undefined'
+        && ORDERS.some(o => o.id === openOrderParam) && typeof openOrderMessages === 'function') {
+      if (typeof switchTab === 'function') switchTab('dashboard');
+      openOrderMessages(openOrderParam);
+      dropParam('openOrder');
+    } else if (openOrderParam) {
+      // Order not on this device (not yet synced, or deleted) — don't strand
+      // the tap on a blank board.
+      dropParam('openOrder');
+      if (typeof toast === 'function') toast('That order isn\'t on this device yet', '⚠');
+    }
     if (openCustomerParam && typeof openMessagesForCustomer === 'function') {
       openMessagesForCustomer(openCustomerParam);
-      const url = new URL(window.location.href);
-      url.searchParams.delete('openCustomer');
-      window.history.replaceState({}, '', url);
+      dropParam('openCustomer');
     }
 
     // Replay any writes queued while offline, push any local orders missing
