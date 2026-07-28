@@ -108,7 +108,7 @@ async function notifySms(env, { customerName, author, text, orderLabel }) {
 // A subscription that the push service reports as gone (404/410 — user
 // uninstalled, revoked permission, etc.) is archived so it stops being
 // queried on every future message.
-async function notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }) {
+async function notifyPush(env, h, { customerKey, customerName, author, text, orderId, orderLabel }) {
   if (!env.VAPID_PRIVATE_KEY) return;
   const vapid = { subject: VAPID_SUBJECT, publicKey: VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY };
 
@@ -249,7 +249,7 @@ async function _handle(context) {
     const d = await r.json();
     if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
     runAfterResponse(context, notifySms(env, { customerName, author, text, orderLabel }));
-    runAfterResponse(context, notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }));
+    runAfterResponse(context, notifyPush(env, h, { customerKey, customerName, author, text, orderId, orderLabel }));
     return json({ notionPageId: d.id });
   }
 
