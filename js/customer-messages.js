@@ -421,6 +421,156 @@ function loadMessagesForCustomer(customerName, idx) {
   renderMessageThread(idx, custKey(customerName));
 }
 
+// ── Edit / delete ─────────────────────────────
+// Shared by the Customer Card thread and the order card's Messages tab
+// (js/order-messages.js) — one bubble renderer, one edit/delete flow, so
+// the two mounts can't quietly drift into different behavior.
+//
+// "Can I edit/delete this" is a name match against Author, same as every
+// other identity check in this feature — there is no login behind this
+// app, so it is a courtesy against mistakes, not a security boundary
+// (enforced again server-side in functions/api/notion-messages.js, for
+// the same reason: a courtesy worth keeping honest, not a real barrier).
+var _msgEditingId = null; // notionPageId currently being edited, or null
+
+// `ctx` identifies which mount to repaint after an action: either
+// { type:'ct', idx } for a Customer Card row, or { type:'eo' } for the
+// order card's Messages tab. Bubbles carry it back through their onclick
+// attributes because those are plain strings, not closures.
+function _msgCtxArgs(ctx) {
+  return "'" + ctx.type + "'," + (ctx.idx == null ? 'null' : ctx.idx);
+}
+
+function _msgRerender(ctx) {
+  if (ctx.type === 'eo') {
+    if (typeof eoRenderMessages === 'function') eoRenderMessages();
+    return;
+  }
+  var c = (typeof CUSTOMERS !== 'undefined' && ctx.idx != null) ? CUSTOMERS[ctx.idx] : null;
+  if (c) renderMessageThread(ctx.idx, custKey(c.name));
+}
+
+// Renders one bubble, in either read or edit mode. `showOrderTag` differs
+// per mount: the Customer Card thread always shows it, the order card's
+// Messages tab only in its widened "All for <name>" scope (see
+// js/order-messages.js) — filtered to one order the tag would just repeat
+// on every bubble.
+function renderMessageBubble(m, myName, showOrderTag, ctx) {
+  var isSelf = !!myName && m.author === myName;
+  var cls = 'msg-bubble ' + (isSelf ? 'msg-bubble-self' : 'msg-bubble-other');
+  if (m._saving) cls += ' saving';
+
+  if (m.notionPageId && _msgEditingId === m.notionPageId) {
+    return '<div class="' + cls + ' editing">'
+      + '<textarea class="msg-edit-input" data-pid="' + m.notionPageId + '" onclick="event.stopPropagation()">' + esc(m.text) + '</textarea>'
+      + '<div class="msg-edit-actions">'
+      + '<button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation();cancelEditMessage(' + _msgCtxArgs(ctx) + ')">Cancel</button>'
+      + '<button type="button" class="btn btn-gold btn-sm" onclick="event.stopPropagation();saveEditedMessage(\'' + m.notionPageId + '\',' + _msgCtxArgs(ctx) + ')">Save</button>'
+      + '</div></div>';
+  }
+
+  var time = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  var tag = (showOrderTag && m.orderLabel) ? '<span class="msg-order-tag" title="About this order">📦 ' + esc(m.orderLabel) + '</span>' : '';
+  var edited = m.editedAt ? '<span class="msg-edited" title="Edited ' + esc(new Date(m.editedAt).toLocaleString()) + '">(edited)</span>' : '';
+  var actions = (isSelf && m.notionPageId && !m._saving)
+    ? '<span class="msg-bubble-actions">'
+      + '<button type="button" class="msg-act" title="Edit message" aria-label="Edit message" onclick="event.stopPropagation();beginEditMessage(\'' + m.notionPageId + '\',' + _msgCtxArgs(ctx) + ')">✎</button>'
+      + '<button type="button" class="msg-act msg-act-danger" title="Delete message" aria-label="Delete message" onclick="event.stopPropagation();confirmDeleteMessage(\'' + m.notionPageId + '\',' + _msgCtxArgs(ctx) + ')">🗑</button>'
+      + '</span>'
+    : '';
+
+  return '<div class="' + cls + '">'
+    + '<div class="msg-bubble-meta"><span class="msg-author">' + esc(m.author || 'Unknown') + '</span>'
+    + tag
+    + '<span class="msg-time">' + esc(time) + '</span>' + edited
+    + actions
+    + '</div>'
+    + '<div class="msg-bubble-text">' + esc(m.text) + '</div>'
+    + '</div>';
+}
+
+function beginEditMessage(pageId, ctxType, ctxIdx) {
+  _msgEditingId = pageId;
+  _msgRerender({ type: ctxType, idx: ctxIdx });
+  var ta = document.querySelector('.msg-edit-input[data-pid="' + pageId + '"]');
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+function cancelEditMessage(ctxType, ctxIdx) {
+  _msgEditingId = null;
+  _msgRerender({ type: ctxType, idx: ctxIdx });
+}
+
+function saveEditedMessage(pageId, ctxType, ctxIdx) {
+  var ta = document.querySelector('.msg-edit-input[data-pid="' + pageId + '"]');
+  if (!ta) return;
+  var text = ta.value.trim();
+  if (!text) return;
+  var m = MESSAGES_DATA.find(function(x) { return x.notionPageId === pageId; });
+  if (!m) return;
+
+  var prevText = m.text;
+  var myName   = getStaffName();
+  m.text    = text;
+  m._saving = true;
+  _msgEditingId = null;
+  _msgRerender({ type: ctxType, idx: ctxIdx });
+
+  fetch('/api/notion-messages', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pageId: pageId, text: text, author: myName }),
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    .then(function(res) {
+      m._saving = false;
+      if (!res.ok) {
+        m.text = prevText;
+        alert('Edit failed: ' + (res.data.error || res.status));
+      } else {
+        m.editedAt = res.data.editedAt || new Date().toISOString();
+      }
+      _msgRerender({ type: ctxType, idx: ctxIdx });
+    })
+    .catch(function(err) {
+      m.text = prevText;
+      m._saving = false;
+      console.error('notion-messages PATCH catch:', err);
+      alert('Edit failed: ' + err);
+      _msgRerender({ type: ctxType, idx: ctxIdx });
+    });
+}
+
+function confirmDeleteMessage(pageId, ctxType, ctxIdx) {
+  if (!confirm('Delete this message? This can\'t be undone.')) return;
+  var m = MESSAGES_DATA.find(function(x) { return x.notionPageId === pageId; });
+  if (!m) return;
+  var arrIdx  = MESSAGES_DATA.indexOf(m);
+  var myName  = getStaffName();
+
+  MESSAGES_DATA.splice(arrIdx, 1);
+  _msgRerender({ type: ctxType, idx: ctxIdx });
+
+  fetch('/api/notion-messages?pageId=' + encodeURIComponent(pageId) + '&author=' + encodeURIComponent(myName || ''), {
+    method: 'DELETE',
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    .then(function(res) {
+      if (!res.ok) {
+        MESSAGES_DATA.splice(arrIdx, 0, m);
+        alert('Delete failed: ' + (res.data.error || res.status));
+        _msgRerender({ type: ctxType, idx: ctxIdx });
+      }
+      renderAllMessageBadges();
+    })
+    .catch(function(err) {
+      MESSAGES_DATA.splice(arrIdx, 0, m);
+      console.error('notion-messages DELETE catch:', err);
+      alert('Delete failed: ' + err);
+      _msgRerender({ type: ctxType, idx: ctxIdx });
+    });
+}
+
 function renderMessageThread(idx, customerKey) {
   var container = document.getElementById('ct-msg-' + idx);
   if (!container) return;
@@ -442,17 +592,9 @@ function renderMessageThread(idx, customerKey) {
       + (_messagesLoaded ? 'No messages yet — be the first to ask a question.' : '⏳ Loading…')
       + '</div>';
   } else {
+    var ctx = { type: 'ct', idx: idx };
     container.innerHTML = msgs.map(function(m) {
-      var isSelf = !!myName && m.author === myName;
-      var cls = 'msg-bubble ' + (isSelf ? 'msg-bubble-self' : 'msg-bubble-other');
-      if (m._saving) cls += ' saving';
-      var time = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      return '<div class="' + cls + '">'
-        + '<div class="msg-bubble-meta"><span class="msg-author">' + esc(m.author || 'Unknown') + '</span>'
-        + (m.orderLabel ? '<span class="msg-order-tag" title="About this order">📦 ' + esc(m.orderLabel) + '</span>' : '')
-        + '<span class="msg-time">' + esc(time) + '</span></div>'
-        + '<div class="msg-bubble-text">' + esc(m.text) + '</div>'
-        + '</div>';
+      return renderMessageBubble(m, myName, true, ctx);
     }).join('');
     container.scrollTop = container.scrollHeight;
   }

@@ -45,7 +45,7 @@ const VAPID_SUBJECT     = 'mailto:kyle@stonesthrowjewelry.com';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -75,7 +75,27 @@ function pageToMessage(page) {
     orderId:      p['Order Id']?.rich_text?.[0]?.plain_text      || '',
     orderLabel:   p['Order Label']?.rich_text?.[0]?.plain_text   || '',
     createdAt:    p['Created']?.date?.start || page.created_time,
+    editedAt:     p['Edited']?.date?.start  || null,
   };
+}
+
+// There is no login behind this app — every device carries the same shared
+// X-STS-Key — so "can this caller edit/delete this message" can only ever
+// mean "does the name they're currently posting as match the message's
+// Author", the same non-authoritative identity used everywhere else in
+// this feature (see js/customer-messages.js). It is a courtesy against
+// mistakes and stray clients, not a security boundary; a person willing to
+// forge the request body can already do anything this key allows.
+async function fetchMessageAuthor(h, pageId) {
+  const r = await fetch(`${NOTION_API}/pages/${pageId}`, { headers: h });
+  const d = await r.json();
+  if (!r.ok) return { ok: false, status: r.status, error: d.message || 'lookup failed' };
+  if (d.archived) return { ok: false, status: 404, error: 'message not found' };
+  return { ok: true, author: d.properties?.['Author']?.rich_text?.[0]?.plain_text || '' };
+}
+
+function sameStaffName(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 
 // Fire-and-forget SMS via Twilio's REST API. Never throws — a notify
@@ -253,10 +273,45 @@ async function _handle(context) {
     return json({ notionPageId: d.id });
   }
 
+  // ── PATCH — edit a message's text ────────────
+  if (request.method === 'PATCH') {
+    const { pageId, text, author } = await request.json();
+    if (!pageId || !text) return json({ error: 'pageId and text required' }, 400);
+
+    const owner = await fetchMessageAuthor(h, pageId);
+    if (!owner.ok) return json({ error: owner.error }, owner.status);
+    if (!sameStaffName(owner.author, author)) {
+      return json({ error: 'Only ' + (owner.author || 'the original sender') + ' can edit this message' }, 403);
+    }
+
+    const editedAt = new Date().toISOString();
+    const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({
+        properties: {
+          'Text':   { title: [{ text: { content: String(text).slice(0, 2000) } }] },
+          'Edited': { date: { start: editedAt } },
+        },
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) return json({ error: d.message || 'edit failed' }, r.status);
+    return json({ ok: true, editedAt });
+  }
+
   // ── DELETE — archive ─────────────────────────
   if (request.method === 'DELETE') {
-    const pageId = new URL(request.url).searchParams.get('pageId');
+    const params = new URL(request.url).searchParams;
+    const pageId = params.get('pageId');
+    const author = params.get('author');
     if (!pageId) return json({ error: 'pageId required' }, 400);
+
+    const owner = await fetchMessageAuthor(h, pageId);
+    if (!owner.ok) return json({ error: owner.error }, owner.status);
+    if (!sameStaffName(owner.author, author)) {
+      return json({ error: 'Only ' + (owner.author || 'the original sender') + ' can delete this message' }, 403);
+    }
+
     const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ archived: true }),

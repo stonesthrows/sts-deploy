@@ -72,21 +72,12 @@ function eoRenderMessages() {
           : '⏳ Loading…')
       + '</div>';
   } else {
+    // In the wider view the order tag is what tells two threads apart, so
+    // it stays; filtered to one order it would repeat on every bubble.
+    var showTag = _eoMsgScope === 'all';
+    var ctx = { type: 'eo' };
     thread.innerHTML = msgs.map(function(m) {
-      var isSelf = !!myName && m.author === myName;
-      var cls = 'msg-bubble ' + (isSelf ? 'msg-bubble-self' : 'msg-bubble-other');
-      if (m._saving) cls += ' saving';
-      var time = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      // In the wider view the order tag is what tells two threads apart, so
-      // it stays; filtered to one order it would repeat on every bubble.
-      var tag = (_eoMsgScope === 'all' && m.orderLabel)
-        ? '<span class="msg-order-tag" title="About this order">📦 ' + esc(m.orderLabel) + '</span>' : '';
-      return '<div class="' + cls + '">'
-        + '<div class="msg-bubble-meta"><span class="msg-author">' + esc(m.author || 'Unknown') + '</span>'
-        + tag
-        + '<span class="msg-time">' + esc(time) + '</span></div>'
-        + '<div class="msg-bubble-text">' + esc(m.text) + '</div>'
-        + '</div>';
+      return renderMessageBubble(m, myName, showTag, ctx);
     }).join('');
     thread.scrollTop = thread.scrollHeight;
   }

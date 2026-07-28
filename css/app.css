@@ -1710,7 +1710,28 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .msg-time { font-size: 10.5px; color: var(--text3); }
+    .msg-edited { font-size: 10px; color: var(--text3); font-style: italic; }
+    /* Edit/delete — own messages only, small enough to sit quietly in the
+       meta row rather than compete with author/time for attention. Always
+       visible rather than hover-revealed: this app runs on touch as often
+       as a mouse, and hover has no equivalent there. */
+    .msg-bubble-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+    .msg-act {
+      background: none; border: none; cursor: pointer; line-height: 1;
+      font-size: 11px; padding: 2px 5px; border-radius: var(--rad-sm);
+      color: var(--text3);
+    }
+    .msg-act:hover { background: var(--hover); color: var(--text); }
+    .msg-act-danger:hover { background: var(--danger-bg); color: var(--danger-fg); }
     .msg-bubble-text { font-size: 13px; color: var(--text); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+    .msg-bubble.editing { padding-bottom: 8px; }
+    .msg-edit-input {
+      width: 100%; box-sizing: border-box; font: inherit; font-size: 13px;
+      padding: 6px 8px; margin-top: 2px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+      background: var(--card-bg); color: var(--text); resize: vertical; min-height: 46px;
+    }
+    .msg-edit-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .msg-edit-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 7px; }
     .msg-compose { border-top: 1px solid var(--bdr); padding-top: 12px; margin-top: 6px; }
     .msg-order-select {
       width: 100%; box-sizing: border-box; font-size: 12.5px; font-family: inherit;
