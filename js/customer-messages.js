@@ -217,12 +217,35 @@ function orderMsgChipHtml(name) {
     + '💬 ' + (c.unread || c.total) + '</span>';
 }
 
+// Count that rides the Kanban card's message segment (js/orders.js,
+// cardActionBarHTML). Unlike the chip above this renders inside a button
+// that is always present, so zero messages simply means no count — the
+// segment stays as the way to start a thread.
+function orderMsgBtnCountHtml(name) {
+  var c = messageCountsForName(name);
+  if (!c.total) return '';
+  return ' <span class="card-act-count' + (c.unread ? ' unread' : '') + '">'
+    + (c.unread || c.total) + '</span>';
+}
+
 // Refresh the chips already on screen without re-rendering the board (a
 // full renderKanban() here would fight drags and collapse open cards).
 function renderAllOrderMsgChips() {
   if (typeof ORDERS === 'undefined') return;
   document.querySelectorAll('[data-msg-chip-for]').forEach(function(slot) {
     slot.innerHTML = orderMsgChipHtml(slot.getAttribute('data-msg-chip-for'));
+  });
+  // Card action bars: only the count span is replaced, so the button's own
+  // handlers and title survive the refresh.
+  document.querySelectorAll('[data-msg-btn-for]').forEach(function(btn) {
+    var name = btn.getAttribute('data-msg-btn-for');
+    var c = messageCountsForName(name);
+    btn.innerHTML = '💬' + orderMsgBtnCountHtml(name);
+    btn.classList.toggle('has-unread', !!c.unread);
+    btn.title = c.total
+      ? (c.unread ? c.unread + ' unread of ' + c.total : c.total)
+        + ' team message' + (c.total === 1 ? '' : 's') + ' about this customer'
+      : 'Team messages about this customer';
   });
 }
 

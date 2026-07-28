@@ -191,25 +191,9 @@ function cardHTML(o) {
       ${o.stage === 'contact-need' ? `<div class="contact-banner"><span class="contact-banner-icon">📞</span> Contact Customer</div>` : ''}
       <div class="o-card-header">
         <div class="o-name">${esc(o.name)}${!o.notionId ? ` <span class="o-unsynced" title="Not yet synced to Notion — tap to retry now" onclick="event.stopPropagation(); retrySyncOrder('${o.id}')">⚠ unsynced</span>` : ''}</div>
-        <div class="o-card-actions">
-          <button class="card-intake-btn"
-                  title="Open and edit this order in the Intake app"
-                  onclick="event.stopPropagation(); editOrderInIntake('${o.id}')">📱</button>
-          <div class="card-print-split">
-            <button class="card-print-btn"
-                    title="Print work order"
-                    onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
-            <button class="card-print-caret"
-                    title="Choose bag style for this order"
-                    onclick="event.stopPropagation(); openBagStyleSheet('${o.id}')">▾</button>
-          </div>
-          <button class="card-move-btn"
-                  title="Move to another stage"
-                  onclick="event.stopPropagation(); openStageSheet('${o.id}')">↪</button>
-          <span class="o-chevron"
-                title="Expand / Collapse"
-                onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
-        </div>
+        <span class="o-chevron"
+              title="Expand / Collapse"
+              onclick="event.stopPropagation(); toggleCard('${o.id}')">▾</span>
       </div>
       <div class="o-collapsed-summary">
         ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
@@ -218,7 +202,6 @@ function cardHTML(o) {
         ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
         ${o.printLayout ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
-        <span class="o-msg-slot" data-msg-chip-for="${esc(o.name)}">${typeof orderMsgChipHtml === 'function' ? orderMsgChipHtml(o.name) : ''}</span>
       </div>
       <div class="o-body">
         ${hasPhoto ? `
@@ -242,11 +225,62 @@ function cardHTML(o) {
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>
-          <span class="o-msg-slot" data-msg-chip-for="${esc(o.name)}">${typeof orderMsgChipHtml === 'function' ? orderMsgChipHtml(o.name) : ''}</span>
           <span class="o-price">${fmtPrice(o.price)}</span>
         </div>
       </div>
+      ${cardActionBarHTML(o)}
     </div>`;
+}
+
+// ── Card action bar ──────────────────────────
+// Print / staff messages / Intake live in one hairline-divided strip on
+// the card's bottom edge, outside .o-body so it stays put whether the card
+// is collapsed or expanded. The header above is text-only by design — the
+// bar is the single place actions live.
+//
+// The move button is the mobile-only exception (drag-and-drop has no touch
+// equivalent); css/app.css reveals .card-act-move at ≤768px.
+//
+// The message segment is always rendered, even at zero messages, so there
+// is always somewhere to start a thread from — the count and its unread
+// styling are what vary, refreshed in place by renderAllOrderMsgChips()
+// (js/customer-messages.js) via the data-msg-btn-for slot.
+function cardActionBarHTML(o) {
+  const nameAttr = esc(o.name);
+  const unread = (typeof messageCountsForName === 'function')
+    ? messageCountsForName(o.name).unread : 0;
+  return `
+      <div class="card-actbar">
+        <button class="card-act card-act-print"
+                title="Print work order"
+                aria-label="Print work order"
+                onclick="event.stopPropagation(); printOrder('${o.id}')">🖨</button>
+        <button class="card-act card-act-caret"
+                title="Choose bag style for this order"
+                aria-label="Choose bag style"
+                onclick="event.stopPropagation(); openBagStyleSheet('${o.id}')">▾</button>
+        <button class="card-act card-act-msg${unread ? ' has-unread' : ''}"
+                title="Team messages about this customer"
+                aria-label="Team messages about this customer"
+                data-msg-btn-for="${nameAttr}"
+                onclick="event.stopPropagation(); openMessagesForCustomer('${escAttrJs(o.name)}')"
+                >💬${typeof orderMsgBtnCountHtml === 'function' ? orderMsgBtnCountHtml(o.name) : ''}</button>
+        <button class="card-act card-act-intake"
+                title="Open and edit this order in the Intake app"
+                aria-label="Open in Intake"
+                onclick="event.stopPropagation(); editOrderInIntake('${o.id}')">📱</button>
+        <button class="card-act card-act-move"
+                title="Move to another stage"
+                aria-label="Move to another stage"
+                onclick="event.stopPropagation(); openStageSheet('${o.id}')">↪</button>
+      </div>`;
+}
+
+// Customer names go into an inline onclick as a JS string literal, so the
+// quote/backslash escaping is a separate job from esc()'s HTML escaping —
+// same pair orderMsgChipHtml() has always done for its own chip.
+function escAttrJs(name) {
+  return esc(String(name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 // Order-type-driven module state (this modal only — intake.html has its

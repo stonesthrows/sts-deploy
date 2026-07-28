@@ -587,7 +587,9 @@
       border: 1px solid var(--bdr);
       border-left-width: 3px;
       border-radius: var(--rad-sm);
-      padding: 11px 11px 9px;
+      /* No bottom padding: .card-actbar bleeds to the card's bottom edge
+         and supplies the last row of space itself. */
+      padding: 11px 11px 0;
       cursor: pointer;
       box-shadow: var(--shadow-sm);
       transition: box-shadow var(--dur-fast) var(--ease-smooth),
@@ -1992,64 +1994,54 @@
     .d-cta-row { display: flex; gap: 8px; padding: 16px 20px 8px; }
     .d-cta-row .btn { flex: 1; justify-content: center; font-size: 12.5px; padding: 8px 10px; }
 
-    /* ── Kanban card header icon buttons ──────── */
-    .card-intake-btn {
-      width: 24px; height: 24px;
-      background: var(--bdr-light);
-      border: 1px solid var(--bdr);
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 13px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
-      padding: 0;
+    /* ── Kanban card action bar ───────────────────
+       One hairline-divided strip on the card's bottom edge, holding print
+       (+ bag-style caret), team messages and Open-in-Intake. It sits
+       outside .o-body, so it is in the same place whether the card is
+       collapsed or expanded, and the card header stays text-only.
+
+       The negative side margins bleed the strip to the card's edges — the
+       same trick .contact-banner uses at the top — so the card's own
+       padding-bottom is dropped to 0 (see the Card Collapse block). */
+    .card-actbar {
+      display: flex;
+      margin: 9px -11px 0;
+      border-top: 1px solid var(--bdr-light);
+      /* Clips the segment hovers to the card's rounded bottom corners
+         (inner radius = card radius minus the 1px border). */
+      border-radius: 0 0 calc(var(--rad-sm) - 1px) calc(var(--rad-sm) - 1px);
+      overflow: hidden;
     }
-    .card-intake-btn:hover { background: var(--bdr); border-color: var(--accent); }
-    .card-print-btn {
-      width: 24px; height: 24px;
-      background: var(--bdr-light);
-      border: 1px solid var(--bdr);
-      border-radius: 5px;
+    .card-act {
+      flex: 1;
+      padding: 6px 0 7px;
+      background: none;
+      border: none;
+      border-left: 1px solid var(--bdr-light);
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--text2);
       cursor: pointer;
-      font-size: 13px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
-      padding: 0;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      transition: background var(--dur-fast), color var(--dur-fast);
     }
-    .card-print-btn:hover { background: var(--bdr); border-color: var(--accent); }
-    .card-print-split { display: flex; flex-shrink: 0; }
-    .card-print-split .card-print-btn { border-radius: 5px 0 0 5px; }
-    .card-print-caret {
-      width: 14px; height: 24px;
-      background: var(--bdr-light);
-      border: 1px solid var(--bdr);
-      border-left: none;
-      border-radius: 0 5px 5px 0;
-      cursor: pointer;
-      font-size: 8px;
-      color: var(--text3);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      padding: 0;
-      transition: background var(--dur-fast), border-color var(--dur-fast);
+    .card-act:first-child { border-left: none; }
+    .card-act:hover { background: var(--accent-bg); color: var(--accent-fg); }
+    /* The bag-style caret is a sliver hung off the print segment, not a
+       peer of it — it must not claim an equal share of the bar. */
+    .card-act-caret { flex: 0 0 22px; font-size: 8px; color: var(--text3); }
+    /* Unread count — same amber family as the topbar badge and the
+       expanded card's .o-msg-chip, so "someone is waiting" reads the same
+       everywhere. Read messages get a quiet neutral count instead. */
+    .card-act-count {
+      font-size: 9.5px; font-weight: 800; line-height: 1;
+      background: var(--bdr); color: var(--text2);
+      border-radius: 999px; padding: 2px 5px;
     }
-    .card-print-caret:hover { background: var(--bdr); border-color: var(--accent); }
-    .card-move-btn {
+    .card-act-count.unread { background: var(--warn); color: var(--accent-ink); }
+    .card-act-move {
       display: none; /* shown only on mobile — drag-and-drop doesn't work via touch */
-      width: 24px; height: 24px;
-      background: var(--bdr-light);
-      border: 1px solid var(--bdr);
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 13px;
-      align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
-      padding: 0;
     }
-    .card-move-btn:hover { background: var(--bdr); border-color: var(--accent); }
     .card-photo {
       margin: 7px 0 4px;
       border-radius: 6px;
@@ -2304,25 +2296,17 @@
     .completed-toggle.showing { background: var(--card-bg); border-color: var(--ok); color: var(--ok); }
 
     /* ── Card Collapse ───────────────────────── */
+    /* Header is name + collapse chevron only — every action moved to
+       .card-actbar at the card's bottom edge. With no fixed-width cluster
+       to share the line, the name can have the whole row and the earlier
+       flex-wrap escape hatch is no longer needed. */
     .o-card-header {
       display: flex;
       align-items: flex-start;
       gap: 6px;
-      /* The action cluster is a fixed ~100px and the board can squeeze a
-         column to ~110px, so the two cannot share a line there. Wrapping
-         drops the buttons to their own row instead of crushing the name to
-         one character per line — which is what the earlier min-width:0 fix
-         traded the overflow for. */
-      flex-wrap: wrap;
-    }
-    .o-card-actions {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
-      margin-left: auto;   /* stays right-aligned on whichever row it lands */
     }
     .o-chevron {
+      margin-left: auto;   /* pins the chevron to the right of the name */
       color: var(--text3);
       font-size: 13px;
       line-height: 1;
@@ -2337,7 +2321,6 @@
     .o-chevron:hover { color: var(--text2); background: var(--bdr-light); }
     .o-card.collapsed .o-chevron { transform: rotate(-90deg); }
     .o-card.collapsed .o-body { display: none; }
-    .o-card.collapsed { padding-bottom: 10px; }
     .o-card .o-body { overflow: hidden; }
     .o-collapsed-summary { display: none; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
     .o-card.collapsed .o-collapsed-summary { display: flex; }
@@ -5095,7 +5078,11 @@
       scroll-snap-stop: always;
     }
     .o-card { cursor: pointer; }
-    .card-move-btn { display: flex; }
+    /* Tap-to-move joins the action bar as a fourth segment on touch, and
+       every segment grows to a comfortable thumb target. */
+    .card-act-move { display: flex; }
+    .card-act { padding: 9px 0 10px; font-size: 13px; }
+    .card-act-caret { flex: 0 0 28px; }
 
     .prod-board {
       scroll-snap-type: x mandatory;
