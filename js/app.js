@@ -638,9 +638,12 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof notionStartupSync === 'function') notionStartupSync();
     });
 
-    // Initialize Etsy auto-sync if enabled
+    // Initialize Etsy and Shopify auto-sync if enabled
     if (typeof initEtsyAutoSync === 'function') {
       initEtsyAutoSync();
+    }
+    if (typeof initShopifyAutoSync === 'function') {
+      initShopifyAutoSync();
     }
   });
 });

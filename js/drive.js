@@ -498,6 +498,14 @@ function openIntegrationsModal() {
   if (intervalSelect) {
     intervalSelect.value = localStorage.getItem('sts-etsy-autosync-interval') || '30';
   }
+  const shopifyAutoSyncCheckbox = document.getElementById('int-shopify-autosync');
+  if (shopifyAutoSyncCheckbox) {
+    shopifyAutoSyncCheckbox.checked = localStorage.getItem('sts-shopify-autosync-enabled') === 'true';
+  }
+  const shopifyIntervalSelect = document.getElementById('int-shopify-autosync-interval');
+  if (shopifyIntervalSelect) {
+    shopifyIntervalSelect.value = localStorage.getItem('sts-shopify-autosync-interval') || '30';
+  }
   document.getElementById('integrationsModalBg').classList.add('open');
   if (typeof renderPushStatus === 'function') renderPushStatus();
 }
@@ -535,6 +543,21 @@ function saveIntegrations() {
   }
   if (typeof initEtsyAutoSync === 'function') {
     initEtsyAutoSync();
+  }
+
+  // Shopify auto-sync settings
+  const shopifyAutoSyncCheckbox = document.getElementById('int-shopify-autosync');
+  if (shopifyAutoSyncCheckbox) {
+    shopifyAutoSyncCheckbox.checked
+      ? localStorage.setItem('sts-shopify-autosync-enabled', 'true')
+      : localStorage.removeItem('sts-shopify-autosync-enabled');
+  }
+  const shopifyIntervalSelect = document.getElementById('int-shopify-autosync-interval');
+  if (shopifyIntervalSelect) {
+    localStorage.setItem('sts-shopify-autosync-interval', shopifyIntervalSelect.value);
+  }
+  if (typeof initShopifyAutoSync === 'function') {
+    initShopifyAutoSync();
   }
 
   // Invalidate token if client ID changed
