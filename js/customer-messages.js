@@ -66,23 +66,53 @@ function _msgRenderOpenThreads() {
 }
 
 // ── Staff identity ───────────────────────────
-// No login exists in this app (shared X-STS-Key, not per-user) — "author"
-// is a free-text, unenforced label a staff member sets once per browser.
+// No login exists in this app (shared X-STS-Key, not per-user), so "author"
+// is a label you pick rather than an account you sign into. It is chosen
+// once per browser and remembered.
+var MSG_STAFF = ['Kyle', 'Georgina', 'Vanessa', 'Stevie'];
+
 function getStaffName() {
-  var name = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
-  if (name) return name;
-  name = (prompt('Your name, so teammates know who\'s asking:') || '').trim();
-  if (name) localStorage.setItem(MSG_STAFF_NAME_KEY, name);
-  return name;
+  return localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
 }
 
-function changeStaffName(idx) {
-  var current = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
-  var name = (prompt('Your name, so teammates know who\'s asking:', current) || '').trim();
-  if (!name) return;
-  localStorage.setItem(MSG_STAFF_NAME_KEY, name);
-  var c = (typeof CUSTOMERS !== 'undefined') ? CUSTOMERS[idx] : null;
-  if (c) renderMessageThread(idx, custKey(c.name));
+function setStaffName(name) {
+  name = (name || '').trim();
+  if (name) localStorage.setItem(MSG_STAFF_NAME_KEY, name);
+  else       localStorage.removeItem(MSG_STAFF_NAME_KEY);
+  // Who you are decides which bubbles read as yours and which messages
+  // count as unread to you, so every open thread has to repaint.
+  _msgRenderOpenThreads();
+  renderAllMessageBadges();
+}
+
+// The "Sending as" picker, shared by the Customer Card and the order card's
+// Messages tab. `id` differs per mount so the two can coexist on the page.
+function staffSelectHtml(id) {
+  var current = getStaffName();
+  var roster  = MSG_STAFF.slice();
+  // A name saved before this roster existed — or typed on another device —
+  // stays selectable. Dropping it would silently re-attribute that person's
+  // own messages to somebody else, since "is this mine?" is an author-name
+  // match, not an account check.
+  if (current && roster.indexOf(current) === -1) roster.push(current);
+  var opts = '<option value=""' + (current ? '' : ' selected') + '>— who are you? —</option>'
+    + roster.map(function(n) {
+        return '<option value="' + esc(n) + '"' + (n === current ? ' selected' : '') + '>' + esc(n) + '</option>';
+      }).join('');
+  return 'Sending as <select class="msg-staff-select" id="' + id + '"'
+    + ' aria-label="Send messages as" onchange="setStaffName(this.value)"'
+    + ' onclick="event.stopPropagation()">' + opts + '</select>';
+}
+
+// Shared guard for both send paths: you cannot post anonymously, and the
+// fix is one click away, so point at it rather than just refusing.
+function requireStaffName(selectId) {
+  var name = getStaffName();
+  if (name) return name;
+  var sel = document.getElementById(selectId);
+  if (sel) { sel.focus(); sel.classList.add('needs-pick'); }
+  alert('Pick your name under "Sending as" first, so teammates know who\'s asking.');
+  return '';
 }
 
 // ── Unread tracking (per-device, never synced) ───────────────
@@ -331,11 +361,7 @@ function renderMessageThread(idx, customerKey) {
   }
 
   var sig = document.getElementById('ct-msg-sig-' + idx);
-  if (sig) {
-    sig.innerHTML = myName
-      ? 'Sending as: ' + esc(myName) + ' <a href="#" onclick="changeStaffName(' + idx + ');event.preventDefault();event.stopPropagation();return false;">(change)</a>'
-      : '';
-  }
+  if (sig) sig.innerHTML = staffSelectHtml('ct-msg-staff-' + idx);
 }
 
 // ── Send ─────────────────────────────────────
@@ -347,8 +373,8 @@ function sendCustomerMessage(idx) {
   var text = input.value.trim();
   if (!text) return;
 
-  var author = getStaffName();
-  if (!author) return; // cancelled the one-time name prompt
+  var author = requireStaffName('ct-msg-staff-' + idx);
+  if (!author) return;
 
   input.value = '';
 

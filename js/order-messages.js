@@ -94,11 +94,7 @@ function eoRenderMessages() {
   var note = document.getElementById('eo-msg-tagnote');
   if (note) note.innerHTML = '📦 Tagged to this order';
   var sig = document.getElementById('eo-msg-sig');
-  if (sig) {
-    sig.innerHTML = myName
-      ? 'Sending as: ' + esc(myName) + ' <a href="#" onclick="eoChangeStaffName();event.preventDefault();return false;">(change)</a>'
-      : '';
-  }
+  if (sig) sig.innerHTML = staffSelectHtml('eo-msg-staff');
 
   eoUpdateMsgTabBadge();
   if (typeof renderMessageBell === 'function') renderMessageBell();
@@ -123,16 +119,6 @@ function eoUpdateMsgTabBadge() {
   badge.style.display = n > 0 ? '' : 'none';
 }
 
-function eoChangeStaffName() {
-  if (typeof changeStaffName === 'function') {
-    var current = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
-    var name = (prompt('Your name, so teammates know who\'s asking:', current) || '').trim();
-    if (!name) return;
-    localStorage.setItem(MSG_STAFF_NAME_KEY, name);
-    eoRenderMessages();
-  }
-}
-
 function eoHandleMsgKey(event) {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
@@ -148,8 +134,8 @@ function eoSendMessage() {
   var text = input.value.trim();
   if (!text) return;
 
-  var author = getStaffName();
-  if (!author) return;   // cancelled the one-time name prompt
+  var author = requireStaffName('eo-msg-staff');
+  if (!author) return;
 
   input.value = '';
 

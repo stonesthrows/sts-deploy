@@ -1721,9 +1721,23 @@
     }
     .msg-compose-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
     .msg-compose-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .msg-sig { font-size: 11px; color: var(--text3); margin-left: auto; }
-    .msg-sig a { color: var(--accent); text-decoration: none; }
-    .msg-sig a:hover { text-decoration: underline; }
+    .msg-sig {
+      font-size: 11px; color: var(--text3); margin-left: auto;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    /* "Sending as" — a roster pick, not free text. There are no accounts
+       behind this (one shared key, see js/customer-messages.js), so the
+       list is the studio's staff and the choice is remembered per device. */
+    .msg-staff-select {
+      font-family: inherit; font-size: 11.5px; font-weight: 600;
+      color: var(--text); background: var(--input-bg);
+      border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+      padding: 3px 6px; cursor: pointer;
+    }
+    .msg-staff-select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+    /* Flagged after a send was attempted with nobody picked. Cleared on the
+       next render, which a pick triggers. */
+    .msg-staff-select.needs-pick { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
 
     /* ── Topbar message bell + popup bubble ──── */
     /* Anchored-popover pattern mirrors .overflow-wrap/.overflow-menu above;
