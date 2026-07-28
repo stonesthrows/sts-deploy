@@ -6,6 +6,12 @@
 //  Internal-staff Q&A thread per customer (Customer Card "Team Messages"),
 //  stored as flat records in a dedicated Notion database — same shape as
 //  notion-notes.js, just different properties.
+//
+//  SMS notify on new message (optional): reuses the Twilio number already
+//  wired for inbound SMS-to-notes (see sms-note.js). Requires env vars
+//  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TWILIO_NOTIFY_TO
+//  — silently skipped (message send still succeeds) if any are unset, so
+//  this stays a no-op until someone opts in via Cloudflare Pages env vars.
 // ════════════════════════════════════════════
 
 const NOTION_API = 'https://api.notion.com/v1';
@@ -49,16 +55,41 @@ function pageToMessage(page) {
   };
 }
 
-export async function onRequest({ request, env }) {
+// Fire-and-forget SMS via Twilio's REST API. Never throws — a notify
+// failure must not fail the underlying message send. Silently no-ops if
+// the Twilio env vars aren't configured, so this feature stays opt-in.
+async function notifySms(env, { customerName, author, text, orderLabel }) {
+  const { TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token, TWILIO_FROM_NUMBER: from, TWILIO_NOTIFY_TO: to } = env;
+  if (!sid || !token || !from || !to) return;
+  // Lets the notify recipient send their own messages (e.g. replying to
+  // staff) without texting themselves.
+  if (env.TWILIO_NOTIFY_SKIP_AUTHOR && String(author || '').trim().toLowerCase() === env.TWILIO_NOTIFY_SKIP_AUTHOR.trim().toLowerCase()) return;
+
+  const body = `💬 ${author || 'Someone'} on ${customerName}${orderLabel ? ' (' + orderLabel + ')' : ''}: ${text}`.slice(0, 300);
+  try {
+    await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(sid + ':' + token),
+        'Content-Type':  'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ To: to, From: from, Body: body }),
+    });
+  } catch (err) {
+    console.error('notion-messages SMS notify failed:', err);
+  }
+}
+
+export async function onRequest({ request, env, waitUntil }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
   try {
-    return await _handle({ request, env });
+    return await _handle({ request, env, waitUntil });
   } catch (err) {
     return json({ error: String(err) }, 500);
   }
 }
 
-async function _handle({ request, env }) {
+async function _handle({ request, env, waitUntil }) {
   const token = env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const h = hdrs(token);
@@ -105,6 +136,7 @@ async function _handle({ request, env }) {
     });
     const d = await r.json();
     if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
+    waitUntil(notifySms(env, { customerName, author, text, orderLabel }));
     return json({ notionPageId: d.id });
   }
 
