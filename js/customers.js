@@ -577,6 +577,10 @@ function buildCustomerExpandHtml(idx) {
         <div class="ct-exp-section-title">Team Messages</div>
         <div class="msg-thread" id="ct-msg-${idx}"></div>
         <div class="msg-compose">
+          <select class="msg-order-select" id="ct-msg-order-${idx}" onclick="event.stopPropagation()">
+            <option value="">General (not order-specific)</option>
+            ${orders.map(o => `<option value="${esc(o.id)}">${esc(o.desc || '(no description)')} — ${stageLabel(o.stage)}</option>`).join('')}
+          </select>
           <textarea class="msg-compose-input" id="ct-msg-input-${idx}"
             placeholder="Ask a question or leave a note about ${esc(c.name)}…"
             onkeydown="handleMessageComposeKey(event,${idx})" onclick="event.stopPropagation()"></textarea>

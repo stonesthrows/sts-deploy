@@ -297,6 +297,7 @@ function renderMessageThread(idx, customerKey) {
       var time = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
       return '<div class="' + cls + '">'
         + '<div class="msg-bubble-meta"><span class="msg-author">' + esc(m.author || 'Unknown') + '</span>'
+        + (m.orderLabel ? '<span class="msg-order-tag" title="About this order">📦 ' + esc(m.orderLabel) + '</span>' : '')
         + '<span class="msg-time">' + esc(time) + '</span></div>'
         + '<div class="msg-bubble-text">' + esc(m.text) + '</div>'
         + '</div>';
@@ -326,6 +327,14 @@ function sendCustomerMessage(idx) {
 
   input.value = '';
 
+  var orderSel   = document.getElementById('ct-msg-order-' + idx);
+  var orderId    = orderSel ? orderSel.value : '';
+  var orderLabel = '';
+  if (orderId && typeof ORDERS !== 'undefined') {
+    var ord = ORDERS.find(function(o) { return o.id === orderId; });
+    orderLabel = ord ? (ord.desc || '') : '';
+  }
+
   var customerKey = custKey(c.name);
   var temp = {
     notionPageId: null,
@@ -333,6 +342,8 @@ function sendCustomerMessage(idx) {
     customerName: c.name,
     author:       author,
     text:         text,
+    orderId:      orderId,
+    orderLabel:   orderLabel,
     createdAt:    new Date().toISOString(),
     _saving:      true,
   };
@@ -347,6 +358,8 @@ function sendCustomerMessage(idx) {
       customerName: temp.customerName,
       author:       temp.author,
       text:         temp.text,
+      orderId:      temp.orderId,
+      orderLabel:   temp.orderLabel,
       createdAt:    temp.createdAt,
     }),
   })

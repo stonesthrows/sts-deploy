@@ -43,6 +43,8 @@ function pageToMessage(page) {
     customerKey:  p['Customer Key']?.rich_text?.[0]?.plain_text  || '',
     customerName: p['Customer Name']?.rich_text?.[0]?.plain_text || '',
     author:       p['Author']?.rich_text?.[0]?.plain_text        || '',
+    orderId:      p['Order Id']?.rich_text?.[0]?.plain_text      || '',
+    orderLabel:   p['Order Label']?.rich_text?.[0]?.plain_text   || '',
     createdAt:    p['Created']?.date?.start || page.created_time,
   };
 }
@@ -84,7 +86,7 @@ async function _handle({ request, env }) {
 
   // ── POST — create a message ──────────────────
   if (request.method === 'POST') {
-    const { customerKey, customerName, author, text, createdAt } = await request.json();
+    const { customerKey, customerName, author, text, orderId, orderLabel, createdAt } = await request.json();
     if (!customerKey || !text) return json({ error: 'customerKey and text required' }, 400);
     const r = await fetch(`${NOTION_API}/pages`, {
       method: 'POST', headers: h,
@@ -95,6 +97,8 @@ async function _handle({ request, env }) {
           'Customer Key':  { rich_text: [{ text: { content: String(customerKey).slice(0, 200) } }] },
           'Customer Name': { rich_text: [{ text: { content: String(customerName || '').slice(0, 200) } }] },
           'Author':        { rich_text: [{ text: { content: String(author || '').slice(0, 100) } }] },
+          'Order Id':      { rich_text: orderId    ? [{ text: { content: String(orderId).slice(0, 200) } }]    : [] },
+          'Order Label':   { rich_text: orderLabel ? [{ text: { content: String(orderLabel).slice(0, 200) } }] : [] },
           'Created':       { date: { start: createdAt || new Date().toISOString() } },
         },
       }),

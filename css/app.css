@@ -1582,11 +1582,23 @@
     .msg-bubble-self { align-self: flex-end; background: var(--accent-bg); border-color: var(--accent-border); }
     .msg-bubble-other { align-self: flex-start; }
     .msg-bubble.saving { opacity: 0.55; }
-    .msg-bubble-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; }
+    .msg-bubble-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; flex-wrap: wrap; }
     .msg-author { font-size: 11px; font-weight: 700; color: var(--text2); }
+    .msg-order-tag {
+      font-size: 10.5px; font-weight: 600; color: var(--accent-fg, var(--accent));
+      background: var(--accent-bg); border: 1px solid var(--accent-border);
+      padding: 1px 7px; border-radius: 8px; max-width: 220px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .msg-time { font-size: 10.5px; color: var(--text3); }
     .msg-bubble-text { font-size: 13px; color: var(--text); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
     .msg-compose { border-top: 1px solid var(--warn-bg); padding-top: 10px; margin-top: 4px; }
+    .msg-order-select {
+      width: 100%; box-sizing: border-box; font-size: 12.5px; font-family: inherit;
+      padding: 7px 10px; margin-bottom: 6px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+      background: var(--input-bg); color: var(--text2); outline: none;
+    }
+    .msg-order-select:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
     .msg-compose-input {
       width: 100%; box-sizing: border-box; font-size: 13px; font-family: inherit;
       padding: 9px 11px; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
