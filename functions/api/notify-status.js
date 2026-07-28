@@ -14,8 +14,11 @@
 //  absent from the PUBLIC set in functions/api/_middleware.js).
 // ════════════════════════════════════════════
 
+import { buildPushPayload } from '../_vendor/webcrypto-web-push.js';
+
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
+const VAPID_SUBJECT = 'mailto:kyle@stonesthrowjewelry.com';
 
 // Kept in step with notion-messages.js and push-subscribe.js by hand —
 // every Function in this folder redeclares its own constants rather than
@@ -29,7 +32,7 @@ const VAPID_PUBLIC_KEY = 'BPlW0roALoDK6gSXOmbPd6RA9ZSc6-NcTOgWlTpXM55SZOrAr2DhHw
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -118,8 +121,61 @@ function maskPhone(v) {
   return s.length <= 4 ? '••••' : '••••' + s.slice(-4);
 }
 
+// POST — deliver one push to the calling device and report exactly what the
+// push service said. This is the check that isolates delivery: it skips the
+// message pipeline, the Notion round trip and the never-notify-the-sender
+// rule, so whatever comes back is about push and nothing else. The status
+// code is the whole answer — 201 accepted, 401/403 wrong VAPID key,
+// 404/410 dead subscription — so it is reported verbatim.
+async function sendTestPush(env, body) {
+  if (!env.VAPID_PRIVATE_KEY) {
+    return { ok: false, hint: 'VAPID_PRIVATE_KEY is not set, so nothing can be sent.' };
+  }
+  const sub = body && body.subscription;
+  if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+    return { ok: false, hint: 'This device has no push subscription — use "Enable on This Device" first.' };
+  }
+  const vapid = { subject: VAPID_SUBJECT, publicKey: VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY };
+  const message = {
+    data: {
+      title: '🩺 STS test notification',
+      body:  'If you can see this, push delivery is working end to end.',
+      url:   '/jewelry-workflow.html',
+      tag:   'sts-test',
+    },
+    options: { ttl: 60, urgency: 'high' },
+  };
+  try {
+    const payload = await buildPushPayload(message, sub, vapid);
+    const res = await fetch(sub.endpoint, payload);
+    const service = new URL(sub.endpoint).host;
+    if (res.status >= 200 && res.status < 300) {
+      return { ok: true, status: res.status, service,
+               hint: 'Accepted by ' + service + '. If nothing appears, the block is the browser or the OS, not the server.' };
+    }
+    const detail = await res.text().catch(() => '');
+    return {
+      ok: false, status: res.status, service,
+      hint: (res.status === 401 || res.status === 403)
+              ? 'Push service rejected the signature — VAPID_PRIVATE_KEY does not match the app\'s public key.'
+          : (res.status === 404 || res.status === 410)
+              ? 'This subscription is expired. Disable and re-enable notifications on this device.'
+          : ('Push service returned ' + res.status + '. ' + detail.slice(0, 160)),
+    };
+  } catch (err) {
+    return { ok: false, hint: 'Could not reach the push service: ' + String(err) };
+  }
+}
+
 export async function onRequest({ request, env }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+  if (request.method === 'POST') {
+    let body = {};
+    try { body = await request.json(); } catch (e) {}
+    return json({ test: await sendTestPush(env, body) });
+  }
+
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: CORS });
 
   const token = env.NOTION_TOKEN;

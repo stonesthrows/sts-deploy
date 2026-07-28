@@ -172,16 +172,36 @@ async function notifyPush(env, h, { customerKey, customerName, author, text, ord
   }));
 }
 
-export async function onRequest({ request, env, waitUntil }) {
-  if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') return new Response(null, { headers: CORS });
   try {
-    return await _handle({ request, env, waitUntil });
+    return await _handle(context);
   } catch (err) {
     return json({ error: String(err) }, 500);
   }
 }
 
-async function _handle({ request, env, waitUntil }) {
+// Keeps background work alive past the response WITHOUT detaching
+// waitUntil from its context. `const { waitUntil } = context; waitUntil(p)`
+// throws "Illegal invocation" in the Workers runtime, because waitUntil is
+// a prototype method that needs its `this` — and because the notify calls
+// sit after the Notion write, that throw turned a perfectly good send into
+// a 500 with the message already saved: no notification, and an error on a
+// message that had in fact gone through.
+//
+// Falls back to firing the promise bare if no waitUntil is available, which
+// is still better than throwing. Both notify functions swallow their own
+// errors, so neither can reject into an unhandled rejection here.
+function runAfterResponse(context, promise) {
+  try {
+    if (context && typeof context.waitUntil === 'function') context.waitUntil(promise);
+  } catch (err) {
+    console.error('waitUntil unavailable, notify running detached:', err);
+  }
+}
+
+async function _handle(context) {
+  const { request, env } = context;
   const token = env.NOTION_TOKEN;
   if (!token) return json({ error: 'NOTION_TOKEN not set' }, 500);
   const h = hdrs(token);
@@ -228,8 +248,8 @@ async function _handle({ request, env, waitUntil }) {
     });
     const d = await r.json();
     if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
-    waitUntil(notifySms(env, { customerName, author, text, orderLabel }));
-    waitUntil(notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }));
+    runAfterResponse(context, notifySms(env, { customerName, author, text, orderLabel }));
+    runAfterResponse(context, notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }));
     return json({ notionPageId: d.id });
   }
 

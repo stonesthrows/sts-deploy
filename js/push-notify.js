@@ -148,7 +148,9 @@ async function runNotifyDiagnostic() {
       sub ? 'Subscribed to push'
           : (pushSupported() ? 'Not subscribed — use "Enable on This Device" above' : 'Push not supported in this browser'));
 
-    box.innerHTML = rows + '<div class="ns-note">' + esc(d.note) + '</div>';
+    box.innerHTML = rows + '<div class="ns-note">' + esc(d.note) + '</div>'
+      + (sub && d.webPush.ok ? '<button class="btn btn-outline btn-sm" id="notifyTestPushBtn" onclick="sendTestPush()" style="margin-top:9px;">📨 Send Test Push to This Device</button>' : '')
+      + '<div id="notifyTestPushOut"></div>';
   } catch (err) {
     console.error('notify-status failed:', err);
     box.innerHTML = '<div class="ns-row bad"><span class="ns-mark">✕</span>'
@@ -157,6 +159,33 @@ async function runNotifyDiagnostic() {
       + ' — if this says 401, set the App API Key above.</span></div>';
   }
   if (btn) btn.disabled = false;
+}
+
+// Isolates delivery from everything else in the notify pipeline — no
+// Notion write, no "skip the sender" rule, no message content. If a real
+// message never arrives but this does, the problem is somewhere upstream of
+// the push service (most likely the sender-skip rule doing exactly what it
+// should); if this ALSO never arrives, the problem is the push service, the
+// browser, or the OS, and the server-side reply says which.
+async function sendTestPush() {
+  var out = document.getElementById('notifyTestPushOut');
+  var btn = document.getElementById('notifyTestPushBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    var sub = await currentPushSubscription();
+    if (!sub) throw new Error('Not subscribed on this device');
+    var res = await fetch('/api/notify-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    var d = await res.json();
+    var t = d.test || {};
+    if (out) out.innerHTML = _nsRow(!!t.ok, 'Test push', (t.status ? '[' + t.status + '] ' : '') + (t.hint || (t.ok ? 'Sent' : 'Failed')));
+  } catch (err) {
+    if (out) out.innerHTML = _nsRow(false, 'Test push', String(err.message || err));
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📨 Send Test Push to This Device'; }
 }
 
 async function disablePushNotifications() {
