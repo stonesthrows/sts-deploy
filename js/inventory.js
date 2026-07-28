@@ -1089,6 +1089,7 @@ function _invSaveThreshold(varId, val) {
 let _invLowStockState = {};
 let _invQueueAllData  = {};
 let _invQueueAllState = {};
+let _invQueuedItems   = {};  // { text: timestamp } — track queued items to detect duplicates
 
 function invOpenLowStockModal(varId, itemName, varName, curQty, sub) {
   _invLowStockState = { varId, itemName, varName, curQty, sub };
@@ -1104,6 +1105,14 @@ function invCloseLowStockModal() {
   _invLowStockState = {};
 }
 
+function _invIsQueued(text) {
+  return _invQueuedItems[text];
+}
+
+function _invMarkQueued(text) {
+  _invQueuedItems[text] = Date.now();
+}
+
 function invConfirmLowStockAdd() {
   const { varId, itemName, varName } = _invLowStockState;
   const threshold = Math.max(1, parseInt(document.getElementById('inv-ls-threshold').value) || 6);
@@ -1111,12 +1120,20 @@ function invConfirmLowStockAdd() {
 
   const text = varName ? `${itemName} – ${varName}` : itemName;
 
+  if (_invIsQueued(text)) {
+    invCloseLowStockModal();
+    if (!confirm(`"${text}" is already in the Restock Queue.\n\nAdd it again?`)) {
+      return;
+    }
+  }
+
   fetch('/api/notion-notes', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ text, block: 'Inventory Restock' }),
   }).then(r => {
     if (r.ok) {
+      _invMarkQueued(text);
       toast(`Added "${text}" to Restock Queue ✓`, '✓');
       if (typeof refreshNotes === 'function') refreshNotes();
     } else {
@@ -1188,12 +1205,20 @@ function invConfirmQueueAllLow() {
   if (!parts.length) return;
 
   const text = `${itemName} – ${parts.join(', ')}`;
+
+  if (_invIsQueued(text)) {
+    if (!confirm(`This queue entry is already in the Restock Queue.\n\nAdd it again?`)) {
+      return;
+    }
+  }
+
   fetch('/api/notion-notes', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ text, block: 'Inventory Restock' }),
   }).then(r => {
     if (r.ok) {
+      _invMarkQueued(text);
       toast(`Added to Restock Queue ✓`, '✓');
       if (typeof refreshNotes === 'function') refreshNotes();
     } else {
