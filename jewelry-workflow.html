@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260728g">
+  <link rel="stylesheet" href="css/app.css?v=20260728h">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -3139,6 +3139,16 @@
         <button class="btn btn-gold btn-sm"    id="pushNotifyEnableBtn"  onclick="enablePushNotifications()"  style="display:none;">🔔 Enable on This Device</button>
         <button class="btn btn-outline btn-sm" id="pushNotifyDisableBtn" onclick="disablePushNotifications()" style="display:none;">🔕 Disable on This Device</button>
       </div>
+
+      <!-- Self-check. Both notify paths stay silent when unconfigured — by
+           design, so a missing env var can never break sending a message —
+           which also means a broken setup looks exactly like a working one
+           until something fails to arrive. This is where that shows. -->
+      <div class="int-selfcheck">
+        <button class="btn btn-outline btn-sm" id="notifyStatusBtn" onclick="runNotifyDiagnostic()">🩺 Test Notifications Setup</button>
+        <p class="int-hint" style="margin-top:6px;">Checks what's actually live on the server — no keys or secrets are shown.</p>
+        <div id="notifyStatusOut" class="ns-out"></div>
+      </div>
     </div>
 
     <div class="int-foot">
@@ -3604,7 +3614,7 @@
 <script src="js/notes.js?v=40"></script>
 <script src="js/customer-messages.js?v=9"></script>
 <script src="js/order-messages.js?v=2"></script>
-<script src="js/push-notify.js?v=1"></script>
+<script src="js/push-notify.js?v=2"></script>
 <script src="js/restock.js?v=20260727a"></script>
 <script src="js/restock-sessions.js?v=20260727a"></script>
 <script src="js/supplier-history.js?v=20260727a"></script>

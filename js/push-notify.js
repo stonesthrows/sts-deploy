@@ -99,6 +99,66 @@ async function enablePushNotifications() {
   renderPushStatus();
 }
 
+// ── Self-check ───────────────────────────────
+// Both notify paths are silent no-ops when unconfigured, so a broken setup
+// looks identical to a working one until a message fails to arrive. This
+// asks the server what is actually live. See functions/api/notify-status.js.
+function _nsRow(ok, label, detail) {
+  return '<div class="ns-row ' + (ok ? 'ok' : 'bad') + '">'
+    + '<span class="ns-mark" aria-hidden="true">' + (ok ? '✓' : '✕') + '</span>'
+    + '<span class="ns-label">' + esc(label) + '</span>'
+    + (detail ? '<span class="ns-detail">' + esc(detail) + '</span>' : '')
+    + '</div>';
+}
+
+async function runNotifyDiagnostic() {
+  var box = document.getElementById('notifyStatusOut');
+  var btn = document.getElementById('notifyStatusBtn');
+  if (!box) return;
+  box.innerHTML = '<div class="ns-row">⏳ Checking…</div>';
+  if (btn) btn.disabled = true;
+
+  try {
+    var res = await fetch('/api/notify-status');
+    if (!res.ok) throw new Error('server returned ' + res.status);
+    var d = await res.json();
+
+    var rows = '';
+    rows += _nsRow(d.notionToken.ok, 'Notion token', d.notionToken.hint || 'Set');
+
+    if (d.messagesDb) {
+      rows += _nsRow(d.messagesDb.ok, 'Messages database',
+        d.messagesDb.ok ? d.messagesDb.rows + (d.messagesDb.more ? '+' : '') + ' message' + (d.messagesDb.rows === 1 ? '' : 's') + ' stored'
+                        : d.messagesDb.hint);
+    }
+    if (d.pushDb) {
+      rows += _nsRow(d.pushDb.ok, 'Push-subscriptions database',
+        d.pushDb.ok ? d.subscribedDevices + ' device' + (d.subscribedDevices === 1 ? '' : 's') + ' subscribed'
+                    : d.pushDb.hint);
+    }
+    rows += _nsRow(d.webPush.ok, 'Web Push',
+      d.webPush.ok ? 'Key pair valid — notifications will send' : d.webPush.hint);
+    rows += _nsRow(d.sms.ok, 'Text messages',
+      d.sms.ok ? 'Texting ' + d.sms.to + (d.sms.skipAuthor ? ' (skips ' + d.sms.skipAuthor + ')' : '') : d.sms.hint);
+
+    // This device's own subscription is a client-side fact the server
+    // can't see — and "0 devices subscribed" is otherwise puzzling.
+    var sub = await currentPushSubscription();
+    rows += _nsRow(!!sub, 'This device',
+      sub ? 'Subscribed to push'
+          : (pushSupported() ? 'Not subscribed — use "Enable on This Device" above' : 'Push not supported in this browser'));
+
+    box.innerHTML = rows + '<div class="ns-note">' + esc(d.note) + '</div>';
+  } catch (err) {
+    console.error('notify-status failed:', err);
+    box.innerHTML = '<div class="ns-row bad"><span class="ns-mark">✕</span>'
+      + '<span class="ns-label">Could not reach the server</span>'
+      + '<span class="ns-detail">' + esc(String(err.message || err))
+      + ' — if this says 401, set the App API Key above.</span></div>';
+  }
+  if (btn) btn.disabled = false;
+}
+
 async function disablePushNotifications() {
   try {
     const sub = await currentPushSubscription();

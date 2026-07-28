@@ -2243,6 +2243,37 @@
     }
     .int-section input:focus { outline: none; border-color: var(--accent); }
     .int-hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.45; }
+
+    /* ── Notification self-check ──────────────
+       A pass/fail list, not prose: the point is to find the one broken row
+       at a glance. Severity is carried by the mark's colour AND its glyph,
+       so it survives being read in greyscale or by someone colourblind. */
+    .int-selfcheck { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bdr-light); }
+    .ns-out:not(:empty) {
+      margin-top: 10px; border: 1px solid var(--bdr); border-radius: var(--rad-md);
+      overflow: hidden; background: var(--surface);
+    }
+    .ns-row {
+      display: grid; grid-template-columns: 18px minmax(0, auto) 1fr;
+      gap: 8px; align-items: baseline;
+      padding: 8px 11px; font-size: 12px;
+      border-bottom: 1px solid var(--bdr-light);
+    }
+    .ns-row:last-child { border-bottom: none; }
+    .ns-mark { font-weight: 800; text-align: center; }
+    .ns-row.ok  .ns-mark { color: var(--ok-fg); }
+    .ns-row.bad .ns-mark { color: var(--danger-fg); }
+    .ns-label { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .ns-detail { color: var(--text2); min-width: 0; overflow-wrap: anywhere; }
+    .ns-row.bad .ns-detail { color: var(--danger-fg); }
+    .ns-note {
+      padding: 9px 11px; font-size: 11px; line-height: 1.45;
+      color: var(--warn-fg); background: var(--warn-bg);
+    }
+    @media (max-width: 560px) {
+      .ns-row { grid-template-columns: 18px 1fr; }
+      .ns-detail { grid-column: 2; }
+    }
     .int-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; border-top: 1px solid var(--bdr); padding-top: 16px; }
 
     .photo-lightbox {
