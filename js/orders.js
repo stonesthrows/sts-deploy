@@ -198,9 +198,9 @@ function cardHTML(o) {
       <div class="o-collapsed-summary">
         ${o.id.startsWith('etsy-') ? `<span class="o-badge platform-etsy">🛍️ Etsy Order</span>`
           : o.id.startsWith('shopify-') ? `<span class="o-badge platform-shopify">🛒 Shopify Order</span>`
-          : o.pickup ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
-        ${o.assignee ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
-        ${o.printLayout ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
+          : o.pickup ? `<span class="o-badge pickup" title="Pickup: ${esc(o.pickup)}">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+        ${o.assignee ? `<span class="o-badge assignee" title="Assigned to ${esc(o.assignee)}">👤 ${esc(o.assignee)}</span>` : ''}
+        ${o.printLayout ? `<span class="o-badge" title="Bag style override: ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         <span class="o-tag ${dl.cls}">${dl.text}</span>
       </div>
       <div class="o-body">
@@ -217,11 +217,11 @@ function cardHTML(o) {
         <div class="o-desc">${esc(o.desc)}</div>
         ${(o.pickup || o.contactSource || o.contactedAt || o.assignee || o.printLayout) ? `
         <div class="o-badges">
-          ${o.pickup        ? `<span class="o-badge pickup">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
-          ${o.contactSource ? `<span class="o-badge source">💬 ${esc(o.contactSource)}</span>` : ''}
-          ${o.contactedAt   ? `<span class="o-badge contacted">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
-          ${o.assignee      ? `<span class="o-badge assignee">👤 ${esc(o.assignee)}</span>` : ''}
-          ${o.printLayout   ? `<span class="o-badge" title="Bag style override">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
+          ${o.pickup        ? `<span class="o-badge pickup" title="Pickup: ${esc(o.pickup)}">📍 ${esc(pickupBadgeLabel(o.pickup))}</span>` : ''}
+          ${o.contactSource ? `<span class="o-badge source" title="Came in via ${esc(o.contactSource)}">💬 ${esc(o.contactSource)}</span>` : ''}
+          ${o.contactedAt   ? `<span class="o-badge contacted" title="Contacted ${esc(fmtDate(o.contactedAt))}">✓ Contacted ${fmtDate(o.contactedAt)}</span>` : ''}
+          ${o.assignee      ? `<span class="o-badge assignee" title="Assigned to ${esc(o.assignee)}">👤 ${esc(o.assignee)}</span>` : ''}
+          ${o.printLayout   ? `<span class="o-badge" title="Bag style override: ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}">🎨 ${esc(BAG_STYLE_LABELS[o.printLayout] || o.printLayout)}</span>` : ''}
         </div>` : ''}
         <div class="o-foot">
           <span class="o-tag ${dl.cls}">${dl.text}</span>

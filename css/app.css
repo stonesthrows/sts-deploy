@@ -612,7 +612,10 @@
     }
     .o-unsynced { font-size: 10px; font-weight: 600; color: var(--warn-fg); background: var(--warn-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
     .o-desc { font-size: 11.5px; color: var(--text2); line-height: 1.45; margin-bottom: var(--sp-2); }
-    .o-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-1); }
+    /* Wraps rather than pushing the price out of the card: at the board's
+       narrowest column (~90px of content) a long deadline tag and the price
+       cannot share a line, and both are nowrap by nature. */
+    .o-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-1); }
     .o-tag {
       font-size: 10.5px; font-weight: 600;
       padding: 2px 8px;
@@ -623,7 +626,7 @@
     .dl-soon   { background: var(--warn-bg); color: var(--warn-fg); }
     .dl-past   { background: var(--danger-bg); color: var(--danger-fg); }
     .dl-none   { background: var(--warn-bg); color: var(--text3); }
-    .o-price   { font-size: 11px; color: var(--text2); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .o-price   { font-size: 11px; color: var(--text2); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
     /* ── Buttons ─────────────────────────────── */
     .btn {
@@ -1798,10 +1801,27 @@
     .c-name { font-size: 13.5px; font-weight: 700; color: var(--text); letter-spacing: -0.1px; }
     .c-email { font-size: 11.5px; color: var(--text2); }
     .o-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+    /* inline-block, not inline-flex: the label is a single text node
+       ("📍 Studio"), so the flex box bought nothing and blocked
+       text-overflow. A pickup or bag-style name longer than the column can
+       now ellipsize inside the card instead of overhanging it — the full
+       value stays on the badge's title. max-width is what actually stops
+       the overhang; the pill still shrink-wraps short labels. */
     .o-badge {
-      display: inline-flex; align-items: center; gap: 3px;
-      font-size: 10.5px; font-weight: 600; padding: 2px 7px;
+      display: inline-block; vertical-align: top;
+      /* min-width:0 is the half that matters inside the two flex rows —
+         a flex item will not shrink past min-content without it, and
+         nowrap text has no smaller min-content to shrink to. */
+      max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      font-size: 10.5px; font-weight: 600; padding: 2px 7px; line-height: 1.45;
       border-radius: 10px; white-space: nowrap;
+    }
+    /* The expanded card has vertical room the collapsed summary does not,
+       so down there a long badge wraps to a second line and keeps its whole
+       label; only the collapsed row ellipsizes. */
+    .o-badges .o-badge {
+      white-space: normal; overflow: visible; text-overflow: clip;
+      overflow-wrap: anywhere;
     }
     .o-badge.pickup    { background:var(--info-bg); color:var(--info-fg); }
     .o-badge.source    { background:var(--accent-bg); color:var(--accent-fg); }
