@@ -344,13 +344,15 @@ function _dsnVisibleFolderPaths() {
   const byDepthDesc = [..._dsnAllFolderPaths()].sort((a, b) => b.split('/').length - a.split('/').length);
   const visible = new Set();
   for (const path of byDepthDesc) {
-    // Categories are the fixed top level — always shown, even when empty,
-    // so there's a stable home to file into rather than a tree that
-    // reshapes itself every time the last design leaves a category.
-    if (categories.has(path)) { visible.add(path); continue; }
     const directCount     = _dsnFolderDirectDesigns(path).length;
     const hasVisibleChild = _dsnFolderChildPaths(path).some(c => visible.has(c));
-    if (explicit.has(path) || directCount > 1 || hasVisibleChild) visible.add(path);
+    // A category earns its row on a single design; a derived collection
+    // folder needs two, so a one-off doesn't spawn a folder of its own.
+    // An empty category shows nothing at all — a permanent row for a
+    // category holding no designs is noise, and reads as a duplicate when
+    // a same-named collection exists under another category.
+    const min = categories.has(path) ? 1 : DSN_SUBFOLDER_MIN;
+    if (explicit.has(path) || directCount >= min || hasVisibleChild) visible.add(path);
   }
   return visible;
 }
