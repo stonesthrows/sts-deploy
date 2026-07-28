@@ -536,6 +536,104 @@
 .dsn-subtab:hover { color:var(--text); background:var(--accent-bg); }
 .dsn-subtab:focus-visible { outline:none; box-shadow:var(--focus-ring); }
 .dsn-subtab.active { color:var(--accent); border-bottom-color:var(--accent); }
+/* ── Designs: folder browse — rail + grid (wide) / shelves (narrow) ──
+   The 900px split is mirrored in js/designs.js (_dsnNarrowMq): above it the
+   rail renders and the grid sits beside it; below it the rail renders empty
+   and the root switches to shelves. Keep the two breakpoints in sync. */
+.dsn-browse { display:grid; grid-template-columns:216px minmax(0,1fr); gap:var(--sp-4); align-items:start; }
+.dsn-browse-main { min-width:0; }
+.dsn-rail {
+  position:sticky; top:var(--sp-2);
+  max-height:calc(100vh - 180px); overflow-y:auto;
+  padding:var(--sp-2) 4px var(--sp-2) 0;
+  border-right:1px solid var(--bdr);
+}
+.dsn-rail-node {
+  display:flex; align-items:center; gap:2px;
+  border-radius:var(--rad-sm); padding-right:6px;
+  transition:background var(--dur-fast) var(--ease-smooth);
+}
+.dsn-rail-node:hover { background:var(--card-head-bg); }
+.dsn-rail-node.active { background:var(--accent-bg); }
+.dsn-rail-root { margin-bottom:2px; }
+.dsn-rail-tw {
+  flex:none; width:16px; height:22px; padding:0;
+  background:none; border:none; cursor:pointer;
+  color:var(--text3); font-size:9px; font-family:inherit; line-height:1;
+}
+.dsn-rail-tw:hover { color:var(--text); }
+.dsn-rail-tw:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:3px; }
+.dsn-rail-lbl {
+  flex:1; min-width:0; text-align:left;
+  background:none; border:none; cursor:pointer;
+  padding:5px 2px; font-size:12.5px; font-family:inherit; font-weight:600;
+  color:var(--text2); line-height:1.25;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  transition:color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-rail-lbl:hover { color:var(--text); }
+.dsn-rail-lbl:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:4px; }
+.dsn-rail-node.active .dsn-rail-lbl { color:var(--accent-fg); font-weight:800; }
+.dsn-rail-ct { flex:none; font-size:10.5px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; }
+.dsn-rail-empty { font-size:11.5px; color:var(--text3); padding:8px 6px; }
+
+/* Shelves — one horizontal row per collection, narrow screens only */
+.dsn-shelves { display:flex; flex-direction:column; gap:var(--sp-4); }
+.dsn-shelf-head { display:flex; align-items:center; gap:8px; margin-bottom:var(--sp-2); }
+/* Stacked, not inline: a deep path truncated on one line would clip the leaf
+   segment — the only part that names the collection. */
+.dsn-shelf-title {
+  display:flex; flex-direction:column; align-items:flex-start; min-width:0;
+  background:none; border:none; padding:5px 0; cursor:pointer; text-align:left;
+  font-family:inherit; color:var(--text);
+}
+.dsn-shelf-title:hover .dsn-shelf-leaf { color:var(--accent); }
+.dsn-shelf-title:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:4px; }
+.dsn-shelf-title.as-label { cursor:default; color:var(--text3); font-size:12px; font-weight:700; }
+.dsn-shelf-trail,
+.dsn-shelf-leaf { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsn-shelf-trail { font-size:10.5px; font-weight:700; color:var(--text3); line-height:1.2; }
+.dsn-shelf-leaf { font-size:13.5px; font-weight:800; color:var(--text); line-height:1.25; }
+.dsn-shelf-n { flex:none; font-size:11px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; }
+.dsn-shelf-all {
+  margin-left:auto; flex:none;
+  background:none; border:none; padding:9px 8px; cursor:pointer;
+  font-size:12px; font-weight:700; font-family:inherit; color:var(--accent);
+  border-radius:4px;
+}
+.dsn-shelf-all:hover { background:var(--accent-bg); }
+.dsn-shelf-all:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-shelf-row {
+  display:flex; gap:var(--sp-3); overflow-x:auto;
+  padding-bottom:6px; scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
+.dsn-shelf-row > .dsn-card { flex:none; width:150px; scroll-snap-align:start; }
+.dsn-shelf-row > .dsn-card:hover { transform:none; }
+.dsn-shelf-more {
+  flex:none; width:96px; align-self:stretch;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  background:var(--card-head-bg); border:1px dashed var(--bdr); border-radius:var(--rad-lg);
+  color:var(--text2); font-family:inherit; font-size:16px; font-weight:800; cursor:pointer;
+  transition:border-color var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-shelf-more span { font-size:10.5px; font-weight:700; color:var(--text3); }
+.dsn-shelf-more:hover { border-color:var(--accent); color:var(--accent); }
+.dsn-shelf-more:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dsn-shelf-empty { text-align:center; padding:52px 32px; color:var(--text3); }
+.dsn-empty-folders { display:flex; flex-wrap:wrap; gap:var(--sp-2); }
+.dsn-empty-folder {
+  background:var(--card-bg); border:1px dashed var(--bdr); border-radius:999px;
+  padding:6px 12px; font-size:12px; font-weight:600; font-family:inherit;
+  color:var(--text2); cursor:pointer;
+  transition:border-color var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
+}
+.dsn-empty-folder:hover { border-color:var(--accent); color:var(--text); }
+.dsn-empty-folder:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+@media (max-width:899px) {
+  .dsn-browse { grid-template-columns:minmax(0,1fr); gap:0; }
+  .dsn-rail { display:none; }
+}
 .dsn-family-grid-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px 10px; margin-bottom:var(--sp-2); }
 .dsn-family-grid-count { font-size:11px; font-weight:600; color:var(--text3); white-space:nowrap; }
 /* Nested folder breadcrumb — the mobile-friendly "one level at a time" nav */

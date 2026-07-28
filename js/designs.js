@@ -19,6 +19,32 @@ let _designsSearch   = '';      // library search query, lowercased (empty = no 
 let _dsnSearchTimer  = null;
 let _designsFamilyOpen = null;  // design-family drill-in (null = top level)
 let _designsFolders  = [];      // manually-created empty folder names (no design tagged in yet)
+let _dsnRailOpen     = new Set(); // desktop folder rail: paths currently expanded
+
+// Two browse layouts for the same tree: a wide screen gets the rail beside
+// the grid, a narrow one gets shelves (a horizontal row per collection, no
+// drilling). The markup differs between them, so the breakpoint has to live
+// in JS as well as CSS — re-render whenever it flips.
+const _dsnNarrowMq = window.matchMedia('(max-width: 899px)');
+function _dsnIsNarrow() { return _dsnNarrowMq.matches; }
+
+// Narrow-ness at the last folder render. The mq 'change' event alone isn't
+// enough — it doesn't fire reliably when the viewport is resized from
+// outside the page (devtools, embedded webviews), which leaves the rail
+// blank and the shelves stranded. Listening to resize too and re-rendering
+// only when the mode actually flipped covers both and costs nothing.
+let _dsnLastNarrow  = null;
+let _dsnResizeTimer = null;
+function _dsnOnViewportChange() {
+  clearTimeout(_dsnResizeTimer);
+  _dsnResizeTimer = setTimeout(() => {
+    if (_designsView !== 'library' || _designsSubTab !== 'families') return;
+    if (_dsnIsNarrow() === _dsnLastNarrow) return;
+    designsRenderLibrary();
+  }, 120);
+}
+_dsnNarrowMq.addEventListener('change', _dsnOnViewportChange);
+window.addEventListener('resize', _dsnOnViewportChange);
 let _designsImgQueue = [];      // base64 strings staged for current edit session
 let _designsImgEditMode = false;
 
@@ -354,6 +380,166 @@ function _dsnFolderCardHtml(path) {
     </div>`;
 }
 
+// ── Desktop: folder rail ─────────────────────────
+// The whole tree, always visible, so jumping from Ear Cuffs to Meditation
+// Rings is one click instead of a walk back up through the breadcrumb.
+// Counts are descendant designs — what actually lives under that node.
+
+// Keep the open folder's ancestors expanded so the rail always shows where
+// you are, however you got there (breadcrumb, folder card, or shelf).
+function _dsnRailAutoExpand() {
+  if (!_designsFamilyOpen) return;
+  let acc = '';
+  for (const part of _designsFamilyOpen.split('/')) {
+    acc = acc ? `${acc}/${part}` : part;
+    _dsnRailOpen.add(acc);
+  }
+}
+
+function dsnRailToggle(path) {
+  if (_dsnRailOpen.has(path)) _dsnRailOpen.delete(path);
+  else _dsnRailOpen.add(path);
+  _dsnRenderRail();
+}
+
+function _dsnRailNodeHtml(path, depth, visible) {
+  const name     = path.split('/').pop();
+  const hasKids  = _dsnFolderChildPaths(path).some(c => visible.has(c));
+  const expanded = _dsnRailOpen.has(path);
+  const active   = _designsFamilyOpen === path;
+  const count    = _dsnFolderDescendantDesigns(path).length;
+  const twisty = hasKids
+    ? `<button type="button" class="dsn-rail-tw" data-path="${escHtml(path)}"
+         aria-expanded="${expanded ? 'true' : 'false'}" aria-label="${expanded ? 'Collapse' : 'Expand'} ${escHtml(name)}"
+         onclick="event.stopPropagation();dsnRailToggle(this.dataset.path)">${expanded ? '▾' : '▸'}</button>`
+    : `<span class="dsn-rail-tw" aria-hidden="true"></span>`;
+  return `
+    <div class="dsn-rail-node${active ? ' active' : ''}" style="padding-left:${6 + depth * 13}px">
+      ${twisty}
+      <button type="button" class="dsn-rail-lbl" data-path="${escHtml(path)}"
+              ${active ? 'aria-current="true"' : ''}
+              onclick="designsOpenFamily(this.dataset.path)">${escHtml(name)}</button>
+      <span class="dsn-rail-ct">${count}</span>
+    </div>`;
+}
+
+function _dsnRenderRail() {
+  const rail = document.getElementById('dsn-rail');
+  if (!rail) return;
+  if (_dsnIsNarrow()) { rail.innerHTML = ''; return; }
+
+  _dsnRailAutoExpand();
+  const visible = _dsnVisibleFolderPaths();
+  const rows = [];
+  const walk = (parent, depth) => {
+    for (const path of _dsnFolderChildPaths(parent).filter(p => visible.has(p))) {
+      rows.push(_dsnRailNodeHtml(path, depth, visible));
+      if (_dsnRailOpen.has(path)) walk(path, depth + 1);
+    }
+  };
+  walk(null, 0);
+
+  const rootRow = `
+    <div class="dsn-rail-node dsn-rail-root${!_designsFamilyOpen ? ' active' : ''}">
+      <span class="dsn-rail-tw" aria-hidden="true"></span>
+      <button type="button" class="dsn-rail-lbl" onclick="designsOpenFamily('')">📁 All families</button>
+      <span class="dsn-rail-ct">${_designs.length}</span>
+    </div>`;
+  rail.innerHTML = rootRow + (rows.length
+    ? rows.join('')
+    : `<div class="dsn-rail-empty">No folders yet</div>`);
+}
+
+// ── Mobile: shelf view ───────────────────────────
+// One horizontal row per collection down a single vertical scroll, so the
+// whole library is reachable with a thumb and nothing is hidden behind a
+// drill-in. A shelf is any visible folder that holds designs directly;
+// nested ones title themselves with their full path.
+const DSN_SHELF_MAX = 12; // cards per shelf before the "see all" tile
+
+function _dsnShelfPaths() {
+  return [..._dsnVisibleFolderPaths()]
+    .filter(p => _dsnFolderDirectDesigns(p).length > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function _dsnShelfHtml(path, designs) {
+  const name  = path.split('/').pop();
+  const trail = path.split('/').slice(0, -1).join(' › ');
+  const shown = designs.slice(0, DSN_SHELF_MAX);
+  const more  = designs.length - shown.length;
+  const moreTile = more > 0
+    ? `<button type="button" class="dsn-shelf-more" data-path="${escHtml(path)}"
+         onclick="designsOpenFamily(this.dataset.path)">+${more}<span>more</span></button>`
+    : '';
+  return `
+    <section class="dsn-shelf">
+      <div class="dsn-shelf-head">
+        <button type="button" class="dsn-shelf-title" data-path="${escHtml(path)}"
+                onclick="designsOpenFamily(this.dataset.path)">
+          ${trail ? `<span class="dsn-shelf-trail">${escHtml(trail)}</span>` : ''}
+          <span class="dsn-shelf-leaf">${escHtml(name)}</span>
+        </button>
+        <span class="dsn-shelf-n">${designs.length}</span>
+        <button type="button" class="dsn-shelf-all" data-path="${escHtml(path)}"
+                onclick="designsOpenFamily(this.dataset.path)">See all →</button>
+      </div>
+      <div class="dsn-shelf-row">${shown.map(_dsnDesignCardHtml).join('')}${moreTile}</div>
+    </section>`;
+}
+
+function _dsnRenderShelves() {
+  const wrap = document.getElementById('dsn-shelves');
+  if (!wrap) return;
+
+  const shelves = [];
+  for (const path of _dsnShelfPaths()) {
+    let designs = _dsnFolderDirectDesigns(path);
+    if (_designsCatFilter !== 'all') designs = designs.filter(d => d.category === _designsCatFilter);
+    // _dsnMatchesSearch already searches families[], so a term matching the
+    // folder path keeps that shelf's designs without a separate path check.
+    if (_designsSearch) designs = designs.filter(_dsnMatchesSearch);
+    if (designs.length) shelves.push(_dsnShelfHtml(path, designs));
+  }
+
+  // A folder holding nothing anywhere gets no shelf, at any depth — without
+  // this it would be unreachable on a phone and you could never file into
+  // it. Full paths, since the leaf name alone ("Signet") isn't enough.
+  const emptyPaths = [..._dsnVisibleFolderPaths()]
+    .filter(p => _dsnFolderDescendantDesigns(p).length === 0)
+    .filter(p => !_designsSearch || _dsnFolderMatchesSearch(p))
+    .sort((a, b) => a.localeCompare(b));
+
+  const count = document.getElementById('dsn-family-count');
+  if (count) count.textContent = shelves.length
+    ? `${shelves.length} collection${shelves.length !== 1 ? 's' : ''}`
+    : '';
+
+  if (!shelves.length && !emptyPaths.length) {
+    wrap.innerHTML = _designsSearch
+      ? `<div class="dsn-shelf-empty">
+           <div style="font-size:13px;margin-bottom:10px">Nothing here matches “${escHtml(_designsSearch)}”.</div>
+           <button class="btn btn-outline btn-sm" onclick="designsClearSearch()">Clear search</button>
+         </div>`
+      : `<div class="dsn-shelf-empty">
+           <div style="font-size:36px;margin-bottom:12px">📁</div>
+           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No design families yet</div>
+           <div style="font-size:12px">Tap <strong>📁 Add Folder</strong>, or give two or more designs<br>the same <strong>Design Family</strong> to group them here.</div>
+         </div>`;
+    return;
+  }
+
+  const emptySection = emptyPaths.length
+    ? `<section class="dsn-shelf">
+         <div class="dsn-shelf-head"><span class="dsn-shelf-title as-label">Empty folders</span></div>
+         <div class="dsn-empty-folders">${emptyPaths.map(p => `
+           <button type="button" class="dsn-empty-folder" data-path="${escHtml(p)}"
+                   onclick="designsOpenFamily(this.dataset.path)">📁 ${escHtml(p)}</button>`).join('')}</div>
+       </section>`
+    : '';
+  wrap.innerHTML = shelves.join('') + emptySection;
+}
+
 // Breadcrumb trail for the current folder path — every ancestor segment is
 // clickable (jumps straight there), the current segment is plain text.
 function _dsnBreadcrumbHtml() {
@@ -378,6 +564,18 @@ function _dsnBreadcrumbHtml() {
 function _dsnRenderFolderLevel() {
   const grid = document.getElementById('dsn-family-grid');
   if (!grid) return;
+
+  _dsnRenderRail();
+
+  // Narrow + at the root is the one place the shelf view applies. Drilled
+  // into a folder, both widths show the same level grid — the rail (or the
+  // breadcrumb) is already telling you where you are.
+  _dsnLastNarrow = _dsnIsNarrow();
+  const shelfMode = _dsnLastNarrow && !_designsFamilyOpen;
+  const shelves = document.getElementById('dsn-shelves');
+  if (shelves) shelves.style.display = shelfMode ? '' : 'none';
+  grid.style.display = shelfMode ? 'none' : '';
+  if (shelfMode) { _dsnRenderShelves(); return; }
 
   const path = _designsFamilyOpen; // null = root
   const visible = _dsnVisibleFolderPaths();

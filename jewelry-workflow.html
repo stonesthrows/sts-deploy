@@ -2258,7 +2258,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260727b">
+<link rel="stylesheet" href="css/inventory.css?v=20260728a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2349,7 +2349,13 @@
         <button type="button" class="btn btn-outline btn-sm" id="dsn-compare-costs-btn" style="display:none"
                 onclick="dsnPricingOpenForFamily(_designsFamilyOpen)">💲 Compare costs</button>
       </div>
-      <div class="dsn-grid" id="dsn-family-grid"></div>
+      <div class="dsn-browse">
+        <nav class="dsn-rail" id="dsn-rail" aria-label="Folder tree"></nav>
+        <div class="dsn-browse-main">
+          <div class="dsn-shelves" id="dsn-shelves" style="display:none"></div>
+          <div class="dsn-grid" id="dsn-family-grid"></div>
+        </div>
+      </div>
     </div>
     <div class="dsn-grid" id="designs-list"></div>
   </div>
@@ -3732,7 +3738,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=19"></script>
+<script src="js/designs.js?v=20"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260727a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
