@@ -27,6 +27,22 @@ figure in them is invented), but they do carry the studio name, staff first
 names, market locations and supplier names. Change the name by editing
 `PUBLIC_DIR` in `_build/build.js` and re-running; delete the old directory.
 
+## Hand-written explorations
+
+Not everything in `../m-e5807cb1bd/` comes from the generator. `build.js`
+only ever writes the files it names, so hand-written pages can live there
+too and survive a rebuild:
+
+| File | What it explores |
+|------|------------------|
+| `card-action-variants.html` | Five action layouts for the Kanban order card — the footer action bar shipped from this |
+
+Put explorations here rather than at the repo root: the root is served
+under guessable names, which is the one thing the directory above exists to
+avoid. Unlike the ten, this page links the real `../css/tokens.css` instead
+of inlining a palette, so it tracks the app's colours (and its dark mode)
+as they change — keep that relative path correct if it ever moves again.
+
 ## The ten
 
 | # | File | Direction |
