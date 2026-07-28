@@ -10,9 +10,9 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-// TODO: replace with the real database ID once "STS Customer Messages" is
-// created in Notion and shared with the integration.
-const DB_ID      = 'REPLACE_WITH_STS_CUSTOMER_MESSAGES_DB_ID';
+// "STS Customer Messages" — properties: Text (title), Customer Key,
+// Customer Name, Author (rich text), Created (date).
+const DB_ID      = 'e5a38cb3-7845-4ee7-94e7-ef6dcebf101d';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
