@@ -20,7 +20,12 @@
 //  secret and is hardcoded below to match js/push-notify.js.
 // ════════════════════════════════════════════
 
-import { buildPushPayload } from '@block65/webcrypto-web-push';
+// Vendored, not an npm dependency: this Cloudflare Pages project has no
+// configured build command, so `npm install` never runs before the
+// Functions bundler resolves imports — a bare package specifier here
+// fails the deploy ("Could not resolve '@block65/webcrypto-web-push'").
+// See functions/_vendor/webcrypto-web-push.js for provenance.
+import { buildPushPayload } from '../_vendor/webcrypto-web-push.js';
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
