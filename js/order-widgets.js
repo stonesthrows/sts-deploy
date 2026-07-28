@@ -85,6 +85,7 @@ function dpUpdatePaidByLabel() {
 function eoUpdateBalanceDue() {
   const balanceEl = document.getElementById('f-balance-due');
   if (!balanceEl) return;
+  eoUpdateItemsTabTotal();
   const fullyPaid = document.getElementById('f-fully-paid');
   if (fullyPaid && fullyPaid.value) {
     balanceEl.value = '0.00';
@@ -95,6 +96,17 @@ function eoUpdateBalanceDue() {
   const shipping = parseFloat(document.getElementById('f-shipping').value) || 0;
   const balance  = Math.max(price + shipping - deposit, 0);
   balanceEl.value = balance.toFixed(2);
+}
+
+// Mirrors Total ($) onto the order card's Items/Estimate tab, so the price
+// is readable without leaving whichever tab you're on. Hangs off
+// eoUpdateBalanceDue() because both pricing paths — the Estimate Builder's
+// Final Estimate and oiRecalcTotal()'s item sum — already funnel through it.
+function eoUpdateItemsTabTotal() {
+  const el = document.getElementById('eo-tab-items-total');
+  if (!el) return;
+  const price = parseFloat((document.getElementById('f-price') || {}).value) || 0;
+  el.textContent = price ? '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
 
 function toggleShippingAddress() {

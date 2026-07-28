@@ -271,6 +271,11 @@ function eoApplyOrderTypeModule(type) {
   if (oiGrid) oiGrid.style.display = (isCustomOrder || isSquare) ? 'none' : '';
   const estModule = document.getElementById('eo-estimate-module');
   if (estModule) estModule.style.display = isCustomOrder ? '' : 'none';
+  // Name the tab after what the pane actually contains for this order type:
+  // Custom Orders price via the Estimate Builder, everything else via the
+  // manual Order Items list.
+  const itemsLabel = document.getElementById('eo-tab-items-label');
+  if (itemsLabel) itemsLabel.textContent = isCustomOrder ? 'Estimate' : 'Items & Price';
   if (isSquare) {
     _jdMode = 'square';
     if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
@@ -513,6 +518,26 @@ const EO_ORDER_TYPE_LABELS = {
 };
 function eoOrderTypeLabel(type) { return EO_ORDER_TYPE_LABELS[type] || EO_ORDER_TYPE_LABELS.order; }
 
+// ── Order card tabs ──────────────────────────
+// Panes are wrapped around the existing sections in jewelry-workflow.html;
+// nothing moved out of #eo-design-module / #eo-intake-module etc., so the
+// module-scoped CSS and the populate-by-id code both still land.
+function eoSwitchTab(name, btn) {
+  document.querySelectorAll('#editOrderModalBg .eo-tab').forEach(t => {
+    const on = t === btn || t.getAttribute('data-eotab') === name;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('#editOrderModalBg .eo-pane').forEach(p => {
+    p.classList.toggle('active', p.getAttribute('data-eopane') === name);
+  });
+  // Each pane is its own scroll context conceptually — land at the top of
+  // the one just opened rather than wherever the last pane was scrolled to.
+  const body = document.querySelector('#editOrderModalBg .eo-body');
+  if (body) body.scrollTop = 0;
+  if (name === 'messages' && typeof eoRenderMessages === 'function') eoRenderMessages();
+}
+
 function openOrderCard(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
@@ -528,6 +553,10 @@ function openOrderCard(id) {
   // scrollHeight, which reads back 0 while the modal is still display:none.
   document.getElementById('editOrderModalBg').classList.add('open');
   eoSetMode('view');
+  // Always open on Details — a card reopened on whatever tab was last used
+  // hides the order behind a thread or a price sheet.
+  eoSwitchTab('details', document.querySelector('#editOrderModalBg .eo-tab[data-eotab="details"]'));
+  if (typeof eoRenderMessages === 'function') eoRenderMessages();
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
 }

@@ -59,6 +59,10 @@ function _msgRenderOpenThreads() {
     if (!c) return;
     renderMessageThread(idx, custKey(c.name));
   });
+  // The order card carries the same thread on its Messages tab — repaint it
+  // too, or a poll would land new messages everywhere except the card the
+  // user is actually looking at.
+  if (typeof eoRenderMessages === 'function') eoRenderMessages();
 }
 
 // ── Staff identity ───────────────────────────
@@ -87,23 +91,43 @@ function _msgLastViewedMap() {
   catch (e) { return {}; }
 }
 
-function markMessagesViewed(customerKey) {
+// Reading a thread is recorded at the scope it was read in: the customer
+// card marks the whole customer, the order card's Messages tab marks just
+// that order (key "<customerKey>::<orderId>"). Without the narrower key,
+// reading one order's thread would clear the unread flag on every other
+// order for that person. Plain customer keys written by earlier versions
+// keep working — they're the same map, just without a suffix.
+function markMessagesViewed(customerKey, orderId) {
   var map = _msgLastViewedMap();
-  map[customerKey] = new Date().toISOString();
+  map[orderId ? customerKey + '::' + orderId : customerKey] = new Date().toISOString();
   try { localStorage.setItem(MSG_LASTVIEWED_KEY, JSON.stringify(map)); } catch (e) {}
 }
 
-function unreadMessageCount(customerKey) {
+// A message counts as seen once EITHER scope covering it has been read —
+// its own order's thread, or the customer's whole thread — so opening the
+// customer card still clears everything, and opening one order clears only
+// what that order is tagged with.
+function _msgSeenAt(map, customerKey, orderId) {
+  var seenCust  = map[customerKey] || '';
+  var seenOrder = orderId ? (map[customerKey + '::' + orderId] || '') : '';
+  return seenOrder > seenCust ? seenOrder : seenCust;
+}
+
+// `orderId` narrows the count to messages tagged to that order; omit it for
+// the customer-wide total.
+function unreadMessageCount(customerKey, orderId) {
   var map    = _msgLastViewedMap();
-  var since  = map[customerKey];
   var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
   // Your own messages are never unread to you — without this, sending a
   // message would pop a "new message" bubble back at yourself.
   var msgs = messagesFor(customerKey).filter(function(m) {
     return !myName || m.author !== myName;
   });
-  if (!since) return msgs.length;
-  return msgs.filter(function(m) { return m.createdAt > since; }).length;
+  if (orderId) msgs = msgs.filter(function(m) { return m.orderId === orderId; });
+  return msgs.filter(function(m) {
+    var since = _msgSeenAt(map, customerKey, m.orderId);
+    return !since || m.createdAt > since;
+  }).length;
 }
 
 function totalUnreadMessages() {
@@ -119,6 +143,7 @@ function totalUnreadMessages() {
 function renderAllMessageBadges() {
   renderMessageBell();
   renderAllOrderMsgChips();
+  if (typeof eoUpdateMsgTabBadge === 'function') eoUpdateMsgTabBadge();
   if (typeof CUSTOMERS === 'undefined') return;
   CUSTOMERS.forEach(function(c, idx) {
     var el = document.getElementById('ct-msg-badge-' + idx);
