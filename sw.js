@@ -26,6 +26,41 @@ self.addEventListener('activate', event => {
   );
 });
 
+// ── Web Push ─────────────────────────────────
+// Payload shape sent by functions/api/notion-messages.js's notifyPush():
+// { title, body, url, tag }. `tag` collapses repeat notifications about
+// the same customer instead of stacking them.
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) {}
+  const title = data.title || 'STS Workflow';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag,
+    data: { url: data.url || '/jewelry-workflow.html' },
+  }));
+});
+
+// Focus an already-open window and navigate it if possible (avoids
+// stacking duplicate app windows); otherwise open a new one.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/jewelry-workflow.html';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          if ('navigate' in client) client.navigate(url).catch(() => {});
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;

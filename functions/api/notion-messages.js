@@ -12,13 +12,31 @@
 //  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TWILIO_NOTIFY_TO
 //  — silently skipped (message send still succeeds) if any are unset, so
 //  this stays a no-op until someone opts in via Cloudflare Pages env vars.
+//
+//  Web Push notify on new message (optional): delivers a real OS-level
+//  notification to every device registered via /api/push-subscribe (see
+//  js/push-notify.js + sw.js's "push" handler). Requires env var
+//  VAPID_PRIVATE_KEY — silently skipped otherwise. VAPID_PUBLIC_KEY is not
+//  secret and is hardcoded below to match js/push-notify.js.
 // ════════════════════════════════════════════
+
+import { buildPushPayload } from '@block65/webcrypto-web-push';
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
 // "STS Customer Messages" — properties: Text (title), Customer Key,
 // Customer Name, Author (rich text), Created (date).
 const DB_ID      = 'e5a38cb3-7845-4ee7-94e7-ef6dcebf101d';
+
+// "STS Push Subscriptions" — properties: Endpoint (title), P256dh, Auth,
+// Owner Name (rich text), Created (date). See functions/api/push-subscribe.js.
+const PUSH_DB_ID = 'aa8e0af3-4981-4156-8f62-855f0a914fb0';
+
+// Not secret — this is the public half of the VAPID key pair, meant to be
+// embedded in client JS. Keep in sync with js/push-notify.js. The private
+// half lives only in the VAPID_PRIVATE_KEY Cloudflare Pages env var.
+const VAPID_PUBLIC_KEY = 'BPlW0roALoDK6gSXOmbPd6RA9ZSc6-NcTOgWlTpXM55SZOrAr2DhHwWc_xxnleeePq7EcQ0AUmOY-e60m-X-X_c';
+const VAPID_SUBJECT     = 'mailto:kyle@stonesthrowjewelry.com';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -80,6 +98,68 @@ async function notifySms(env, { customerName, author, text, orderLabel }) {
   }
 }
 
+// Fire-and-forget Web Push to every registered device except the sender's
+// own (matched by Owner Name, same convention as TWILIO_NOTIFY_SKIP_AUTHOR).
+// A subscription that the push service reports as gone (404/410 — user
+// uninstalled, revoked permission, etc.) is archived so it stops being
+// queried on every future message.
+async function notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }) {
+  if (!env.VAPID_PRIVATE_KEY) return;
+  const vapid = { subject: VAPID_SUBJECT, publicKey: VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY };
+
+  let subs;
+  try {
+    const r = await fetch(`${NOTION_API}/databases/${PUSH_DB_ID}/query`, {
+      method: 'POST', headers: h, body: JSON.stringify({ page_size: 100 }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message || 'Notion query failed');
+    subs = (d.results || []).filter(p => !p.archived);
+  } catch (err) {
+    console.error('notion-messages push subscriber lookup failed:', err);
+    return;
+  }
+
+  const authorNorm = String(author || '').trim().toLowerCase();
+  const message = {
+    data: {
+      title: `💬 ${customerName}`,
+      body:  `${author || 'Someone'}: ${text}`.slice(0, 200),
+      url:   `/jewelry-workflow.html?openCustomer=${encodeURIComponent(customerName)}`,
+      tag:   `msg-${customerKey}`,
+    },
+    options: { ttl: 60 * 60 * 24, urgency: 'normal' },
+  };
+
+  await Promise.allSettled(subs.map(async page => {
+    const p = page.properties;
+    const ownerName = p['Owner Name']?.rich_text?.[0]?.plain_text || '';
+    if (ownerName && ownerName.trim().toLowerCase() === authorNorm) return;
+
+    const subscription = {
+      endpoint:       p['Endpoint']?.title?.[0]?.plain_text || '',
+      expirationTime: null,
+      keys: {
+        p256dh: p['P256dh']?.rich_text?.[0]?.plain_text || '',
+        auth:   p['Auth']?.rich_text?.[0]?.plain_text    || '',
+      },
+    };
+    if (!subscription.endpoint || !subscription.keys.p256dh || !subscription.keys.auth) return;
+
+    try {
+      const payload = await buildPushPayload(message, subscription, vapid);
+      const res = await fetch(subscription.endpoint, payload);
+      if (res.status === 404 || res.status === 410) {
+        await fetch(`${NOTION_API}/pages/${page.id}`, {
+          method: 'PATCH', headers: h, body: JSON.stringify({ archived: true }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('notion-messages push send failed:', err);
+    }
+  }));
+}
+
 export async function onRequest({ request, env, waitUntil }) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
   try {
@@ -137,6 +217,7 @@ async function _handle({ request, env, waitUntil }) {
     const d = await r.json();
     if (!r.ok) return json({ error: d.message || 'create failed' }, r.status);
     waitUntil(notifySms(env, { customerName, author, text, orderLabel }));
+    waitUntil(notifyPush(env, h, { customerKey, customerName, author, text, orderLabel }));
     return json({ notionPageId: d.id });
   }
 

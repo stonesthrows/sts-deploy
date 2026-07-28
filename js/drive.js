@@ -484,6 +484,7 @@ function openIntegrationsModal() {
   setField('int-square-token',    localStorage.getItem('sts-square-token')    || '');
   setField('int-square-location', localStorage.getItem('sts-square-location') || '');
   document.getElementById('integrationsModalBg').classList.add('open');
+  if (typeof renderPushStatus === 'function') renderPushStatus();
 }
 
 function closeIntegrationsModal() {

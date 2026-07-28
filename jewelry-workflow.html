@@ -3068,6 +3068,16 @@
       <p class="int-hint">Get both at developer.squareup.com → Your App → Credentials (Production). Location ID is auto-detected from your token when you save.</p>
     </div>
 
+    <div class="int-section">
+      <div class="int-section-title">🔔 Push Notifications</div>
+      <p class="int-hint" style="margin-bottom:10px;">Get a real notification on this device when a teammate posts a Team Message on a customer card — tap it to jump straight to that customer's thread. This is a per-device setting (enable it separately on each phone/tablet/computer you use).</p>
+      <p class="int-hint" id="pushNotifyStatus" style="font-weight:600;">Checking…</p>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <button class="btn btn-gold btn-sm"    id="pushNotifyEnableBtn"  onclick="enablePushNotifications()"  style="display:none;">🔔 Enable on This Device</button>
+        <button class="btn btn-outline btn-sm" id="pushNotifyDisableBtn" onclick="disablePushNotifications()" style="display:none;">🔕 Disable on This Device</button>
+      </div>
+    </div>
+
     <div class="int-foot">
       <button class="btn btn-outline" onclick="closeIntegrationsModal()">Cancel</button>
       <button class="btn btn-gold" onclick="saveIntegrations()">Save</button>
@@ -3514,7 +3524,7 @@
 <script src="js/order-normalize.js?v=20260727c"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260728a"></script>
-<script src="js/app.js?v=20260727a"></script>
+<script src="js/app.js?v=20260728a"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260727a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
@@ -3522,7 +3532,7 @@
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
-<script src="js/drive.js?v=20260711a"></script>
+<script src="js/drive.js?v=20260728a"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260720a"></script>
@@ -3530,6 +3540,7 @@
 <script src="js/production.js?v=20260727a"></script>
 <script src="js/notes.js?v=40"></script>
 <script src="js/customer-messages.js?v=5"></script>
+<script src="js/push-notify.js?v=1"></script>
 <script src="js/restock.js?v=20260727a"></script>
 <script src="js/restock-sessions.js?v=20260727a"></script>
 <script src="js/supplier-history.js?v=20260727a"></script>

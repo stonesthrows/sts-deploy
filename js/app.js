@@ -594,6 +594,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load Team Messages (Customer Card Q&A threads) and start their poller
     if (typeof loadMessages === 'function') loadMessages();
 
+    // Push-notification deep link (?openCustomer=<name>) — jump straight to
+    // that customer's Team Messages thread. Runs after CUSTOMERS is
+    // populated above so the row lookup inside openMessagesForCustomer
+    // succeeds. Strip the param after opening so a refresh doesn't reopen it.
+    const openCustomerParam = new URLSearchParams(window.location.search).get('openCustomer');
+    if (openCustomerParam && typeof openMessagesForCustomer === 'function') {
+      openMessagesForCustomer(openCustomerParam);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('openCustomer');
+      window.history.replaceState({}, '', url);
+    }
+
     // Replay any writes queued while offline, push any local orders missing
     // a notionId, then pull everything from Notion
     const replay = (typeof notionReplayQueue === 'function') ? notionReplayQueue() : Promise.resolve();
