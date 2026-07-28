@@ -45,6 +45,40 @@ function _gmailTokenValid() {
   return !!_gmailAccessToken && Date.now() < _gmailTokenExpiry - 60000;
 }
 
+// Strips quoted reply chains and signature blocks from an extracted email
+// body, so the inline thread view (see _ctGmailRenderBubbles) shows only
+// what that message actually said — not the growing pile of everyone's
+// prior replies that most clients re-quote on every send. Cuts at the
+// FIRST filler marker found, since anything past that point is boilerplate
+// by definition. Never returns empty: a message that's nothing but
+// boilerplate (rare, but happens on auto-replies) falls back to the
+// original text rather than showing a blank bubble.
+function _stripEmailFiller(text) {
+  var raw = String(text || '');
+  if (!raw.trim()) return raw;
+  var lines = raw.replace(/\r\n/g, '\n').split('\n');
+  var cut = lines.length;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    // Gmail/most-clients quote header: "On Mon, Jan 1, 2024 ... wrote:"
+    if (/^on .+ wrote:\s*$/i.test(line)) { cut = i; break; }
+    // Outlook-style separator
+    if (/^-{2,}\s*original message\s*-{2,}$/i.test(line)) { cut = i; break; }
+    // RFC 3676 signature delimiter — a line that is exactly "--"
+    if (/^--\s?$/.test(lines[i])) { cut = i; break; }
+    // A run of 3+ consecutive '>'-quoted lines with no header line above it
+    if (line.indexOf('>') === 0 &&
+        (lines[i + 1] || '').trim().indexOf('>') === 0 &&
+        (lines[i + 2] || '').trim().indexOf('>') === 0) { cut = i; break; }
+  }
+
+  var trimmed = lines.slice(0, cut).join('\n')
+    .replace(/\n?Sent from my [^\n]{0,40}$/i, '')
+    .trim();
+  return trimmed || raw.trim();
+}
+
 // ── Email body extraction ─────────────────────
 
 function _b64decode(data) {
@@ -928,16 +962,45 @@ function _ctGmailExpand(el) {
     .then(function(r) { return r.json(); })
     .then(function(thread) {
       var msgs = thread.messages || [];
-      var last = msgs[msgs.length - 1];
-      if (!last) throw new Error('empty thread');
+      if (!msgs.length) throw new Error('empty thread');
       if (loadingEl) loadingEl.style.display = 'none';
-      contentEl.textContent = _extractBody(last);
+      contentEl.innerHTML = '<div class="msg-thread">' + _ctGmailRenderBubbles(msgs) + '</div>';
       contentEl.style.display = '';
       el.classList.add('ct-gmail-body-loaded');
     })
     .catch(function() {
       if (loadingEl) loadingEl.textContent = 'Could not load message.';
     });
+}
+
+// One bubble per message in the thread, oldest first — same visual language
+// as Team Messages (.msg-thread/.msg-bubble, see js/customer-messages.js)
+// so a Gmail conversation and an internal one read the same way. "Self" is
+// anything sent from the studio's own domain, matching the filter already
+// used elsewhere for outgoing mail (see fetchGmailDirect). Each body is run
+// through _stripEmailFiller so a thread of 6 replies doesn't repeat itself
+// 6 times via quoted history.
+function _ctGmailRenderBubbles(messages) {
+  return messages.map(function(m) {
+    var h = {};
+    ((m.payload && m.payload.headers) || []).forEach(function(hdr) {
+      h[hdr.name.toLowerCase()] = hdr.value;
+    });
+    var rawFrom   = h['from'] || '';
+    var fromEmail = (rawFrom.match(/<([^>]+)>/) || ['', rawFrom])[1].trim().toLowerCase();
+    var fromName  = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g, '').trim() || fromEmail || 'Unknown';
+    var isSelf    = fromEmail.indexOf('stonesthrowjewelry.com') !== -1;
+    var dateObj   = h['date'] ? new Date(h['date']) : new Date();
+    var body      = _stripEmailFiller(_extractBody(m));
+
+    return '<div class="msg-bubble ' + (isSelf ? 'msg-bubble-self' : 'msg-bubble-other') + '">'
+      + '<div class="msg-bubble-meta">'
+      +   '<span class="msg-author">' + _esc(fromName) + '</span>'
+      +   '<span class="msg-time">' + _esc(_formatAge(dateObj)) + '</span>'
+      + '</div>'
+      + '<div class="msg-bubble-text">' + _esc(body) + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 // ── Square Invoice ────────────────────────────
