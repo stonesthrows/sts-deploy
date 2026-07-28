@@ -876,20 +876,67 @@ function renderGmailThreads(el, email) {
         var snippet  = _decodeSnippet(last.snippet || '');
         var isUnread = (last.labelIds || []).includes('UNREAD');
         var gmailUrl = 'https://mail.google.com/mail/u/0/#inbox/' + thread.id;
-        return '<a class="ct-gmail-thread" href="' + _esc(gmailUrl) + '" target="_blank" onclick="event.stopPropagation()">'
+        return '<div class="ct-gmail-thread" data-thread-id="' + _esc(thread.id) + '" onclick="_ctGmailExpand(this)">'
           + '<div class="ct-gmail-row1">'
           + (isUnread ? '<span class="ct-gmail-unread-dot"></span>' : '')
           + '<span class="ct-gmail-from">' + _esc(fromName || email) + '</span>'
           + '<span class="ct-gmail-date">' + _esc(age) + '</span>'
+          + '<a class="ct-gmail-open-btn" href="' + _esc(gmailUrl) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail">✉</a>'
           + '</div>'
           + '<div class="ct-gmail-subject">' + _esc(subject) + '</div>'
           + '<div class="ct-gmail-snippet">' + _esc(snippet) + '</div>'
-          + '</a>';
+          + '<div class="ct-gmail-body-wrap">'
+          +   '<div class="ct-gmail-body-loading">⏳ Loading…</div>'
+          +   '<div class="ct-gmail-body-content"></div>'
+          + '</div>'
+          + '</div>';
       }).join('');
       el.innerHTML = html || '<div class="ct-exp-gmail-msg">No correspondence found.</div>';
     })
     .catch(function() {
       el.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
+    });
+}
+
+// Click-to-expand full message body for a single .ct-gmail-thread card
+// (rendered by renderGmailThreads above — used on both the Customers tab
+// card and the order card's Gmail tab). Deliberately lighter than the main
+// inbox's gtExpandThread: read-only, no reply/invoice/customer compose —
+// those stay in the full Gmail tab. Fetches once per thread per page load;
+// re-clicking just re-toggles the already-loaded body.
+function _ctGmailExpand(el) {
+  var expanded = el.classList.toggle('ct-gmail-expanded');
+  if (!expanded || el.classList.contains('ct-gmail-body-loaded')) return;
+
+  var threadId = el.dataset.threadId;
+  var loadingEl = el.querySelector('.ct-gmail-body-loading');
+  var contentEl = el.querySelector('.ct-gmail-body-content');
+  if (!threadId || !contentEl) return;
+
+  if (!_gmailTokenValid()) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    var snippetEl = el.querySelector('.ct-gmail-snippet');
+    contentEl.textContent = (snippetEl && snippetEl.textContent) || '(Connect Gmail to see the full message)';
+    contentEl.style.display = '';
+    el.classList.add('ct-gmail-body-loaded');
+    return;
+  }
+
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + threadId + '?format=full',
+    { headers: { 'Authorization': 'Bearer ' + _gmailAccessToken } }
+  )
+    .then(function(r) { return r.json(); })
+    .then(function(thread) {
+      var msgs = thread.messages || [];
+      var last = msgs[msgs.length - 1];
+      if (!last) throw new Error('empty thread');
+      if (loadingEl) loadingEl.style.display = 'none';
+      contentEl.textContent = _extractBody(last);
+      contentEl.style.display = '';
+      el.classList.add('ct-gmail-body-loaded');
+    })
+    .catch(function() {
+      if (loadingEl) loadingEl.textContent = 'Could not load message.';
     });
 }
 
