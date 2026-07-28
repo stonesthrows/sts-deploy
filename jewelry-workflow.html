@@ -2315,14 +2315,6 @@
 
   <!-- Library view -->
   <div id="designs-library">
-    <div class="dsn-subtabs" id="dsn-subtabs" role="tablist" aria-label="Design Library views">
-      <button type="button" class="dsn-subtab active" role="tab" aria-selected="true" data-subtab="families"
-              onclick="designsSetSubTab('families')">📁 Design Families</button>
-      <button type="button" class="dsn-subtab" role="tab" aria-selected="false" data-subtab="all"
-              onclick="designsSetSubTab('all')">💎 All Designs</button>
-      <button type="button" class="dsn-subtab" role="tab" aria-selected="false" data-subtab="stackable"
-              onclick="designsSetSubTab('stackable')">💍 Stackable Rings</button>
-    </div>
     <div class="dsn-search-wrap">
       <span class="dsn-search-icon">🔍</span>
       <input id="dsn-search" class="dsn-search-input" type="search" autocomplete="off"
@@ -2330,15 +2322,6 @@
              oninput="designsSetSearch(this.value)">
       <button type="button" class="dsn-search-clear" id="dsn-search-clear" style="display:none"
               onclick="designsClearSearch()" aria-label="Clear search">✕</button>
-    </div>
-    <div class="dsn-filter-bar" id="dsn-filter-bar">
-      <button class="dsn-filter-btn active" data-cat="all" onclick="designsSetCatFilter('all')">All</button>
-      <button class="dsn-filter-btn" data-cat="Ear Cuffs" onclick="designsSetCatFilter('Ear Cuffs')">Ear Cuffs</button>
-      <button class="dsn-filter-btn" data-cat="Rings" onclick="designsSetCatFilter('Rings')">Rings</button>
-      <button class="dsn-filter-btn" data-cat="Earrings" onclick="designsSetCatFilter('Earrings')">Earrings</button>
-      <button class="dsn-filter-btn" data-cat="Pendants / Necklaces" onclick="designsSetCatFilter('Pendants / Necklaces')">Pendants / Necklaces</button>
-      <button class="dsn-filter-btn" data-cat="Meditation Rings" onclick="designsSetCatFilter('Meditation Rings')">Meditation Rings</button>
-      <button class="dsn-filter-btn" data-cat="Other" onclick="designsSetCatFilter('Other')">Other</button>
     </div>
     <div id="dsn-family-grid-wrap" style="display:none">
       <div class="dsn-family-grid-head">
@@ -3738,7 +3721,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=20"></script>
+<script src="js/designs.js?v=21"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260727a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>

@@ -237,24 +237,78 @@ function _dsnFamiliesOf(d) {
 }
 
 // ── Folder tree (Design Families) ────────────────
-// A folder is just a '/'-delimited path living in the same string space as
-// design.families — e.g. "Rings/Stackable/Wave Collection". A design "in"
-// a folder has that exact path in its families[]; a folder "contains"
-// every path one segment longer that starts with "path/". Nesting is a
-// mobile-friendly drill-down (breadcrumb + one screen per level) rather
-// than a wide sidebar tree.
+// The tree is DERIVED, not stored: a design's folder path is its category
+// followed by its collection — "Rings/Meditation Rings". Category is the
+// top level because that's the one axis every design has.
+//
+// Collections here are mostly motifs (Dragonfly, Ginkgo, Snake) that each
+// exist as a ring AND an earring AND a pendant, so prefixing them by
+// category splits one collection into several folders of a single design.
+// A collection therefore only earns a subfolder once DSN_SUBFOLDER_MIN
+// designs share that exact category+collection pair; below that it
+// dissolves and the design sits directly in its category. Meditation
+// Rings, Stackable Rings and the charm designs clear the bar; the
+// cross-category motifs don't, and would otherwise each strand a design
+// inside a folder the anti-clutter rule hides.
+//
+// Nothing here writes to families[] — the motif tags stay on the records
+// (and stay searchable), so this is reversible and a motif filter can be
+// built on them later without a migration.
+const DSN_SUBFOLDER_MIN = 2;
+
+let _dsnPairCache = null; // "Category/Collection" -> design count, per render
+
+// '/' is the path separator, so it cannot survive inside a single segment.
+// The "Pendants / Necklaces" category would otherwise split into a phantom
+// "Pendants" parent holding nothing, which the visibility rule then hides
+// — stranding every design in that category with no way to reach it.
+function _dsnSeg(name) {
+  return (name || '').replace(/\s*\/\s*/g, ' & ').trim();
+}
+
+const DESIGNS_CAT_SEGS = DESIGNS_CATS.map(_dsnSeg);
+
+function _dsnCategoryOf(d) {
+  return _dsnSeg(d.category) || 'Other';
+}
+
+// Cleared at the top of every library render — see designsRenderLibrary.
+function _dsnPairCounts() {
+  if (_dsnPairCache) return _dsnPairCache;
+  const counts = new Map();
+  for (const d of _designs) {
+    const cat = _dsnCategoryOf(d);
+    for (const f of _dsnFamiliesOf(d)) {
+      const key = `${cat}/${_dsnSeg(f)}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  _dsnPairCache = counts;
+  return counts;
+}
+
+// Where a design actually lives in the tree. Always at least its category.
+function _dsnEffectiveFolders(d) {
+  const cat = _dsnCategoryOf(d);
+  const counts = _dsnPairCounts();
+  const kept = _dsnFamiliesOf(d)
+    .map(f => `${cat}/${_dsnSeg(f)}`)
+    .filter(p => (counts.get(p) || 0) >= DSN_SUBFOLDER_MIN);
+  return kept.length ? kept : [cat];
+}
 
 // Every path that should exist as a node: every ancestor segment of every
-// design's family tag, plus every ancestor segment of every
-// manually-created (possibly still-empty) folder.
+// design's effective path, every manually-created (possibly still-empty)
+// folder, and all six categories so the top level is stable even when a
+// category is empty.
 function _dsnAllFolderPaths() {
-  const paths = new Set();
+  const paths = new Set(DESIGNS_CAT_SEGS);
   const addAncestors = (full) => {
     const parts = (full || '').split('/').map(p => p.trim()).filter(Boolean);
     let acc = '';
     for (const part of parts) { acc = acc ? `${acc}/${part}` : part; paths.add(acc); }
   };
-  _designs.forEach(d => _dsnFamiliesOf(d).forEach(addAncestors));
+  _designs.forEach(d => _dsnEffectiveFolders(d).forEach(addAncestors));
   _designsFolders.forEach(addAncestors);
   return paths;
 }
@@ -268,15 +322,15 @@ function _dsnFolderChildPaths(parentPath) {
     .sort((a, b) => a.localeCompare(b));
 }
 
-// Designs tagged with this exact path (not a deeper subfolder).
+// Designs sitting at this exact path (not a deeper subfolder).
 function _dsnFolderDirectDesigns(path) {
-  return _designs.filter(d => _dsnFamiliesOf(d).includes(path));
+  return _designs.filter(d => _dsnEffectiveFolders(d).includes(path));
 }
 
-// Designs tagged with this path, or with anything nested underneath it.
+// Designs at this path, or anywhere nested underneath it.
 function _dsnFolderDescendantDesigns(path) {
   const prefix = path + '/';
-  return _designs.filter(d => _dsnFamiliesOf(d).some(f => f === path || f.startsWith(prefix)));
+  return _designs.filter(d => _dsnEffectiveFolders(d).some(f => f === path || f.startsWith(prefix)));
 }
 
 // A folder shows in the tree if it was explicitly created, has 2+ designs
@@ -286,10 +340,15 @@ function _dsnFolderDescendantDesigns(path) {
 // surfaces its ancestors even when an ancestor holds nothing directly.
 function _dsnVisibleFolderPaths() {
   const explicit = new Set(_designsFolders.map(f => f.trim()).filter(Boolean));
+  const categories = new Set(DESIGNS_CAT_SEGS);
   const byDepthDesc = [..._dsnAllFolderPaths()].sort((a, b) => b.split('/').length - a.split('/').length);
   const visible = new Set();
   for (const path of byDepthDesc) {
-    const directCount    = _dsnFolderDirectDesigns(path).length;
+    // Categories are the fixed top level — always shown, even when empty,
+    // so there's a stable home to file into rather than a tree that
+    // reshapes itself every time the last design leaves a category.
+    if (categories.has(path)) { visible.add(path); continue; }
+    const directCount     = _dsnFolderDirectDesigns(path).length;
     const hasVisibleChild = _dsnFolderChildPaths(path).some(c => visible.has(c));
     if (explicit.has(path) || directCount > 1 || hasVisibleChild) visible.add(path);
   }
@@ -638,6 +697,15 @@ function designsSetSubTab(tab) {
 function designsRenderLibrary() {
   const list = document.getElementById('designs-list');
   if (!list) return;
+
+  // The derived tree reads category+collection counts many times per render;
+  // compute them once here and let every helper below share the result.
+  _dsnPairCache = null;
+
+  // The library is the folder browser now — the All Designs / Stackable
+  // Rings sub-tabs and the flat category chip row are gone, since category
+  // is the top level of the tree itself.
+  _designsSubTab = 'families';
 
   // Drop the drill-in if the folder no longer exists (rename / delete). A
   // manually-created folder with nothing in it yet still "exists" as long
