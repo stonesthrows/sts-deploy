@@ -59,26 +59,60 @@ function _msgRenderOpenThreads() {
     if (!c) return;
     renderMessageThread(idx, custKey(c.name));
   });
+  // The order card carries the same thread on its Messages tab — repaint it
+  // too, or a poll would land new messages everywhere except the card the
+  // user is actually looking at.
+  if (typeof eoRenderMessages === 'function') eoRenderMessages();
 }
 
 // ── Staff identity ───────────────────────────
-// No login exists in this app (shared X-STS-Key, not per-user) — "author"
-// is a free-text, unenforced label a staff member sets once per browser.
+// No login exists in this app (shared X-STS-Key, not per-user), so "author"
+// is a label you pick rather than an account you sign into. It is chosen
+// once per browser and remembered.
+var MSG_STAFF = ['Kyle', 'Georgina', 'Vanessa', 'Stevie'];
+
 function getStaffName() {
-  var name = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
-  if (name) return name;
-  name = (prompt('Your name, so teammates know who\'s asking:') || '').trim();
-  if (name) localStorage.setItem(MSG_STAFF_NAME_KEY, name);
-  return name;
+  return localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
 }
 
-function changeStaffName(idx) {
-  var current = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
-  var name = (prompt('Your name, so teammates know who\'s asking:', current) || '').trim();
-  if (!name) return;
-  localStorage.setItem(MSG_STAFF_NAME_KEY, name);
-  var c = (typeof CUSTOMERS !== 'undefined') ? CUSTOMERS[idx] : null;
-  if (c) renderMessageThread(idx, custKey(c.name));
+function setStaffName(name) {
+  name = (name || '').trim();
+  if (name) localStorage.setItem(MSG_STAFF_NAME_KEY, name);
+  else       localStorage.removeItem(MSG_STAFF_NAME_KEY);
+  // Who you are decides which bubbles read as yours and which messages
+  // count as unread to you, so every open thread has to repaint.
+  _msgRenderOpenThreads();
+  renderAllMessageBadges();
+}
+
+// The "Sending as" picker, shared by the Customer Card and the order card's
+// Messages tab. `id` differs per mount so the two can coexist on the page.
+function staffSelectHtml(id) {
+  var current = getStaffName();
+  var roster  = MSG_STAFF.slice();
+  // A name saved before this roster existed — or typed on another device —
+  // stays selectable. Dropping it would silently re-attribute that person's
+  // own messages to somebody else, since "is this mine?" is an author-name
+  // match, not an account check.
+  if (current && roster.indexOf(current) === -1) roster.push(current);
+  var opts = '<option value=""' + (current ? '' : ' selected') + '>— who are you? —</option>'
+    + roster.map(function(n) {
+        return '<option value="' + esc(n) + '"' + (n === current ? ' selected' : '') + '>' + esc(n) + '</option>';
+      }).join('');
+  return 'Sending as <select class="msg-staff-select" id="' + id + '"'
+    + ' aria-label="Send messages as" onchange="setStaffName(this.value)"'
+    + ' onclick="event.stopPropagation()">' + opts + '</select>';
+}
+
+// Shared guard for both send paths: you cannot post anonymously, and the
+// fix is one click away, so point at it rather than just refusing.
+function requireStaffName(selectId) {
+  var name = getStaffName();
+  if (name) return name;
+  var sel = document.getElementById(selectId);
+  if (sel) { sel.focus(); sel.classList.add('needs-pick'); }
+  alert('Pick your name under "Sending as" first, so teammates know who\'s asking.');
+  return '';
 }
 
 // ── Unread tracking (per-device, never synced) ───────────────
@@ -87,23 +121,43 @@ function _msgLastViewedMap() {
   catch (e) { return {}; }
 }
 
-function markMessagesViewed(customerKey) {
+// Reading a thread is recorded at the scope it was read in: the customer
+// card marks the whole customer, the order card's Messages tab marks just
+// that order (key "<customerKey>::<orderId>"). Without the narrower key,
+// reading one order's thread would clear the unread flag on every other
+// order for that person. Plain customer keys written by earlier versions
+// keep working — they're the same map, just without a suffix.
+function markMessagesViewed(customerKey, orderId) {
   var map = _msgLastViewedMap();
-  map[customerKey] = new Date().toISOString();
+  map[orderId ? customerKey + '::' + orderId : customerKey] = new Date().toISOString();
   try { localStorage.setItem(MSG_LASTVIEWED_KEY, JSON.stringify(map)); } catch (e) {}
 }
 
-function unreadMessageCount(customerKey) {
+// A message counts as seen once EITHER scope covering it has been read —
+// its own order's thread, or the customer's whole thread — so opening the
+// customer card still clears everything, and opening one order clears only
+// what that order is tagged with.
+function _msgSeenAt(map, customerKey, orderId) {
+  var seenCust  = map[customerKey] || '';
+  var seenOrder = orderId ? (map[customerKey + '::' + orderId] || '') : '';
+  return seenOrder > seenCust ? seenOrder : seenCust;
+}
+
+// `orderId` narrows the count to messages tagged to that order; omit it for
+// the customer-wide total.
+function unreadMessageCount(customerKey, orderId) {
   var map    = _msgLastViewedMap();
-  var since  = map[customerKey];
   var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
   // Your own messages are never unread to you — without this, sending a
   // message would pop a "new message" bubble back at yourself.
   var msgs = messagesFor(customerKey).filter(function(m) {
     return !myName || m.author !== myName;
   });
-  if (!since) return msgs.length;
-  return msgs.filter(function(m) { return m.createdAt > since; }).length;
+  if (orderId) msgs = msgs.filter(function(m) { return m.orderId === orderId; });
+  return msgs.filter(function(m) {
+    var since = _msgSeenAt(map, customerKey, m.orderId);
+    return !since || m.createdAt > since;
+  }).length;
 }
 
 function totalUnreadMessages() {
@@ -119,6 +173,7 @@ function totalUnreadMessages() {
 function renderAllMessageBadges() {
   renderMessageBell();
   renderAllOrderMsgChips();
+  if (typeof eoUpdateMsgTabBadge === 'function') eoUpdateMsgTabBadge();
   if (typeof CUSTOMERS === 'undefined') return;
   CUSTOMERS.forEach(function(c, idx) {
     var el = document.getElementById('ct-msg-badge-' + idx);
@@ -217,12 +272,21 @@ function orderMsgChipHtml(name) {
     + '💬 ' + (c.unread || c.total) + '</span>';
 }
 
-// Count that rides the Kanban card's message segment (js/orders.js,
-// cardActionBarHTML). Unlike the chip above this renders inside a button
-// that is always present, so zero messages simply means no count — the
-// segment stays as the way to start a thread.
-function orderMsgBtnCountHtml(name) {
-  var c = messageCountsForName(name);
+// Counts for the Kanban card's message segment (js/orders.js,
+// cardActionBarHTML). Scoped to one order, matching the order card's
+// Messages tab the segment opens — a message about the customer's other
+// job belongs on that job's card, not this one.
+function orderMessageCounts(name, orderId) {
+  var key = custKey(name);
+  var mine = messagesFor(key).filter(function(m) { return m.orderId === orderId; });
+  return { total: mine.length, unread: unreadMessageCount(key, orderId) };
+}
+
+// Unlike the chip above, this renders inside a button that is always
+// present, so zero messages simply means no count — the segment stays as
+// the way to start a thread.
+function orderMsgBtnCountHtml(name, orderId) {
+  var c = orderMessageCounts(name, orderId);
   if (!c.total) return '';
   return ' <span class="card-act-count' + (c.unread ? ' unread' : '') + '">'
     + (c.unread || c.total) + '</span>';
@@ -238,14 +302,15 @@ function renderAllOrderMsgChips() {
   // Card action bars: only the count span is replaced, so the button's own
   // handlers and title survive the refresh.
   document.querySelectorAll('[data-msg-btn-for]').forEach(function(btn) {
-    var name = btn.getAttribute('data-msg-btn-for');
-    var c = messageCountsForName(name);
-    btn.innerHTML = '💬' + orderMsgBtnCountHtml(name);
+    var name    = btn.getAttribute('data-msg-btn-for');
+    var orderId = btn.getAttribute('data-msg-btn-order');
+    var c = orderMessageCounts(name, orderId);
+    btn.innerHTML = '💬' + orderMsgBtnCountHtml(name, orderId);
     btn.classList.toggle('has-unread', !!c.unread);
     btn.title = c.total
       ? (c.unread ? c.unread + ' unread of ' + c.total : c.total)
-        + ' team message' + (c.total === 1 ? '' : 's') + ' about this customer'
-      : 'Team messages about this customer';
+        + ' team message' + (c.total === 1 ? '' : 's') + ' about this order'
+      : 'Team messages about this order';
   });
 }
 
@@ -329,11 +394,7 @@ function renderMessageThread(idx, customerKey) {
   }
 
   var sig = document.getElementById('ct-msg-sig-' + idx);
-  if (sig) {
-    sig.innerHTML = myName
-      ? 'Sending as: ' + esc(myName) + ' <a href="#" onclick="changeStaffName(' + idx + ');event.preventDefault();event.stopPropagation();return false;">(change)</a>'
-      : '';
-  }
+  if (sig) sig.innerHTML = staffSelectHtml('ct-msg-staff-' + idx);
 }
 
 // ── Send ─────────────────────────────────────
@@ -345,8 +406,8 @@ function sendCustomerMessage(idx) {
   var text = input.value.trim();
   if (!text) return;
 
-  var author = getStaffName();
-  if (!author) return; // cancelled the one-time name prompt
+  var author = requireStaffName('ct-msg-staff-' + idx);
+  if (!author) return;
 
   input.value = '';
 

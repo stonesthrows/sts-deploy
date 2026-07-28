@@ -516,11 +516,20 @@ function tlExportCSV() {
 const TV_KEY = 'sts-trips-verified';
 let tvLoaded = false, tvPanelOpen = false;
 
+// NOTE: this whole tv* block is currently inert — the header pill's markup
+// (#tvWrap / #tvPanel / #tvPanelDate / #tvPanelBody) has never existed in
+// jewelry-workflow.html, so nothing can open the panel. The bail-out below
+// is what keeps that from throwing: tvInit runs on DOMContentLoaded for
+// every page load, and on a weekday it reached straight past both guards
+// into a null .style. Either build the pill or delete this section — until
+// one of those happens, the guard is what stops a console error on boot.
 function tvInit() {
+  const wrap = document.getElementById('tvWrap');
+  if (!wrap) return;
   const day = new Date().getDay();
   if (day < 1 || day > 5) return;
   if (localStorage.getItem(TV_KEY) === tlFmtDate(new Date())) return;
-  document.getElementById('tvWrap').style.display = 'block';
+  wrap.style.display = 'block';
 }
 
 function tvToggle() {
@@ -590,9 +599,12 @@ function tvFlag() {
   toast('Flagged — check TripLog for missing or incorrect trips', '⚠️');
 }
 
+// Document-level, so it fires on every click anywhere in the app — null-safe
+// for the same reason tvInit is.
 document.addEventListener('click', function (e) {
   if (tvPanelOpen && !e.target.closest('.tv-wrap')) {
-    document.getElementById('tvPanel').style.display = 'none';
+    const panel = document.getElementById('tvPanel');
+    if (panel) panel.style.display = 'none';
     tvPanelOpen = false;
   }
 });

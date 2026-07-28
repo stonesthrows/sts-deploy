@@ -435,9 +435,30 @@
       <button class="eo-close" onclick="closeEditOrderModal()" title="Close">×</button>
     </div>
 
+    <!-- Tab bar — sits outside .eo-body so it stays put while a pane
+         scrolls. Each label carries its own state (running total, unread
+         count) so the other panes can be read without switching to them.
+         Switching is eoSwitchTab() in js/orders.js. -->
+    <div class="eo-tabs" role="tablist" aria-label="Order sections">
+      <button type="button" class="eo-tab active" role="tab" aria-selected="true" aria-controls="eo-pane-details"
+              data-eotab="details" onclick="eoSwitchTab('details', this)">Details</button>
+      <button type="button" class="eo-tab" role="tab" aria-selected="false" aria-controls="eo-pane-items"
+              data-eotab="items" onclick="eoSwitchTab('items', this)">
+        <span id="eo-tab-items-label">Items &amp; Price</span>
+        <span class="eo-tab-sub" id="eo-tab-items-total"></span>
+      </button>
+      <button type="button" class="eo-tab" role="tab" aria-selected="false" aria-controls="eo-pane-messages"
+              data-eotab="messages" onclick="eoSwitchTab('messages', this)">
+        Messages
+        <span class="eo-tab-badge" id="eo-tab-msg-badge"></span>
+      </button>
+    </div>
+
     <div class="eo-body">
       <input type="hidden" id="f-editing-id">
       <input type="hidden" id="f-items-json" value="[]">
+
+      <div class="eo-pane active" id="eo-pane-details" role="tabpanel" data-eopane="details">
 
       <!-- View-mode-only identity block: combined Name, Phone, Email, then
            Take In/Due dates — replaces the First/Last Name + Email + Phone +
@@ -899,6 +920,10 @@
         </div>
       </div>
 
+      </div><!-- /#eo-pane-details -->
+
+      <div class="eo-pane" id="eo-pane-items" role="tabpanel" data-eopane="items">
+
       <div class="eo-sec-label">Items &amp; Price</div>
       <div id="eo-items-top">
         <div class="form-grid">
@@ -1095,6 +1120,32 @@
         <div class="fg full">
           <label>Internal Notes</label>
           <textarea id="f-notes" placeholder="Sizing, customer preferences, referral source, etc." style="min-height:48px;"></textarea>
+        </div>
+      </div>
+
+      </div><!-- /#eo-pane-items -->
+
+      <!-- Team Messages — the customer's thread, filtered to this order by
+           default. Messages are keyed per customer (see js/customer-messages.js),
+           so the scope toggle widens to everything about this person rather
+           than walling the order off from it. Rendered by js/order-messages.js. -->
+      <div class="eo-pane" id="eo-pane-messages" role="tabpanel" data-eopane="messages">
+        <div class="eo-msg-scope" role="group" aria-label="Message scope">
+          <button type="button" class="eo-msg-scope-btn active" id="eo-msg-scope-order"
+                  onclick="eoMsgSetScope('order')">This order <span class="eo-msg-scope-n" id="eo-msg-n-order"></span></button>
+          <button type="button" class="eo-msg-scope-btn" id="eo-msg-scope-all"
+                  onclick="eoMsgSetScope('all')">All for <span id="eo-msg-cust"></span> <span class="eo-msg-scope-n" id="eo-msg-n-all"></span></button>
+        </div>
+        <div class="msg-thread" id="eo-msg-thread"></div>
+        <div class="msg-compose">
+          <textarea class="msg-compose-input" id="eo-msg-input"
+                    placeholder="Ask a question or leave a note…"
+                    onkeydown="eoHandleMsgKey(event)"></textarea>
+          <div class="msg-compose-foot">
+            <span class="eo-msg-tagnote" id="eo-msg-tagnote"></span>
+            <span class="msg-sig" id="eo-msg-sig"></span>
+            <button type="button" class="btn btn-gold btn-sm" onclick="eoSendMessage()">Send</button>
+          </div>
         </div>
       </div>
 
@@ -3529,9 +3580,9 @@
 <script src="js/customers.js?v=20260728b"></script>
 <script src="js/app.js?v=20260728a"></script>
 <script src="js/sketchpad.js?v=8"></script>
-<script src="js/order-widgets.js?v=20260727a"></script>
+<script src="js/order-widgets.js?v=20260728a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
-<script src="js/orders.js?v=20260728b"></script>
+<script src="js/orders.js?v=20260728c"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
@@ -3542,7 +3593,8 @@
 <script src="js/sales.js?v=20260720b"></script>
 <script src="js/production.js?v=20260727a"></script>
 <script src="js/notes.js?v=40"></script>
-<script src="js/customer-messages.js?v=6"></script>
+<script src="js/customer-messages.js?v=8"></script>
+<script src="js/order-messages.js?v=2"></script>
 <script src="js/push-notify.js?v=1"></script>
 <script src="js/restock.js?v=20260727a"></script>
 <script src="js/restock-sessions.js?v=20260727a"></script>
@@ -3625,7 +3677,7 @@
   }
 </script>
 <script src="js/designs.js?v=19"></script>
-<script src="js/triplog.js?v=20260727a"></script>
+<script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260727a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
 <script src="js/replenish.js?v=3"></script>

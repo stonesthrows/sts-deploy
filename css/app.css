@@ -870,6 +870,64 @@
       color: var(--text3); cursor: pointer; flex-shrink: 0; padding: 2px 6px;
     }
     .eo-close:hover { color: var(--text); }
+    /* ── Order card tabs ─────────────────────────
+       Sits between .eo-head and .eo-body so it stays put while a pane
+       scrolls. Each label carries its own state — the running total, the
+       unread count — so the panes you're not on can still be read. */
+    .eo-tabs {
+      display: flex; gap: 2px; flex-shrink: 0;
+      padding: 0 12px; overflow-x: auto;
+      background: var(--card-head-bg);
+      border-bottom: 1px solid var(--bdr);
+    }
+    .eo-tab {
+      appearance: none; background: none; border: none;
+      border-bottom: 2px solid transparent;
+      padding: 11px 13px; cursor: pointer; white-space: nowrap;
+      font-size: 12.5px; font-weight: 600; color: var(--text2);
+      display: flex; align-items: center; gap: 7px;
+      transition: color var(--dur-fast) var(--ease-smooth),
+                  border-color var(--dur-fast) var(--ease-smooth);
+    }
+    .eo-tab:hover { color: var(--text); }
+    .eo-tab.active { color: var(--accent-fg); border-bottom-color: var(--accent); }
+    .eo-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .eo-tab-sub {
+      font-size: 11.5px; font-weight: 700; color: var(--text3);
+      font-variant-numeric: tabular-nums;
+    }
+    .eo-tab.active .eo-tab-sub { color: var(--accent-fg); }
+    .eo-tab-badge {
+      background: var(--accent); color: var(--accent-ink);
+      font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 10px;
+    }
+    .eo-pane { display: none; }
+    .eo-pane.active { display: block; }
+
+    /* Scope toggle on the Messages tab — messages are keyed per customer,
+       so "this order" is a filter over that thread, not a separate one. */
+    .eo-msg-scope { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .eo-msg-scope-btn {
+      appearance: none; cursor: pointer;
+      border: 1px solid var(--bdr); border-radius: 20px;
+      background: var(--card-bg); color: var(--text2);
+      padding: 5px 12px; font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .eo-msg-scope-btn:hover { background: var(--surface2); }
+    .eo-msg-scope-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .eo-msg-scope-btn.active {
+      background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent-fg);
+    }
+    .eo-msg-scope-n {
+      font-size: 10.5px; font-weight: 700; color: var(--text3);
+      font-variant-numeric: tabular-nums;
+    }
+    .eo-msg-scope-btn.active .eo-msg-scope-n { color: var(--accent-fg); }
+    .eo-msg-tagnote { font-size: 11px; color: var(--text3); }
+    #eo-pane-messages .msg-thread { max-height: none; }
+
     .eo-body { overflow-y: auto; padding: 16px 20px; flex: 1; min-height: 0; }
     .eo-body .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 14px; }
     @media (min-width: 720px) { .eo-body .form-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -1668,9 +1726,23 @@
     }
     .msg-compose-input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
     .msg-compose-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .msg-sig { font-size: 11px; color: var(--text3); margin-left: auto; }
-    .msg-sig a { color: var(--accent); text-decoration: none; }
-    .msg-sig a:hover { text-decoration: underline; }
+    .msg-sig {
+      font-size: 11px; color: var(--text3); margin-left: auto;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    /* "Sending as" — a roster pick, not free text. There are no accounts
+       behind this (one shared key, see js/customer-messages.js), so the
+       list is the studio's staff and the choice is remembered per device. */
+    .msg-staff-select {
+      font-family: inherit; font-size: 11.5px; font-weight: 600;
+      color: var(--text); background: var(--input-bg);
+      border: 1px solid var(--bdr); border-radius: var(--rad-sm);
+      padding: 3px 6px; cursor: pointer;
+    }
+    .msg-staff-select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+    /* Flagged after a send was attempted with nobody picked. Cleared on the
+       next render, which a pick triggers. */
+    .msg-staff-select.needs-pick { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
 
     /* ── Topbar message bell + popup bubble ──── */
     /* Anchored-popover pattern mirrors .overflow-wrap/.overflow-menu above;

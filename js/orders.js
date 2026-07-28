@@ -244,11 +244,16 @@ function cardHTML(o) {
 // The message segment is always rendered, even at zero messages, so there
 // is always somewhere to start a thread from — the count and its unread
 // styling are what vary, refreshed in place by renderAllOrderMsgChips()
-// (js/customer-messages.js) via the data-msg-btn-for slot.
+// (js/customer-messages.js) via the data-msg-btn-* slots.
+//
+// It counts and opens *this order's* thread, the same scope rule the order
+// card's Messages tab follows (js/order-messages.js): the card belongs to
+// one job, so the customer's other job must not light it up. Widening to
+// everything about that person is the scope toggle's job, one click deeper.
 function cardActionBarHTML(o) {
   const nameAttr = esc(o.name);
-  const unread = (typeof messageCountsForName === 'function')
-    ? messageCountsForName(o.name).unread : 0;
+  const unread = (typeof unreadMessageCount === 'function' && typeof custKey === 'function')
+    ? unreadMessageCount(custKey(o.name), o.id) : 0;
   return `
       <div class="card-actbar">
         <button class="card-act card-act-print"
@@ -260,11 +265,12 @@ function cardActionBarHTML(o) {
                 aria-label="Choose bag style"
                 onclick="event.stopPropagation(); openBagStyleSheet('${o.id}')">▾</button>
         <button class="card-act card-act-msg${unread ? ' has-unread' : ''}"
-                title="Team messages about this customer"
-                aria-label="Team messages about this customer"
+                title="Team messages about this order"
+                aria-label="Team messages about this order"
                 data-msg-btn-for="${nameAttr}"
-                onclick="event.stopPropagation(); openMessagesForCustomer('${escAttrJs(o.name)}')"
-                >💬${typeof orderMsgBtnCountHtml === 'function' ? orderMsgBtnCountHtml(o.name) : ''}</button>
+                data-msg-btn-order="${o.id}"
+                onclick="event.stopPropagation(); openOrderMessages('${o.id}')"
+                >💬${typeof orderMsgBtnCountHtml === 'function' ? orderMsgBtnCountHtml(o.name, o.id) : ''}</button>
         <button class="card-act card-act-intake"
                 title="Open and edit this order in the Intake app"
                 aria-label="Open in Intake"
@@ -276,11 +282,12 @@ function cardActionBarHTML(o) {
       </div>`;
 }
 
-// Customer names go into an inline onclick as a JS string literal, so the
-// quote/backslash escaping is a separate job from esc()'s HTML escaping —
-// same pair orderMsgChipHtml() has always done for its own chip.
-function escAttrJs(name) {
-  return esc(String(name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+// The card's message segment lands on the order card's Messages tab rather
+// than the Customers tab: the thread there is already filtered to this
+// order, and it is the only place a reply can be written.
+function openOrderMessages(orderId) {
+  openOrderCard(orderId);
+  eoSwitchTab('messages', document.querySelector('#editOrderModalBg .eo-tab[data-eotab="messages"]'));
 }
 
 // Order-type-driven module state (this modal only — intake.html has its
@@ -305,6 +312,11 @@ function eoApplyOrderTypeModule(type) {
   if (oiGrid) oiGrid.style.display = (isCustomOrder || isSquare) ? 'none' : '';
   const estModule = document.getElementById('eo-estimate-module');
   if (estModule) estModule.style.display = isCustomOrder ? '' : 'none';
+  // Name the tab after what the pane actually contains for this order type:
+  // Custom Orders price via the Estimate Builder, everything else via the
+  // manual Order Items list.
+  const itemsLabel = document.getElementById('eo-tab-items-label');
+  if (itemsLabel) itemsLabel.textContent = isCustomOrder ? 'Estimate' : 'Items & Price';
   if (isSquare) {
     _jdMode = 'square';
     if (!_oiItems.length) _oiItems = [{ type: 'square', name: '', sku: '', price: 0, squareItemId: null, squareVariationId: null }];
@@ -547,6 +559,26 @@ const EO_ORDER_TYPE_LABELS = {
 };
 function eoOrderTypeLabel(type) { return EO_ORDER_TYPE_LABELS[type] || EO_ORDER_TYPE_LABELS.order; }
 
+// ── Order card tabs ──────────────────────────
+// Panes are wrapped around the existing sections in jewelry-workflow.html;
+// nothing moved out of #eo-design-module / #eo-intake-module etc., so the
+// module-scoped CSS and the populate-by-id code both still land.
+function eoSwitchTab(name, btn) {
+  document.querySelectorAll('#editOrderModalBg .eo-tab').forEach(t => {
+    const on = t === btn || t.getAttribute('data-eotab') === name;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('#editOrderModalBg .eo-pane').forEach(p => {
+    p.classList.toggle('active', p.getAttribute('data-eopane') === name);
+  });
+  // Each pane is its own scroll context conceptually — land at the top of
+  // the one just opened rather than wherever the last pane was scrolled to.
+  const body = document.querySelector('#editOrderModalBg .eo-body');
+  if (body) body.scrollTop = 0;
+  if (name === 'messages' && typeof eoRenderMessages === 'function') eoRenderMessages();
+}
+
 function openOrderCard(id) {
   const o = ORDERS.find(x => x.id === id);
   if (!o) return;
@@ -562,6 +594,10 @@ function openOrderCard(id) {
   // scrollHeight, which reads back 0 while the modal is still display:none.
   document.getElementById('editOrderModalBg').classList.add('open');
   eoSetMode('view');
+  // Always open on Details — a card reopened on whatever tab was last used
+  // hides the order behind a thread or a price sheet.
+  eoSwitchTab('details', document.querySelector('#editOrderModalBg .eo-tab[data-eotab="details"]'));
+  if (typeof eoRenderMessages === 'function') eoRenderMessages();
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
 }
