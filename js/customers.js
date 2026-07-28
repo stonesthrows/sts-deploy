@@ -714,70 +714,16 @@ function toggleCustomerRow(idx) {
   if (typeof loadMessagesForCustomer === 'function') loadMessagesForCustomer(c.name, idx);
 }
 
+// Thin wrapper — the fetch/render lives in js/gmail.js as renderGmailThreads()
+// so the order card's Gmail tab can reuse it verbatim.
 function loadCustomerGmail(email, idx) {
   const container = document.getElementById('ct-gmail-' + idx);
   if (!container) return;
-
-  if (!email) {
-    container.innerHTML = '<div class="ct-exp-gmail-msg">No email address on file.</div>';
+  if (typeof renderGmailThreads !== 'function') {
+    container.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
     return;
   }
-
-  if (typeof _gmailTokenValid !== 'function' || !_gmailTokenValid()) {
-    container.innerHTML = '<div class="ct-exp-gmail-msg"><button class="btn btn-outline btn-sm" onclick="gmailSignIn(true)">🔑 Connect Gmail to see correspondence</button></div>';
-    return;
-  }
-
-  const hdrs  = { 'Authorization': 'Bearer ' + _gmailAccessToken };
-  const query = encodeURIComponent('from:' + email + ' OR to:' + email);
-
-  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=8', { headers: hdrs })
-    .then(r => r.json())
-    .then(listData => {
-      const ids = (listData.threads || []).map(t => t.id);
-      if (!ids.length) {
-        container.innerHTML = '<div class="ct-exp-gmail-msg">No Gmail correspondence found.</div>';
-        return null;
-      }
-      return Promise.all(ids.map(id =>
-        fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
-          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date',
-          { headers: hdrs }
-        ).then(r => r.ok ? r.json() : null)
-      ));
-    })
-    .then(details => {
-      if (!details) return;
-      const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const html = details.filter(Boolean).map(thread => {
-        const msgs = thread.messages || [];
-        const last = msgs[msgs.length - 1];
-        if (!last) return '';
-        const h = {};
-        ((last.payload && last.payload.headers) || []).forEach(hdr => h[hdr.name.toLowerCase()] = hdr.value);
-        const subject  = h['subject'] || '(no subject)';
-        const rawFrom  = h['from'] || '';
-        const fromName = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g,'').trim();
-        const dateObj  = h['date'] ? new Date(h['date']) : new Date();
-        const age      = typeof _formatAge === 'function' ? _formatAge(dateObj) : dateObj.toLocaleDateString();
-        const snippet  = (last.snippet||'').replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-        const isUnread = (last.labelIds||[]).includes('UNREAD');
-        const gmailUrl = 'https://mail.google.com/mail/u/0/#inbox/' + thread.id;
-        return `<a class="ct-gmail-thread" href="${esc(gmailUrl)}" target="_blank" onclick="event.stopPropagation()">
-          <div class="ct-gmail-row1">
-            ${isUnread ? '<span class="ct-gmail-unread-dot"></span>' : ''}
-            <span class="ct-gmail-from">${esc(fromName || email)}</span>
-            <span class="ct-gmail-date">${esc(age)}</span>
-          </div>
-          <div class="ct-gmail-subject">${esc(subject)}</div>
-          <div class="ct-gmail-snippet">${esc(snippet)}</div>
-        </a>`;
-      }).join('');
-      container.innerHTML = html || '<div class="ct-exp-gmail-msg">No correspondence found.</div>';
-    })
-    .catch(() => {
-      container.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
-    });
+  renderGmailThreads(container, email);
 }
 
 // New orders are created in the standalone Intake app (intake.html) —

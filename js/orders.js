@@ -577,6 +577,28 @@ function eoSwitchTab(name, btn) {
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
   if (name === 'messages' && typeof eoRenderMessages === 'function') eoRenderMessages();
+  if (name === 'gmail') eoLoadGmail();
+}
+
+// Gmail correspondence for the open order's own email address. Fetched on
+// first switch to the tab rather than on modal open — it costs a list call
+// plus one per thread, which is wasted on every card you open and close
+// without looking at the email. _eoGmailFor tracks which order the pane is
+// currently showing so re-switching to the tab doesn't refetch.
+let _eoGmailFor = null;
+
+function eoLoadGmail() {
+  const box = document.getElementById('eo-gmail-view');
+  if (!box) return;
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  if (_eoGmailFor === id && box.innerHTML.trim()) return;
+  _eoGmailFor = id;
+  if (typeof renderGmailThreads !== 'function') {
+    box.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
+    return;
+  }
+  const o = ORDERS.find(x => x.id === id);
+  renderGmailThreads(box, ((o && o.email) || '').trim());
 }
 
 function openOrderCard(id) {
@@ -598,6 +620,13 @@ function openOrderCard(id) {
   // hides the order behind a thread or a price sheet.
   eoSwitchTab('details', document.querySelector('#editOrderModalBg .eo-tab[data-eotab="details"]'));
   if (typeof eoRenderMessages === 'function') eoRenderMessages();
+  // Drop the previous order's threads so the pane can never show the wrong
+  // customer's mail; the same order keeps its already-fetched list.
+  if (_eoGmailFor !== id) {
+    const gbox = document.getElementById('eo-gmail-view');
+    if (gbox) gbox.innerHTML = '';
+    _eoGmailFor = null;
+  }
   const body = document.querySelector('#editOrderModalBg .eo-body');
   if (body) body.scrollTop = 0;
 }

@@ -461,6 +461,8 @@
         Messages
         <span class="eo-tab-badge" id="eo-tab-msg-badge"></span>
       </button>
+      <button type="button" class="eo-tab" role="tab" aria-selected="false" aria-controls="eo-pane-gmail"
+              data-eotab="gmail" onclick="eoSwitchTab('gmail', this)">Gmail</button>
     </div>
 
     <div class="eo-body">
@@ -1156,6 +1158,15 @@
             <button type="button" class="btn btn-gold btn-sm" onclick="eoSendMessage()">Send</button>
           </div>
         </div>
+      </div>
+
+      <!-- Gmail Correspondence — live from the Gmail REST API, keyed on this
+           order's own email address. Fetched on first switch to the tab, not
+           on modal open, so opening a card costs nothing. Scoped to the
+           person rather than the job: a repeat customer shows every thread
+           with them. Read-only — replies happen in Gmail. -->
+      <div class="eo-pane" id="eo-pane-gmail" role="tabpanel" data-eopane="gmail">
+        <div id="eo-gmail-view"></div>
       </div>
 
     </div>
@@ -3596,19 +3607,19 @@
 <script src="js/data.js?v=20260720c"></script>
 <script src="js/order-normalize.js?v=20260727c"></script>
 <script src="js/notion.js?v=20260722d"></script>
-<script src="js/customers.js?v=20260728b"></script>
+<script src="js/customers.js?v=20260728d"></script>
 <script src="js/app.js?v=20260728c"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260728a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
-<script src="js/orders.js?v=20260728c"></script>
+<script src="js/orders.js?v=20260728d"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
 <script src="js/drive.js?v=20260728b"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
-<script src="js/gmail.js?v=20260720a"></script>
+<script src="js/gmail.js?v=20260728d"></script>
 <script src="js/sales.js?v=20260720b"></script>
 <script src="js/production.js?v=20260727a"></script>
 <script src="js/notes.js?v=40"></script>

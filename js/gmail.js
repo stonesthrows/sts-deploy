@@ -817,6 +817,82 @@ function loadCachedThreads() {
   return false;
 }
 
+// ── Correspondence for one address ────────────
+//  Shared by the Customers tab card (loadCustomerGmail in js/customers.js)
+//  and the order card's Gmail tab (eoLoadGmail in js/orders.js).
+//  Pulls live from the Gmail REST API — no cache, no server hop — so it
+//  needs a valid OAuth token and reflects the mailbox as of right now.
+//  Scoped to the address, NOT to one order: a repeat customer shows every
+//  thread with them, across all their jobs.
+
+function renderGmailThreads(el, email) {
+  if (!el) return;
+
+  if (!email) {
+    el.innerHTML = '<div class="ct-exp-gmail-msg">No email address on file.</div>';
+    return;
+  }
+
+  if (!_gmailTokenValid()) {
+    el.innerHTML = '<div class="ct-exp-gmail-msg"><button class="btn btn-outline btn-sm" onclick="gmailSignIn(true)">🔑 Connect Gmail to see correspondence</button></div>';
+    return;
+  }
+
+  el.innerHTML = '<div class="ct-exp-gmail-msg">⏳ Loading…</div>';
+
+  var hdrs  = { 'Authorization': 'Bearer ' + _gmailAccessToken };
+  var query = encodeURIComponent('from:' + email + ' OR to:' + email);
+
+  fetch('https://www.googleapis.com/gmail/v1/users/me/threads?q=' + query + '&maxResults=8', { headers: hdrs })
+    .then(function(r) { return r.json(); })
+    .then(function(listData) {
+      var ids = (listData.threads || []).map(function(t) { return t.id; });
+      if (!ids.length) {
+        el.innerHTML = '<div class="ct-exp-gmail-msg">No Gmail correspondence found.</div>';
+        return null;
+      }
+      return Promise.all(ids.map(function(id) {
+        return fetch('https://www.googleapis.com/gmail/v1/users/me/threads/' + id +
+          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date',
+          { headers: hdrs }
+        ).then(function(r) { return r.ok ? r.json() : null; });
+      }));
+    })
+    .then(function(details) {
+      if (!details) return;
+      var html = details.filter(Boolean).map(function(thread) {
+        var msgs = thread.messages || [];
+        var last = msgs[msgs.length - 1];
+        if (!last) return '';
+        var h = {};
+        ((last.payload && last.payload.headers) || []).forEach(function(hdr) {
+          h[hdr.name.toLowerCase()] = hdr.value;
+        });
+        var subject  = h['subject'] || '(no subject)';
+        var rawFrom  = h['from'] || '';
+        var fromName = rawFrom.replace(/<[^>]+>/, '').trim().replace(/^"|"$/g, '').trim();
+        var dateObj  = h['date'] ? new Date(h['date']) : new Date();
+        var age      = _formatAge(dateObj);
+        var snippet  = _decodeSnippet(last.snippet || '');
+        var isUnread = (last.labelIds || []).includes('UNREAD');
+        var gmailUrl = 'https://mail.google.com/mail/u/0/#inbox/' + thread.id;
+        return '<a class="ct-gmail-thread" href="' + _esc(gmailUrl) + '" target="_blank" onclick="event.stopPropagation()">'
+          + '<div class="ct-gmail-row1">'
+          + (isUnread ? '<span class="ct-gmail-unread-dot"></span>' : '')
+          + '<span class="ct-gmail-from">' + _esc(fromName || email) + '</span>'
+          + '<span class="ct-gmail-date">' + _esc(age) + '</span>'
+          + '</div>'
+          + '<div class="ct-gmail-subject">' + _esc(subject) + '</div>'
+          + '<div class="ct-gmail-snippet">' + _esc(snippet) + '</div>'
+          + '</a>';
+      }).join('');
+      el.innerHTML = html || '<div class="ct-exp-gmail-msg">No correspondence found.</div>';
+    })
+    .catch(function() {
+      el.innerHTML = '<div class="ct-exp-gmail-msg">Could not load Gmail threads.</div>';
+    });
+}
+
 // ── Square Invoice ────────────────────────────
 
 function _gtSqPublishInvoice(invoiceId, version, statusEl) {
