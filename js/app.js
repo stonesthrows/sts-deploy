@@ -594,6 +594,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load Team Messages (Customer Card Q&A threads) and start their poller
     if (typeof loadMessages === 'function') loadMessages();
 
+    // If this device is already signed into Google for Drive/Calendar, use
+    // that account to fill in who's sending messages. No-ops when there's no
+    // token, and never overrides a name picked by hand.
+    if (typeof resolveStaffFromGoogle === 'function') resolveStaffFromGoogle();
+
     // Push-notification deep link (?openCustomer=<name>) — jump straight to
     // that customer's Team Messages thread. Runs after CUSTOMERS is
     // populated above so the row lookup inside openMessagesForCustomer

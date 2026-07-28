@@ -48,6 +48,9 @@ window.addEventListener('message', function (e) {
   localStorage.setItem(GOOGLE_TOKEN_KEY, e.data.token);
   localStorage.setItem(GOOGLE_EXPIRY_KEY, String(Date.now() + parseInt(e.data.expiresIn) * 1000));
   toast('Connected to Google ✓', '✓');
+  // A fresh token is the one moment identity is guaranteed resolvable, so
+  // take it — this is what fills in "Sending as" without anyone being asked.
+  if (typeof resolveStaffFromGoogle === 'function') resolveStaffFromGoogle();
   if (_oauthCallback) { const cb = _oauthCallback; _oauthCallback = null; cb(); }
 });
 
@@ -58,7 +61,11 @@ function triggerGoogleOAuth(clientId, callback) {
   const redirectUri = window.location.origin + window.location.pathname;
   const scopes = [
     'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/contacts'
+    'https://www.googleapis.com/auth/contacts',
+    // Identity, used only to auto-fill "Sending as" on Team Messages (see
+    // resolveStaffFromGoogle in js/customer-messages.js). Adding these
+    // changes the consent screen, so the next connect re-prompts once.
+    'openid', 'email', 'profile'
   ].join(' ');
   const url = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id='     + encodeURIComponent(clientId)

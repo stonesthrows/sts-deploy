@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260728e">
+  <link rel="stylesheet" href="css/app.css?v=20260728f">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -203,6 +203,15 @@
     <button class="msg-bell-btn" onclick="messageBellClick()" title="Team Messages" aria-label="Team Messages">💬</button>
     <span class="msg-bell-badge" id="msgBellBadge"></span>
   </div>
+  <!-- Who Team Messages get posted as. Lives in the topbar, not just inside
+       the compose boxes, so a wrong name on a shared device is visible before
+       a message goes out rather than after. Options are filled by
+       renderTopbarStaff() in js/customer-messages.js. -->
+  <label class="topbar-who unset" title="Team Messages are posted under this name">
+    <span class="topbar-who-ico" aria-hidden="true">👤</span>
+    <select id="topbarStaffSelect" class="topbar-who-select"
+            aria-label="Post Team Messages as" onchange="setStaffName(this.value)"></select>
+  </label>
   <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Switch to dark mode" aria-label="Switch to dark mode" style="font-size:15px;">☾</button>
   <button class="theme-btn" onclick="openIntegrationsModal()" title="Configure API keys and integrations" style="font-size:15px;">🔌</button>
   <button class="theme-btn" onclick="openDataMapModal()" title="Data storage map" style="font-size:15px;">🗺️</button>
@@ -3578,7 +3587,7 @@
 <script src="js/order-normalize.js?v=20260727c"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/customers.js?v=20260728b"></script>
-<script src="js/app.js?v=20260728a"></script>
+<script src="js/app.js?v=20260728b"></script>
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260728a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
@@ -3586,7 +3595,7 @@
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
-<script src="js/drive.js?v=20260728a"></script>
+<script src="js/drive.js?v=20260728b"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260720a"></script>

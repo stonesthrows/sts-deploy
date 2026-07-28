@@ -4817,6 +4817,30 @@
       transition: background 0.15s; line-height: 1; display: flex; align-items: center;
     }
     .theme-btn:hover { background: var(--hdr-pill); }
+
+    /* ── Topbar "posting as" identity ─────────
+       Advisory, not a login: every device sends the same shared key, so this
+       says who messages are attributed to, nothing more. Sits in the topbar
+       so a wrong name is caught before a message is sent, not after. */
+    .topbar-who {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 6px 3px 8px; border-radius: 8px;
+      background: var(--hdr-pill); border: 1px solid transparent;
+      cursor: pointer; line-height: 1;
+    }
+    .topbar-who:hover { border-color: var(--bdr); }
+    .topbar-who-ico { font-size: 12px; opacity: 0.75; }
+    .topbar-who-select {
+      appearance: none; background: none; border: none; cursor: pointer;
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      color: var(--text2); padding: 2px 2px; max-width: 96px;
+    }
+    .topbar-who-select:focus { outline: none; }
+    .topbar-who:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    /* Nobody picked yet — messages can't be sent until this is answered, so
+       it reads as an open question rather than a neutral chip. */
+    .topbar-who.unset { background: var(--warn-bg); }
+    .topbar-who.unset .topbar-who-select { color: var(--warn-fg); }
     /* Mobile-only Restock Queue edit toggle — only shown while that tab is
        active (via :has()), and only on narrow viewports; desktop always
        keeps the per-bar Edit button instead. */
@@ -5048,6 +5072,9 @@
     .header-pill.sync-pill { display: flex; padding: 4px 10px; }
     .sync-pill .conn-label { display: none; }
     .theme-btn { font-size: 14px; padding: 4px 6px; }
+    /* Narrow topbar: keep the name legible but let it give up width first. */
+    .topbar-who { padding: 3px 4px 3px 6px; }
+    .topbar-who-select { font-size: 11.5px; max-width: 72px; }
 
     /* Nav */
     .nav { padding: 0 8px; }

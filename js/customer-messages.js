@@ -79,15 +79,14 @@ function setStaffName(name) {
   name = (name || '').trim();
   if (name) localStorage.setItem(MSG_STAFF_NAME_KEY, name);
   else       localStorage.removeItem(MSG_STAFF_NAME_KEY);
+  if (name && typeof rememberStaffForGoogle === 'function') rememberStaffForGoogle(name);
   // Who you are decides which bubbles read as yours and which messages
   // count as unread to you, so every open thread has to repaint.
   _msgRenderOpenThreads();
   renderAllMessageBadges();
 }
 
-// The "Sending as" picker, shared by the Customer Card and the order card's
-// Messages tab. `id` differs per mount so the two can coexist on the page.
-function staffSelectHtml(id) {
+function staffOptionsHtml() {
   var current = getStaffName();
   var roster  = MSG_STAFF.slice();
   // A name saved before this roster existed — or typed on another device —
@@ -95,13 +94,94 @@ function staffSelectHtml(id) {
   // own messages to somebody else, since "is this mine?" is an author-name
   // match, not an account check.
   if (current && roster.indexOf(current) === -1) roster.push(current);
-  var opts = '<option value=""' + (current ? '' : ' selected') + '>— who are you? —</option>'
+  return '<option value=""' + (current ? '' : ' selected') + '>— who are you? —</option>'
     + roster.map(function(n) {
         return '<option value="' + esc(n) + '"' + (n === current ? ' selected' : '') + '>' + esc(n) + '</option>';
       }).join('');
+}
+
+// The "Sending as" picker, shared by the Customer Card and the order card's
+// Messages tab. `id` differs per mount so the two can coexist on the page.
+function staffSelectHtml(id) {
   return 'Sending as <select class="msg-staff-select" id="' + id + '"'
     + ' aria-label="Send messages as" onchange="setStaffName(this.value)"'
-    + ' onclick="event.stopPropagation()">' + opts + '</select>';
+    + ' onclick="event.stopPropagation()">' + staffOptionsHtml() + '</select>';
+}
+
+// Topbar copy of the same picker — the identity is app-wide, so it belongs
+// where you can see it before opening a card, not only inside a compose box.
+function renderTopbarStaff() {
+  var sel = document.getElementById('topbarStaffSelect');
+  if (!sel) return;
+  var current = getStaffName();
+  // Rebuild only when the option list actually has to change (first paint,
+  // or a legacy name that isn't on the roster). renderAllMessageBadges()
+  // runs on every 30s poll, and replacing the options each time would snap
+  // the dropdown shut while somebody was choosing from it.
+  var known = Array.prototype.some.call(sel.options, function(o) { return o.value === current; });
+  if (!sel.options.length || !known) sel.innerHTML = staffOptionsHtml();
+  sel.value = current;
+  var wrap = sel.closest('.topbar-who');
+  if (wrap) wrap.classList.toggle('unset', !current);
+}
+
+// ── Google-account auto-fill ─────────────────
+// Fills "Sending as" from the Google account this device is already signed
+// into for Drive/Calendar, so nobody has to pick on their own phone. This
+// is advisory, not authentication: every device still sends the same shared
+// X-STS-Key, so the server cannot tell callers apart and this only saves a
+// tap. It never overwrites a name that was chosen by hand.
+const MSG_GOOGLE_EMAIL_KEY = 'sts-google-email';
+const MSG_STAFF_MAP_KEY    = 'sts-staff-by-google';   // { email: staffName }
+
+function _msgLearnedStaffMap() {
+  try { return JSON.parse(localStorage.getItem(MSG_STAFF_MAP_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+
+function staffNameForGoogle(info) {
+  var email = (info.email || '').toLowerCase();
+  // 1. What this Google account picked last time, on any device.
+  var learned = _msgLearnedStaffMap();
+  if (email && learned[email]) return learned[email];
+  // 2. Otherwise match the Google first name against the roster — which is
+  //    what makes this work on day one, with nobody's email written down.
+  var given = (info.given_name || (info.name || '').split(' ')[0] || '').trim().toLowerCase();
+  for (var i = 0; i < MSG_STAFF.length; i++) {
+    if (MSG_STAFF[i].toLowerCase() === given) return MSG_STAFF[i];
+  }
+  return '';
+}
+
+// Ties the signed-in Google account to whatever name was picked, so the next
+// device that account signs into fills itself in.
+function rememberStaffForGoogle(name) {
+  var email = (localStorage.getItem(MSG_GOOGLE_EMAIL_KEY) || '').toLowerCase();
+  if (!email || !name) return;
+  var learned = _msgLearnedStaffMap();
+  if (learned[email] === name) return;
+  learned[email] = name;
+  try { localStorage.setItem(MSG_STAFF_MAP_KEY, JSON.stringify(learned)); } catch (e) {}
+}
+
+function resolveStaffFromGoogle() {
+  var token = (typeof getGoogleToken === 'function') ? getGoogleToken() : null;
+  if (!token) return Promise.resolve();
+  return fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { 'Authorization': 'Bearer ' + token },
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(info) {
+      // A 401/403 here just means the token predates the identity scopes —
+      // Drive and Calendar keep working, this feature simply stays off until
+      // the next time they connect.
+      if (!info || !info.email) return;
+      try { localStorage.setItem(MSG_GOOGLE_EMAIL_KEY, info.email.toLowerCase()); } catch (e) {}
+      if (getStaffName()) return;              // a hand-picked name always wins
+      var name = staffNameForGoogle(info);
+      if (name) setStaffName(name);
+    })
+    .catch(function() { /* offline, or no identity scope — stay on the picker */ });
 }
 
 // Shared guard for both send paths: you cannot post anonymously, and the
@@ -172,6 +252,7 @@ function totalUnreadMessages() {
 // aren't in the DOM (e.g. filtered out by search/sub-tab).
 function renderAllMessageBadges() {
   renderMessageBell();
+  renderTopbarStaff();
   renderAllOrderMsgChips();
   if (typeof eoUpdateMsgTabBadge === 'function') eoUpdateMsgTabBadge();
   if (typeof CUSTOMERS === 'undefined') return;
