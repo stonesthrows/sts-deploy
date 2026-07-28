@@ -1094,7 +1094,14 @@
     }
 
     /* Estimate materials list — same invoice-row treatment, minus the
-       Stuller-search/remove columns which eo-edit-only already hides */
+       Stuller-search/remove columns which eo-edit-only already hides.
+       The per-line markup (×) goes too: it is an input to the price, not
+       the price, and the Cost column already shows the marked-up figure.
+       Hiding it is what makes the 2-column grid below correct — left
+       visible it was a third item wrapping onto its own row, which is how
+       a read-only estimate came out as "Silver … 50.00" / "2.5". */
+    .eo-modal.eo-view-mode .est-mult-input,
+    .eo-modal.eo-view-mode .est-col-mult { display: none; }
     .eo-modal.eo-view-mode .est-row {
       grid-template-columns: 1fr 110px; border-bottom: 1px solid var(--bdr-light); padding-bottom: 8px;
     }

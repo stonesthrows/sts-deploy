@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260728b">
+  <link rel="stylesheet" href="css/app.css?v=20260728c">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -929,12 +929,15 @@
                 <div class="form-sec-label" style="margin-bottom:0;">Materials</div>
                 <button class="btn btn-ghost btn-sm eo-edit-only" onclick="addMaterialRow()">＋ Add Line</button>
               </div>
+              <!-- Each label lines up with a control in .est-row, so a label
+                   whose control is edit-only has to disappear with it — or the
+                   read-only card's 2-column grid gets 5 items and wraps. -->
               <div class="est-col-labels">
                 <div class="est-col-label">Description</div>
-                <div class="est-col-label"></div>
+                <div class="est-col-label eo-edit-only"></div>
                 <div class="est-col-label">Cost ($)</div>
-                <div class="est-col-label" style="text-align:center;">×</div>
-                <div class="est-col-label"></div>
+                <div class="est-col-label est-col-mult" style="text-align:center;">×</div>
+                <div class="est-col-label eo-edit-only"></div>
               </div>
               <div id="est-materials"></div>
             </div>
