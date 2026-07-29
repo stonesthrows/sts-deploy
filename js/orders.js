@@ -381,12 +381,25 @@ function eoPopulateFields(o) {
 
 // Swaps "Mark Complete" for "Undo Complete" in the footer once an order has
 // actually been completed — Undo only ever makes sense from that state.
+// Shopify/Etsy orders ship instead of getting picked up, so they always get
+// "Mark Shipped" in place of "Ready to Deliver".
 function eoUpdateCompleteButtons(o) {
   const isComplete  = o.stage === 'complete';
+  const isShipped   = o.stage === 'ship-out';
+  const isEcommerce = o.orderKind === 'shopify' || o.orderKind === 'etsy';
   const btnComplete = document.getElementById('eo-btn-complete');
+  const btnShipped  = document.getElementById('eo-btn-mark-shipped');
   const btnUndo     = document.getElementById('eo-btn-undo-complete');
-  if (btnComplete) btnComplete.style.display = isComplete ? 'none' : '';
-  if (btnUndo)      btnUndo.style.display     = isComplete ? '' : 'none';
+
+  if (isEcommerce) {
+    if (btnComplete) btnComplete.style.display = 'none';
+    if (btnShipped)  btnShipped.style.display  = isShipped ? 'none' : '';
+    if (btnUndo)      btnUndo.style.display     = 'none';
+  } else {
+    if (btnShipped)  btnShipped.style.display  = 'none';
+    if (btnComplete) btnComplete.style.display = isComplete ? 'none' : '';
+    if (btnUndo)      btnUndo.style.display     = isComplete ? '' : 'none';
+  }
 }
 
 // Seeds the shared ring-fields engine (js/ring-fields.js) from an order
@@ -1128,6 +1141,26 @@ function closeEditOrderModal() {
   const compose = document.getElementById('eo-invoice-compose');
   if (compose) { compose.style.display = 'none'; compose.innerHTML = ''; }
   eoSetMode('view');
+}
+
+function markOrderShipped() {
+  const id = document.getElementById('f-editing-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  if (!o) return;
+
+  if (!confirm(`Mark "${o.name}" as Shipped?`)) return;
+
+  o.stage    = 'ship-out';
+  o.tracking = o.tracking || {};
+  o.tracking.shippedAt = new Date().toISOString();
+
+  renderKanban();
+  closeEditOrderModal();
+
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
+
+  saveToStorage();
+  toast(`${o.name} marked as shipped ✓`, '✓');
 }
 
 function openReadyToDeliverModal() {
