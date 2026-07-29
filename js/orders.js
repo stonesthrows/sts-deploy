@@ -608,8 +608,9 @@ function eoLoadGmail() {
 // rides to Notion through the generic App Data blob (APP_DATA_FIELDS in
 // functions/api/notion-pipeline.js) — no dedicated Notion property needed.
 // Deadline is a target date, not something that already happened like the
-// rest of these — kept out of EO_TIMELINE_KEYDATES proper and rendered
-// after a gap, at the very bottom of the key-dates strip.
+// rest of these — kept out of EO_TIMELINE_KEYDATES proper and rendered in
+// its own #eo-timeline-deadline slot, pinned to the very bottom of the
+// whole timeline pane (below the milestone list), see eoRenderTimeline().
 const EO_TIMELINE_KEYDATES = [
   { field: 'takeIn',      label: 'Intake' },
   { field: 'contactedAt', label: 'Contacted Customer' },
@@ -633,12 +634,7 @@ function eoRenderTimeline() {
   const keyBox = document.getElementById('eo-timeline-keydates');
   if (keyBox) {
     const rows = EO_TIMELINE_KEYDATES.filter(k => o[k.field]).map(k => _eoTimelineKeyRow(k, o)).join('');
-    const deadlineRow = o[EO_TIMELINE_DEADLINE.field]
-      ? '<div style="margin-top:14px;">' + _eoTimelineKeyRow(EO_TIMELINE_DEADLINE, o) + '</div>'
-      : '';
-    keyBox.innerHTML = (rows || deadlineRow)
-      ? (rows || '') + deadlineRow
-      : '<div style="color:var(--text-dim);font-size:13px;">No key dates recorded yet.</div>';
+    keyBox.innerHTML = rows || '<div style="color:var(--text-dim);font-size:13px;">No key dates recorded yet.</div>';
   }
 
   const listBox = document.getElementById('eo-timeline-list');
@@ -653,6 +649,11 @@ function eoRenderTimeline() {
           + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
           + '</div>').join('')
       : '<div style="color:var(--text-dim);font-size:13px;">No milestones logged yet.</div>';
+  }
+
+  const deadlineBox = document.getElementById('eo-timeline-deadline');
+  if (deadlineBox) {
+    deadlineBox.innerHTML = o[EO_TIMELINE_DEADLINE.field] ? _eoTimelineKeyRow(EO_TIMELINE_DEADLINE, o) : '';
   }
 }
 
