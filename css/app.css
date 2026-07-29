@@ -853,7 +853,7 @@
     .eo-modal {
       background: var(--card-bg); border: 1px solid var(--bdr);
       border-radius: 16px; box-shadow: var(--shadow-lg);
-      width: min(880px, 96vw); max-height: 92dvh;
+      width: min(880px, 96vw); height: 92dvh;
       display: flex; flex-direction: column; overflow: hidden;
     }
     .eo-head {
