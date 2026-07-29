@@ -6,8 +6,32 @@
 
 let _materials       = [];
 let _materialsCatFilter = 'all';
+let _materialsTagFilter = '';
 let _materialsEditId = null; // null = new, notionPageId = editing existing
 let _materialsPurchases = null; // materialId -> [{date, cost}] asc, from Order History
+
+// Category+metalType filter buttons that drill into a base category —
+// wire and chain both come in silver / gold-fill / 14k.
+const MATERIALS_METAL_FILTERS = {
+  'wire-silver':  { category: 'metal', form: 'wire', metals: ['argentium', 'sterling'] },
+  'wire-gf':      { category: 'metal', form: 'wire', metals: ['gold_fill'] },
+  'wire-14k':     { category: 'metal', form: 'wire', metals: ['14k'] },
+  'chain-silver': { category: 'chain', metals: ['argentium', 'sterling'] },
+  'chain-gf':     { category: 'chain', metals: ['gold_fill'] },
+  'chain-14k':    { category: 'chain', metals: ['14k'] },
+};
+
+// Tag chips in the table are clickable — delegated so it survives the
+// innerHTML re-render in materialsRender().
+document.addEventListener('click', e => {
+  const chip = e.target.closest('.mat-tag');
+  if (!chip) return;
+  e.stopPropagation();
+  const tag = chip.dataset.tag || '';
+  const input = document.getElementById('materialsTagFilterInput');
+  if (input) input.value = tag;
+  materialsSetTagFilter(tag);
+});
 
 // Unit → display abbreviation. Shared by every module that renders
 // material quantities (designs, receiving, replenish, closeout) —
@@ -44,12 +68,12 @@ async function _materialsApiDelete(pageId) {
 // ── Init (fired by TAB_HOOKS) ──────────────────
 async function materialsInit() {
   const body = document.getElementById('materialsTableBody');
-  if (body) body.innerHTML = '<tr><td colspan="9" class="oh-empty">Loading materials…</td></tr>';
+  if (body) body.innerHTML = '<tr><td colspan="10" class="oh-empty">Loading materials…</td></tr>';
   try {
     _materials = await _materialsApiFetch();
   } catch (e) {
     _materials = [];
-    if (body) body.innerHTML = `<tr><td colspan="9" class="oh-empty">Could not load materials — ${escHtml(e.message || e)}</td></tr>`;
+    if (body) body.innerHTML = `<tr><td colspan="10" class="oh-empty">Could not load materials — ${escHtml(e.message || e)}</td></tr>`;
     return;
   }
   materialsRender();
@@ -127,19 +151,29 @@ function materialsSetCatFilter(cat) {
   materialsRender();
 }
 
+function materialsSetTagFilter(tag) {
+  _materialsTagFilter = (tag || '').trim();
+  materialsRender();
+}
+
 // ── Render ──────────────────────────────────────
 function materialsRender() {
   const body = document.getElementById('materialsTableBody');
   if (!body) return;
 
-  const wireByMetal = { 'wire-silver': ['argentium', 'sterling'], 'wire-gf': ['gold_fill'], 'wire-14k': ['14k'] };
-  const filtered = _materialsCatFilter === 'all'
+  const metalSpec = MATERIALS_METAL_FILTERS[_materialsCatFilter];
+  let filtered = _materialsCatFilter === 'all'
     ? _materials
-    : wireByMetal[_materialsCatFilter]
-      ? _materials.filter(m => m.category === 'metal' && m.form === 'wire' && wireByMetal[_materialsCatFilter].includes(m.metalType))
+    : metalSpec
+      ? _materials.filter(m => m.category === metalSpec.category && (!metalSpec.form || m.form === metalSpec.form) && metalSpec.metals.includes(m.metalType))
       : (_materialsCatFilter === 'wire' || _materialsCatFilter === 'sheet')
         ? _materials.filter(m => m.category === 'metal' && m.form === _materialsCatFilter)
         : _materials.filter(m => m.category === _materialsCatFilter);
+
+  if (_materialsTagFilter) {
+    const needle = _materialsTagFilter.toLowerCase();
+    filtered = filtered.filter(m => (m.tags || []).some(t => t.toLowerCase().includes(needle)));
+  }
 
   document.getElementById('materials-stat-total').textContent    = _materials.length;
   document.getElementById('materials-stat-wire').textContent     = _materials.filter(m => m.category === 'metal' && m.form === 'wire').length;
@@ -149,12 +183,12 @@ function materialsRender() {
   document.getElementById('materials-stat-unweighed').textContent = _materials.filter(m => m.stockConfidence === 'estimated').length;
 
   if (filtered.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" class="oh-empty">No materials yet — click + Add Material to seed the library.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="oh-empty">No materials yet — click + Add Material to seed the library.</td></tr>';
     return;
   }
 
   body.innerHTML = filtered.map(m => {
-    const spec = m.category === 'metal'
+    const spec = (m.category === 'metal' || m.category === 'chain')
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
       : '—';
     const cost = m.currentCostPerUnit != null ? `$${Number(m.currentCostPerUnit).toFixed(2)}` : '—';
@@ -171,8 +205,18 @@ function materialsRender() {
         <td>${stock}</td>
         <td><span class="${confClass}">${escHtml(m.stockConfidence || '—')}</span></td>
         <td>${escHtml(m.supplierDefault || '—')}</td>
+        <td>${materialsTagsHtml(m)}</td>
       </tr>`;
   }).join('');
+}
+
+// Tags render as clickable chips (delegated click handler above sets the
+// tag filter) — a material with no tags shows the same "—" as other
+// empty cells in this table.
+function materialsTagsHtml(m) {
+  const tags = Array.isArray(m.tags) ? m.tags : [];
+  if (!tags.length) return '<span class="oh-na">—</span>';
+  return tags.map(t => `<span class="mat-tag" data-tag="${escHtml(t)}">${escHtml(t)}</span>`).join('');
 }
 
 // ── Modal open/close ────────────────────────────
@@ -189,6 +233,7 @@ function materialsOpenNew() {
   document.getElementById('matStock').value = '0';
   document.getElementById('matConfidence').value = 'estimated';
   document.getElementById('matSupplier').value = '';
+  document.getElementById('matTags').value = '';
   document.getElementById('matActive').checked = true;
   document.getElementById('materialsModalDelete').style.display = 'none';
   materialsToggleMetalFields();
@@ -216,6 +261,7 @@ function materialsOpenEdit(id) {
     supSel.add(new Option(m.supplierDefault, m.supplierDefault));
   }
   supSel.value = m.supplierDefault || '';
+  document.getElementById('matTags').value = (m.tags || []).join(', ');
   document.getElementById('matActive').checked = m.active !== false;
   document.getElementById('materialsModalDelete').style.display = '';
   materialsToggleMetalFields();
@@ -227,10 +273,13 @@ function materialsModalClose(event) {
   document.getElementById('materialsModalBg').classList.remove('open');
 }
 
-// Metal-only fields (Metal Type / Form / Gauge) only make sense for category=metal
+// Metal Type applies to metal AND chain (chain is tracked as silver /
+// gold-fill / 14k too); Form + Gauge only make sense for category=metal.
 function materialsToggleMetalFields() {
-  const isMetal = document.getElementById('matCategory').value === 'metal';
-  document.getElementById('matMetalFieldsRow').style.display = isMetal ? '' : 'none';
+  const cat = document.getElementById('matCategory').value;
+  const isMetal = cat === 'metal';
+  document.getElementById('matMetalTypeRow').style.display = (isMetal || cat === 'chain') ? '' : 'none';
+  document.getElementById('matFormGaugeRow').style.display = isMetal ? '' : 'none';
 }
 
 // ── Save / Delete ───────────────────────────────
@@ -243,11 +292,12 @@ async function materialsSave() {
   if (!unit) { toast('Please choose a unit', '⚠'); return; }
 
   const isMetal = category === 'metal';
+  const hasMetalType = isMetal || category === 'chain';
   const material = {
     notionPageId:       _materialsEditId || undefined,
     name,
     category,
-    metalType:          isMetal ? document.getElementById('matMetalType').value : '',
+    metalType:          hasMetalType ? document.getElementById('matMetalType').value : '',
     form:               isMetal ? document.getElementById('matForm').value : '',
     gauge:              isMetal ? document.getElementById('matGauge').value.trim() : '',
     unit,
@@ -255,6 +305,7 @@ async function materialsSave() {
     stockLevel:         document.getElementById('matStock').value === '' ? null : Number(document.getElementById('matStock').value),
     stockConfidence:    document.getElementById('matConfidence').value,
     supplierDefault:    document.getElementById('matSupplier').value,
+    tags:               document.getElementById('matTags').value.split(',').map(t => t.trim()).filter(Boolean),
     active:             document.getElementById('matActive').checked,
   };
 
@@ -432,12 +483,15 @@ async function materialsImportSave() {
     picked.push({
       name,
       category,
-      ...(category === 'metal' ? _matImpMetalSpec(name) : { metalType: '', form: '', gauge: '' }),
+      ...(category === 'metal' ? _matImpMetalSpec(name)
+        : category === 'chain' ? { metalType: _matImpMetalSpec(name).metalType, form: '', gauge: '' }
+        : { metalType: '', form: '', gauge: '' }),
       unit: row.querySelector('.mi-unit').value,
       currentCostPerUnit: costVal === '' ? null : Number(costVal),
       stockLevel: null,
       stockConfidence: 'estimated',
       supplierDefault: _matImpCands[row.dataset.i].sup || '',
+      tags: [],
       active: true,
     });
   });

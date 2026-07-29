@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260728k">
+  <link rel="stylesheet" href="css/app.css?v=20260729a">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -1818,7 +1818,11 @@
     <button class="oh-fbtn" data-cat="wire-14k" onclick="materialsSetCatFilter('wire-14k')">14k Wire</button>
     <button class="oh-fbtn" data-cat="sheet" onclick="materialsSetCatFilter('sheet')">Sheet</button>
     <button class="oh-fbtn" data-cat="chain" onclick="materialsSetCatFilter('chain')">Chains</button>
+    <button class="oh-fbtn" data-cat="chain-silver" onclick="materialsSetCatFilter('chain-silver')">Silver Chain</button>
+    <button class="oh-fbtn" data-cat="chain-gf" onclick="materialsSetCatFilter('chain-gf')">Gold Fill Chain</button>
+    <button class="oh-fbtn" data-cat="chain-14k" onclick="materialsSetCatFilter('chain-14k')">14k Chain</button>
     <button class="oh-fbtn" data-cat="component" onclick="materialsSetCatFilter('component')">Components</button>
+    <input id="materialsTagFilterInput" type="text" placeholder="Filter by tag…" oninput="materialsSetTagFilter(this.value)" style="margin-left:auto;max-width:180px;">
   </div>
 
   <div class="oh-table-wrap">
@@ -1834,10 +1838,11 @@
           <th>Stock</th>
           <th>Confidence</th>
           <th>Supplier</th>
+          <th>Tags</th>
         </tr>
       </thead>
       <tbody id="materialsTableBody">
-        <tr><td colspan="8" class="oh-empty">Loading materials…</td></tr>
+        <tr><td colspan="10" class="oh-empty">Loading materials…</td></tr>
       </tbody>
     </table>
   </div>
@@ -1872,16 +1877,18 @@
         </select>
       </div>
     </div>
-    <div class="sot-modal-row" id="matMetalFieldsRow">
+    <div class="sot-modal-row" id="matMetalTypeRow">
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Metal Type</label>
         <select id="matMetalType" style="width:100%">
           <option value="">—</option>
-          <option value="argentium">Argentium</option>
+          <option value="argentium">Argentium (Silver)</option>
           <option value="gold_fill">Gold Fill</option>
           <option value="14k">14k Gold</option>
         </select>
       </div>
+    </div>
+    <div class="sot-modal-row" id="matFormGaugeRow">
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Form</label>
         <select id="matForm" style="width:100%">
@@ -1922,6 +1929,12 @@
           <option value="Stuller">Stuller</option>
           <option value="Gesswein">Gesswein</option>
         </select>
+      </div>
+    </div>
+    <div class="sot-modal-row">
+      <div style="flex:1">
+        <label style="font-size:12px;color:var(--text-dim);">Tags (comma-separated)</label>
+        <input id="matTags" type="text" style="width:100%" placeholder="e.g. curb, diamond-cut, anklet">
       </div>
     </div>
     <div class="sot-modal-row">
@@ -3646,8 +3659,8 @@
 <script src="js/push-notify.js?v=3"></script>
 <script src="js/restock.js?v=20260727a"></script>
 <script src="js/restock-sessions.js?v=20260729a"></script>
-<script src="js/supplier-history.js?v=20260727a"></script>
-<script src="js/materials.js?v=5"></script>
+<script src="js/supplier-history.js?v=20260729a"></script>
+<script src="js/materials.js?v=6"></script>
 <script src="js/receiving.js?v=20260727a"></script>
 <script src="js/closeout.js?v=2"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->

@@ -608,16 +608,17 @@ function ohLineItemToLibrary(btn) {
     var existing = mats.filter(function(m){ return _matImpNorm(m.name) === norm; })[0];
     if (existing) return { notionPageId: existing.notionPageId, existed: true };
     var category = _matImpGuessCat(name);
-    var spec = category === 'metal' ? _matImpMetalSpec(name) : { metalType: '', form: '', gauge: '' };
+    var spec = category === 'metal' || category === 'chain' ? _matImpMetalSpec(name) : { metalType: '', form: '', gauge: '' };
     return _materialsApiSave({
       name: name,
       category: category,
-      metalType: spec.metalType, form: spec.form, gauge: spec.gauge,
+      metalType: spec.metalType, form: category === 'metal' ? spec.form : '', gauge: category === 'metal' ? spec.gauge : '',
       unit: _MAT_IMP_UNIT_BY_CAT[category],
       currentCostPerUnit: null,
       stockLevel: null,
       stockConfidence: 'estimated',
       supplierDefault: 'Rio Grande',
+      tags: [],
       active: true,
     });
   }).then(function(res) {

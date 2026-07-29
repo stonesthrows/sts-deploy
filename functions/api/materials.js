@@ -10,7 +10,7 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const API_VERSION = 'materials-api v5 (2026-07-13)';
+const API_VERSION = 'materials-api v6 (2026-07-29)';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -63,6 +63,7 @@ const MATERIAL_SCHEMA_PROPS = {
   'Stock Confidence':      { select: {} },
   'Supplier Default':      { select: {} },
   'Active':                { checkbox: {} },
+  'Tags':                  { multi_select: {} },
 };
 
 async function ensureSchema(h, dbId) {
@@ -101,6 +102,7 @@ function materialToProps(m) {
     'Stock Confidence':        { select:    m.stockConfidence ? { name: m.stockConfidence } : null },
     'Supplier Default':        { select:    m.supplierDefault ? { name: m.supplierDefault } : null },
     'Active':                  { checkbox:  m.active !== false },
+    'Tags':                    { multi_select: (m.tags || []).filter(Boolean).map(t => ({ name: t })) },
   };
 }
 
@@ -126,6 +128,7 @@ function pageToMaterial(page) {
     stockConfidence:     sel(p['Stock Confidence']),
     supplierDefault:     sel(p['Supplier Default']),
     active:              p['Active']?.checkbox !== false,
+    tags:                (p['Tags']?.multi_select || []).map(t => t.name),
   };
 }
 
