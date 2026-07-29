@@ -270,9 +270,10 @@ function bsToggleSort() {
 }
 
 // ── Category map (item → Square categories) ────
-// v3 entries carry the archived flag; the bump forces one refetch so
-// discontinued designs drop out of the Bestseller list and restock focus.
-var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v3';
+// v4 entries also carry a deleted flag for items gone from Square
+// entirely; the bump forces one refetch so those drop out of the
+// Bestseller list and restock focus alongside archived designs.
+var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v4';
 var BS_CAT_TTL_MS    = 7 * 24 * 60 * 60 * 1000;
 
 // The app's product families, in display order. Each entry unions every
@@ -353,7 +354,7 @@ async function _bsEnsureCatMap(itemIds) {
         var v = variations[id];
         var parentId = v && v.item_variation_data && v.item_variation_data.item_id;
         if (parentId && items[parentId]) _bsCatMap.items[id] = entryFromItem(items[parentId]);
-        else _bsCatMap.items[id] = { cats: [], name: '', vars: [] }; // deleted / unresolvable
+        else _bsCatMap.items[id] = { cats: [], name: '', vars: [], deleted: true }; // gone from Square — can never get a category
       });
     } catch (e) { /* leave unresolved — they render as Uncategorized this visit */ }
   }
@@ -410,11 +411,12 @@ function _bsAppCategory(itemId) {
   return name || 'Uncategorized';
 }
 
-// Discontinued in Square — keep these out of the Bestseller breakdown
-// and restock focus entirely rather than lumping them into Uncategorized.
-function _bsIsArchived(itemId) {
+// Archived in Square, or deleted from Square entirely (both leave an
+// item with no resolvable category) — keep these out of the Bestseller
+// breakdown and restock focus rather than lumping them into Uncategorized.
+function _bsIsDiscontinued(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
-  return !!(entry && entry.archived);
+  return !!(entry && (entry.archived || entry.deleted));
 }
 
 // Raw Square category names for an item (not the app family label) —
@@ -442,7 +444,7 @@ function _bsIsPermJewelry(itemId) {
 function _bsRestockEligible(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
   if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
-  if (_bsIsArchived(itemId)) return false;
+  if (_bsIsDiscontinued(itemId)) return false;
   var nm = String(_bsNameOf(itemId)).trim();
   if (BS_SKIP_NAME_RE.test(nm)) return false;
   if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
@@ -497,7 +499,7 @@ function bsTopPerCategory(bucket, sortKey) {
   if (!bucket) return [];
   var byCat = {};
   Object.keys(bucket.items).forEach(function(id) {
-    if (_bsIsArchived(id)) return;
+    if (_bsIsDiscontinued(id)) return;
     var it = bucket.items[id];
     var cat = _bsAppCategory(id);
     var c = byCat[cat] = byCat[cat] || { cat: cat, units: 0, revenue: 0, items: [] };
