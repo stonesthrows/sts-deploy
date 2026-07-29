@@ -597,6 +597,27 @@ function loadGmailThreads(data) {
 
 // ── Google OAuth ──────────────────────────────
 
+// Keeps the connection alive without the user ever clicking Connect Gmail
+// again. Google's access tokens last ~1hr no matter what — that part can't
+// be extended — but nothing has to actually SHOW the user an expired state
+// in between. Reschedules itself after every token, forced or silent (see
+// initGmailAuth's callback), so as long as this tab stays open the token
+// renews itself in the background indefinitely. A silent renewal (prompt:
+// '') never shows any UI — it either succeeds quietly or fails quietly —
+// so there's nothing to interrupt if it fires while someone's mid-task.
+var _gmailRenewTimer = null;
+// Tracks whether the in-flight requestAccessToken call was an explicit
+// Connect Gmail click (forced account picker) or a background silent
+// renewal, so the callback below knows whether a failure is worth a toast.
+var _gmailLastAttemptForced = false;
+
+function _scheduleGmailRenew() {
+  if (_gmailRenewTimer) { clearTimeout(_gmailRenewTimer); _gmailRenewTimer = null; }
+  if (!_gmailTokenExpiry) return;
+  var delay = Math.max(_gmailTokenExpiry - Date.now() - 5 * 60000, 10000);
+  _gmailRenewTimer = setTimeout(function() { gmailSignIn(false); }, delay);
+}
+
 function initGmailAuth() {
   if (typeof google === 'undefined' || !google.accounts) {
     setTimeout(initGmailAuth, 300); return;
@@ -607,7 +628,12 @@ function initGmailAuth() {
     callback:  function(resp) {
       if (resp.error) {
         _updateAuthUI(false);
-        if (typeof toast === 'function') toast('Gmail sign-in failed — click Connect Gmail', '🔑');
+        // Only the user's own explicit click deserves a toast — a failed
+        // background renewal should fail quietly and fall back to showing
+        // the normal Connect Gmail button, same as today.
+        if (_gmailLastAttemptForced && typeof toast === 'function') {
+          toast('Gmail sign-in failed — click Connect Gmail', '🔑');
+        }
         return;
       }
       _gmailAccessToken = resp.access_token;
@@ -618,6 +644,7 @@ function initGmailAuth() {
         localStorage.setItem('sts-gmail-scope',        GMAIL_SCOPE);
       } catch(e){}
       _updateAuthUI(true);
+      _scheduleGmailRenew();
       fetchGmailDirect();
     }
   });
@@ -627,15 +654,24 @@ function initGmailAuth() {
     var tok       = localStorage.getItem('sts-gmail-token');
     var exp       = parseInt(localStorage.getItem('sts-gmail-token-expiry') || '0');
     var savedScope = localStorage.getItem('sts-gmail-scope');
-    if (tok && Date.now() < exp - 60000 && savedScope === GMAIL_SCOPE) {
-      _gmailAccessToken = tok;
-      _gmailTokenExpiry = exp;
-      _updateAuthUI(true);
+    if (tok && savedScope === GMAIL_SCOPE) {
+      if (Date.now() < exp - 60000) {
+        _gmailAccessToken = tok;
+        _gmailTokenExpiry = exp;
+        _updateAuthUI(true);
+        _scheduleGmailRenew();
+        return;
+      }
+      // The saved token has expired, but this browser has granted consent
+      // before — try a silent renewal before falling back to asking the
+      // user to click anything. Covers reopening the app after the tab
+      // (or the whole browser) was closed for a while.
+      gmailSignIn(false);
       return;
     }
   } catch(e){}
 
-  // Clear stale token (old scope or expired)
+  // Clear stale token (old scope, or no prior consent to silently renew)
   try {
     localStorage.removeItem('sts-gmail-token');
     localStorage.removeItem('sts-gmail-token-expiry');
@@ -646,10 +682,14 @@ function initGmailAuth() {
 
 function gmailSignIn(forcePopup) {
   if (!_gmailTokenClient) { initGmailAuth(); setTimeout(function(){ gmailSignIn(forcePopup); }, 600); return; }
+  _gmailLastAttemptForced = !!forcePopup;
   _gmailTokenClient.requestAccessToken({ prompt: forcePopup ? 'select_account' : '' });
 }
 
 function gmailSignOut() {
+  // Stop the background renewal loop — otherwise it would silently sign
+  // the user back in a few minutes after they deliberately signed out.
+  if (_gmailRenewTimer) { clearTimeout(_gmailRenewTimer); _gmailRenewTimer = null; }
   if (_gmailAccessToken && typeof google !== 'undefined') {
     google.accounts.oauth2.revoke(_gmailAccessToken);
   }
