@@ -1130,45 +1130,41 @@ function closeEditOrderModal() {
   eoSetMode('view');
 }
 
-function markOrderComplete() {
+function openReadyToDeliverModal() {
   const id = document.getElementById('f-editing-id').value;
   const o  = ORDERS.find(x => x.id === id);
   if (!o) return;
 
-  // Confirm final price (pre-filled with quoted price)
-  const priceInput = prompt(
-    `Final price for ${o.name}:\n(quoted: $${o.price || 0})`,
-    o.price || ''
-  );
-  if (priceInput === null) return; // cancelled
+  const sel = document.getElementById('rtdLocationSelect');
+  sel.innerHTML = PICKUP_LOCATIONS.map(loc =>
+    `<option value="${loc}"${loc === o.pickup ? ' selected' : ''}>${loc}</option>`
+  ).join('');
 
-  const finalPrice = parseFloat(priceInput) || o.price || 0;
+  document.getElementById('readyToDeliverModalBg').classList.add('open');
+}
 
-  o.preCompleteStage = o.stage;
-  o.stage       = 'complete';
-  o.finalPrice  = finalPrice;
-  o.completedAt = new Date().toISOString();
-  completedHidden.add(o.id);
+function closeReadyToDeliverModal() {
+  document.getElementById('readyToDeliverModalBg').classList.remove('open');
+}
 
-  // Always persist to completed registry — prevents sync from ever un-completing
-  try {
-    const reg = JSON.parse(localStorage.getItem('sts-completed-registry') || '[]');
-    const entry = { id: o.id, notionId: o.notionId || null };
-    if (!reg.some(r => r.id === entry.id)) reg.push(entry);
-    localStorage.setItem('sts-completed-registry', JSON.stringify(reg));
-  } catch(e) {}
+function confirmReadyToDeliver() {
+  const id = document.getElementById('f-editing-id').value;
+  const o  = ORDERS.find(x => x.id === id);
+  if (!o) return;
 
-  updateCompletedToggle();
+  const location = document.getElementById('rtdLocationSelect').value;
+
+  o.stage  = 'ready-pick';
+  o.pickup = location;
+
+  closeReadyToDeliverModal();
   renderKanban();
   closeEditOrderModal();
 
-  // Push the full order (not just a stage-only patch) so the completion
-  // date lands in Notion's "Completed At" property in the same request —
-  // matches prodMarkDelivered's approach for the 'delivered' stage.
   if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
 
   saveToStorage();
-  toast(`${o.name} completed — $${finalPrice.toLocaleString()} ✓`, '✓');
+  toast(`${o.name} ready to deliver — ${location} ✓`, '✓');
 }
 
 // Reverses markOrderComplete — restores the stage the order was in right
