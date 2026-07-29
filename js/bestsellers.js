@@ -270,9 +270,9 @@ function bsToggleSort() {
 }
 
 // ── Category map (item → Square categories) ────
-// v2 entries carry product_type; the bump forces one refetch so restock
-// focus can tell a service apart from a piece of stock.
-var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v2';
+// v3 entries carry the archived flag; the bump forces one refetch so
+// discontinued designs drop out of the Bestseller list and restock focus.
+var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v3';
 var BS_CAT_TTL_MS    = 7 * 24 * 60 * 60 * 1000;
 
 // The app's product families, in display order. Each entry unions every
@@ -343,6 +343,7 @@ async function _bsEnsureCatMap(itemIds) {
         if (d.category_id && cats.indexOf(d.category_id) < 0) cats.push(d.category_id);
         return {
           cats: cats, name: d.name || '', ptype: d.product_type || 'REGULAR',
+          archived: !!d.is_archived,
           vars: (d.variations || []).map(function(v){ return v.id; }),
         };
       };
@@ -409,6 +410,13 @@ function _bsAppCategory(itemId) {
   return name || 'Uncategorized';
 }
 
+// Discontinued in Square — keep these out of the Bestseller breakdown
+// and restock focus entirely rather than lumping them into Uncategorized.
+function _bsIsArchived(itemId) {
+  var entry = _bsCatMap && _bsCatMap.items[itemId];
+  return !!(entry && entry.archived);
+}
+
 // Raw Square category names for an item (not the app family label) —
 // what the skip rules read.
 function _bsCatNamesOf(itemId) {
@@ -434,6 +442,7 @@ function _bsIsPermJewelry(itemId) {
 function _bsRestockEligible(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
   if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
+  if (_bsIsArchived(itemId)) return false;
   var nm = String(_bsNameOf(itemId)).trim();
   if (BS_SKIP_NAME_RE.test(nm)) return false;
   if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
@@ -488,6 +497,7 @@ function bsTopPerCategory(bucket, sortKey) {
   if (!bucket) return [];
   var byCat = {};
   Object.keys(bucket.items).forEach(function(id) {
+    if (_bsIsArchived(id)) return;
     var it = bucket.items[id];
     var cat = _bsAppCategory(id);
     var c = byCat[cat] = byCat[cat] || { cat: cat, units: 0, revenue: 0, items: [] };
