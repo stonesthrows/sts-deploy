@@ -67,6 +67,13 @@ function _stripEmailFiller(text) {
     if (/^-{2,}\s*original message\s*-{2,}$/i.test(line)) { cut = i; break; }
     // RFC 3676 signature delimiter — a line that is exactly "--"
     if (/^--\s?$/.test(lines[i])) { cut = i; break; }
+    // The studio's own signature block, anchored on its name line — Kyle's
+    // Gmail account has no "-- " delimiter configured, so unlike a proper
+    // signature block this one has no machine-readable marker of its own.
+    // What follows the name (phone, site, then two addresses each with a
+    // raw maps.google.com URL) is exactly the kind of filler this function
+    // exists to cut.
+    if (/^kyle gross$/i.test(line)) { cut = i; break; }
     // A run of 3+ consecutive '>'-quoted lines with no header line above it
     if (line.indexOf('>') === 0 &&
         (lines[i + 1] || '').trim().indexOf('>') === 0 &&
