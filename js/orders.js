@@ -650,7 +650,7 @@ function eoRenderTimeline() {
     listBox.innerHTML = entries.length
       ? entries.map((e, i) => '<div class="eo-row-editor eo-timeline-row">'
           + '<span class="eo-row-wide" style="color:var(--text-dim);">' + _eoEsc(e.label || '') + '</span>'
-          + '<span style="font-weight:600;">' + _eoEsc(fmtDate(e.date)) + '</span>'
+          + '<span class="eo-timeline-date-editable" style="font-weight:600;" onclick="eoEditTimelineEntryDate(this,' + i + ')" title="Click to change date">' + _eoEsc(fmtDate(e.date)) + '</span>'
           + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
           + '</div>').join('')
       : '<div style="color:var(--text-dim);font-size:13px;">No milestones logged yet.</div>';
@@ -698,6 +698,33 @@ function eoRemoveTimelineEntry(index) {
   const o = ORDERS.find(x => x.id === id);
   if (!o || !o.timelineEvents) return;
   o.timelineEvents.splice(index, 1);
+  eoSaveTimelineEntries(o);
+}
+
+// Lets a milestone logged via a quick-add button (or the manual "+ Add"
+// row) have its date corrected after the fact — quick-adds always log
+// today, so this is the way to back- or post-date one. Swaps the bold
+// date text for a native date input in place; committing (blur or Enter)
+// re-renders back to text via eoSaveTimelineEntries -> eoRenderTimeline().
+function eoEditTimelineEntryDate(span, index) {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o || !o.timelineEvents || !o.timelineEvents[index]) return;
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = o.timelineEvents[index].date || '';
+  input.onblur = function() { eoCommitTimelineEntryDate(index, input.value); };
+  input.onkeydown = function(ev) { if (ev.key === 'Enter') input.blur(); };
+  span.replaceWith(input);
+  input.focus();
+  if (typeof input.showPicker === 'function') { try { input.showPicker(); } catch (err) {} }
+}
+
+function eoCommitTimelineEntryDate(index, newDate) {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o || !o.timelineEvents || !o.timelineEvents[index]) { eoRenderTimeline(); return; }
+  if (newDate) o.timelineEvents[index].date = newDate;
   eoSaveTimelineEntries(o);
 }
 

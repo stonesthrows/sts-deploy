@@ -1202,6 +1202,11 @@
        (padding:6px 0, border-bottom) so every entry in the tab — keydate,
        milestone, or deadline — reads as one uniformly-formatted list. */
     .eo-timeline-row { padding: 6px 0; border-bottom: 1px solid var(--bdr); margin-bottom: 0; }
+    /* Milestone dates (quick-added or typed) are back/post-datable —
+       dotted underline is this app's existing "click to act on this text"
+       affordance, see .prod-cust-link. */
+    .eo-timeline-date-editable { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; color: inherit; }
+    .eo-timeline-date-editable:hover { color: var(--accent); }
     .eo-alt-chip {
       display: inline-flex; gap: 8px; align-items: center; background: var(--hover);
       border: 1px solid rgba(0,0,0,.08); border-radius: 14px; padding: 4px 10px;
