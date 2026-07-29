@@ -591,6 +591,7 @@ function eoSwitchTab(name, btn) {
   if (body) body.scrollTop = 0;
   if (name === 'messages' && typeof eoRenderMessages === 'function') eoRenderMessages();
   if (name === 'gmail') eoLoadGmail();
+  if (name === 'timeline') eoRenderTimeline();
 }
 
 // Gmail correspondence for the open order's own email address. Fetched on
@@ -612,6 +613,90 @@ function eoLoadGmail() {
   }
   const o = ORDERS.find(x => x.id === id);
   renderGmailThreads(box, ((o && o.email) || '').trim());
+}
+
+// Timeline tab — a "Key Dates" strip of fields the workflow already sets
+// automatically (intake, contacted, completed…), plus a free-form log of
+// milestones (o.timelineEvents) that have no field of their own. The log
+// rides to Notion through the generic App Data blob (APP_DATA_FIELDS in
+// functions/api/notion-pipeline.js) — no dedicated Notion property needed.
+const EO_TIMELINE_KEYDATES = [
+  { field: 'takeIn',      label: 'Intake' },
+  { field: 'contactedAt', label: 'Contacted Customer' },
+  { field: 'deadline',    label: 'Deadline' },
+  { field: 'completedAt', label: 'Completed' },
+  { field: 'deliveredAt', label: 'Delivered' },
+  { field: 'cancelledAt', label: 'Cancelled' },
+];
+
+function eoRenderTimeline() {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+
+  const keyBox = document.getElementById('eo-timeline-keydates');
+  if (keyBox) {
+    const rows = EO_TIMELINE_KEYDATES
+      .filter(k => o[k.field])
+      .map(k => '<div class="eo-timeline-key-row" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);">'
+        + '<span style="color:var(--text-dim);">' + _eoEsc(k.label) + '</span>'
+        + '<span style="font-weight:600;">' + _eoEsc(fmtDate(o[k.field])) + '</span></div>')
+      .join('');
+    keyBox.innerHTML = rows || '<div style="color:var(--text-dim);font-size:13px;">No key dates recorded yet.</div>';
+  }
+
+  const listBox = document.getElementById('eo-timeline-list');
+  if (listBox) {
+    const entries = (o.timelineEvents || [])
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => (a.e.date || '').localeCompare(b.e.date || ''));
+    listBox.innerHTML = entries.length
+      ? entries.map(({ e, i }) => '<div class="eo-row-editor eo-timeline-row">'
+          + '<span class="eo-row-wide">' + _eoEsc(e.label || '') + '</span>'
+          + '<span style="color:var(--text-dim);font-size:13px;">' + _eoEsc(fmtDate(e.date)) + '</span>'
+          + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
+          + '</div>').join('')
+      : '<div style="color:var(--text-dim);font-size:13px;">No milestones logged yet.</div>';
+  }
+}
+
+function eoSaveTimelineEntries(o) {
+  saveToStorage();
+  if (typeof notionUpdateOrder === 'function') notionUpdateOrder(o);
+  eoRenderTimeline();
+}
+
+function eoAddTimelineEntry() {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+  const labelEl = document.getElementById('eo-timeline-new-label');
+  const dateEl  = document.getElementById('eo-timeline-new-date');
+  const label = (labelEl.value || '').trim();
+  if (!label) { labelEl.focus(); return; }
+  const date = dateEl.value || new Date().toISOString().slice(0, 10);
+  o.timelineEvents = o.timelineEvents || [];
+  o.timelineEvents.push({ label: label, date: date });
+  labelEl.value = '';
+  dateEl.value = '';
+  eoSaveTimelineEntries(o);
+}
+
+function eoQuickAddTimelineEntry(label) {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o) return;
+  o.timelineEvents = o.timelineEvents || [];
+  o.timelineEvents.push({ label: label, date: new Date().toISOString().slice(0, 10) });
+  eoSaveTimelineEntries(o);
+}
+
+function eoRemoveTimelineEntry(index) {
+  const id = (document.getElementById('f-editing-id') || {}).value || '';
+  const o = ORDERS.find(x => x.id === id);
+  if (!o || !o.timelineEvents) return;
+  o.timelineEvents.splice(index, 1);
+  eoSaveTimelineEntries(o);
 }
 
 function openOrderCard(id) {

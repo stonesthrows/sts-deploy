@@ -134,6 +134,10 @@ const APP_DATA_FIELDS = [
   // 'approval'. The actual JPEG bytes never touch this property; only the
   // keys needed to re-fetch them from R2 on another device.
   'refPhotoKeys',
+  // Manually-logged timeline milestones (Order Card → Timeline tab) — free-
+  // form {label, date} entries like "Ordered Materials" or "Sent Estimate"
+  // that have no dedicated Notion property of their own.
+  'timelineEvents',
 ];
 
 function appDataToProp(o) {
