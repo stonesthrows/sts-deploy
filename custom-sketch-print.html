@@ -313,6 +313,7 @@
 
 </div>
 
+<script src="js/ring-size.js?v=1"></script>
 <script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
@@ -468,10 +469,14 @@
 
   // ── Measurements strip (Ring/Chain/Wrist/Neck/Resize) — Ring is
   // suppressed in 'rings' mode since each card already shows its size. ──
+  // House rule: ring sizes always print as decimals, never fractions
+  // ("6 1/2" / "6½" → "6.5"). See js/ring-size.js. Guarded so a failed
+  // script load degrades to the raw value rather than blanking the size.
+  const RS = v => (typeof stsRingSizeDec === 'function' ? stsRingSizeDec(v) : (v || ''));
   const meas = [
-    centerMode !== 'rings' ? ['Ring', src.ringSize] : null,
+    centerMode !== 'rings' ? ['Ring', RS(src.ringSize)] : null,
     ['Chain', src.chain], ['Wrist', src.wrist], ['Neck', src.neck],
-    (src.resizeFrom || src.resizeTo) ? ['Resize', (src.resizeFrom || '?') + ' → ' + (src.resizeTo || '?')] : null,
+    (src.resizeFrom || src.resizeTo) ? ['Resize', (RS(src.resizeFrom) || '?') + ' → ' + (RS(src.resizeTo) || '?')] : null,
   ].filter(m => m && m[1]);
   if (meas.length) {
     const strip = document.getElementById('meas-strip');
@@ -556,9 +561,9 @@
     return rows.filter(row => row[1]);
   }
   function ringSize(r) {
-    return r.category === 'Meditation Ring' ? r.medSize
-         : r.category === 'Simple Band'     ? r.bandSize
-         : r.category === 'Custom Ring'     ? r.customSize : '';
+    return RS(r.category === 'Meditation Ring' ? r.medSize
+            : r.category === 'Simple Band'     ? r.bandSize
+            : r.category === 'Custom Ring'     ? r.customSize : '');
   }
   if (centerMode === 'rings') {
     const grid = document.createElement('div');

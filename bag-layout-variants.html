@@ -299,6 +299,7 @@
 
 </div>
 
+<script src="js/ring-size.js?v=1"></script>
 <script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
@@ -501,11 +502,15 @@
     }
     return rows.filter(row => row[1]);
   }
+  // House rule: ring sizes always print as decimals, never fractions
+  // ("6 1/2" / "6½" → "6.5"). See js/ring-size.js. Guarded so a failed
+  // script load degrades to the raw value rather than blanking the size.
+  const RS = v => (typeof stsRingSizeDec === 'function' ? stsRingSizeDec(v) : (v || ''));
   function ringSize(r) {
-    return r.category === 'Meditation Ring' ? r.medSize
-         : r.category === 'Simple Band'     ? r.bandSize
-         : r.category === 'Custom Ring'     ? r.customSize
-         : r.category === 'Website Order'   ? r.wsSize : '';
+    return RS(r.category === 'Meditation Ring' ? r.medSize
+            : r.category === 'Simple Band'     ? r.bandSize
+            : r.category === 'Custom Ring'     ? r.customSize
+            : r.category === 'Website Order'   ? r.wsSize : '');
   }
 
   function renderRings(rings) {

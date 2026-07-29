@@ -591,6 +591,7 @@
 
 </div>
 
+<script src="js/ring-size.js?v=1"></script>
 <script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
@@ -652,8 +653,12 @@
   const price     = p.get('price')     || '';
   const deposit   = p.get('deposit')   || '';
   const shipping  = p.get('shipping')  || '';
-  const ringSize  = p.get('ringSize')  || '';
-  const ringSize2 = p.get('ringSize2') || '';
+  // House rule: ring sizes always print as decimals, never fractions
+  // ("6 1/2" / "6½" → "6.5"). See js/ring-size.js. Guarded so a failed
+  // script load degrades to the raw value rather than blanking the size.
+  const RS = v => (typeof stsRingSizeDec === 'function' ? stsRingSizeDec(v) : (v || ''));
+  const ringSize  = RS(p.get('ringSize')  || '');
+  const ringSize2 = RS(p.get('ringSize2') || '');
   const stamping  = p.get('stamping')  || '';
   const stamping2 = p.get('stamping2') || '';
   const fullyPaid = p.get('fullyPaid') || '';

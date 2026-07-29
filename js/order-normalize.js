@@ -210,14 +210,15 @@ function cleanProductTitle(title, opts) {
   const spec    = (opts && opts.spec)    || null;
   const variant = (opts && opts.variant) || '';
   let t = String(title || '').trim();
-  let tail = '';
-  const segs = t.split('|').map(s => s.trim()).filter(Boolean);
-  if (segs.length > 1) {
-    const last = segs[segs.length - 1];
-    const dashIdx = last.indexOf('—');
-    if (dashIdx !== -1) tail = last.slice(dashIdx + 1).trim();
-    t = segs[0];
-  }
+  // Marketplace titles are keyword-stuffed: the product name comes first and
+  // everything after a tag separator is SEO copy aimed at a shopper, not at
+  // the bench. Keep the main title only — bar/bullet separated tags, and a
+  // spaced en/em-dash tail on the name itself ("Orbit Spinner Ring — Anxiety
+  // Ring for Women"), all get dropped. A hyphen without spaces is left alone
+  // so hyphenated product names survive ("Bezel-Set Solitaire").
+  const segs = t.split(/[|•·]/).map(s => s.trim()).filter(Boolean);
+  if (segs.length) t = segs[0];
+  t = t.split(/\s+[—–]\s+/)[0].trim();
   // Also drop "Yellow/"-style fragments left when the word after a slash
   // was a stripped spec ("Yellow/Rose Gold Fill," → "Yellow/ ,").
   const tidy = s => s.replace(/(^|\s)([A-Za-z][\w-]*)\/(?=\s+(?:[,·—]|$)|\s*$)/g, '$1')
@@ -245,8 +246,9 @@ function cleanProductTitle(title, opts) {
     if (stripped.split(/\s+/).filter(Boolean).length >= 2) t = stripped;
   }
   if (!t) t = segs[0] || String(title || '').trim();
-  const extra = variant || (spec ? '' : tail);
-  return extra ? t + ' — ' + extra : t;
+  // Only the variant may be re-appended — it's real spec data off the order
+  // line ("14k Yellow Gold Sun / Size 12"), not marketing copy.
+  return variant ? t + ' — ' + variant : t;
 }
 
 // One-line spec summary for descriptions/cards:

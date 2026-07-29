@@ -253,6 +253,7 @@
 
 </div>
 
+<script src="js/ring-size.js?v=1"></script>
 <script src="js/qrcode-lib.js"></script>
 <script>
   function fmt(d) {
@@ -345,8 +346,14 @@
   // A missing end prints as "—" rather than blank: on paper an empty box in
   // the largest block on the page reads as a printing fault, whereas a dash
   // reads as "this wasn't captured — go ask", which is the true situation.
-  const from = String(src.resizeFrom || '').trim();
-  const to   = String(src.resizeTo   || '').trim();
+  // House rule: ring sizes always print as decimals, never fractions
+  // ("6 1/2" / "6½" → "6.5"). See js/ring-size.js. Guarded so a failed
+  // script load degrades to the raw value rather than blanking the size.
+  // Normalizing first also fixes the step maths below: parseFloat("6 1/2")
+  // is 6, so an un-normalized half size would report the wrong direction.
+  const RS = v => (typeof stsRingSizeDec === 'function' ? stsRingSizeDec(v) : (v || ''));
+  const from = RS(String(src.resizeFrom || '').trim());
+  const to   = RS(String(src.resizeTo   || '').trim());
   document.getElementById('sz-from').textContent = from || '—';
   document.getElementById('sz-to').textContent   = to   || '—';
   // Direction is stated in words as well as implied by the numbers, because
