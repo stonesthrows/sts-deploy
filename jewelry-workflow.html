@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 20260727a-product-theme -->
+<!-- deploy-version: 20260729a-google-photos-import -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2370,6 +2370,7 @@
           <button class="dsn-gear-item" onclick="designsSaveDesign()">💾 Save Design</button>
           <button class="dsn-gear-item" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
           <button class="dsn-gear-item" onclick="designsAddImageFromUrl()">🔗 Add Image from URL</button>
+          <button class="dsn-gear-item" onclick="designsAddImageFromPhotos()">📷 Add from Google Photos</button>
           <button class="dsn-gear-item" id="dsn-copy-btn" style="display:none" onclick="designsCopyDesign()">📄 Copy Design</button>
           <div class="dsn-gear-sep"></div>
           <button class="dsn-gear-item danger" id="dsn-delete-btn" style="display:none" onclick="designsDeleteDesign()">🗑 Delete Design</button>
@@ -3632,6 +3633,7 @@
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
 <script src="js/drive.js?v=20260728b"></script>
+<script src="js/photos.js?v=20260729a"></script>
 <script src="js/shipstation.js"></script>
 <script src="js/usps.js"></script>
 <script src="js/gmail.js?v=20260728f"></script>
@@ -3721,7 +3723,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=22"></script>
+<script src="js/designs.js?v=23"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260728a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
