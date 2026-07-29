@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Work Order Bag — Sizing</title>
+<!--
+  ══════════════════════════════════════════════════════════════
+  SIZING bag — resize and ring-size changes.
+
+  Registered in BAG_LAYOUTS as { id: 'sizing' }, built by
+  buildSizingBagUrl() in js/orders.js. Gated to layout 'resize'.
+
+  Why this exists: a resize currently prints on 'compact', where the
+  only record of the size change is the job-title sentence
+  ("Resize — Size 7 to Size 6"). Ring size is the one field where being
+  off by one means starting over, so here the from→to pair IS the
+  document — the largest object on the page, with the direction spelled
+  out so "down 1" can't be read as "up 1".
+
+  The two callouts below it are the other irreversible-mistake fields:
+    · Inside stamp (o.stamping) — a resize is exactly where a stamp gets
+      polished out. Bordered, never small print.
+    · Metal sensitivity (o.sensitivities) — solder and sizing stock have
+      to match; a nickel allergy that doesn't reach the bag is a remake.
+  Both blocks are omitted entirely when their field is empty, rather
+  than printing an empty labeled box that reads as an oversight.
+
+  Data contract (query string only — this page cannot see the app):
+    name, phone, email, address, city, state, zip,
+    takeIn, deadline, pickup, pieceType, jobTitle, desc, notes,
+    materials, resizeFrom, resizeTo, stamping, sensitivities (JSON),
+    items (JSON [{desc, amount}]), deposit, shipping, fullyPaid,
+    tax, taxApplies, kindLbl, orderId
+
+  ?demo=1  heirloom downsize with stamp to preserve + nickel sensitivity
+  ?demo=2  plain upsize, no stamp, no sensitivities
+  ?preview=1  fills the bag-style picker iframe cleanly
+
+  Prints 5.5"×8.5" rotated 90° CW onto the top half of a letter sheet.
+  ══════════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { font-family: Calibri, Arial, sans-serif; color: #111; background: #fff; }
+
+  .form-content {
+    width: 5.5in; height: 8.5in;
+    padding: 0.17in 0.19in 0.15in;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  @media screen {
+    body { background: #666; padding: 24px; }
+    .screen-note { font-family: Arial, sans-serif; font-size: 12px; color: #fff;
+                   text-align: center; margin-bottom: 10px; max-width: 5.5in;
+                   margin-left: auto; margin-right: auto; }
+    .screen-note a { color: #ffd; }
+    .form-content { background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.5); margin: 0 auto; }
+    .print-bar { text-align: center; margin-bottom: 10px; }
+    .print-btn { background: #7A5C3A; color: #fff; border: none; padding: 8px 22px;
+                 font-size: 13px; border-radius: 5px; cursor: pointer; font-family: inherit; }
+    .print-btn:hover { background: #5e4428; }
+    body.preview { background: #fff; padding: 0; }
+    body.preview .print-bar, body.preview .screen-note { display: none; }
+  }
+
+  @media print {
+    body { margin: 0; padding: 0; background: #fff; }
+    .no-print { display: none !important; }
+    @page { size: 8.5in 11in portrait; margin: 0; }
+    .form-content {
+      position: absolute; top: -1.5in; left: 1.5in;
+      transform: rotate(90deg); transform-origin: center;
+    }
+  }
+
+  /* ── Shared chrome (matches bag-layout-variants.html) ── */
+  .lbl { font-size: 7.5px; font-weight: bold; letter-spacing: 1.8px;
+         text-transform: uppercase; color: #555; }
+  .bx { display: inline-block; width: 11px; height: 11px; border: 1.2px solid #333;
+        vertical-align: -2px; cursor: pointer; }
+  .bx.checked { background: #333; }
+  .ck { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; }
+  [contenteditable] { outline: none; cursor: text; }
+  [contenteditable]:hover, [contenteditable]:focus { background: #fffbe6; }
+  @media print { [contenteditable]:hover, [contenteditable]:focus { background: transparent !important; } }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline;
+         padding-bottom: 7px; border-bottom: 1px solid #111; }
+  .top b { font-size: 15px; }
+  .top-right { display: flex; align-items: center; gap: 6px; }
+  .bag-qr { width: 0.5in; height: 0.5in; flex-shrink: 0; }
+  .bag-qr svg { display: block; width: 100%; height: 100%; }
+
+  .grid3 { display: flex; border-bottom: 1px solid #111; }
+  .g { flex: 1; padding: 6px 10px 7px 0; min-width: 0; }
+  .g + .g { border-left: 1px solid #ccc; padding-left: 10px; }
+  .g .v { display: block; font-size: 13px; font-weight: bold; margin-top: 1px; }
+  .g .sub { font-size: 10.5px; color: #333; margin-top: 1px; line-height: 1.3; }
+  .g.cust { flex: 1.35; }
+
+  .jobline { padding: 8px 0 2px; }
+  .jobline .pt { margin-bottom: 1px; }
+  .jobline .t { font-size: 14px; font-weight: bold; }
+  .jobline .d { font-size: 12px; line-height: 1.35; margin-top: 2px; }
+  .jobline .kvline { font-size: 11px; margin-top: 3px; display: none; }
+  .jobline .kvline.show { display: block; }
+  .jobline .kvline .lbl { margin-right: 5px; }
+
+  .center { margin-top: 7px; }
+
+  /* ── The from → to panel: the whole point of this bag ── */
+  .size-panel { border: 1.5px solid #111; display: flex; align-items: stretch; }
+  .size-panel .sp-end { flex: 1; text-align: center; padding: 12px 6px 14px; }
+  .size-panel .sp-end small { display: block; font-size: 8px; font-weight: bold;
+        letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 4px; }
+  .size-panel .sp-end .num { font-size: 54px; font-weight: bold; line-height: .95; }
+  .size-panel .sp-arrow { display: flex; flex-direction: column; align-items: center;
+        justify-content: center; padding: 0 4px; border-left: 1px solid #ccc;
+        border-right: 1px solid #ccc; min-width: 1.15in; }
+  .size-panel .sp-arrow .ar { font-size: 30px; line-height: 1; }
+  .size-panel .sp-arrow .dir { font-size: 9.5px; font-weight: bold; letter-spacing: 1px;
+        text-transform: uppercase; margin-top: 3px; text-align: center; }
+  /* the destination size is the one that must be right, so it's the shaded one */
+  .size-panel .sp-end.to { background: #f2f2f2; }
+
+  /* ── Irreversible-field callouts ── */
+  .preserve { border: 1.5px solid #111; margin-top: 7px; padding: 5px 9px 7px; display: none; }
+  .preserve.show { display: block; }
+  .preserve .pv { font-size: 17px; font-weight: bold; letter-spacing: 1px;
+                  border-bottom: 1px solid #999; display: inline-block; margin-top: 2px; }
+  .preserve .ph { font-size: 9.5px; color: #555; margin-top: 3px; }
+
+  .alert-strip { display: none; align-items: center; gap: 7px; border: 1.5px solid #111;
+                 background: #eee; padding: 4px 9px; margin-top: 7px; font-size: 11px; }
+  .alert-strip.show { display: flex; }
+  .alert-strip b { font-size: 11px; }
+
+  /* ── Bench notes grows into whatever the callouts didn't use ── */
+  .notes { margin-top: 8px; flex: 1; display: flex; flex-direction: column; }
+  .notes .mat { font-size: 11.5px; margin-top: 2px; white-space: pre-wrap; }
+  .notes .rule { border-bottom: 1px solid #bbb; flex: 1; height: auto; min-height: 20px; }
+
+  .items { margin-top: 7px; display: none; }
+  .items.show { display: block; }
+  .items .ir { display: flex; justify-content: space-between; font-size: 11.5px;
+               padding: 2px 2px; border-bottom: 1px solid #e2e2e2; }
+
+  .moneystrip { display: flex; margin-top: 7px; border: 1px solid #111; }
+  .m { flex: 1; text-align: center; padding: 5px 4px 6px; font-size: 12.5px; min-width: 0; }
+  .m + .m { border-left: 1px solid #ccc; }
+  .m small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 1.4px;
+             text-transform: uppercase; color: #555; margin-bottom: 2px; }
+  .m.b { font-weight: bold; }
+  .m.hide { display: none; }
+
+  .foot { display: flex; gap: 18px; align-items: center; margin-top: 7px; }
+  .foot .url { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
+</div>
+<div class="screen-note no-print">
+  Try <a href="?demo=1">?demo=1</a> (heirloom downsize — stamp + sensitivity),
+  <a href="?demo=2">?demo=2</a> (plain upsize, no callouts).
+</div>
+
+<div class="form-content">
+
+  <div class="top">
+    <b>Stones Throw Studio</b>
+    <div class="top-right">
+      <span class="lbl" id="kind-lbl">Resize</span>
+      <div class="bag-qr" id="bag-qr"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="g cust">
+      <span class="lbl">Customer</span>
+      <span class="v" id="c-name" contenteditable="true"></span>
+      <div class="sub" id="c-contact" contenteditable="true"></div>
+      <div class="sub" id="c-addr" contenteditable="true" style="display:none;"></div>
+    </div>
+    <div class="g">
+      <span class="lbl">Taken In</span>
+      <span class="v" id="d-takein" contenteditable="true"></span>
+    </div>
+    <div class="g">
+      <span class="lbl">Due</span>
+      <span class="v" id="d-due" contenteditable="true"></span>
+      <div class="sub" id="d-pickup" contenteditable="true"></div>
+    </div>
+  </div>
+
+  <div class="jobline">
+    <div class="lbl pt" id="j-piece"></div>
+    <div class="t" id="j-title" contenteditable="true"></div>
+    <div class="d" id="j-desc" contenteditable="true"></div>
+    <div class="kvline" id="j-cnotes-row"><span class="lbl">Customer Notes</span><span id="j-cnotes" contenteditable="true"></span></div>
+  </div>
+
+  <div class="center">
+    <div class="size-panel">
+      <div class="sp-end"><small>From</small><div class="num" id="sz-from" contenteditable="true"></div></div>
+      <div class="sp-arrow"><div class="ar">&rarr;</div><div class="dir" id="sz-dir"></div></div>
+      <div class="sp-end to"><small>To</small><div class="num" id="sz-to" contenteditable="true"></div></div>
+    </div>
+
+    <div class="preserve" id="preserve">
+      <span class="lbl">Preserve inside stamp &mdash; do not polish out</span>
+      <div class="pv" id="pv-val" contenteditable="true"></div>
+      <div class="ph">Re-stamp only if the original is lost during sizing.</div>
+    </div>
+
+    <div class="alert-strip" id="sens">
+      <span class="bx checked"></span><b>Sensitivity:</b>
+      <span id="sens-val" contenteditable="true"></span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <span class="lbl">Bench Notes / Materials</span>
+    <div class="mat" id="n-materials" contenteditable="true" style="display:none;"></div>
+    <div class="rule"></div>
+    <div class="rule"></div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="items" id="items"></div>
+
+  <div class="moneystrip">
+    <div class="m"><small>Subtotal</small><span id="m-sub" contenteditable="true"></span></div>
+    <div class="m"><small id="m-tax-lbl">Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
+    <div class="m hide" id="m-ship-cell"><small>Shipping</small><span id="m-ship" contenteditable="true"></span></div>
+    <div class="m b"><small>Total</small><span id="m-total"></span></div>
+    <div class="m"><small>Deposit</small><span id="m-dep" contenteditable="true"></span></div>
+    <div class="m b"><small>Balance</small><span id="m-bal"></span></div>
+  </div>
+
+  <div class="foot">
+    <span class="lbl">Paid By</span>
+    <span class="ck"><span class="bx" id="pb-cash"></span>Cash</span>
+    <span class="ck"><span class="bx" id="pb-credit"></span>Credit</span>
+    <span class="ck"><span class="bx" id="pb-check"></span>Check</span>
+    <span class="lbl url">stonesthrowjewelry.com</span>
+  </div>
+
+</div>
+
+<script src="js/qrcode-lib.js"></script>
+<script>
+  function fmt(d) {
+    if (!d) return '';
+    const p = String(d).split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : d;
+  }
+  function money(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : '$' + n.toFixed(2);
+  }
+
+  const q = new URLSearchParams(window.location.search);
+  if (q.get('preview')) document.body.classList.add('preview');
+  const demo = q.get('demo');
+  if (typeof stsBagQR === 'function') stsBagQR(document.getElementById('bag-qr'), q.get('orderId') || (demo ? 'demo-' + demo : ''));
+
+  const DEMOS = {
+    '1': {
+      kindLbl: 'Resize', name: 'Priya Natarajan', phone: '(512) 555-6634', email: 'priya.n@example.com',
+      takeIn: '2026-07-14', deadline: '2026-07-21', pickup: 'Studio',
+      pieceType: 'Ring', jobTitle: 'Resize — 14k Rose Gold Band',
+      desc: 'Standard downsize, no stones near the shank.',
+      notes: 'Family heirloom — please keep the inside stamping visible.',
+      materials: '14k rose gold band, standard resize stock',
+      resizeFrom: '7', resizeTo: '6',
+      stamping: 'EGN 1978',
+      sensitivities: ['Nickel'],
+      items: [{ desc: 'Resize, down 1 size', amount: 45 }],
+      deposit: 45, fullyPaid: '1',
+    },
+    '2': {
+      kindLbl: 'Resize', name: 'Tom Bradley', phone: '(512) 555-1180', email: 'tbradley@example.com',
+      takeIn: '2026-07-18', deadline: '2026-07-25', pickup: 'Studio',
+      pieceType: 'Ring', jobTitle: 'Resize — Sterling Band',
+      desc: 'Upsize two sizes; plain band, nothing to work around.',
+      materials: 'Sterling silver, sizing stock',
+      resizeFrom: '9', resizeTo: '11',
+      items: [{ desc: 'Resize, up 2 sizes', amount: 55 }],
+      deposit: 0,
+    },
+  };
+
+  const src = demo && DEMOS[demo] ? DEMOS[demo] : {
+    kindLbl: q.get('kindLbl') || 'Resize',
+    name: q.get('name') || '', phone: q.get('phone') || '', email: q.get('email') || '',
+    address: q.get('address') || '', city: q.get('city') || '', state: q.get('state') || '',
+    zip: q.get('zip') || '',
+    takeIn: q.get('takeIn') || '', deadline: q.get('deadline') || '',
+    pickup: q.get('pickup') || '',
+    pieceType: q.get('pieceType') || '', jobTitle: q.get('jobTitle') || '',
+    desc: q.get('desc') || '', notes: q.get('notes') || '',
+    materials: q.get('materials') || '',
+    resizeFrom: q.get('resizeFrom') || '', resizeTo: q.get('resizeTo') || '',
+    stamping: q.get('stamping') || '',
+    sensitivities: (() => { try { return JSON.parse(q.get('sensitivities') || '[]'); } catch (e) { return []; } })(),
+    deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
+    fullyPaid: q.get('fullyPaid') || '',
+    taxApplies: q.get('taxApplies') !== '0',
+    tax: q.get('tax') || '',
+    items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
+  };
+
+  // ── Header ──
+  document.getElementById('kind-lbl').textContent = src.kindLbl || 'Resize';
+  document.getElementById('c-name').textContent = src.name;
+  document.getElementById('c-contact').textContent = [src.phone, src.email].filter(Boolean).join(' · ');
+  const addrLine = [src.address, [src.city, src.state].filter(Boolean).join(', '), src.zip]
+    .filter(Boolean).join(' · ');
+  if (addrLine) {
+    const a = document.getElementById('c-addr');
+    a.textContent = addrLine; a.style.display = 'block';
+  }
+  document.getElementById('d-takein').textContent = fmt(src.takeIn) || fmt(new Date().toISOString().slice(0, 10));
+  document.getElementById('d-due').textContent = fmt(src.deadline);
+  const pk = src.pickup || '';
+  document.getElementById('d-pickup').textContent =
+    pk ? 'Pickup: ' + (/ship/i.test(pk) ? '📦 Ship' : pk.replace(/\s*(Market|Farmer's Market|Crossing Market)$/i, '')) : '';
+
+  // ── Job block ──
+  document.getElementById('j-piece').textContent = src.pieceType || 'Ring';
+  document.getElementById('j-title').textContent = src.jobTitle || '';
+  document.getElementById('j-desc').textContent = src.desc || '';
+  if (src.notes) {
+    document.getElementById('j-cnotes-row').classList.add('show');
+    document.getElementById('j-cnotes').textContent = src.notes;
+  }
+
+  // ── From → To ──
+  // A missing end prints as "—" rather than blank: on paper an empty box in
+  // the largest block on the page reads as a printing fault, whereas a dash
+  // reads as "this wasn't captured — go ask", which is the true situation.
+  const from = String(src.resizeFrom || '').trim();
+  const to   = String(src.resizeTo   || '').trim();
+  document.getElementById('sz-from').textContent = from || '—';
+  document.getElementById('sz-to').textContent   = to   || '—';
+  // Direction is stated in words as well as implied by the numbers, because
+  // "7 → 6" glanced at upside-down on a bench is easy to reverse.
+  const nf = parseFloat(from), nt = parseFloat(to);
+  let dir = '';
+  if (!isNaN(nf) && !isNaN(nt) && nf !== nt) {
+    const steps = Math.abs(nt - nf);
+    const stepTxt = (Number.isInteger(steps) ? steps : steps.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''))
+      + ' size' + (steps === 1 ? '' : 's');
+    dir = (nt > nf ? 'Up ' : 'Down ') + stepTxt;
+  } else if (!isNaN(nf) && !isNaN(nt) && nf === nt) {
+    dir = 'No change';
+  }
+  document.getElementById('sz-dir').textContent = dir;
+
+  // ── Irreversible-field callouts (omitted entirely when empty) ──
+  if (src.stamping) {
+    document.getElementById('preserve').classList.add('show');
+    document.getElementById('pv-val').textContent = src.stamping;
+  }
+  const sens = Array.isArray(src.sensitivities) ? src.sensitivities.filter(Boolean) : [];
+  if (sens.length) {
+    document.getElementById('sens').classList.add('show');
+    document.getElementById('sens-val').textContent = sens.join(' · ');
+  }
+
+  if (src.materials) {
+    const m = document.getElementById('n-materials');
+    m.textContent = src.materials; m.style.display = 'block';
+  }
+
+  // ── Items + money (same rules as the other bags) ──
+  const items = (src.items || []).filter(it => it && it.desc);
+  if (items.length) {
+    const el = document.getElementById('items');
+    items.forEach(it => {
+      const r = document.createElement('div');
+      r.className = 'ir';
+      const d = document.createElement('span'); d.contentEditable = 'true'; d.textContent = it.desc;
+      const a = document.createElement('span'); a.contentEditable = 'true'; a.textContent = money(it.amount);
+      r.appendChild(d); r.appendChild(a); el.appendChild(r);
+    });
+    el.classList.add('show');
+  }
+  const sub = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+  const taxApplies = src.taxApplies !== false;
+  const taxGiven = (src.tax !== '' && src.tax != null && !isNaN(parseFloat(src.tax)))
+    ? parseFloat(src.tax) : null;
+  const tax = taxGiven !== null ? taxGiven : (taxApplies ? sub * 0.08 : 0);
+  document.getElementById('m-tax-lbl').textContent =
+    taxGiven !== null ? 'Tax' : (taxApplies ? 'Tax 8%' : 'Tax · Out of State');
+  const ship = parseFloat(src.shipping) || 0;
+  const dep = parseFloat(src.deposit) || 0;
+  const tot = sub + tax + ship;
+  document.getElementById('m-sub').textContent = sub ? money(sub) : '';
+  document.getElementById('m-tax').textContent = sub ? money(tax) : '';
+  if (ship) {
+    document.getElementById('m-ship-cell').classList.remove('hide');
+    document.getElementById('m-ship').textContent = money(ship);
+  }
+  document.getElementById('m-total').textContent = tot ? money(tot) : '';
+  document.getElementById('m-dep').textContent = dep ? '−' + money(dep) : '';
+  document.getElementById('m-bal').textContent =
+    src.fullyPaid ? money(0) : (tot ? money(tot - dep) : '');
+
+  const pbs = ['pb-cash', 'pb-credit', 'pb-check'];
+  pbs.forEach(id => document.getElementById(id).addEventListener('click', () => {
+    pbs.forEach(o => { if (o !== id) document.getElementById(o).classList.remove('checked'); });
+    document.getElementById(id).classList.toggle('checked');
+  }));
+</script>
+</body>
+</html>

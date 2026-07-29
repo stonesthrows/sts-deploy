@@ -1918,6 +1918,15 @@ const BAG_LAYOUTS = [
     build: buildVariantBagUrl, applies: l => ['custom', 'estimate', 'repair', 'resize'].includes(l) },
   { id: 'website',  label: 'Website Order (beta)',          file: 'bag-layout-variants.html',
     build: buildWebsiteBagUrl, applies: l => l === 'ecom' },
+  { id: 'sizing',   label: 'Sizing (beta)',                file: 'resize-bag-print.html',
+    build: buildSizingBagUrl,   applies: l => l === 'resize' },
+  { id: 'estimate', label: 'Estimate / Quote (beta)',      file: 'estimate-bag-print.html',
+    build: buildEstimateBagUrl, applies: l => l === 'estimate' },
+  // Ring boxes only makes sense for orders that carry a rings[] array, which
+  // comes off the intake form (custom/estimate). Ecom orders synthesize their
+  // rings inside buildVariantBagUrl and already have the Website Order row.
+  { id: 'ringboxes', label: 'Ring Boxes (beta)',           file: 'ring-boxes-print.html',
+    build: buildRingBoxesBagUrl, applies: l => ['custom', 'estimate'].includes(l) },
 ];
 // Legacy shape kept for anything still reading it; derived from the registry so
 // labels live in one place. The leading '' row = "Auto (Print Setup default)".
@@ -2415,6 +2424,125 @@ function printOrderVariantBag(o) { window.open(buildVariantBagUrl(o), '_blank');
 // website order, and so its applies() can be ecom-only.
 function buildWebsiteBagUrl(o) { return buildVariantBagUrl(o); }
 function printOrderWebsiteBag(o) { window.open(buildWebsiteBagUrl(o), '_blank'); }
+
+// ── Shared param base for the focused bags (Sizing / Estimate / Ring Boxes) ──
+// Header, customer, dates and money params are identical across all three, so
+// they're assembled once here. Each builder then adds only the fields its own
+// template actually renders. Deliberately does NOT set `_v` — every builder
+// appends that last, immediately before returning, so a refactor can't drop
+// the cache-buster from one of them (see printOrder()'s window.open).
+function bagCoreParams(o) {
+  const kind = typeof inferOrderKind === 'function' ? inferOrderKind(o) : 'custom';
+  const sa = o.shippingAddress || {};
+  const addrLine = [o.addrStreet || sa.street || o.address || '',
+                    o.addrStreet2 || sa.street2 || ''].filter(Boolean).join(', ');
+  const p = new URLSearchParams({
+    kindLbl:   VARIANT_KIND_LABEL[kind] || 'Custom Order',
+    name:      o.name  || '',
+    phone:     o.phone || '',
+    email:     o.email || '',
+    address:   addrLine,
+    city:      o.addrCity  || sa.city  || '',
+    state:     o.addrState || sa.state || '',
+    zip:       o.addrZip   || sa.zip   || '',
+    takeIn:    o.takeIn    || '',
+    deadline:  o.deadline  || '',
+    pickup:    o.pickup    || '',
+    pieceType: o.pieceType || '',
+    // o.jobDesc is the Job TITLE and o.desc is the Job DESCRIPTION — the
+    // names are inverted against the UI labels. See jewelry-workflow.html.
+    jobTitle:  o.jobDesc   || '',
+    desc:      o.desc      || '',
+    notes:     o.notes     || '',
+    materials: o.materials || '',
+    deposit:   o.deposit   || '',
+    shipping:  o.shipping  || '',
+    fullyPaid: o.fullyPaid || '',
+    items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({
+      desc:   oiPrintLabel(it),
+      amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
+    }))),
+    orderId:   o.id || '',
+    taxApplies: (typeof orderTaxApplies === 'function' && !orderTaxApplies(o)) ? '0' : '1',
+  });
+  const bagMoney = typeof ecomMoney === 'function' ? ecomMoney(o) : null;
+  if (bagMoney && bagMoney.tax !== null) p.set('tax', String(bagMoney.tax));
+  return p;
+}
+
+// Sizing bag (resize-bag-print.html) — the from→to pair is the document.
+// resizeFrom/resizeTo are first-class order fields written by the intake
+// form's resize section (see js/intake.js); the template prints a dash, not a
+// blank, when either is missing so the gap can't be read as a print fault.
+function buildSizingBagUrl(o) {
+  const p = bagCoreParams(o);
+  p.set('resizeFrom', o.resizeFrom || '');
+  p.set('resizeTo',   o.resizeTo   || '');
+  // Stamping and sensitivities are the two irreversible fields on a resize —
+  // a stamp polished away, or solder the wearer reacts to. Both drive their
+  // own bordered callout, and both are omitted when empty.
+  p.set('stamping', o.stamping || '');
+  p.set('sensitivities', JSON.stringify(
+    Array.isArray(o.sensitivities) ? o.sensitivities.filter(Boolean) : []));
+  p.set('_v', Date.now());
+  return 'resize-bag-print.html?' + p.toString();
+}
+function printOrderSizingBag(o) { window.open(buildSizingBagUrl(o), '_blank'); }
+
+// Estimate/Quote bag (estimate-bag-print.html). o.approval is the KV snapshot
+// the intake app's send-for-approval flow writes back onto the order —
+// { token, status, sentAt, respondedAt, response } — and 'approved' is the
+// only status that clears the bench to start.
+function buildEstimateBagUrl(o) {
+  const p = bagCoreParams(o);
+  p.set('stones', o.gemstones || '');
+  const ap = o.approval || {};
+  const isoDay = t => {
+    if (!t) return '';
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  };
+  p.set('apStatus',    ap.token ? (ap.status || 'sent') : '');
+  p.set('apSent',      isoDay(ap.sentAt));
+  p.set('apResponded', isoDay(ap.respondedAt));
+  p.set('apResponse',  ap.response || '');
+  // There is no "valid through" field on the intake form, so it's derived as
+  // quoted date + 30 days. The template makes it contenteditable so it can be
+  // corrected on the page; wire a real field through here if one is added.
+  const quoted = o.takeIn || new Date().toISOString().slice(0, 10);
+  const vt = new Date(quoted + 'T00:00:00');
+  if (!isNaN(vt.getTime())) {
+    vt.setDate(vt.getDate() + 30);
+    p.set('validThru', vt.toISOString().slice(0, 10));
+  }
+  p.set('_v', Date.now());
+  return 'estimate-bag-print.html?' + p.toString();
+}
+function printOrderEstimateBag(o) { window.open(buildEstimateBagUrl(o), '_blank'); }
+
+// Ring Boxes bag (ring-boxes-print.html) — one full-width bordered box per
+// ring. Same rings[] shape the 'rings' variant reads; the template renders it
+// with room for per-ring notes and stamping instead of square cards.
+function buildRingBoxesBagUrl(o) {
+  const p = bagCoreParams(o);
+  const rings = Array.isArray(o.rings) ? o.rings : [];
+  if (rings.length) p.set('rings', JSON.stringify(rings));
+  const gift = o.gift || {};
+  if (gift.recipient || gift.occasion || gift.surprise) {
+    const fmtMD = d => {
+      const s = String(d || '').split('-');
+      return s.length === 3 ? s[1] + '/' + s[2] : '';
+    };
+    p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
+    p.set('giftDate', [gift.occasion,
+      gift.occasionDate ? 'needed by ' + fmtMD(gift.occasionDate) : '']
+      .filter(Boolean).join(' · '));
+    if (gift.surprise) p.set('giftSurprise', '1');
+  }
+  p.set('_v', Date.now());
+  return 'ring-boxes-print.html?' + p.toString();
+}
+function printOrderRingBoxesBag(o) { window.open(buildRingBoxesBagUrl(o), '_blank'); }
 
 // ════════════════════════════════════════════
 

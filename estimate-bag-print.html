@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Work Order Bag — Estimate / Quote</title>
+<!--
+  ══════════════════════════════════════════════════════════════
+  ESTIMATE / QUOTE bag.
+
+  Registered in BAG_LAYOUTS as { id: 'estimate' }, built by
+  buildEstimateBagUrl() in js/orders.js. Gated to layout 'estimate'.
+
+  Why this exists: an estimate currently prints on 'compact', which is
+  visually identical to a live work order. That is the one confusion
+  that actually costs money here — a bag that says "make this" when the
+  customer hasn't approved anything and no deposit has been taken.
+
+  So this is the only bag whose top-line message is DON'T START:
+    · A reversed (black) banner sits above everything when the estimate
+      is not approved. It flips to a bordered "OK TO BEGIN" banner only
+      when o.approval.status === 'approved'.
+    · The money strip is re-framed as a quote — "Quoted Total" and
+      "Deposit to Start", not "Balance" — because nothing is owed yet.
+    · No paid-by box is pre-checked; nothing has been taken.
+
+  Approval state comes from o.approval, the KV snapshot written by the
+  intake app's send-for-approval flow (see js/intake.js + the
+  /api/approval endpoint): { token, status, sentAt, respondedAt,
+  response }, where status is 'sent' | 'approved' | 'changes'.
+
+  Data contract (query string only — this page cannot see the app):
+    name, phone, email, address, city, state, zip,
+    takeIn, deadline, pickup, pieceType, jobTitle, desc, notes,
+    stones, materials, items (JSON [{desc, amount}]), deposit,
+    shipping, tax, taxApplies, validThru, apStatus, apSent,
+    apResponded, apResponse, kindLbl, orderId
+
+  NOTE on validThru: there is no "valid through" field on the intake
+  form. buildEstimateBagUrl() derives it as quoted-date + 30 days and it
+  is contenteditable, so it can be corrected on the printed page. If a
+  real field is added to intake later, pass it through instead.
+
+  ?demo=1  quoted, awaiting customer  → black "do not begin" banner
+  ?demo=2  customer approved          → "ok to begin" banner + deposit
+  ?demo=3  changes requested          → re-quote banner + their words
+  ?preview=1  fills the bag-style picker iframe cleanly
+
+  Prints 5.5"×8.5" rotated 90° CW onto the top half of a letter sheet.
+  ══════════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { font-family: Calibri, Arial, sans-serif; color: #111; background: #fff; }
+
+  .form-content {
+    width: 5.5in; height: 8.5in;
+    padding: 0.17in 0.19in 0.15in;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  @media screen {
+    body { background: #666; padding: 24px; }
+    .screen-note { font-family: Arial, sans-serif; font-size: 12px; color: #fff;
+                   text-align: center; margin-bottom: 10px; max-width: 5.5in;
+                   margin-left: auto; margin-right: auto; }
+    .screen-note a { color: #ffd; }
+    .form-content { background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.5); margin: 0 auto; }
+    .print-bar { text-align: center; margin-bottom: 10px; }
+    .print-btn { background: #7A5C3A; color: #fff; border: none; padding: 8px 22px;
+                 font-size: 13px; border-radius: 5px; cursor: pointer; font-family: inherit; }
+    .print-btn:hover { background: #5e4428; }
+    body.preview { background: #fff; padding: 0; }
+    body.preview .print-bar, body.preview .screen-note { display: none; }
+  }
+
+  @media print {
+    body { margin: 0; padding: 0; background: #fff; }
+    .no-print { display: none !important; }
+    @page { size: 8.5in 11in portrait; margin: 0; }
+    .form-content {
+      position: absolute; top: -1.5in; left: 1.5in;
+      transform: rotate(90deg); transform-origin: center;
+    }
+    /* the banner is the point of this bag — never let a browser drop its fill */
+    .quote-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ── Shared chrome (matches bag-layout-variants.html) ── */
+  .lbl { font-size: 7.5px; font-weight: bold; letter-spacing: 1.8px;
+         text-transform: uppercase; color: #555; }
+  .bx { display: inline-block; width: 11px; height: 11px; border: 1.2px solid #333;
+        vertical-align: -2px; cursor: pointer; }
+  .bx.checked { background: #333; }
+  .ck { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; }
+  [contenteditable] { outline: none; cursor: text; }
+  [contenteditable]:hover, [contenteditable]:focus { background: #fffbe6; }
+  @media print { [contenteditable]:hover, [contenteditable]:focus { background: transparent !important; } }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline;
+         padding-bottom: 7px; border-bottom: 1px solid #111; }
+  .top b { font-size: 15px; }
+  .top-right { display: flex; align-items: center; gap: 6px; }
+  .bag-qr { width: 0.5in; height: 0.5in; flex-shrink: 0; }
+  .bag-qr svg { display: block; width: 100%; height: 100%; }
+
+  .grid3 { display: flex; border-bottom: 1px solid #111; }
+  .g { flex: 1; padding: 6px 10px 7px 0; min-width: 0; }
+  .g + .g { border-left: 1px solid #ccc; padding-left: 10px; }
+  .g .v { display: block; font-size: 13px; font-weight: bold; margin-top: 1px; }
+  .g .sub { font-size: 10.5px; color: #333; margin-top: 1px; line-height: 1.3; }
+  .g.cust { flex: 1.35; }
+
+  /* ── The banner ── */
+  .quote-banner { text-align: center; padding: 6px 8px 7px; margin-top: 7px;
+                  background: #111; color: #fff; }
+  .quote-banner .qb-1 { font-size: 13px; font-weight: bold; letter-spacing: 3px;
+                        text-transform: uppercase; }
+  .quote-banner .qb-2 { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase;
+                        margin-top: 2px; color: #ddd; }
+  /* Approved reads as a different KIND of document, not a lighter shade of the
+     same one — white with a heavy border, so a glance can't confuse the two. */
+  .quote-banner.ok { background: #fff; color: #111; border: 2px solid #111; }
+  .quote-banner.ok .qb-2 { color: #444; }
+
+  .approval { display: flex; border: 1px solid #111; margin-top: 7px; }
+  .approval .ap { flex: 1; padding: 5px 9px 6px; min-width: 0; }
+  .approval .ap + .ap { border-left: 1px solid #ccc; }
+  .approval .ap .v { display: block; font-size: 12px; font-weight: 600; margin-top: 1px; }
+
+  .cust-said { border: 1px solid #111; border-top: 0; padding: 5px 9px 6px; display: none; }
+  .cust-said.show { display: block; }
+  .cust-said .q { font-size: 11px; line-height: 1.35; white-space: pre-wrap; margin-top: 2px; }
+
+  .jobline { padding: 7px 0 0; }
+  .jobline .pt { margin-bottom: 1px; }
+  .jobline .t { font-size: 14px; font-weight: bold; }
+  .jobline .d { font-size: 11.5px; line-height: 1.3; margin-top: 2px; }
+  .jobline .kvline { font-size: 11px; margin-top: 3px; display: none; }
+  .jobline .kvline.show { display: block; }
+  .jobline .kvline .lbl { margin-right: 5px; }
+
+  .center { flex: 1; margin-top: 7px; display: flex; flex-direction: column; min-height: 0; }
+
+  .quote-items { border: 1px solid #111; flex: 1; display: flex; flex-direction: column;
+                 min-height: 0; overflow: hidden; }
+  .quote-items .qi-head { background: #eee; border-bottom: 1px solid #111; padding: 3px 9px;
+                          display: flex; justify-content: space-between; }
+  .quote-items .qi-r { display: flex; justify-content: space-between; gap: 10px;
+                       font-size: 11.5px; padding: 5px 9px; border-bottom: 1px solid #e2e2e2; }
+  .quote-items .qi-r .qd { min-width: 0; }
+  .quote-items .qi-r .qa { font-weight: 600; white-space: nowrap; }
+  .quote-items .qi-fill { flex: 1; min-height: 12px; }
+
+  .quote-total { display: flex; border: 1.5px solid #111; border-top: 0; }
+  .quote-total .qt { flex: 1; text-align: center; padding: 6px 4px 7px; min-width: 0; }
+  .quote-total .qt + .qt { border-left: 1px solid #ccc; }
+  .quote-total .qt small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 1.4px;
+                           text-transform: uppercase; color: #555; margin-bottom: 2px; }
+  .quote-total .qt .val { font-size: 14px; font-weight: bold; }
+  .quote-total .qt.grand { background: #111; color: #fff; }
+  .quote-total .qt.grand small { color: #bbb; }
+  .quote-total .qt.grand .val { font-size: 17px; }
+  .quote-total .qt.hide { display: none; }
+  @media print {
+    .quote-total .qt.grand { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  .sign { border: 1px solid #111; margin-top: 7px; padding: 5px 9px 8px; }
+  .sign .sg-row { display: flex; gap: 14px; margin-top: 9px; }
+  .sign .sg-line { border-bottom: 1px solid #333; height: 17px; }
+  .sign .sg-cap { font-size: 8px; letter-spacing: 1.2px; text-transform: uppercase;
+                  color: #555; margin-top: 2px; }
+  .sign .sg-who { flex: 1; }
+  .sign .sg-date { flex: 0 0 1.25in; }
+
+  .foot { display: flex; gap: 18px; align-items: center; margin-top: 7px; }
+  .foot .url { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">🖨 Print Estimate</button>
+</div>
+<div class="screen-note no-print">
+  Try <a href="?demo=1">?demo=1</a> (awaiting customer),
+  <a href="?demo=2">?demo=2</a> (approved &rarr; ok to begin),
+  <a href="?demo=3">?demo=3</a> (changes requested).
+</div>
+
+<div class="form-content">
+
+  <div class="top">
+    <b>Stones Throw Studio</b>
+    <div class="top-right">
+      <span class="lbl" id="kind-lbl">Estimate</span>
+      <div class="bag-qr" id="bag-qr"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="g cust">
+      <span class="lbl">Customer</span>
+      <span class="v" id="c-name" contenteditable="true"></span>
+      <div class="sub" id="c-contact" contenteditable="true"></div>
+      <div class="sub" id="c-addr" contenteditable="true" style="display:none;"></div>
+    </div>
+    <div class="g">
+      <span class="lbl">Quoted</span>
+      <span class="v" id="d-quoted" contenteditable="true"></span>
+    </div>
+    <div class="g">
+      <span class="lbl">Valid Thru</span>
+      <span class="v" id="d-valid" contenteditable="true"></span>
+      <div class="sub" id="d-validsub"></div>
+    </div>
+  </div>
+
+  <div class="quote-banner" id="banner">
+    <div class="qb-1" id="banner-1">Estimate &mdash; not approved</div>
+    <div class="qb-2" id="banner-2">Do not begin work &middot; no materials ordered</div>
+  </div>
+
+  <div class="approval">
+    <div class="ap"><span class="lbl">Status</span><span class="v" id="ap-status"></span></div>
+    <div class="ap"><span class="lbl">Sent</span><span class="v" id="ap-sent"></span></div>
+    <div class="ap"><span class="lbl">Deposit to Start</span><span class="v" id="ap-dep" contenteditable="true"></span></div>
+  </div>
+
+  <div class="cust-said" id="cust-said">
+    <span class="lbl">Customer responded</span>
+    <div class="q" id="cust-said-q"></div>
+  </div>
+
+  <div class="jobline">
+    <div class="lbl pt" id="j-piece"></div>
+    <div class="t" id="j-title" contenteditable="true"></div>
+    <div class="d" id="j-desc" contenteditable="true"></div>
+    <div class="kvline" id="j-stones-row"><span class="lbl">Stones</span><span id="j-stones" contenteditable="true"></span></div>
+    <div class="kvline" id="j-cnotes-row"><span class="lbl">Customer Notes</span><span id="j-cnotes" contenteditable="true"></span></div>
+  </div>
+
+  <div class="center">
+    <div class="quote-items" id="quote-items">
+      <div class="qi-head"><span class="lbl">Quoted Scope</span><span class="lbl">Amount</span></div>
+      <div class="qi-fill"></div>
+    </div>
+
+    <div class="quote-total">
+      <div class="qt"><small>Subtotal</small><div class="val" id="q-sub"></div></div>
+      <div class="qt"><small id="q-tax-lbl">Est. Tax 8%</small><div class="val" id="q-tax"></div></div>
+      <div class="qt hide" id="q-ship-cell"><small>Shipping</small><div class="val" id="q-ship"></div></div>
+      <div class="qt grand"><small>Quoted Total</small><div class="val" id="q-total"></div></div>
+    </div>
+
+    <div class="sign">
+      <span class="lbl">Customer approval &mdash; work begins on signature + deposit</span>
+      <div class="sg-row">
+        <div class="sg-who"><div class="sg-line"></div><div class="sg-cap">Signature</div></div>
+        <div class="sg-date"><div class="sg-line"></div><div class="sg-cap">Date</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="lbl">Deposit Taken By</span>
+    <span class="ck"><span class="bx" id="pb-cash"></span>Cash</span>
+    <span class="ck"><span class="bx" id="pb-credit"></span>Credit</span>
+    <span class="ck"><span class="bx" id="pb-check"></span>Check</span>
+    <span class="lbl url">stonesthrowjewelry.com</span>
+  </div>
+
+</div>
+
+<script src="js/qrcode-lib.js"></script>
+<script>
+  function fmt(d) {
+    if (!d) return '';
+    const p = String(d).split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : d;
+  }
+  function money(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : '$' + n.toFixed(2);
+  }
+
+  const q = new URLSearchParams(window.location.search);
+  if (q.get('preview')) document.body.classList.add('preview');
+  const demo = q.get('demo');
+  if (typeof stsBagQR === 'function') stsBagQR(document.getElementById('bag-qr'), q.get('orderId') || (demo ? 'demo-' + demo : ''));
+
+  const DEMOS = {
+    '1': {
+      kindLbl: 'Estimate', name: 'Renata Ellis', phone: '(512) 555-3312', email: 'renata.e@example.com',
+      takeIn: '2026-07-22', validThru: '2026-08-21',
+      pieceType: 'Ring', jobTitle: 'Bezel-Set Sapphire Solitaire',
+      desc: 'Low-profile bezel, 6mm round blue sapphire, 14k yellow gold, comfort-fit 2.5mm band.',
+      stones: '1.0ct round blue sapphire — studio supplied',
+      apStatus: 'sent', apSent: '2026-07-22',
+      items: [
+        { desc: 'Bezel setting — design & fabrication', amount: 480 },
+        { desc: '1.0ct round blue sapphire',            amount: 285 },
+        { desc: '14k yellow gold, 2.5mm comfort-fit band', amount: 75 },
+      ],
+      deposit: 420,
+    },
+    '2': {
+      kindLbl: 'Estimate', name: 'Marcus Webb', phone: '(512) 555-9017', email: 'm.webb@example.com',
+      takeIn: '2026-07-16', validThru: '2026-08-15',
+      pieceType: 'Pendant', jobTitle: 'Memorial Pendant — Ash Inlay',
+      desc: 'Sterling locket-style pendant with resin ash inlay, 18" chain.',
+      apStatus: 'approved', apSent: '2026-07-16', apResponded: '2026-07-19',
+      items: [
+        { desc: 'Pendant fabrication & inlay', amount: 340 },
+        { desc: 'Sterling chain, 18"',          amount: 45 },
+      ],
+      deposit: 195,
+    },
+    '3': {
+      kindLbl: 'Estimate', name: 'Dana Feldman', phone: '(512) 555-7723', email: 'dana.f@example.com',
+      takeIn: '2026-07-20', validThru: '2026-08-19',
+      pieceType: 'Ring', jobTitle: 'Three-Stone Anniversary Band',
+      desc: 'Three-stone band, customer-supplied center diamond, two lab side stones.',
+      apStatus: 'changes', apSent: '2026-07-20', apResponded: '2026-07-23',
+      apResponse: 'Love the design but this is over what we budgeted — can we look at a smaller side stone, or silver instead of gold?',
+      items: [
+        { desc: 'Three-stone band — labor & setting', amount: 520 },
+        { desc: 'Lab side stones (2)',                 amount: 190 },
+        { desc: '14k white gold band',                 amount: 130 },
+      ],
+      deposit: 0,
+    },
+  };
+
+  const src = demo && DEMOS[demo] ? DEMOS[demo] : {
+    kindLbl: q.get('kindLbl') || 'Estimate',
+    name: q.get('name') || '', phone: q.get('phone') || '', email: q.get('email') || '',
+    address: q.get('address') || '', city: q.get('city') || '', state: q.get('state') || '',
+    zip: q.get('zip') || '',
+    takeIn: q.get('takeIn') || '', validThru: q.get('validThru') || '',
+    pieceType: q.get('pieceType') || '', jobTitle: q.get('jobTitle') || '',
+    desc: q.get('desc') || '', notes: q.get('notes') || '', stones: q.get('stones') || '',
+    apStatus: q.get('apStatus') || '', apSent: q.get('apSent') || '',
+    apResponded: q.get('apResponded') || '', apResponse: q.get('apResponse') || '',
+    deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
+    taxApplies: q.get('taxApplies') !== '0',
+    tax: q.get('tax') || '',
+    items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
+  };
+
+  // ── Header ──
+  document.getElementById('kind-lbl').textContent = src.kindLbl || 'Estimate';
+  document.getElementById('c-name').textContent = src.name;
+  document.getElementById('c-contact').textContent = [src.phone, src.email].filter(Boolean).join(' · ');
+  const addrLine = [src.address, [src.city, src.state].filter(Boolean).join(', '), src.zip]
+    .filter(Boolean).join(' · ');
+  if (addrLine) {
+    const a = document.getElementById('c-addr');
+    a.textContent = addrLine; a.style.display = 'block';
+  }
+  const quotedDate = src.takeIn || new Date().toISOString().slice(0, 10);
+  document.getElementById('d-quoted').textContent = fmt(quotedDate);
+  document.getElementById('d-valid').textContent = fmt(src.validThru);
+  document.getElementById('d-validsub').textContent = src.validThru ? '30 days' : '';
+
+  // ── Banner + approval strip ──
+  // 'approved' is the ONLY state that clears the bench to start. Everything
+  // else — sent, changes requested, or never sent at all — says don't.
+  const status = (src.apStatus || '').toLowerCase();
+  const approved = status === 'approved';
+  const BANNERS = {
+    approved: ['Estimate — approved', 'OK to begin · confirm deposit before ordering materials'],
+    changes:  ['Changes requested', 'Do not begin work · re-quote required'],
+    sent:     ['Estimate — not approved', 'Do not begin work · no materials ordered'],
+    '':       ['Estimate — not sent', 'Do not begin work · not yet sent to customer'],
+  };
+  const [b1, b2] = BANNERS[status] || BANNERS.sent;
+  document.getElementById('banner-1').textContent = b1;
+  document.getElementById('banner-2').textContent = b2;
+  if (approved) document.getElementById('banner').classList.add('ok');
+
+  const STATUS_TXT = {
+    approved: 'Customer approved', changes: 'Changes requested',
+    sent: 'Awaiting customer', '': 'Not sent',
+  };
+  document.getElementById('ap-status').textContent = STATUS_TXT[status] || 'Awaiting customer';
+  document.getElementById('ap-sent').textContent =
+    [fmt(src.apSent), src.apResponded ? 'replied ' + fmt(src.apResponded) : ''].filter(Boolean).join(' · ') || '—';
+
+  if (src.apResponse) {
+    document.getElementById('cust-said').classList.add('show');
+    document.getElementById('cust-said-q').textContent = '“' + src.apResponse + '”';
+  }
+
+  // ── Job block ──
+  document.getElementById('j-piece').textContent = src.pieceType || '';
+  document.getElementById('j-title').textContent = src.jobTitle || '';
+  document.getElementById('j-desc').textContent = src.desc || '';
+  [['j-stones-row', 'j-stones', src.stones],
+   ['j-cnotes-row', 'j-cnotes', src.notes]].forEach(([rowId, valId, val]) => {
+    if (val) {
+      document.getElementById(rowId).classList.add('show');
+      document.getElementById(valId).textContent = val;
+    }
+  });
+
+  // ── Quoted scope ──
+  const items = (src.items || []).filter(it => it && it.desc);
+  const box = document.getElementById('quote-items');
+  const fill = box.querySelector('.qi-fill');
+  items.forEach(it => {
+    const r = document.createElement('div');
+    r.className = 'qi-r';
+    const d = document.createElement('div'); d.className = 'qd';
+    d.contentEditable = 'true'; d.textContent = it.desc;
+    const a = document.createElement('div'); a.className = 'qa';
+    a.contentEditable = 'true'; a.textContent = money(it.amount);
+    r.appendChild(d); r.appendChild(a);
+    box.insertBefore(r, fill);
+  });
+
+  const sub = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+  const taxApplies = src.taxApplies !== false;
+  const taxGiven = (src.tax !== '' && src.tax != null && !isNaN(parseFloat(src.tax)))
+    ? parseFloat(src.tax) : null;
+  const tax = taxGiven !== null ? taxGiven : (taxApplies ? sub * 0.08 : 0);
+  document.getElementById('q-tax-lbl').textContent =
+    taxGiven !== null ? 'Tax' : (taxApplies ? 'Est. Tax 8%' : 'Tax · Out of State');
+  const ship = parseFloat(src.shipping) || 0;
+  const tot = sub + tax + ship;
+  document.getElementById('q-sub').textContent = sub ? money(sub) : '';
+  document.getElementById('q-tax').textContent = sub ? money(tax) : '';
+  if (ship) {
+    document.getElementById('q-ship-cell').classList.remove('hide');
+    document.getElementById('q-ship').textContent = money(ship);
+  }
+  document.getElementById('q-total').textContent = tot ? money(tot) : '';
+
+  // Deposit to start: what was actually recorded, with the share of the quote
+  // it represents. No deposit recorded prints a blank rule rather than a
+  // guessed percentage — this is a financial document.
+  const dep = parseFloat(src.deposit) || 0;
+  document.getElementById('ap-dep').textContent =
+    dep ? money(dep) + (tot ? ' (' + Math.round((dep / tot) * 100) + '%)' : '') : '—';
+
+  const pbs = ['pb-cash', 'pb-credit', 'pb-check'];
+  pbs.forEach(id => document.getElementById(id).addEventListener('click', () => {
+    pbs.forEach(o => { if (o !== id) document.getElementById(o).classList.remove('checked'); });
+    document.getElementById(id).classList.toggle('checked');
+  }));
+</script>
+</body>
+</html>

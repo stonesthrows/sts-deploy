@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Work Order Bag — Ring Boxes</title>
+<!--
+  ══════════════════════════════════════════════════════════════
+  RING BOXES bag — one bordered box per ring.
+
+  Registered in BAG_LAYOUTS as { id: 'ringboxes' }, built by
+  buildRingBoxesBagUrl() in js/orders.js. Gated to layouts that can
+  carry a rings[] array (custom / estimate).
+
+  Why this exists alongside the 'rings' variant of
+  bag-layout-variants.html: that one lays rings out as SQUARE cards in
+  a grid, which is compact but truncates per-ring notes and squeezes
+  the stamping line. Here each ring is a FULL-WIDTH bordered box —
+  design name and size in its own header, specs / notes / stamping
+  inside its own border — so a ring is never read across a fold or
+  confused with its neighbour, and notes have room to be legible.
+
+  Data contract (query string only — this page cannot see the app):
+    name, phone, email, address, city, state, zip,
+    takeIn, deadline, pickup, pieceType, jobTitle, desc,
+    notes, materials, rings (JSON), items (JSON [{desc, amount}]),
+    deposit, shipping, fullyPaid, tax, taxApplies, kindLbl,
+    giftFor, giftDate, giftSurprise, orderId
+
+  rings[] is the shape produced by js/ring-fields.js
+  (Meditation Ring / Simple Band / Custom Ring) plus the synthetic
+  'Website Order' shape buildVariantBagUrl() makes from ecomPrintItems().
+
+  ?demo=1  single Custom Ring
+  ?demo=2  3-ring family order (Meditation + Simple Band + Custom)
+  ?demo=3  5 rings → two-column fallback
+  ?preview=1  fills the bag-style picker iframe cleanly
+
+  Prints 5.5"×8.5" rotated 90° CW onto the top half of a letter sheet,
+  same as every other bag template.
+  ══════════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { font-family: Calibri, Arial, sans-serif; color: #111; background: #fff; }
+
+  .form-content {
+    width: 5.5in; height: 8.5in;
+    padding: 0.17in 0.19in 0.15in;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  @media screen {
+    body { background: #666; padding: 24px; }
+    .screen-note { font-family: Arial, sans-serif; font-size: 12px; color: #fff;
+                   text-align: center; margin-bottom: 10px; max-width: 5.5in;
+                   margin-left: auto; margin-right: auto; }
+    .screen-note a { color: #ffd; }
+    .form-content { background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.5); margin: 0 auto; }
+    .print-bar { text-align: center; margin-bottom: 10px; }
+    .print-btn { background: #7A5C3A; color: #fff; border: none; padding: 8px 22px;
+                 font-size: 13px; border-radius: 5px; cursor: pointer; font-family: inherit; }
+    .print-btn:hover { background: #5e4428; }
+    body.preview { background: #fff; padding: 0; }
+    body.preview .print-bar, body.preview .screen-note { display: none; }
+  }
+
+  @media print {
+    body { margin: 0; padding: 0; background: #fff; }
+    .no-print { display: none !important; }
+    @page { size: 8.5in 11in portrait; margin: 0; }
+    .form-content {
+      position: absolute; top: -1.5in; left: 1.5in;
+      transform: rotate(90deg); transform-origin: center;
+    }
+  }
+
+  /* ── Shared chrome (matches bag-layout-variants.html) ── */
+  .lbl { font-size: 7.5px; font-weight: bold; letter-spacing: 1.8px;
+         text-transform: uppercase; color: #555; }
+  .bx { display: inline-block; width: 11px; height: 11px; border: 1.2px solid #333;
+        vertical-align: -2px; cursor: pointer; }
+  .bx.checked { background: #333; }
+  .ck { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; }
+  [contenteditable] { outline: none; cursor: text; }
+  [contenteditable]:hover, [contenteditable]:focus { background: #fffbe6; }
+  @media print { [contenteditable]:hover, [contenteditable]:focus { background: transparent !important; } }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline;
+         padding-bottom: 7px; border-bottom: 1px solid #111; }
+  .top b { font-size: 15px; }
+  .top-right { display: flex; align-items: center; gap: 6px; }
+  .bag-qr { width: 0.5in; height: 0.5in; flex-shrink: 0; }
+  .bag-qr svg { display: block; width: 100%; height: 100%; }
+
+  .grid3 { display: flex; border-bottom: 1px solid #111; }
+  .g { flex: 1; padding: 6px 10px 7px 0; min-width: 0; }
+  .g + .g { border-left: 1px solid #ccc; padding-left: 10px; }
+  .g .v { display: block; font-size: 13px; font-weight: bold; margin-top: 1px; }
+  .g .sub { font-size: 10.5px; color: #333; margin-top: 1px; line-height: 1.3; }
+  .g.cust { flex: 1.35; }
+
+  .gift { display: none; border: 1.5px solid #111; margin-top: 7px;
+          padding: 4px 10px; font-size: 11.5px; align-items: center; gap: 8px; }
+  .gift.show { display: flex; }
+  .gift b { font-size: 11.5px; }
+  .gift .sup { margin-left: auto; font-weight: bold; white-space: nowrap; }
+
+  .jobline { padding: 6px 0 0; }
+  .jobline .pt { margin-bottom: 1px; }
+  .jobline .t { font-size: 14px; font-weight: bold; }
+  .jobline .d { font-size: 11.5px; line-height: 1.3; margin-top: 2px; }
+  .jobline .kvline { font-size: 11px; margin-top: 3px; display: none; }
+  .jobline .kvline.show { display: block; }
+  .jobline .kvline .lbl { margin-right: 5px; }
+
+  .center { flex: 1; margin-top: 7px; min-height: 1.6in; overflow: hidden; }
+
+  /* ── The ring boxes ── */
+  .ringbox-stack { display: flex; flex-direction: column; gap: 7px; height: 100%; }
+  /* 5+ rings can't be legible stacked full-width on a 5.5in page, so they
+     fall back to two columns rather than shrinking every box to a sliver. */
+  .ringbox-stack.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  .ringbox { border: 1.5px solid #111; display: flex; flex-direction: column;
+             flex: 1; min-height: 0; overflow: hidden; }
+  .ringbox .rb-head { display: flex; align-items: stretch; border-bottom: 1px solid #111;
+                      background: #f2f2f2; }
+  .ringbox .rb-id { flex: 1; padding: 4px 9px 5px; min-width: 0; }
+  .ringbox .rb-idx { font-size: 7.5px; font-weight: bold; letter-spacing: 1.8px;
+                     text-transform: uppercase; color: #555; }
+  .ringbox .rb-name { font-size: 14px; font-weight: bold; line-height: 1.15; }
+  .ringbox .rb-cat { font-size: 9.5px; color: #555; }
+  .ringbox .rb-size { flex: 0 0 0.92in; border-left: 1px solid #111; text-align: center;
+                      display: flex; flex-direction: column; justify-content: center;
+                      padding: 3px 2px 5px; background: #fff; }
+  .ringbox .rb-size small { font-size: 7px; font-weight: bold; letter-spacing: 1.6px;
+                            text-transform: uppercase; color: #555; }
+  .ringbox .rb-size .num { font-size: 27px; font-weight: bold; line-height: 1.05; }
+  .ringbox .rb-body { flex: 1; padding: 5px 9px 6px; display: flex; flex-direction: column;
+                      min-height: 0; }
+  .ringbox .rb-specs { display: flex; flex-wrap: wrap; gap: 2px 0; }
+  .ringbox .rb-sp { flex: 0 0 50%; font-size: 11px; display: flex; gap: 5px; min-width: 0; }
+  .ringbox .rb-sp .k { color: #666; flex: 0 0 auto; min-width: 46px; }
+  .ringbox .rb-sp .v { font-weight: 600; min-width: 0; }
+  .ringbox .rb-sp.wide { flex-basis: 100%; }
+  .ringbox .rb-note { font-size: 10.5px; line-height: 1.35; margin-top: 4px;
+                      padding-top: 4px; border-top: 1px dashed #ccc; }
+  .ringbox .rb-note .lbl { margin-right: 5px; }
+  /* Inside stamping is irreversible, so it gets a labeled, underlined value
+     pinned to the bottom of the box — never small print. A ring with nothing
+     to stamp still prints the row, so a blank reads as "checked, nothing to
+     stamp" rather than as a field that got dropped in mapping. */
+  .ringbox .rb-stamp { margin-top: auto; padding-top: 4px; display: flex; flex-wrap: wrap;
+                       align-items: baseline; gap: 0 7px; }
+  .ringbox .rb-stamp .rs-val { font-size: 14px; letter-spacing: .8px; font-weight: 600;
+                               border-bottom: 1px solid #999; }
+  .ringbox .rb-stamp .rs-how { font-size: 9.5px; color: #555; flex-basis: 100%; margin-top: 1px; }
+  .ringbox .rb-stamp .rs-none { font-size: 10px; color: #888; }
+  /* two-column mode shrinks the type so 6 boxes still fit the page */
+  .two-col .ringbox .rb-name { font-size: 12px; }
+  .two-col .ringbox .rb-size { flex-basis: 0.62in; }
+  .two-col .ringbox .rb-size .num { font-size: 19px; }
+  .two-col .ringbox .rb-sp { flex-basis: 100%; font-size: 10px; }
+  .two-col .ringbox .rb-stamp .rs-val { font-size: 12px; }
+
+  .empty-note { border: 1px dashed #999; padding: 10px; font-size: 11.5px;
+                color: #555; text-align: center; }
+
+  .items { margin-top: 7px; display: none; }
+  .items.show { display: block; }
+  .items .ir { display: flex; justify-content: space-between; font-size: 11.5px;
+               padding: 2px 2px; border-bottom: 1px solid #e2e2e2; }
+
+  .moneystrip { display: flex; margin-top: 7px; border: 1px solid #111; }
+  .m { flex: 1; text-align: center; padding: 5px 4px 6px; font-size: 12.5px; min-width: 0; }
+  .m + .m { border-left: 1px solid #ccc; }
+  .m small { display: block; font-size: 7px; font-weight: bold; letter-spacing: 1.4px;
+             text-transform: uppercase; color: #555; margin-bottom: 2px; }
+  .m.b { font-weight: bold; }
+  .m.hide { display: none; }
+
+  .foot { display: flex; gap: 18px; align-items: center; margin-top: 7px; }
+  .foot .url { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">🖨 Print Work Order</button>
+</div>
+<div class="screen-note no-print">
+  Try <a href="?demo=1">?demo=1</a> (single ring),
+  <a href="?demo=2">?demo=2</a> (3-ring family),
+  <a href="?demo=3">?demo=3</a> (5 rings → two columns).
+</div>
+
+<div class="form-content">
+
+  <div class="top">
+    <b>Stones Throw Studio</b>
+    <div class="top-right">
+      <span class="lbl" id="kind-lbl">Custom Order</span>
+      <div class="bag-qr" id="bag-qr"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="g cust">
+      <span class="lbl">Customer</span>
+      <span class="v" id="c-name" contenteditable="true"></span>
+      <div class="sub" id="c-contact" contenteditable="true"></div>
+      <div class="sub" id="c-addr" contenteditable="true" style="display:none;"></div>
+    </div>
+    <div class="g">
+      <span class="lbl">Taken In</span>
+      <span class="v" id="d-takein" contenteditable="true"></span>
+    </div>
+    <div class="g">
+      <span class="lbl">Due</span>
+      <span class="v" id="d-due" contenteditable="true"></span>
+      <div class="sub" id="d-pickup" contenteditable="true"></div>
+    </div>
+  </div>
+
+  <div class="gift" id="gift">
+    <span>🎁</span><b id="gift-for" contenteditable="true"></b>
+    <span id="gift-date" contenteditable="true"></span>
+    <span class="sup" id="gift-surprise" style="display:none;">🤫 SURPRISE — discretion at pickup</span>
+  </div>
+
+  <div class="jobline">
+    <div class="lbl pt" id="j-piece"></div>
+    <div class="t" id="j-title" contenteditable="true"></div>
+    <div class="d" id="j-desc" contenteditable="true"></div>
+    <div class="kvline" id="j-cnotes-row"><span class="lbl">Customer Notes</span><span id="j-cnotes" contenteditable="true"></span></div>
+  </div>
+
+  <div class="center" id="center"></div>
+
+  <div class="items" id="items"></div>
+
+  <div class="moneystrip">
+    <div class="m"><small>Subtotal</small><span id="m-sub" contenteditable="true"></span></div>
+    <div class="m"><small id="m-tax-lbl">Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
+    <div class="m hide" id="m-ship-cell"><small>Shipping</small><span id="m-ship" contenteditable="true"></span></div>
+    <div class="m b"><small>Total</small><span id="m-total"></span></div>
+    <div class="m"><small>Deposit</small><span id="m-dep" contenteditable="true"></span></div>
+    <div class="m b"><small>Balance</small><span id="m-bal"></span></div>
+  </div>
+
+  <div class="foot">
+    <span class="lbl">Paid By</span>
+    <span class="ck"><span class="bx" id="pb-cash"></span>Cash</span>
+    <span class="ck"><span class="bx" id="pb-credit"></span>Credit</span>
+    <span class="ck"><span class="bx" id="pb-check"></span>Check</span>
+    <span class="lbl url">stonesthrowjewelry.com</span>
+  </div>
+
+</div>
+
+<script src="js/qrcode-lib.js"></script>
+<script>
+  function fmt(d) {
+    if (!d) return '';
+    const p = String(d).split('-');
+    return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : d;
+  }
+  function money(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : '$' + n.toFixed(2);
+  }
+
+  const q = new URLSearchParams(window.location.search);
+  if (q.get('preview')) document.body.classList.add('preview');
+  const demo = q.get('demo');
+  if (typeof stsBagQR === 'function') stsBagQR(document.getElementById('bag-qr'), q.get('orderId') || (demo ? 'demo-' + demo : ''));
+
+  // ── Demo fixtures — built from the same orders the other beta templates
+  // use, so the three bags can be compared side by side with no app. ──
+  const DEMOS = {
+    '1': {
+      kindLbl: 'Custom Order', name: 'Walk-in Wanda', phone: '(512) 555-1234', email: 'wanda@example.com',
+      takeIn: '2026-07-10', deadline: '2026-08-01', pickup: 'Studio',
+      pieceType: 'Ring', jobTitle: 'Custom Stacking Ring',
+      desc: 'Simple stacking ring, brushed finish, to pair with her existing pieces.',
+      rings: [{ category: 'Custom Ring', customMetal: '14k yellow gold', customWidth: '2mm', customGauge: '18ga',
+                customTexture: ['Matte'], customSize: '6.5', customNotes: 'Slightly domed profile', stamping: '' }],
+      items: [{ desc: 'Stacking ring — labor & metal', amount: 180 }],
+      deposit: 80,
+    },
+    '2': {
+      kindLbl: 'Custom Order', name: 'The Alvarez Family', phone: '(512) 555-7710', email: 'alvarez.fam@example.com',
+      takeIn: '2026-07-12', deadline: '2026-08-15', pickup: 'To be Shipped',
+      pieceType: 'Ring', jobTitle: 'Family Meditation + Band Set',
+      desc: 'Set of 3 for the Alvarez family — see per-ring specs.',
+      giftFor: 'Anniversary gift', giftDate: 'needed by 08/12',
+      rings: [
+        { name: 'Marco', category: 'Meditation Ring', medWidth: '8mm', medTexture: 'Bodhi Leaf',
+          medSpinners: '2', medSpinnerStyle: 'Orbit Tricolor', medSize: '10', stamping: 'M+E 2016' },
+        { name: 'Elena', category: 'Simple Band', bandWidth: '4mm', bandTexture: 'Smooth',
+          bandSize: '6.25', stamping: '' },
+        { name: 'Sofia', category: 'Custom Ring', customMetal: 'Sterling silver', customWidth: '3mm',
+          customGauge: '20ga', customTexture: ['Hammered/Textured', 'Oxidized'], customSize: '4.75',
+          customNotes: 'Small — please double check sizing stock before cutting.', stamping: '' },
+      ],
+      items: [
+        { desc: 'Meditation ring, 8mm, 2 spinners', amount: 260 },
+        { desc: 'Simple band, 4mm silver',           amount: 90 },
+        { desc: 'Custom hammered band, 3mm',          amount: 140 },
+      ],
+      deposit: 250, shipping: 14,
+    },
+    // 5 rings → exercises the two-column fallback
+    '3': {
+      kindLbl: 'Custom Order', name: 'Okonkwo Wedding Party', phone: '(512) 555-4402', email: 'party@example.com',
+      takeIn: '2026-07-15', deadline: '2026-09-01', pickup: 'Studio',
+      pieceType: 'Ring', jobTitle: 'Wedding Party Band Set — 5 rings',
+      rings: [
+        { name: 'Ada',   category: 'Simple Band', bandWidth: '3mm', bandTexture: 'Smooth', bandSize: '6', stamping: '09-12-2026' },
+        { name: 'Chidi', category: 'Simple Band', bandWidth: '5mm', bandTexture: 'Matte',  bandSize: '11', stamping: '09-12-2026' },
+        { name: 'Ngozi', category: 'Meditation Ring', medWidth: '6mm', medTexture: 'Wave', medSpinners: '1', medSize: '7.5', stamping: '' },
+        { name: 'Emeka', category: 'Custom Ring', customMetal: '14k yellow gold', customWidth: '4mm',
+          customGauge: '16ga', customTexture: ['Hammered/Textured'], customSize: '9.5', customNotes: '', stamping: '' },
+        { name: 'Amara', category: 'Simple Band', bandWidth: '2mm', bandTexture: 'Smooth', bandSize: '5.25', stamping: '' },
+      ],
+      items: [{ desc: 'Wedding party band set (5)', amount: 1180 }],
+      deposit: 500,
+    },
+  };
+
+  const src = demo && DEMOS[demo] ? DEMOS[demo] : {
+    kindLbl: q.get('kindLbl') || 'Custom Order',
+    name: q.get('name') || '', phone: q.get('phone') || '', email: q.get('email') || '',
+    address: q.get('address') || '', city: q.get('city') || '', state: q.get('state') || '',
+    zip: q.get('zip') || '',
+    takeIn: q.get('takeIn') || '', deadline: q.get('deadline') || '',
+    pickup: q.get('pickup') || '',
+    pieceType: q.get('pieceType') || '', jobTitle: q.get('jobTitle') || '',
+    desc: q.get('desc') || '', notes: q.get('notes') || '',
+    rings: (() => { try { return JSON.parse(q.get('rings') || 'null'); } catch (e) { return null; } })(),
+    giftFor: q.get('giftFor') || '', giftDate: q.get('giftDate') || '',
+    giftSurprise: q.get('giftSurprise') || '',
+    deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
+    fullyPaid: q.get('fullyPaid') || '',
+    taxApplies: q.get('taxApplies') !== '0',
+    tax: q.get('tax') || '',
+    items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
+  };
+
+  // ── Header ──
+  document.getElementById('kind-lbl').textContent = src.kindLbl || 'Custom Order';
+  document.getElementById('c-name').textContent = src.name;
+  document.getElementById('c-contact').textContent = [src.phone, src.email].filter(Boolean).join(' · ');
+  const addrLine = [src.address, [src.city, src.state].filter(Boolean).join(', '), src.zip]
+    .filter(Boolean).join(' · ');
+  if (addrLine) {
+    const a = document.getElementById('c-addr');
+    a.textContent = addrLine; a.style.display = 'block';
+  }
+  document.getElementById('d-takein').textContent = fmt(src.takeIn) || fmt(new Date().toISOString().slice(0, 10));
+  document.getElementById('d-due').textContent = fmt(src.deadline);
+  const pk = src.pickup || '';
+  document.getElementById('d-pickup').textContent =
+    pk ? 'Pickup: ' + (/ship/i.test(pk) ? '📦 Ship' : pk.replace(/\s*(Market|Farmer's Market|Crossing Market)$/i, '')) : '';
+
+  // ── Gift strip ──
+  if (src.giftFor || src.giftSurprise) {
+    document.getElementById('gift').classList.add('show');
+    document.getElementById('gift-for').textContent = src.giftFor || 'Gift';
+    document.getElementById('gift-date').textContent = src.giftDate || '';
+    if (src.giftSurprise) document.getElementById('gift-surprise').style.display = 'inline';
+  }
+
+  // ── Job block ──
+  const rings = Array.isArray(src.rings) ? src.rings : [];
+  document.getElementById('j-piece').textContent =
+    (src.pieceType || 'Ring') + (rings.length > 1 ? ' · ' + rings.length + ' pieces' : '');
+  document.getElementById('j-title').textContent = src.jobTitle || '';
+  document.getElementById('j-desc').textContent = src.desc || '';
+  if (src.notes) {
+    document.getElementById('j-cnotes-row').classList.add('show');
+    document.getElementById('j-cnotes').textContent = src.notes;
+  }
+
+  // ── Ring boxes ──
+  // Spec rows are the same category→field mapping bag-layout-variants.html
+  // uses, minus the free-text note, which gets its own full-width line
+  // inside the box instead of being squeezed into a two-column spec row.
+  function ringSpecRows(r) {
+    const rows = [];
+    if (r.category === 'Meditation Ring') {
+      rows.push(['Width', r.medWidth], ['Texture', r.medTexture]);
+      if (r.medSpinners) rows.push(['Spinners', r.medSpinners + (r.medSpinnerStyle ? ' — ' + r.medSpinnerStyle : '')]);
+    } else if (r.category === 'Simple Band') {
+      rows.push(['Width', r.bandWidth], ['Texture', r.bandTexture]);
+    } else if (r.category === 'Custom Ring') {
+      rows.push(['Metal', r.customMetal], ['Width', r.customWidth], ['Gauge', r.customGauge]);
+      if ((r.customTexture || []).length) rows.push(['Texture', r.customTexture.join(' / ')]);
+    } else if (r.category === 'Website Order') {
+      // 'Accent' is a motif in a second metal (a 14k gold sun on a sterling
+      // band). It stays its own row so nobody reads it as the body metal and
+      // makes the whole ring in gold.
+      rows.push(['Metal', r.wsMetal], ['Width', r.wsWidth],
+                ['Accent', r.wsAccent], ['Finish', r.wsFinish]);
+      if (r.wsOther) rows.push(['Options', r.wsOther]);
+    }
+    return rows.filter(row => row[1]);
+  }
+  function ringSize(r) {
+    return r.category === 'Meditation Ring' ? r.medSize
+         : r.category === 'Simple Band'     ? r.bandSize
+         : r.category === 'Custom Ring'     ? r.customSize
+         : r.category === 'Website Order'   ? r.wsSize : '';
+  }
+  function ringNote(r) {
+    return r.category === 'Custom Ring' ? (r.customNotes || '')
+         : r.category === 'Website Order' ? (r.wsNotes || '') : '';
+  }
+  const esc = t => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const centerEl = document.getElementById('center');
+  if (rings.length) {
+    const stack = document.createElement('div');
+    stack.className = 'ringbox-stack' + (rings.length >= 5 ? ' two-col' : '');
+    rings.forEach((r, i) => {
+      const box = document.createElement('div');
+      box.className = 'ringbox';
+      const size = ringSize(r);
+      const note = ringNote(r);
+      const name = r.title || r.name || ('Ring ' + (i + 1));
+      box.innerHTML = `
+        <div class="rb-head">
+          <div class="rb-id">
+            <div class="rb-idx">Ring ${i + 1}</div>
+            <div class="rb-name" contenteditable="true">${esc(name)}</div>
+            ${r.category && r.category !== 'Website Order' ? `<div class="rb-cat">${esc(r.category)}</div>` : ''}
+          </div>
+          ${size ? `<div class="rb-size"><small>Size</small><div class="num" contenteditable="true">${esc(size)}</div></div>` : ''}
+        </div>
+        <div class="rb-body">
+          <div class="rb-specs">
+            ${ringSpecRows(r).map(([k, v]) =>
+              `<div class="rb-sp"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')}
+          </div>
+          ${note ? `<div class="rb-note"><span class="lbl">Notes</span>${esc(note)}</div>` : ''}
+          <div class="rb-stamp">
+            <span class="lbl">Inside Stamp</span>
+            ${r.stamping ? `<span class="rs-val" contenteditable="true">${esc(r.stamping)}</span>`
+                         : '<span class="rs-none">— none —</span>'}
+            ${r.stampingStyle ? `<span class="rs-how">${esc(r.stampingStyle)}</span>` : ''}
+          </div>
+        </div>`;
+      stack.appendChild(box);
+    });
+    centerEl.appendChild(stack);
+  } else {
+    // Gated to ring-capable layouts, but an order can still reach here with
+    // an empty rings[] (e.g. the array was never filled in on intake). Say so
+    // rather than printing a blank page that reads as a broken template.
+    const e = document.createElement('div');
+    e.className = 'empty-note';
+    e.textContent = 'No ring specs on this order — check the intake form, or print the Classic Form instead.';
+    centerEl.appendChild(e);
+  }
+
+  // ── Items + money (same rules as the other bags) ──
+  const items = (src.items || []).filter(it => it && it.desc);
+  if (items.length) {
+    const el = document.getElementById('items');
+    items.forEach(it => {
+      const r = document.createElement('div');
+      r.className = 'ir';
+      const d = document.createElement('span'); d.contentEditable = 'true'; d.textContent = it.desc;
+      const a = document.createElement('span'); a.contentEditable = 'true'; a.textContent = money(it.amount);
+      r.appendChild(d); r.appendChild(a); el.appendChild(r);
+    });
+    el.classList.add('show');
+  }
+  const sub = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+  const taxApplies = src.taxApplies !== false;
+  const taxGiven = (src.tax !== '' && src.tax != null && !isNaN(parseFloat(src.tax)))
+    ? parseFloat(src.tax) : null;
+  const tax = taxGiven !== null ? taxGiven : (taxApplies ? sub * 0.08 : 0);
+  document.getElementById('m-tax-lbl').textContent =
+    taxGiven !== null ? 'Tax' : (taxApplies ? 'Tax 8%' : 'Tax · Out of State');
+  const ship = parseFloat(src.shipping) || 0;
+  const dep = parseFloat(src.deposit) || 0;
+  const tot = sub + tax + ship;
+  document.getElementById('m-sub').textContent = sub ? money(sub) : '';
+  document.getElementById('m-tax').textContent = sub ? money(tax) : '';
+  if (ship) {
+    document.getElementById('m-ship-cell').classList.remove('hide');
+    document.getElementById('m-ship').textContent = money(ship);
+  }
+  document.getElementById('m-total').textContent = tot ? money(tot) : '';
+  document.getElementById('m-dep').textContent = dep ? '−' + money(dep) : '';
+  document.getElementById('m-bal').textContent =
+    src.fullyPaid ? money(0) : (tot ? money(tot - dep) : '');
+
+  const pbs = ['pb-cash', 'pb-credit', 'pb-check'];
+  pbs.forEach(id => document.getElementById(id).addEventListener('click', () => {
+    pbs.forEach(o => { if (o !== id) document.getElementById(o).classList.remove('checked'); });
+    document.getElementById(id).classList.toggle('checked');
+  }));
+</script>
+</body>
+</html>
