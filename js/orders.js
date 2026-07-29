@@ -620,8 +620,13 @@ const EO_TIMELINE_KEYDATES = [
 ];
 const EO_TIMELINE_DEADLINE = { field: 'deadline', label: 'Deadline' };
 
+// The 34px right padding reserves the same width as .est-remove-btn (28px)
+// plus the .eo-row-editor gap (6px) on the milestone rows below, so every
+// date in the tab — keydate, deadline, or milestone — lines up in one
+// right-aligned column instead of the milestone dates sitting to the left
+// of their remove button.
 function _eoTimelineKeyRow(k, o) {
-  return '<div class="eo-timeline-key-row" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);">'
+  return '<div class="eo-timeline-key-row" style="display:flex;justify-content:space-between;padding:6px 34px 6px 0;border-bottom:1px solid var(--bdr);">'
     + '<span style="color:var(--text-dim);">' + _eoEsc(k.label) + '</span>'
     + '<span style="font-weight:600;">' + _eoEsc(fmtDate(o[k.field])) + '</span></div>';
 }
@@ -645,7 +650,7 @@ function eoRenderTimeline() {
     listBox.innerHTML = entries.length
       ? entries.map((e, i) => '<div class="eo-row-editor eo-timeline-row">'
           + '<span class="eo-row-wide">' + _eoEsc(e.label || '') + '</span>'
-          + '<span style="color:var(--text-dim);font-size:13px;">' + _eoEsc(fmtDate(e.date)) + '</span>'
+          + '<span style="font-weight:600;">' + _eoEsc(fmtDate(e.date)) + '</span>'
           + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
           + '</div>').join('')
       : '<div style="color:var(--text-dim);font-size:13px;">No milestones logged yet.</div>';
