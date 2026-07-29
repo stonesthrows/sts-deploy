@@ -607,14 +607,23 @@ function eoLoadGmail() {
 // milestones (o.timelineEvents) that have no field of their own. The log
 // rides to Notion through the generic App Data blob (APP_DATA_FIELDS in
 // functions/api/notion-pipeline.js) — no dedicated Notion property needed.
+// Deadline is a target date, not something that already happened like the
+// rest of these — kept out of EO_TIMELINE_KEYDATES proper and rendered
+// after a gap, at the very bottom of the key-dates strip.
 const EO_TIMELINE_KEYDATES = [
   { field: 'takeIn',      label: 'Intake' },
   { field: 'contactedAt', label: 'Contacted Customer' },
-  { field: 'deadline',    label: 'Deadline' },
   { field: 'completedAt', label: 'Completed' },
   { field: 'deliveredAt', label: 'Delivered' },
   { field: 'cancelledAt', label: 'Cancelled' },
 ];
+const EO_TIMELINE_DEADLINE = { field: 'deadline', label: 'Deadline' };
+
+function _eoTimelineKeyRow(k, o) {
+  return '<div class="eo-timeline-key-row" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);">'
+    + '<span style="color:var(--text-dim);">' + _eoEsc(k.label) + '</span>'
+    + '<span style="font-weight:600;">' + _eoEsc(fmtDate(o[k.field])) + '</span></div>';
+}
 
 function eoRenderTimeline() {
   const id = (document.getElementById('f-editing-id') || {}).value || '';
@@ -623,22 +632,22 @@ function eoRenderTimeline() {
 
   const keyBox = document.getElementById('eo-timeline-keydates');
   if (keyBox) {
-    const rows = EO_TIMELINE_KEYDATES
-      .filter(k => o[k.field])
-      .map(k => '<div class="eo-timeline-key-row" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);">'
-        + '<span style="color:var(--text-dim);">' + _eoEsc(k.label) + '</span>'
-        + '<span style="font-weight:600;">' + _eoEsc(fmtDate(o[k.field])) + '</span></div>')
-      .join('');
-    keyBox.innerHTML = rows || '<div style="color:var(--text-dim);font-size:13px;">No key dates recorded yet.</div>';
+    const rows = EO_TIMELINE_KEYDATES.filter(k => o[k.field]).map(k => _eoTimelineKeyRow(k, o)).join('');
+    const deadlineRow = o[EO_TIMELINE_DEADLINE.field]
+      ? '<div style="margin-top:14px;">' + _eoTimelineKeyRow(EO_TIMELINE_DEADLINE, o) + '</div>'
+      : '';
+    keyBox.innerHTML = (rows || deadlineRow)
+      ? (rows || '') + deadlineRow
+      : '<div style="color:var(--text-dim);font-size:13px;">No key dates recorded yet.</div>';
   }
 
   const listBox = document.getElementById('eo-timeline-list');
   if (listBox) {
-    const entries = (o.timelineEvents || [])
-      .map((e, i) => ({ e, i }))
-      .sort((a, b) => (a.e.date || '').localeCompare(b.e.date || ''));
+    // Insertion order, not date order — a newly-added entry lands directly
+    // below whatever was added before it rather than jumping around the list.
+    const entries = o.timelineEvents || [];
     listBox.innerHTML = entries.length
-      ? entries.map(({ e, i }) => '<div class="eo-row-editor eo-timeline-row">'
+      ? entries.map((e, i) => '<div class="eo-row-editor eo-timeline-row">'
           + '<span class="eo-row-wide">' + _eoEsc(e.label || '') + '</span>'
           + '<span style="color:var(--text-dim);font-size:13px;">' + _eoEsc(fmtDate(e.date)) + '</span>'
           + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
