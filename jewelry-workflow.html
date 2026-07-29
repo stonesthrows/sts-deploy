@@ -1923,12 +1923,15 @@
       </div>
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Default Supplier</label>
-        <select id="matSupplier" style="width:100%">
-          <option value="">—</option>
-          <option value="Rio Grande">Rio Grande</option>
-          <option value="Stuller">Stuller</option>
-          <option value="Gesswein">Gesswein</option>
-        </select>
+        <div style="display:flex;gap:6px;">
+          <select id="matSupplier" style="width:100%">
+            <option value="">—</option>
+            <option value="Rio Grande">Rio Grande</option>
+            <option value="Stuller">Stuller</option>
+            <option value="Gesswein">Gesswein</option>
+          </select>
+          <button type="button" class="btn btn-outline btn-sm" onclick="matAddSupplier()" title="Add a new supplier">＋</button>
+        </div>
       </div>
     </div>
     <div class="sot-modal-row">
@@ -3660,7 +3663,7 @@
 <script src="js/restock.js?v=20260727a"></script>
 <script src="js/restock-sessions.js?v=20260729a"></script>
 <script src="js/supplier-history.js?v=20260729a"></script>
-<script src="js/materials.js?v=6"></script>
+<script src="js/materials.js?v=7"></script>
 <script src="js/receiving.js?v=20260727a"></script>
 <script src="js/closeout.js?v=2"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->

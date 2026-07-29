@@ -76,8 +76,42 @@ async function materialsInit() {
     if (body) body.innerHTML = `<tr><td colspan="10" class="oh-empty">Could not load materials — ${escHtml(e.message || e)}</td></tr>`;
     return;
   }
+  _matSeedSupplierOptions();
   materialsRender();
   _materialsLoadPurchases();
+}
+
+// Suppliers typed in via the Default Supplier "+" button are Notion select
+// options as soon as a material is saved with them, but the static <option>
+// list in the HTML has no way to know about them. Seed the dropdown with
+// every distinct supplierDefault already in use so a supplier added once
+// keeps showing up for every material after that (not just the one it was
+// typed on -- materialsOpenEdit's own fallback only covers that single case).
+function _matSeedSupplierOptions() {
+  const supSel = document.getElementById('matSupplier');
+  if (!supSel) return;
+  const known = new Set([...supSel.options].map(o => o.value));
+  _materials.forEach(m => {
+    if (m.supplierDefault && !known.has(m.supplierDefault)) {
+      supSel.add(new Option(m.supplierDefault, m.supplierDefault));
+      known.add(m.supplierDefault);
+    }
+  });
+}
+
+// "+" button next to Default Supplier -- adds a new option to the select
+// (case-insensitive de-dupe against what's already there) and selects it.
+// No separate storage needed: once the material is saved, Notion auto-
+// creates the select option in the Materials database, and
+// _matSeedSupplierOptions() picks it up for every material after that.
+function matAddSupplier() {
+  const name = (prompt('New supplier name:') || '').trim();
+  if (!name) return;
+  const supSel = document.getElementById('matSupplier');
+  const match = [...supSel.options].find(o => o.value.toLowerCase() === name.toLowerCase());
+  if (match) { supSel.value = match.value; return; }
+  supSel.add(new Option(name, name));
+  supSel.value = name;
 }
 
 // ── Purchase history (price-trend sparklines) ──
