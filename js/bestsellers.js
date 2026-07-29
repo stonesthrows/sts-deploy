@@ -436,19 +436,29 @@ function _bsIsPermJewelry(itemId) {
   return _bsCatNamesOf(itemId).some(function(n){ return /perm(anent)?[\s.]*jewel/i.test(n); });
 }
 
-// Should this item ever appear in restock focus? Skips retired
-// categories, non-stock product types (services, gift cards) and the
-// service line items Square still files as REGULAR. Items with no
-// catalog entry stay eligible — an unresolved lookup shouldn't silently
-// drop a real seller.
-function _bsRestockEligible(itemId) {
+// Is this catalog id a real stockable SKU at all — not a service line
+// item, retired category, or skip-listed name? Independent of whether
+// Square still carries it as a live listing: a renamed piece's old id
+// (now archived/deleted) is still a valid SKU for BS_ALIAS_NAMES merging
+// in bsRestockFocus, it just isn't eligible on its own (see below). Items
+// with no catalog entry stay eligible — an unresolved lookup shouldn't
+// silently drop a real seller.
+function _bsRestockSkuValid(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
   if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
-  if (_bsIsDiscontinued(itemId)) return false;
   var nm = String(_bsNameOf(itemId)).trim();
   if (BS_SKIP_NAME_RE.test(nm)) return false;
   if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
   return !_bsCatNamesOf(itemId).some(function(n){ return n && BS_SKIP_CAT_RE.test(n); });
+}
+
+// Should this item's OWN listing ever appear in restock focus on its
+// own — i.e. is it also still live in Square? Used only to gate the
+// on-hand fetch: an archived/deleted id never needs fresh stock counts
+// pulled for itself, even though its past sales may still feed a merged
+// row under a newer id (see bsRestockFocus / BS_ALIAS_NAMES).
+function _bsRestockEligible(itemId) {
+  return _bsRestockSkuValid(itemId) && !_bsIsDiscontinued(itemId);
 }
 
 function _bsAllItemIds() {
@@ -635,17 +645,20 @@ function bsRestockFocus(vel) {
   Object.keys(vel.units).forEach(function(id) {
     var v = vel.units[id];
     if (!(v > 0)) return;
-    if (!_bsRestockEligible(id)) return;
+    if (!_bsRestockSkuValid(id)) return;
     var name = _bsRestockName(id);
     var key = name.toLowerCase();
     var g = groups[key];
     if (!g) {
       g = groups[key] = {
-        ids: [], name: name, cat: _bsAppCategory(id), pj: false,
+        ids: [], name: name, cat: _bsAppCategory(id), pj: false, anyLive: false,
         vel: 0, rev: 0, have: null, need: 0, make: 0,
       };
     }
     g.ids.push(id);
+    // A renamed piece's old id may be archived/deleted while its current
+    // id is still live — the row stays eligible as long as one id is.
+    g.anyLive = g.anyLive || !_bsIsDiscontinued(id);
     g.pj = g.pj || _bsIsPermJewelry(id);
     g.vel += v;
     g.rev += vel.revenue[id] || 0;
@@ -660,6 +673,9 @@ function bsRestockFocus(vel) {
   var rows = [];
   Object.keys(groups).forEach(function(key) {
     var g = groups[key];
+    // Every id under this name is archived/deleted — a genuinely
+    // discontinued design, not just a rename with a live successor.
+    if (!g.anyLive) return;
     // Permanent jewelry is welded per customer, not stocked, so an
     // untracked PJ row can never be "covered" and would sit at the top
     // forever. Premade chain bracelets ARE stocked, so the test is
