@@ -1198,6 +1198,10 @@
     .eo-row-editor .eo-row-size { width: 76px; }
     .eo-row-editor .eo-row-wide { flex: 1 1 120px; min-width: 100px; }
     .eo-rows-empty { font-size: 12px; color: var(--text3); font-style: italic; }
+    /* Timeline milestone rows share the keydate rows' divider/spacing
+       (padding:6px 0, border-bottom) so every entry in the tab — keydate,
+       milestone, or deadline — reads as one uniformly-formatted list. */
+    .eo-timeline-row { padding: 6px 0; border-bottom: 1px solid var(--bdr); margin-bottom: 0; }
     .eo-alt-chip {
       display: inline-flex; gap: 8px; align-items: center; background: var(--hover);
       border: 1px solid rgba(0,0,0,.08); border-radius: 14px; padding: 4px 10px;

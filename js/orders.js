@@ -649,7 +649,7 @@ function eoRenderTimeline() {
     const entries = o.timelineEvents || [];
     listBox.innerHTML = entries.length
       ? entries.map((e, i) => '<div class="eo-row-editor eo-timeline-row">'
-          + '<span class="eo-row-wide">' + _eoEsc(e.label || '') + '</span>'
+          + '<span class="eo-row-wide" style="color:var(--text-dim);">' + _eoEsc(e.label || '') + '</span>'
           + '<span style="font-weight:600;">' + _eoEsc(fmtDate(e.date)) + '</span>'
           + '<button type="button" class="est-remove-btn" onclick="eoRemoveTimelineEntry(' + i + ')" title="Remove">&#215;</button>'
           + '</div>').join('')

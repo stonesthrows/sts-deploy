@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260728b">
-  <link rel="stylesheet" href="css/app.css?v=20260729b">
+  <link rel="stylesheet" href="css/app.css?v=20260729c">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -1182,7 +1182,13 @@
       <div class="eo-pane" id="eo-pane-timeline" role="tabpanel" data-eopane="timeline">
         <div class="eo-timeline-keydates" id="eo-timeline-keydates"></div>
         <div class="eo-timeline-list" id="eo-timeline-list"></div>
-        <div class="eo-row-editor" style="margin-top:10px;">
+        <!-- Deadline is a target, not a thing that already happened, but it
+             still renders as an entry (same row template) — just always
+             last, after every keydate and milestone. The add-entry controls
+             below it are not entries themselves, so they stay beneath
+             everything, see eoRenderTimeline(). -->
+        <div id="eo-timeline-deadline"></div>
+        <div class="eo-row-editor" style="margin-top:14px;">
           <input type="text" id="eo-timeline-new-label" class="eo-row-wide" placeholder="Milestone (e.g. Stone set)">
           <input type="date" id="eo-timeline-new-date" class="eo-row-size" style="width:150px;">
           <button type="button" class="btn btn-gold btn-sm" onclick="eoAddTimelineEntry()">+ Add</button>
@@ -1193,10 +1199,6 @@
           <button type="button" class="btn btn-outline btn-sm" onclick="eoQuickAddTimelineEntry('Sent Estimate')">+ Sent Estimate</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="eoQuickAddTimelineEntry('Payment Received')">+ Payment Received</button>
         </div>
-        <!-- Deadline is a target, not a thing that already happened — kept
-             separate from the keydates/milestones above it and pinned to
-             the very bottom of the pane, see eoRenderTimeline(). -->
-        <div id="eo-timeline-deadline" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bdr-light);"></div>
       </div>
 
     </div>
@@ -3674,7 +3676,7 @@
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/order-widgets.js?v=20260728a"></script>
 <script src="js/ring-fields.js?v=20260727a"></script>
-<script src="js/orders.js?v=20260729e"></script>
+<script src="js/orders.js?v=20260729f"></script>
 <script src="js/stuller.js?v=20260616a"></script>
 <script src="js/shopify.js?v=20260720a"></script>
 <script src="js/etsy.js?v=20260713a"></script>
