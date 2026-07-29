@@ -548,8 +548,19 @@ var _rqReportSessions = null;
 var _rqReportLoading  = false;
 
 function _rqLoadRates() {
-  try { return JSON.parse(localStorage.getItem('sts-employee-rates') || '{}'); }
-  catch (e) { return {}; }
+  try {
+    var stored = JSON.parse(localStorage.getItem('sts-employee-rates') || '{}');
+    var defaults = { 'Stevie': 17, 'Vanessa': 17 };
+    var result = {};
+    Object.keys(defaults).forEach(function(name) {
+      result[name] = (typeof stored[name] === 'number') ? stored[name] : defaults[name];
+    });
+    Object.keys(stored).forEach(function(name) {
+      if (!(name in result)) result[name] = stored[name];
+    });
+    return result;
+  }
+  catch (e) { return { 'Stevie': 17, 'Vanessa': 17 }; }
 }
 
 function _rqSaveRatesObj(rates) {
