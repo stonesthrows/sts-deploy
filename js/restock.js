@@ -1436,8 +1436,9 @@ function restockQueueRender() {
     var castRunning = !!castTimer;
     var showCastBtn = pid && _rqIsCastingItem(item);
     var castLogOpen = pid ? !!_rqCastLogOpen[pid] : false;
+    var castPending = pid ? _rqCastPendingSave[pid] : null;
     var castHtml = '';
-    if (showCastBtn && !castRunning) {
+    if (showCastBtn && !castRunning && !castPending) {
       castHtml = '<button class="rq-cast-btn" onclick="rqStartCastTimer(\'' + safePid + '\')" title="Time a casting session for this piece">🔥 Cast</button>'
         + '<button class="rq-adjust-link" onclick="rq' + (castLogOpen ? 'CancelCastLog' : 'OpenCastLog') + '(\'' + safePid + '\')" title="Log a casting session that already happened">' + (castLogOpen ? 'cancel' : '+ past time') + '</button>';
     } else if (castRunning) {
@@ -1451,8 +1452,18 @@ function restockQueueRender() {
         + '<span class="rq-cast-log-title">🔥 Log past casting time</span>'
         + '<input type="number" min="1" step="1" class="rq-adjust-input rq-cast-log-min" id="rq-cast-log-min-' + safePid + '" placeholder="minutes" onkeydown="if(event.key===\'Enter\')rqSaveCastLog(\'' + safePid + '\')">'
         + '<input type="date" class="rq-adjust-input" id="rq-cast-log-date-' + safePid + '" value="' + new Date().toISOString().slice(0, 10) + '">'
+        + _rqCastYieldInputsHtml('rq-cast-log-' + safePid + '-')
         + '<button class="rq-save-note-btn" onclick="rqSaveCastLog(\'' + safePid + '\')">Save</button>'
         + '<button class="rq-setup-cancel-btn" onclick="rqCancelCastLog(\'' + safePid + '\')">Cancel</button>'
+        + '</div>';
+    }
+
+    var castFinishPanel = '';
+    if (castPending) {
+      castFinishPanel = '<div class="rq-cast-log-panel">'
+        + '<span class="rq-cast-log-title">🔥 Casting stopped — ' + castPending.mins + ' min. Log yield (optional):</span>'
+        + _rqCastYieldInputsHtml('rq-cast-finish-' + safePid + '-')
+        + '<button class="rq-save-note-btn" onclick="rqFinishCastSave(\'' + safePid + '\')">Save</button>'
         + '</div>';
     }
 
@@ -1568,7 +1579,7 @@ function restockQueueRender() {
         + '</div>';
     }
 
-    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + castLogPanel + setupPanel + '</div>';
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + castLogPanel + castFinishPanel + setupPanel + '</div>';
   }).join('');
 
   // Trigger auto-match for items not yet cached. This used to stagger each
@@ -1677,7 +1688,7 @@ function _rqCastStartTick(pid) {
 }
 
 function rqStartCastTimer(pid) {
-  if (!pid || _rqCastTimers[pid]) return;
+  if (!pid || _rqCastTimers[pid] || _rqCastPendingSave[pid]) return;
   _rqCastTimers[pid] = { startTime: Date.now(), pausedAt: null, pausedMs: 0 };
   _rqCastSave();
   restockQueueRender();
@@ -1694,11 +1705,56 @@ function rqToggleCastPause(pid) {
   if (btn) btn.textContent = _rqCastBtnLabel(t);
 }
 
-function _rqAppendCastNote(pid, mins, suffix) {
-  var line = '🔥 Casting: ' + mins + ' min (' + suffix + ')';
+// yieldInfo = { run, failed, usable } — any field may be omitted (left blank by the employee)
+function _rqAppendCastNote(pid, mins, suffix, yieldInfo) {
+  var line = '🔥 Casting: ' + mins + ' min';
+  if (yieldInfo) {
+    var parts = [];
+    if (yieldInfo.run    != null) parts.push(yieldInfo.run + ' run');
+    if (yieldInfo.failed != null) parts.push(yieldInfo.failed + ' failed');
+    if (yieldInfo.usable != null) parts.push(yieldInfo.usable + ' usable');
+    if (parts.length) line += ' — ' + parts.join(', ');
+  }
+  line += ' (' + suffix + ')';
   var existing = _rqNotes[pid] || '';
   rqSetNote(pid, existing ? existing + '\n' + line : line);
 }
+
+// Reads the three optional yield number inputs sharing a common id prefix
+// (e.g. 'rq-cast-log-' + pid + 'run'/'fail'/'usable'); blank inputs stay null.
+function _rqReadCastYield(prefix) {
+  var runEl = document.getElementById(prefix + 'run');
+  var failEl = document.getElementById(prefix + 'fail');
+  var usableEl = document.getElementById(prefix + 'usable');
+  var run    = runEl    && runEl.value    !== '' ? Math.max(0, Math.round(parseFloat(runEl.value)))    : null;
+  var failed = failEl   && failEl.value   !== '' ? Math.max(0, Math.round(parseFloat(failEl.value)))   : null;
+  var usable = usableEl && usableEl.value !== '' ? Math.max(0, Math.round(parseFloat(usableEl.value))) : null;
+  if (run == null && failed == null && usable == null) return null;
+  return { run: run, failed: failed, usable: usable };
+}
+
+// Auto-fills "usable" from run − failed once both are entered, without
+// clobbering a value the employee already typed into usable themselves.
+function _rqCastAutoUsable(prefix) {
+  var usableEl = document.getElementById(prefix + 'usable');
+  if (!usableEl || usableEl.value !== '') return;
+  var runEl = document.getElementById(prefix + 'run');
+  var failEl = document.getElementById(prefix + 'fail');
+  var run = runEl ? parseFloat(runEl.value) : NaN;
+  var fail = failEl ? parseFloat(failEl.value) : NaN;
+  if (!isNaN(run) && !isNaN(fail)) usableEl.value = Math.max(0, Math.round(run - fail));
+}
+
+function _rqCastYieldInputsHtml(prefix) {
+  return '<input type="number" min="0" step="1" class="rq-adjust-input rq-cast-log-min" id="' + prefix + 'run" placeholder="run" oninput="_rqCastAutoUsable(\'' + prefix + '\')">'
+    + '<input type="number" min="0" step="1" class="rq-adjust-input rq-cast-log-min" id="' + prefix + 'fail" placeholder="failed" oninput="_rqCastAutoUsable(\'' + prefix + '\')">'
+    + '<input type="number" min="0" step="1" class="rq-adjust-input rq-cast-log-min" id="' + prefix + 'usable" placeholder="usable">';
+}
+
+// Timer stop is now a two-step flow: stop freezes the elapsed minutes, then
+// the employee gets a moment to log run/failed/usable counts before the
+// note is actually written (see rqFinishCastSave).
+var _rqCastPendingSave = {}; // { [pid]: { mins } }
 
 function rqStopCastTimer(pid) {
   var t = _rqCastTimers[pid];
@@ -1707,17 +1763,28 @@ function rqStopCastTimer(pid) {
   var mins = Math.max(1, Math.round(_rqElapsedMs(t) / 60000));
   delete _rqCastTimers[pid];
   _rqCastSave();
-  var now = new Date();
-  _rqAppendCastNote(pid, mins, now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+  _rqCastPendingSave[pid] = { mins: mins };
   restockQueueRender();
-  toast('Casting time saved — ' + mins + ' min', '✓');
+  var input = document.getElementById('rq-cast-finish-' + pid + '-run');
+  if (input) input.focus();
+}
+
+function rqFinishCastSave(pid) {
+  var pending = _rqCastPendingSave[pid];
+  if (!pending) return;
+  var yieldInfo = _rqReadCastYield('rq-cast-finish-' + pid + '-');
+  var now = new Date();
+  _rqAppendCastNote(pid, pending.mins, now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), yieldInfo);
+  delete _rqCastPendingSave[pid];
+  restockQueueRender();
+  toast('Casting time saved — ' + pending.mins + ' min', '✓');
 }
 
 // ── Log a past casting session (no live timer was running for it) ───────────
 var _rqCastLogOpen = {};
 
 function rqOpenCastLog(pid) {
-  if (!pid || _rqCastTimers[pid]) return;
+  if (!pid || _rqCastTimers[pid] || _rqCastPendingSave[pid]) return;
   _rqCastLogOpen[pid] = true;
   restockQueueRender();
   var input = document.getElementById('rq-cast-log-min-' + pid);
@@ -1736,7 +1803,8 @@ function rqSaveCastLog(pid) {
   if (!mins || mins <= 0) { toast('Enter minutes', '⚠'); if (minInput) minInput.focus(); return; }
   var dateStr = (dateInput && dateInput.value) || new Date().toISOString().slice(0, 10);
   var dateLbl = new Date(dateStr + 'T12:00:00').toLocaleDateString();
-  _rqAppendCastNote(pid, mins, dateLbl + ', logged manually');
+  var yieldInfo = _rqReadCastYield('rq-cast-log-' + pid + '-');
+  _rqAppendCastNote(pid, mins, dateLbl + ', logged manually', yieldInfo);
   delete _rqCastLogOpen[pid];
   restockQueueRender();
   toast('Casting time saved — ' + mins + ' min', '✓');
