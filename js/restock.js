@@ -1483,7 +1483,7 @@ function restockQueueRender() {
           return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
         }).join('')
       + '</select>'
-      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ')" title="Remove">×</span>'
+      + '<span class="rq-del" onclick="rqDeleteItem(' + idx + ',this)" title="Remove">×</span>'
       + '</div>'
       + '</div>';
 
@@ -2704,11 +2704,17 @@ function rqAddSetVariantStone(_pid, variantId, stoneIdxStr) {
   });
 }
 
-function rqDeleteItem(idx) {
+function rqDeleteItem(idx, elEl) {
   var items = _rqSortedItems();
   var item = items[idx];
   if (!item) return;
-  _rqDeleteItemObj(item);
+  var pid = item.notionPageId;
+  // A running (or setting-up) timer holds work in progress — deleting the
+  // card would silently discard it, so require confirmation there too.
+  var name = (_rqShortName(item.text) || item.text || 'this item').replace(/</g, '&lt;');
+  _rqShowDeleteConfirm(elEl, 'Remove "' + name + '" from the queue?', function() {
+    _rqDeleteItemObj(item);
+  });
 }
 
 function _rqDeleteItemByPid(pid) {
