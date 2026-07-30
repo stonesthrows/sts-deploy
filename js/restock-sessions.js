@@ -836,7 +836,7 @@ function _rqRenderReportBody(sessions) {
       + '<div class="rq-sbar-name">' + safeName + (totalPcs != null ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
       + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
       + '</div>'
-      + '<button class="rq-sbar-del" onclick="rqDeleteReportSession(' + i + ')" title="Delete">✕</button>'
+      + '<button class="rq-sbar-del" onclick="rqDeleteReportSession(' + i + ',this)" title="Delete">✕</button>'
       + '</div>'
       + '<div class="rq-sbar-time-row">'
       + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
@@ -1443,7 +1443,7 @@ function rqRenderSessions() {
         + (piecesLabel ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
       + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
       + '</div>'
-      + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ')" title="Delete">✕</button>'
+      + '<button class="rq-sbar-del" onclick="rqDeleteSession(' + i + ',this)" title="Delete">✕</button>'
       + '</div>'
       + timeRow
       + '<div class="rq-sbar-footer">'
@@ -1489,23 +1489,63 @@ function _rqDeleteSessionPage(s, store) {
     });
 }
 
-function rqDeleteSession(i) {
-  var s = _rqSessions[i]; if (!s) return;
-  var name = (s.items && s.items[0] && s.items[0].name) || '?';
-  if (!confirm('Delete this session?\n' + name + ' — ' + (s.employee ? s.employee.name : ''))) return;
-  _rqDeleteSessionPage(s, 'log');
-  _rqSessions.splice(i, 1);
-  _rqShiftStoreState('log', i);
-  rqRenderSessions();
+// ── Delete-confirm chip ──────────────────────────────────────────────────────
+// Small floating popup anchored to the ✕ that was clicked, replacing the
+// native confirm() so it reads as part of the queue UI instead of a browser
+// dialog. Only one chip is ever open — opening a new one (or clicking
+// anywhere outside it) dismisses whatever was already showing.
+var _rqActiveConfirmChip = null;
+
+function _rqDismissConfirmChip() {
+  if (_rqActiveConfirmChip && _rqActiveConfirmChip.parentNode) _rqActiveConfirmChip.parentNode.removeChild(_rqActiveConfirmChip);
+  _rqActiveConfirmChip = null;
+  document.removeEventListener('click', _rqConfirmChipOutsideClick, true);
 }
 
-function rqDeleteReportSession(i) {
+function _rqConfirmChipOutsideClick(e) {
+  if (_rqActiveConfirmChip && !_rqActiveConfirmChip.contains(e.target)) _rqDismissConfirmChip();
+}
+
+function _rqShowDeleteConfirm(btnEl, message, onConfirm) {
+  _rqDismissConfirmChip();
+  if (!btnEl) { if (confirm(message)) onConfirm(); return; }
+  var chip = document.createElement('div');
+  chip.className = 'rq-confirm-chip';
+  chip.style.visibility = 'hidden';
+  chip.innerHTML = '<span class="rq-confirm-chip-msg">' + message + '</span>'
+    + '<button type="button" class="rq-confirm-chip-yes">Delete</button>'
+    + '<button type="button" class="rq-confirm-chip-cancel">Cancel</button>';
+  document.body.appendChild(chip);
+  var rect = btnEl.getBoundingClientRect();
+  var left = Math.max(4, Math.min(rect.right - chip.offsetWidth, window.innerWidth - chip.offsetWidth - 4));
+  chip.style.top = (rect.bottom + 6) + 'px';
+  chip.style.left = left + 'px';
+  chip.style.visibility = 'visible';
+  chip.querySelector('.rq-confirm-chip-yes').onclick = function(e) { e.stopPropagation(); _rqDismissConfirmChip(); onConfirm(); };
+  chip.querySelector('.rq-confirm-chip-cancel').onclick = function(e) { e.stopPropagation(); _rqDismissConfirmChip(); };
+  _rqActiveConfirmChip = chip;
+  setTimeout(function() { document.addEventListener('click', _rqConfirmChipOutsideClick, true); }, 0);
+}
+
+function rqDeleteSession(i, btnEl) {
+  var s = _rqSessions[i]; if (!s) return;
+  var name = (s.items && s.items[0] && s.items[0].name) || '?';
+  _rqShowDeleteConfirm(btnEl, 'Delete "' + name.replace(/</g,'&lt;') + '"?', function() {
+    _rqDeleteSessionPage(s, 'log');
+    _rqSessions.splice(i, 1);
+    _rqShiftStoreState('log', i);
+    rqRenderSessions();
+  });
+}
+
+function rqDeleteReportSession(i, btnEl) {
   var s = _rqReportSessions && _rqReportSessions[i]; if (!s) return;
   var name = (s.items && s.items[0] && s.items[0].name) || '?';
-  if (!confirm('Permanently delete this entry?\n' + name + ' — ' + (s.employee ? s.employee.name : '') + '\nThis cannot be undone.')) return;
-  _rqDeleteSessionPage(s, 'report');
-  _rqReportSessions.splice(i, 1);
-  _rqShiftStoreState('report', i);
-  _rqRenderReportBody(_rqReportSessions);
+  _rqShowDeleteConfirm(btnEl, 'Permanently delete "' + name.replace(/</g,'&lt;') + '"? This cannot be undone.', function() {
+    _rqDeleteSessionPage(s, 'report');
+    _rqReportSessions.splice(i, 1);
+    _rqShiftStoreState('report', i);
+    _rqRenderReportBody(_rqReportSessions);
+  });
 }
 

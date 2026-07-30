@@ -4162,6 +4162,21 @@
       line-height: 1; transition: border-color 0.15s, color 0.15s; margin-left: auto;
     }
     .rq-sbar-del:hover { border-color: var(--danger); color: var(--danger); }
+    .rq-confirm-chip {
+      position: fixed; z-index: 500; display: flex; align-items: center; gap: 7px;
+      background: var(--card-bg); border: 1px solid var(--danger); border-radius: 8px;
+      padding: 6px 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); max-width: 240px;
+    }
+    .rq-confirm-chip-msg { font-size: 11px; color: var(--text2); line-height: 1.3; }
+    .rq-confirm-chip-yes {
+      background: var(--danger); border: none; border-radius: 5px; color: #fff;
+      font-size: 11px; font-weight: 700; padding: 3px 10px; cursor: pointer; flex-shrink: 0;
+    }
+    .rq-confirm-chip-cancel {
+      background: none; border: 1px solid var(--bdr); border-radius: 5px; color: var(--text3);
+      font-size: 11px; padding: 3px 9px; cursor: pointer; flex-shrink: 0;
+    }
+    .rq-confirm-chip-cancel:hover { border-color: var(--text3); color: var(--text); }
     .rq-sbar-time-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); margin:4px 0 6px; flex-wrap:wrap; }
     .rq-sbar-time-val { color:var(--text2); font-weight:500; }
     .rq-sbar-act-btn { background:none; border:1px solid var(--bdr-light); border-radius:5px; cursor:pointer; color:var(--text-dim); font-size:11px; padding:2px 7px; line-height:1; transition:border-color 0.15s,color 0.15s,background 0.15s; flex-shrink:0; }
