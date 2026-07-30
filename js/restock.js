@@ -1435,12 +1435,25 @@ function restockQueueRender() {
     var castTimer   = pid ? _rqCastTimers[pid] : null;
     var castRunning = !!castTimer;
     var showCastBtn = pid && _rqIsCastingItem(item);
+    var castLogOpen = pid ? !!_rqCastLogOpen[pid] : false;
     var castHtml = '';
     if (showCastBtn && !castRunning) {
-      castHtml = '<button class="rq-cast-btn" onclick="rqStartCastTimer(\'' + safePid + '\')" title="Time a casting session for this piece">🔥 Cast</button>';
+      castHtml = '<button class="rq-cast-btn" onclick="rqStartCastTimer(\'' + safePid + '\')" title="Time a casting session for this piece">🔥 Cast</button>'
+        + '<button class="rq-adjust-link" onclick="rq' + (castLogOpen ? 'CancelCastLog' : 'OpenCastLog') + '(\'' + safePid + '\')" title="Log a casting session that already happened">' + (castLogOpen ? 'cancel' : '+ past time') + '</button>';
     } else if (castRunning) {
       castHtml = '<button class="rq-cast-btn rq-cast-running" id="rq-cast-btn-' + safePid + '" onclick="rqToggleCastPause(\'' + safePid + '\')" title="' + (castTimer.pausedAt ? 'Paused — click to resume' : 'Casting… click to pause') + '">' + _rqCastBtnLabel(castTimer) + '</button>'
         + '<button class="rq-cast-stop-btn" onclick="rqStopCastTimer(\'' + safePid + '\')" title="Stop casting timer and save to notes">Stop</button>';
+    }
+
+    var castLogPanel = '';
+    if (castLogOpen) {
+      castLogPanel = '<div class="rq-cast-log-panel">'
+        + '<span class="rq-cast-log-title">🔥 Log past casting time</span>'
+        + '<input type="number" min="1" step="1" class="rq-adjust-input rq-cast-log-min" id="rq-cast-log-min-' + safePid + '" placeholder="minutes" onkeydown="if(event.key===\'Enter\')rqSaveCastLog(\'' + safePid + '\')">'
+        + '<input type="date" class="rq-adjust-input" id="rq-cast-log-date-' + safePid + '" value="' + new Date().toISOString().slice(0, 10) + '">'
+        + '<button class="rq-save-note-btn" onclick="rqSaveCastLog(\'' + safePid + '\')">Save</button>'
+        + '<button class="rq-setup-cancel-btn" onclick="rqCancelCastLog(\'' + safePid + '\')">Cancel</button>'
+        + '</div>';
     }
 
     var match = pid ? _rqAutoMatches[pid] : null;
@@ -1555,7 +1568,7 @@ function restockQueueRender() {
         + '</div>';
     }
 
-    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + setupPanel + '</div>';
+    return '<div class="rq-item' + itemCls + '" id="rq-item-' + idx + '">' + mainRow + matchRow + timerPanel + castLogPanel + setupPanel + '</div>';
   }).join('');
 
   // Trigger auto-match for items not yet cached. This used to stagger each
@@ -1681,6 +1694,12 @@ function rqToggleCastPause(pid) {
   if (btn) btn.textContent = _rqCastBtnLabel(t);
 }
 
+function _rqAppendCastNote(pid, mins, suffix) {
+  var line = '🔥 Casting: ' + mins + ' min (' + suffix + ')';
+  var existing = _rqNotes[pid] || '';
+  rqSetNote(pid, existing ? existing + '\n' + line : line);
+}
+
 function rqStopCastTimer(pid) {
   var t = _rqCastTimers[pid];
   if (!t) return;
@@ -1689,9 +1708,36 @@ function rqStopCastTimer(pid) {
   delete _rqCastTimers[pid];
   _rqCastSave();
   var now = new Date();
-  var line = '🔥 Casting: ' + mins + ' min (' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ')';
-  var existing = _rqNotes[pid] || '';
-  rqSetNote(pid, existing ? existing + '\n' + line : line);
+  _rqAppendCastNote(pid, mins, now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+  restockQueueRender();
+  toast('Casting time saved — ' + mins + ' min', '✓');
+}
+
+// ── Log a past casting session (no live timer was running for it) ───────────
+var _rqCastLogOpen = {};
+
+function rqOpenCastLog(pid) {
+  if (!pid || _rqCastTimers[pid]) return;
+  _rqCastLogOpen[pid] = true;
+  restockQueueRender();
+  var input = document.getElementById('rq-cast-log-min-' + pid);
+  if (input) input.focus();
+}
+
+function rqCancelCastLog(pid) {
+  delete _rqCastLogOpen[pid];
+  restockQueueRender();
+}
+
+function rqSaveCastLog(pid) {
+  var minInput  = document.getElementById('rq-cast-log-min-' + pid);
+  var dateInput = document.getElementById('rq-cast-log-date-' + pid);
+  var mins = minInput ? Math.round(parseFloat(minInput.value)) : NaN;
+  if (!mins || mins <= 0) { toast('Enter minutes', '⚠'); if (minInput) minInput.focus(); return; }
+  var dateStr = (dateInput && dateInput.value) || new Date().toISOString().slice(0, 10);
+  var dateLbl = new Date(dateStr + 'T12:00:00').toLocaleDateString();
+  _rqAppendCastNote(pid, mins, dateLbl + ', logged manually');
+  delete _rqCastLogOpen[pid];
   restockQueueRender();
   toast('Casting time saved — ' + mins + ' min', '✓');
 }

@@ -3719,6 +3719,12 @@
       color: var(--warn-fg); font-size: 12px; font-weight: 600; padding: 5px 10px; cursor: pointer;
       flex-shrink: 0; line-height: 1.4;
     }
+    .rq-cast-log-panel {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; margin-top: 2px;
+    }
+    .rq-cast-log-title { font-size: 12px; font-weight: 600; color: var(--warn-fg); flex-shrink: 0; }
+    .rq-cast-log-min { width: 70px; }
     .rq-arrows { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
     .rq-arrow {
       background: var(--card-bg); border: 1px solid var(--text-dim); border-radius: 4px;
