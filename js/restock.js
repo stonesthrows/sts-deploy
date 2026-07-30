@@ -18,6 +18,7 @@ var _rqLoadingAll = false;   // in-flight guard so re-entrant renders don't fire
 var _rqPrefetch   = null;    // { meta, sizes, notes, matches } from /api/restock-all — consumed by the individual loaders in place of their own fetch
 var _rqTimers     = {};   // { [notionPageId]: { startTime, employee, sessionNotionPageId, itemText, items, notes, pausedAt, pausedMs, tickInterval } }
 var _rqSetups     = {};   // { [notionPageId]: { selectedItems, query, debounceTimer, startTimeMs, _lastResults } }
+var _rqCastTimers = {};   // { [notionPageId]: { startTime, pausedAt, pausedMs, tickInterval } } — separate melt/pour timer for cast listings, device-local only
 var _rqSessions   = [];   // completed sessions (in-memory + loaded from Notion)
 var _rqSessionsLoaded = false;
 // Session edit/push/add-item state is scoped per "store" so the Session Log
@@ -1193,6 +1194,8 @@ function _rqRestoreTimers() {
   } catch (e) {}
   _rqReconcileTimers();
   _rqStartReconcilePoll();
+  _rqCastLoad();
+  Object.keys(_rqCastTimers).forEach(function(pid) { _rqCastStartTick(pid); });
 }
 
 // Pulls the shared KV union and reconciles it against our in-memory view.
@@ -1429,6 +1432,17 @@ function restockQueueRender() {
     var startTitle    = !pid ? 'Saving…' : !assignee ? 'Assign first' : isRunning ? 'Running' : 'Start timer';
     var startOnclick  = startDisabled ? '' : 'onclick="rqStartTimer(\'' + safePid + '\',\'' + safeText.replace(/'/g, "\\'") + '\',\'' + assignee + '\')"';
 
+    var castTimer   = pid ? _rqCastTimers[pid] : null;
+    var castRunning = !!castTimer;
+    var showCastBtn = pid && _rqIsCastingItem(item);
+    var castHtml = '';
+    if (showCastBtn && !castRunning) {
+      castHtml = '<button class="rq-cast-btn" onclick="rqStartCastTimer(\'' + safePid + '\')" title="Time a casting session for this piece">🔥 Cast</button>';
+    } else if (castRunning) {
+      castHtml = '<button class="rq-cast-btn rq-cast-running" id="rq-cast-btn-' + safePid + '" onclick="rqToggleCastPause(\'' + safePid + '\')" title="' + (castTimer.pausedAt ? 'Paused — click to resume' : 'Casting… click to pause') + '">' + _rqCastBtnLabel(castTimer) + '</button>'
+        + '<button class="rq-cast-stop-btn" onclick="rqStopCastTimer(\'' + safePid + '\')" title="Stop casting timer and save to notes">Stop</button>';
+    }
+
     var match = pid ? _rqAutoMatches[pid] : null;
     var canExpand = pid && !isRunning && !isSetup;
     var expanded  = canExpand && !!_rqExpanded[pid];
@@ -1450,6 +1464,7 @@ function restockQueueRender() {
       + '<span class="rq-text' + textCls + '">' + safeText + (note ? ' <span class="rq-note-flag" title="Has a note">📝</span>' : '') + '</span>'
       + '<div class="rq-item-controls">'
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
+      + castHtml
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
       + PEOPLE.map(function(p) {
           return '<option value="' + p + '"' + (assignee === p ? ' selected' : '') + '>' + (p || '— unassigned —') + '</option>';
@@ -1598,6 +1613,87 @@ function rqStartTimer(pid, itemText, assigneeName) {
   if (!preSelected.length) {
     setTimeout(function() { if (_rqSetups[pid]) _rqSearchCatalog(pid, itemText || '', true); }, 80);
   }
+}
+
+// ── Casting Time (melt/pour timer for listings with a cast element) ─────────
+// Casting is done in its own batch/session at the bench, separate from the
+// regular restock work timer above. Kyle maintains this list of Square item
+// names (or unique substrings of the queue row's text) that need a cast-time
+// button — edit here to add/remove eligible listings.
+var _RQ_CASTING_ITEMS = [
+  'Owl Ring',
+  'Crow Ring',
+  'Crow Necklace',
+  'Luna Moth Necklace',
+  'Luna Moth Ring',
+];
+
+function _rqIsCastingItem(item) {
+  var text = ((item && item.text) || '').toLowerCase();
+  return !!text && _RQ_CASTING_ITEMS.some(function(name) {
+    return text.indexOf(String(name).toLowerCase()) !== -1;
+  });
+}
+
+function _rqCastLoad() {
+  try { _rqCastTimers = JSON.parse(localStorage.getItem('sts-rq-cast-timers') || '{}'); }
+  catch (e) { _rqCastTimers = {}; }
+}
+function _rqCastSave() {
+  // tickInterval is a live handle, not serializable — strip it before persisting
+  var out = {};
+  Object.keys(_rqCastTimers).forEach(function(pid) {
+    var t = _rqCastTimers[pid];
+    out[pid] = { startTime: t.startTime, pausedAt: t.pausedAt, pausedMs: t.pausedMs || 0 };
+  });
+  try { localStorage.setItem('sts-rq-cast-timers', JSON.stringify(out)); } catch (e) {}
+}
+
+function _rqCastBtnLabel(t) {
+  return (t.pausedAt ? '⏸ ' : '🔥 ') + _rqFmtElapsed(_rqElapsedMs(t));
+}
+
+function _rqCastStartTick(pid) {
+  var t = _rqCastTimers[pid];
+  if (!t) return;
+  clearInterval(t.tickInterval);
+  t.tickInterval = setInterval(function() {
+    var btn = document.getElementById('rq-cast-btn-' + pid);
+    if (btn) btn.textContent = _rqCastBtnLabel(t);
+  }, 30000);
+}
+
+function rqStartCastTimer(pid) {
+  if (!pid || _rqCastTimers[pid]) return;
+  _rqCastTimers[pid] = { startTime: Date.now(), pausedAt: null, pausedMs: 0 };
+  _rqCastSave();
+  restockQueueRender();
+  _rqCastStartTick(pid);
+}
+
+function rqToggleCastPause(pid) {
+  var t = _rqCastTimers[pid];
+  if (!t) return;
+  if (t.pausedAt) { t.pausedMs = (t.pausedMs || 0) + (Date.now() - t.pausedAt); t.pausedAt = null; }
+  else { t.pausedAt = Date.now(); }
+  _rqCastSave();
+  var btn = document.getElementById('rq-cast-btn-' + pid);
+  if (btn) btn.textContent = _rqCastBtnLabel(t);
+}
+
+function rqStopCastTimer(pid) {
+  var t = _rqCastTimers[pid];
+  if (!t) return;
+  clearInterval(t.tickInterval);
+  var mins = Math.max(1, Math.round(_rqElapsedMs(t) / 60000));
+  delete _rqCastTimers[pid];
+  _rqCastSave();
+  var now = new Date();
+  var line = '🔥 Casting: ' + mins + ' min (' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ')';
+  var existing = _rqNotes[pid] || '';
+  rqSetNote(pid, existing ? existing + '\n' + line : line);
+  restockQueueRender();
+  toast('Casting time saved — ' + mins + ' min', '✓');
 }
 
 // ── Chain time for pendants ──────────────────────────────────────────────────

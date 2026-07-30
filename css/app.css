@@ -3706,6 +3706,19 @@
     }
     .rq-start-btn:hover:not(:disabled) { background: var(--accent-bg); }
     .rq-start-btn:disabled { border-color: var(--bdr); color: var(--text-dim); cursor: default; }
+    .rq-cast-btn {
+      background: none; border: 1px solid var(--warn); border-radius: 7px;
+      color: var(--warn-fg); font-size: 12px; font-weight: 600; padding: 5px 10px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4; transition: background 0.15s;
+      font-variant-numeric: tabular-nums;
+    }
+    .rq-cast-btn:hover { background: var(--warn-bg); }
+    .rq-cast-btn.rq-cast-running { background: var(--warn-bg); }
+    .rq-cast-stop-btn {
+      background: var(--warn); border: 1px solid var(--warn); border-radius: 7px;
+      color: var(--warn-fg); font-size: 12px; font-weight: 600; padding: 5px 10px; cursor: pointer;
+      flex-shrink: 0; line-height: 1.4;
+    }
     .rq-arrows { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
     .rq-arrow {
       background: var(--card-bg); border: 1px solid var(--text-dim); border-radius: 4px;
