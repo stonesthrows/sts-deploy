@@ -27,7 +27,9 @@ function deadlineInfo(ds) {
 
 function fmtDate(ds) {
   if (!ds || ds === '—') return '—';
-  return new Date(ds).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ds);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(ds);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 
 function fmtPrice(p) { return p ? '$' + p.toLocaleString() : ''; }
