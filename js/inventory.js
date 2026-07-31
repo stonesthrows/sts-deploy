@@ -481,19 +481,24 @@ function _invSortVars(vars) {
   function score(v) {
     const name = (v.item_variation_data?.name || '').toLowerCase();
     const gauge = parseFloat(name.match(/(\d+(?:\.\d+)?)g/)?.[1] ?? '999');
+    // Leading numeric ring size, e.g. "5, Tapered" / "5.5, Hammered"
+    const numSizeMatch = name.match(/^(\d+(?:\.\d+)?)\s*,/);
+    const numSize = numSizeMatch ? parseFloat(numSizeMatch[1]) : Infinity;
+    const style = numSizeMatch ? name.slice(numSizeMatch[0].length).trim() : name;
     const words = name.split(/[\s,/]+/);
     const sizeRank = words.reduce((best, w) => {
       const r = _INV_SIZE_RANK[w.trim()];
       return r !== undefined && r < best ? r : best;
     }, 99);
-    return [gauge, sizeRank, name];
+    return [gauge, numSize, sizeRank, style];
   }
   const scored = vars.map(v => ({ v, s: score(v) }));
-  const hasSize = scored.some(x => x.s[1] < 99);
+  const hasSize = scored.some(x => x.s[2] < 99);
   const hasGauge = scored.some(x => x.s[0] < 999);
-  if (!hasSize && !hasGauge) return vars;
+  const hasNumSize = scored.some(x => x.s[1] < Infinity);
+  if (!hasSize && !hasGauge && !hasNumSize) return vars;
   return scored.sort((a, b) =>
-    a.s[0] - b.s[0] || a.s[1] - b.s[1] || a.s[2].localeCompare(b.s[2])
+    a.s[0] - b.s[0] || a.s[1] - b.s[1] || a.s[2] - b.s[2] || a.s[3].localeCompare(b.s[3])
   ).map(x => x.v);
 }
 
