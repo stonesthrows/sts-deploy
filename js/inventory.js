@@ -9,6 +9,7 @@ const INV_RING_CAT_IDS = {
   'ring-spirit': ['ZIICMTQVHNGD4RCNGMWYS3JB'],
   'geometric':   ['R5VVEETOKEH4T2TORR4ST2DD', 'R47DX3MHU2CQ6MKWN5QLKG3T'],
   'symbolic':    ['PZBEBEWWCI3MS52THSF2E2DM'],
+  'simple-bands': ['43HPGYIGRW2JV7AWRTN6DFPY'],
 };
 
 // Square category IDs → Meditation Rings tab (promoted from a Rings sub-tab
