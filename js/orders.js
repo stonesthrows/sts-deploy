@@ -2545,6 +2545,10 @@ function buildVariantBagUrl(o) {
   // rides along in the params above via o.shipping.
   const bagMoney = typeof ecomMoney === 'function' ? ecomMoney(o) : null;
   if (bagMoney && bagMoney.tax !== null) p.set('tax', String(bagMoney.tax));
+  else {
+    const et = _estimateTotalTax(o);
+    if (et !== '') p.set('tax', et);
+  }
   const gift = o.gift || {};
   if (gift.recipient || gift.occasion || gift.surprise) {
     p.set('giftFor', gift.recipient ? 'Gift for ' + gift.recipient : 'Gift');
