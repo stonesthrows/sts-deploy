@@ -15,6 +15,7 @@
     'triplog':           'Trips',
     'gmail':             'Gmail',
     'notes':             'Notes',
+    'art-shows':         'Art Shows',
     'sales':             'Sales',
     'bestsellers':       'Best Sellers',
     'calendar':          'Calendar',
