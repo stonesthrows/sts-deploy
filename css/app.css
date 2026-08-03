@@ -3493,19 +3493,47 @@
     .bs-progress { flex: 1; height: 6px; background: var(--bdr-light); border-radius: 999px; overflow: hidden; }
     .bs-progress-fill { height: 100%; width: 0; background: linear-gradient(90deg,var(--accent), var(--accent-mid)); border-radius: 999px; transition: width var(--dur-med) var(--ease-smooth); }
     .bs-progress-note { font-size: 11px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .bs-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-3); }
-    .bs-cat-card .sales-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3); }
-    .bs-cat-tot { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .bs-cat-more { font-size: 11px; color: var(--text3); margin-top: 8px; }
-    .bs-restock-table th, .bs-restock-table td { white-space: nowrap; }
-    .bs-restock-table td:first-child, .bs-restock-table th:first-child { white-space: normal; }
     .bs-proj-note { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
     .bs-footnote { margin-top: var(--sp-3); font-size: 11.5px; color: var(--text3); }
+    .bs-stats-3 { grid-template-columns: repeat(3,1fr); }
     #tab-bestsellers .stat-card { cursor: default; }
     #tab-bestsellers .stat-card:hover { border-color: var(--bdr); box-shadow: var(--shadow-md); transform: translateY(-1px); }
     #tab-bestsellers .stat-value { font-variant-numeric: tabular-nums; }
     #tab-bestsellers .stat-sub { font-size: 11px; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
-    @media (max-width: 720px) { .bs-cat-grid { grid-template-columns: 1fr; } }
+
+    /* Trends tab — sparkline grid */
+    .bs-spark-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-3); }
+    .spark-card { background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-md); padding: 14px 16px; box-shadow: var(--shadow-sm); }
+    .spark-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .spark-cat { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin: 2px 0 10px; }
+    .spark-card svg { display: block; width: 100%; height: 40px; }
+    .spark-area { fill: var(--accent); opacity: .12; }
+    .spark-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .spark-dot  { fill: var(--accent); }
+    .spark-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; }
+    .trend-pill { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+    .trend-pill.up   { background: var(--ok-bg);   color: var(--ok-fg); }
+    .trend-pill.down { background: var(--danger-bg); color: var(--danger-fg); }
+    .trend-pill.flat { background: var(--bdr-light); color: var(--text3); }
+    @media (max-width: 720px) { .bs-spark-grid { grid-template-columns: 1fr; } }
+
+    /* Restock tab — urgency board */
+    .bs-urgency-note { font-size: 12px; color: var(--text3); margin-bottom: var(--sp-3); }
+    .bs-urgency-cols { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--sp-3); }
+    .bs-ucol-head { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: var(--sp-3); color: var(--text); }
+    .bs-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .bs-dot-bad  { background: var(--danger-fg); }
+    .bs-dot-warn { background: var(--warn-fg); }
+    .bs-dot-good { background: var(--ok-fg); }
+    .bs-ucard { background: var(--card-bg); border: 1px solid var(--bdr); border-radius: var(--rad-sm); padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow-sm); border-left-width: 3px; border-left-style: solid; }
+    .bs-ucard-bad  { border-left-color: var(--danger-fg); }
+    .bs-ucard-warn { border-left-color: var(--warn-fg); }
+    .bs-ucard-good { border-left-color: var(--ok-fg); }
+    .bs-ucard-top { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .bs-ucard-make { font-variant-numeric: tabular-nums; }
+    .bs-ucard-sub { font-size: 11.5px; color: var(--text3); margin-top: 3px; }
+    @media (max-width: 820px) { .bs-urgency-cols { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .bs-stats-3 { grid-template-columns: 1fr 1fr; } }
     /* ── Notes ───────────────────────────────── */
     .notes-capture {
       background: var(--card-bg); border: 1px solid var(--bdr); border-radius: 12px;
