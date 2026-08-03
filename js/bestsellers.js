@@ -6,12 +6,22 @@
 //  restock-focus list — all from the same server-side weekend-sales
 //  store the Replenishment page fills (/api/weekend-sales, KV key
 //  replenish:weekend-sales).
-//    · Reads the store, never re-syncs recent weekends — that stays
-//      Replenishment's job. What this page ADDS is history: a one-time
-//      backfill of Square order history from BS_BACKFILL_START, written
-//      as final:true, backfilled:true weekend entries. Replenish only
-//      looks at the last 8 Saturdays and skips final entries, so the
-//      backfill cannot disturb its math.
+//    · Reads the store; Replenishment's page-open sync remains the
+//      primary path for the trailing weekends it tracks. This page ADDS
+//      two things of its own: (1) history — a one-time backfill of Square
+//      order history from BS_BACKFILL_START, written as final:true,
+//      backfilled:true weekend entries (Replenish only looks at the last
+//      8 Saturdays and skips final entries, so the backfill cannot
+//      disturb its math); and (2) a live same-day top-up — see
+//      _bsAutoSyncWeekend below.
+//    · Live sync: nobody may open Replenishment on a market day, so this
+//      page pulls THIS weekend's Square orders itself whenever it's
+//      opened on a Saturday or Sunday at/after BS_AUTO_SYNC_HOUR Central
+//      time (checked via America/Chicago regardless of device timezone),
+//      throttled to once per BS_AUTO_SYNC_THROTTLE_MS. Written the same
+//      shape as Replenish's own sync (final only once the weekend's
+//      Mon 00:00 boundary has passed) — not marked backfilled, so
+//      Replenish's velocity math treats it exactly like its own sync.
 //    · No sale record carries a category, so item → category comes from
 //      a client-side catalog map (/v2/catalog/batch-retrieve on the item
 //      ids seen in sales), grouped through inventory.js's INV_*_CAT_IDS
@@ -47,6 +57,8 @@ var BS_TOP_N             = 8;            // bars per category card
 var BS_BACKFILL_START    = '2025-01-04'; // first Saturday of 2025
 var BS_TREND_N           = 10;           // items shown in the Trends sparkline grid
 var BS_TREND_PERIODS     = 8;            // periods of history per sparkline
+var BS_AUTO_SYNC_HOUR       = 14;              // 2pm Central — market's usually open by then
+var BS_AUTO_SYNC_THROTTLE_MS = 10 * 60 * 1000; // don't re-hit Square more than once per 10 min
 
 // Restock focus never asks for these. Category names are matched
 // case-insensitively; a leading dot is Square's convention here for
@@ -105,6 +117,7 @@ var _bsOnHandReady     = false; // on-hand fetch finished (rows show '…' until
 var _bsItemNames       = {};    // itemId -> name (from sales entries, backfill resolution)
 var _bsLoading         = false;
 var _bsBackfillRunning = false;
+var _bsAutoSyncing     = false; // live same-day weekend sync in flight
 var _bsPeriod          = null;  // selected period key for the current view type
 
 function _bsEsc(s) {
@@ -731,6 +744,94 @@ async function bestsellersInit() {
       else bsRender();
     });
   }
+  _bsAutoSyncWeekend(); // fire-and-forget; re-renders itself once it lands
+}
+
+// ── Live same-day sync (Sat/Sun market afternoons) ─────────────────────
+// Central time regardless of device timezone, so a market iPad set to the
+// wrong clock timezone doesn't skip the window.
+function _bsCentralNowParts() {
+  try {
+    var parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hourCycle: 'h23',
+    }).formatToParts(new Date());
+    var map = {};
+    parts.forEach(function(p){ map[p.type] = p.value; });
+    return { weekday: map.weekday, hour: parseInt(map.hour, 10) };
+  } catch (e) { return null; } // Intl/timeZone unsupported — auto-sync just stays off
+}
+
+function _bsInAutoSyncWindow() {
+  var p = _bsCentralNowParts();
+  return !!p && (p.weekday === 'Sat' || p.weekday === 'Sun') && p.hour >= BS_AUTO_SYNC_HOUR;
+}
+
+// This weekend's Saturday key, by device-local date — same convention as
+// every other weekend key in this file (_bsLastEndedSaturday etc).
+function _bsCurrentWeekendSatKey() {
+  var d = new Date();
+  var day = d.getDay(); // 0=Sun…6=Sat
+  d.setDate(d.getDate() - (day === 6 ? 0 : day + 1));
+  d.setHours(0, 0, 0, 0);
+  return _bsDateKey(d);
+}
+
+// Pull just THIS weekend's orders and PATCH them to the shared store —
+// Replenish's _rpSyncSales recipe, narrowed to one weekend and run from
+// here so sales show up without anyone opening Replenishment first.
+async function _bsAutoSyncWeekend() {
+  if (_bsAutoSyncing || !_bsSales || !_bsInAutoSyncWindow()) return;
+  var lastRun = parseInt(localStorage.getItem('sts-bs-autosync-at') || '0', 10);
+  if (Date.now() - lastRun < BS_AUTO_SYNC_THROTTLE_MS) return;
+
+  var satKey = _bsCurrentWeekendSatKey();
+  var already = _bsSales.weekends[satKey];
+  if (already && already.final === true) return; // weekend's fully closed out already
+
+  _bsAutoSyncing = true;
+  localStorage.setItem('sts-bs-autosync-at', String(Date.now()));
+  try {
+    var fetched = await _bsFetchWeekendOrders(satKey);
+    var varMap = _bsSales.varMap || (_bsSales.varMap = {});
+    var unknownIds = Object.keys(fetched.byVar).filter(function(v){ return !varMap[v]; });
+    var varPatch = unknownIds.length ? await _bsResolveVarIds(unknownIds) : {};
+    Object.keys(varPatch).forEach(function(v){ varMap[v] = varPatch[v]; });
+
+    var items = {};
+    Object.keys(fetched.byVar).forEach(function(v) {
+      var itemId = varMap[v] ? varMap[v].itemId : v;
+      var name   = varMap[v] ? varMap[v].itemName : fetched.byVar[v].name;
+      var e = items[itemId] = items[itemId] || { name: name, qty: 0, revenue: 0 };
+      e.qty += fetched.byVar[v].qty;
+      e.revenue += Math.round(fetched.byVar[v].revenue * 100) / 100;
+    });
+    var end = new Date(satKey + 'T00:00:00'); end.setDate(end.getDate() + 2);
+    var entry = {
+      label: _bsWeekendLabel(satKey),
+      syncedAt: new Date().toISOString(),
+      final: new Date() >= end,
+      items: items,
+      uncatalogued: fetched.uncatalogued,
+    };
+
+    var weekendPatch = {}; weekendPatch[satKey] = entry;
+    await fetch('/api/weekend-sales', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekends: weekendPatch, varMap: varPatch }),
+    });
+
+    _bsSales.weekends[satKey] = entry;
+    try { await _bsEnsureCatMap(_bsAllItemIds()); } catch (e) {}
+    _bsOnHandReady = false; // this weekend may have sold something not counted yet
+    bsRender();
+    var vel = bsVelocity(_bsSales.weekends);
+    _bsLoadOnHand(vel).then(function() {
+      _bsOnHandReady = true;
+      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      else bsRender();
+    });
+  } catch (e) { /* silent — throttle window or next tab open retries */ }
+  _bsAutoSyncing = false;
 }
 
 function bsRender() {
