@@ -45,6 +45,8 @@ var BS_LOOKBACK_WEEKENDS = 12;           // velocity window (final weekends with
 var BS_COVER_WEEKENDS    = 4;            // restock focus covers this many market weekends
 var BS_TOP_N             = 8;            // bars per category card
 var BS_BACKFILL_START    = '2025-01-04'; // first Saturday of 2025
+var BS_TREND_N           = 10;           // items shown in the Trends sparkline grid
+var BS_TREND_PERIODS     = 8;            // periods of history per sparkline
 
 // Restock focus never asks for these. Category names are matched
 // case-insensitively; a leading dot is Square's convention here for
@@ -241,11 +243,12 @@ function _bsView() {
   if (!v || typeof v !== 'object') v = {};
   if (['month','quarter','year'].indexOf(v.type) < 0) v.type = 'month';
   if (['qty','revenue'].indexOf(v.sort) < 0) v.sort = 'revenue';
+  if (['restock','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
   return v;
 }
 
 function _bsSaveView(v) {
-  try { localStorage.setItem('sts-bs-view', JSON.stringify({ type: v.type, sort: v.sort })); } catch (e) {}
+  try { localStorage.setItem('sts-bs-view', JSON.stringify({ type: v.type, sort: v.sort, tab: v.tab })); } catch (e) {}
 }
 
 function bsSetType(type) {
@@ -253,6 +256,13 @@ function bsSetType(type) {
   v.type = type;
   _bsSaveView(v);
   _bsPeriod = _bsPeriodOfDate(new Date(), type); // reset to the current period
+  bsRender();
+}
+
+function bsSetTab(tab) {
+  var v = _bsView();
+  v.tab = tab;
+  _bsSaveView(v);
   bsRender();
 }
 
@@ -638,7 +648,7 @@ function _bsLoadOnHand(vel) {
 // one row at 1.2/wknd asking for 5. Velocity, revenue and tracked stock
 // are summed across the merged ids. Names that differ but mean the same
 // piece are folded together first via BS_ALIAS_NAMES.
-function bsRestockFocus(vel) {
+function bsRestockFocus(vel, includeCovered) {
   var varsByItem = _bsVarsByItem();
   var groups = {}; // nameKey -> row
 
@@ -688,7 +698,7 @@ function bsRestockFocus(vel) {
     // Square reports negative counts for stock sold but never received.
     // Floor at 0: it means "none on hand", not "owes 19".
     g.make = Math.max(0, g.need - Math.max(0, g.have || 0));
-    if (_bsOnHandReady && g.have != null && g.make <= 0) return; // covered
+    if (!includeCovered && _bsOnHandReady && g.have != null && g.make <= 0) return; // covered
     rows.push(g);
   });
 
@@ -717,8 +727,8 @@ async function bestsellersInit() {
     var vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
     _bsLoadOnHand(vel).then(function() {
       _bsOnHandReady = true;
-      _bsRenderRestock(vel);
-      _bsUpdateFocusCard(vel);
+      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      else bsRender();
     });
   }
 }
@@ -752,19 +762,29 @@ function bsRender() {
 
   // ── Toolbar ──────────────────────────────
   html += '<div class="bs-toolbar">';
-  html += '<div class="bs-seg" role="tablist" aria-label="Period type">';
-  [['month','Month'],['quarter','Quarter'],['year','Year']].forEach(function(t) {
-    html += '<button class="bs-seg-btn' + (view.type === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
-      + (view.type === t[0]) + '" onclick="bsSetType(\'' + t[0] + '\')">' + t[1] + '</button>';
+  html += '<div class="bs-seg" role="tablist" aria-label="View">';
+  [['restock','🔧 Restock'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
+    html += '<button class="bs-seg-btn' + (view.tab === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
+      + (view.tab === t[0]) + '" onclick="bsSetTab(\'' + t[0] + '\')">' + t[1] + '</button>';
   });
   html += '</div>';
-  html += '<div class="bs-period-nav">';
-  html += '<button class="bs-period-btn" onclick="bsShiftPeriodSel(-1)" aria-label="Previous period"' + (_bsPeriod <= minKey ? ' disabled' : '') + '>‹</button>';
-  html += '<span class="bs-period-label">' + _bsEsc(_bsPeriodLabel(_bsPeriod)) + '</span>';
-  html += '<button class="bs-period-btn" onclick="bsShiftPeriodSel(1)" aria-label="Next period"' + (_bsPeriod >= curKey ? ' disabled' : '') + '>›</button>';
-  html += '</div>';
-  html += '<button class="btn btn-outline btn-sm" onclick="bsToggleSort()" title="Rank items by quantity or revenue">⇅ '
-    + (view.sort === 'revenue' ? 'Revenue' : 'Qty') + '</button>';
+  if (view.tab !== 'restock') {
+    html += '<div class="bs-seg" role="tablist" aria-label="Period type">';
+    [['month','Month'],['quarter','Quarter'],['year','Year']].forEach(function(t) {
+      html += '<button class="bs-seg-btn' + (view.type === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
+        + (view.type === t[0]) + '" onclick="bsSetType(\'' + t[0] + '\')">' + t[1] + '</button>';
+    });
+    html += '</div>';
+    html += '<div class="bs-period-nav">';
+    html += '<button class="bs-period-btn" onclick="bsShiftPeriodSel(-1)" aria-label="Previous period"' + (_bsPeriod <= minKey ? ' disabled' : '') + '>‹</button>';
+    html += '<span class="bs-period-label">' + _bsEsc(_bsPeriodLabel(_bsPeriod)) + '</span>';
+    html += '<button class="bs-period-btn" onclick="bsShiftPeriodSel(1)" aria-label="Next period"' + (_bsPeriod >= curKey ? ' disabled' : '') + '>›</button>';
+    html += '</div>';
+  }
+  if (view.tab === 'items') {
+    html += '<button class="btn btn-outline btn-sm" onclick="bsToggleSort()" title="Rank items by quantity or revenue">⇅ '
+      + (view.sort === 'revenue' ? 'Revenue' : 'Qty') + '</button>';
+  }
   html += '<span class="bs-toolbar-spacer"></span>';
   html += '<button class="btn btn-outline btn-sm" onclick="bsRefreshCatMap(this)" title="Re-fetch item categories from the Square catalog">↻ Categories</button>';
   html += '<button id="bsBackfillBtn" class="sales-sync-btn" onclick="bsBackfillHistory(this)"'
@@ -783,7 +803,21 @@ function bsRender() {
     return;
   }
 
-  // ── Stat cards ───────────────────────────
+  if (view.tab === 'restock') {
+    html += '<div id="bsRestock"></div>';
+  } else if (view.tab === 'trends') {
+    html += bsRenderTrendsTab(buckets, view);
+  } else {
+    html += bsRenderItemsTab(cur, prev, proj, vel, view, isCurrentPeriod);
+  }
+
+  el.innerHTML = html;
+  if (view.tab === 'restock') _bsRenderRestockBoard(vel);
+}
+
+// ── Items tab: flat sortable table of every item in the selected period ──
+function bsRenderItemsTab(cur, prev, proj, vel, view, isCurrentPeriod) {
+  var html = '';
   var delta = bsPeriodDelta(cur ? cur.revenue : 0, prev ? prev.revenue : null);
   var deltaHtml = delta == null ? 'no prior period'
     : '<span class="sales-delta ' + (delta >= 0 ? 'up' : 'down') + '">'
@@ -792,7 +826,7 @@ function bsRender() {
     ? 'period complete'
     : _bsMoney(proj.actual) + ' actual + ' + _bsMoney(vel.totalRevenue) + '/wknd × ' + proj.remaining + ' Sat' + (proj.remaining !== 1 ? 's' : '') + ' left';
 
-  html += '<div class="sales-stats">';
+  html += '<div class="sales-stats bs-stats-3">';
   html += statCard('📦', 'si-purple', _bsEsc(_bsPeriodLabel(_bsPeriod)) + ' Units',
     Math.round(cur ? cur.units : 0).toLocaleString(),
     (cur ? cur.satKeys.length : 0) + ' market weekend' + (cur && cur.satKeys.length === 1 ? '' : 's'));
@@ -801,74 +835,32 @@ function bsRender() {
   html += statCard('📈', 'si-green', 'Projected ' + _bsEsc(_bsPeriodLabel(_bsPeriod)),
     isCurrentPeriod ? _bsMoney(proj.revenue) : _bsMoney(cur ? cur.revenue : 0),
     '<span class="bs-proj-note">' + projSub + '</span>');
-  html += statCard('🔧', 'si-red', 'Restock Focus',
-    '<span id="bsFocusCount">' + (_bsOnHandReady ? bsRestockFocus(vel).filter(function(r){ return r.make > 0; }).length : '…') + '</span>',
-    'items to make · ' + BS_COVER_WEEKENDS + '-wknd cover');
   html += '</div>';
 
-  // ── Category cards ───────────────────────
-  var cats = bsTopPerCategory(cur, view.sort);
-  if (!cats.length) {
+  var rows = [];
+  if (cur) {
+    Object.keys(cur.items).forEach(function(id) {
+      if (_bsIsDiscontinued(id)) return;
+      var it = cur.items[id];
+      if (!(it.qty > 0)) return;
+      rows.push({
+        name: it.name || _bsNameOf(id), cat: _bsAppCategory(id),
+        qty: it.qty, revenue: it.revenue, price: it.qty ? it.revenue / it.qty : 0,
+        vel: vel.units[id] || 0, have: _bsOnHandReady ? _bsItemOnHand(id) : null,
+      });
+    });
+  }
+  var sortKey = view.sort === 'qty' ? 'qty' : 'revenue';
+  rows.sort(function(a, b){ return b[sortKey] - a[sortKey]; });
+
+  html += '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">📋 All items — ' + _bsEsc(_bsPeriodLabel(_bsPeriod)) + '</div>';
+  html += '<div class="sales-card-body sales-flush">';
+  if (!rows.length) {
     html += '<div class="sales-empty">No item sales recorded in ' + _bsEsc(_bsPeriodLabel(_bsPeriod)) + '.</div>';
   } else {
-    html += '<div class="bs-cat-grid">';
-    cats.forEach(function(c) {
-      var top = c.items.slice(0, BS_TOP_N);
-      var max = Math.max.apply(null, top.map(function(it) {
-        return view.sort === 'qty' ? it.qty : it.revenue;
-      }).concat([1]));
-      html += '<div class="sales-card bs-cat-card">';
-      html += '<div class="sales-card-head">' + _bsEsc(c.cat)
-        + ' <span class="bs-cat-tot">' + Math.round(c.units).toLocaleString() + ' pcs · ' + _bsMoney(c.revenue) + '</span></div>';
-      html += '<div class="sales-card-body"><div class="sales-bar-wrap">';
-      top.forEach(function(it) {
-        var val = view.sort === 'qty' ? it.qty : it.revenue;
-        var pct = Math.round((val / max) * 100);
-        html += '<div class="sales-bar-row">'
-          + '<div class="sales-bar-lbl"><span>' + _bsEsc(it.name) + ' <span class="sales-td-muted">×' + Math.round(it.qty) + '</span></span>'
-          + '<span class="sales-bar-amt">' + _bsMoney(it.revenue) + '</span></div>'
-          + '<div class="sales-bar-track"><div class="sales-bar-fill sf-gold" style="width:' + pct + '%"></div></div>'
-          + '</div>';
-      });
-      if (c.items.length > BS_TOP_N) {
-        html += '<div class="bs-cat-more">+ ' + (c.items.length - BS_TOP_N) + ' more item' + (c.items.length - BS_TOP_N !== 1 ? 's' : '') + '</div>';
-      }
-      html += '</div></div></div>';
-    });
-    html += '</div>';
-  }
-
-  // ── Restock focus table ──────────────────
-  html += '<div id="bsRestock"></div>';
-
-  // ── Uncatalogued footnote ────────────────
-  if (cur && cur.uncatalogued > 0) {
-    html += '<div class="bs-footnote">⚠ ' + Math.round(cur.uncatalogued) + ' sale'
-      + (Math.round(cur.uncatalogued) !== 1 ? 's' : '') + ' in ' + _bsEsc(_bsPeriodLabel(_bsPeriod))
-      + ' rang up as custom amounts (no catalog item) — their revenue isn\'t in these numbers.</div>';
-  }
-
-  el.innerHTML = html;
-  _bsRenderRestock(vel);
-}
-
-function _bsRenderRestock(vel) {
-  var el = document.getElementById('bsRestock');
-  if (!el) return;
-  if (!vel) vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
-  var rows = bsRestockFocus(vel);
-
-  var html = '<div class="sales-card sales-block">';
-  html += '<div class="sales-card-head">🔧 Restock focus — cover ' + BS_COVER_WEEKENDS
-    + ' market weekends at current velocity (last ' + vel.weekends + ' weekend' + (vel.weekends !== 1 ? 's' : '') + ', recent weighted heavier)</div>';
-  html += '<div class="sales-card-body sales-flush">';
-  if (!_bsOnHandReady) {
-    html += '<div class="sales-empty">Checking Square stock levels…</div>';
-  } else if (!rows.length) {
-    html += '<div class="sales-empty">Everything with sales velocity is covered 🎉</div>';
-  } else {
-    html += '<div class="sales-table-wrap"><table class="sales-table bs-restock-table"><thead><tr>';
-    ['Item','Category','~ per wknd','On hand','Need ' + BS_COVER_WEEKENDS + 'wk','Make'].forEach(function(h) {
+    html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+    ['Item','Category','Qty','Revenue','Avg $','~ per wknd','On hand'].forEach(function(h) {
       html += '<th>' + h + '</th>';
     });
     html += '</tr></thead><tbody>';
@@ -876,27 +868,125 @@ function _bsRenderRestock(vel) {
       html += '<tr>'
         + '<td class="sales-td-label">' + _bsEsc(r.name) + '</td>'
         + '<td class="sales-td-muted">' + _bsEsc(r.cat) + '</td>'
+        + '<td>' + Math.round(r.qty) + '</td>'
+        + '<td>' + _bsMoney(r.revenue) + '</td>'
+        + '<td>' + _bsMoney(r.price) + '</td>'
         + '<td>' + (Math.round(r.vel * 10) / 10) + '</td>'
-        + '<td>' + (r.have == null
-            ? '<span class="sales-td-muted" title="Not tracked in Square — counted as 0">—</span>'
-            : r.have < 0
-              ? '<span class="sales-td-warn" title="Square count is negative (sold without being received) — counted as 0">' + r.have + '</span>'
-              : r.have) + '</td>'
-        + '<td>' + r.need + '</td>'
-        + '<td class="sales-td-total">' + r.make + '</td>'
+        + '<td>' + (r.have == null ? '<span class="sales-td-muted">—</span>' : r.have) + '</td>'
         + '</tr>';
     });
     html += '</tbody></table></div>';
   }
   html += '</div></div>';
-  el.innerHTML = html;
+
+  if (cur && cur.uncatalogued > 0) {
+    html += '<div class="bs-footnote">⚠ ' + Math.round(cur.uncatalogued) + ' sale'
+      + (Math.round(cur.uncatalogued) !== 1 ? 's' : '') + ' in ' + _bsEsc(_bsPeriodLabel(_bsPeriod))
+      + ' rang up as custom amounts (no catalog item) — their revenue isn\'t in these numbers.</div>';
+  }
+  return html;
 }
 
-function _bsUpdateFocusCard(vel) {
-  var el = document.getElementById('bsFocusCount');
+// ── Trends tab: sparkline per top item across recent periods ──
+function _bsTrendHistoryKeys() {
+  var keys = [], k = _bsPeriod;
+  for (var i = 0; i < BS_TREND_PERIODS; i++) { keys.unshift(k); k = _bsShiftPeriod(k, -1); }
+  return keys;
+}
+
+function bsRenderTrendsTab(buckets, view) {
+  var cur = buckets[_bsPeriod] || null;
+  var metric = view.sort === 'qty' ? 'qty' : 'revenue';
+  var ranked = cur ? Object.keys(cur.items)
+    .filter(function(id){ return !_bsIsDiscontinued(id) && cur.items[id][metric] > 0; })
+    .sort(function(a, b){ return cur.items[b][metric] - cur.items[a][metric]; })
+    .slice(0, BS_TREND_N) : [];
+
+  if (!ranked.length) {
+    return '<div class="sales-empty">No item sales recorded in ' + _bsEsc(_bsPeriodLabel(_bsPeriod)) + '.</div>';
+  }
+
+  var histKeys = _bsTrendHistoryKeys();
+  var html = '<div class="bs-spark-grid">';
+  ranked.forEach(function(id) {
+    var hist = histKeys.map(function(k) {
+      var b = buckets[k], it = b && b.items[id];
+      return it ? (it[metric] || 0) : 0;
+    });
+    html += bsSparkCard(cur.items[id].name || _bsNameOf(id), _bsAppCategory(id), hist, metric);
+  });
+  html += '</div>';
+  return html;
+}
+
+function bsSparkCard(name, cat, hist, metric) {
+  var w = 200, h = 40, n = hist.length;
+  var max = Math.max.apply(null, hist.concat([1]));
+  var min = Math.min.apply(null, hist);
+  var pts = hist.map(function(v, i) {
+    var x = (i / (n - 1)) * w;
+    var y = h - ((v - min) / ((max - min) || 1)) * (h - 4) - 2;
+    return x + ',' + y;
+  });
+  var areaPath = 'M0,' + h + ' L' + pts.join(' L') + ' L' + w + ',' + h + ' Z';
+  var first = hist[0], last = hist[n - 1];
+  var pct = first ? Math.round(((last - first) / first) * 100) : (last > 0 ? 100 : 0);
+  var cls = pct > 5 ? 'up' : pct < -5 ? 'down' : 'flat';
+  var lastPt = pts[pts.length - 1].split(',');
+  var total = hist.reduce(function(s, v){ return s + v; }, 0);
+  return '<div class="spark-card">'
+    + '<div class="spark-name">' + _bsEsc(name) + '</div>'
+    + '<div class="spark-cat">' + _bsEsc(cat) + '</div>'
+    + '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">'
+      + '<path class="spark-area" d="' + areaPath + '"></path>'
+      + '<polyline class="spark-line" points="' + pts.join(' ') + '"></polyline>'
+      + '<circle class="spark-dot" cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" r="3"></circle>'
+    + '</svg>'
+    + '<div class="spark-foot"><span class="sales-td-muted">' + (metric === 'qty' ? Math.round(total) + ' pcs' : _bsMoney(total)) + '</span>'
+    + '<span class="trend-pill ' + cls + '">' + (pct > 0 ? '+' : '') + pct + '%</span></div>'
+  + '</div>';
+}
+
+// ── Restock tab: urgency board (make now / make soon / covered) ──
+function _bsRenderRestockBoard(vel) {
+  var el = document.getElementById('bsRestock');
   if (!el) return;
   if (!vel) vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
-  el.textContent = bsRestockFocus(vel).filter(function(r){ return r.make > 0; }).length;
+  if (!_bsOnHandReady) {
+    el.innerHTML = '<div class="sales-empty">Checking Square stock levels…</div>';
+    return;
+  }
+  var rows = bsRestockFocus(vel, true);
+  var crit    = rows.filter(function(r){ return (r.have == null || r.have <= 0) && r.make > 0; });
+  var soon    = rows.filter(function(r){ return r.have > 0 && r.make > 0; });
+  var covered = rows.filter(function(r){ return r.make <= 0; });
+  var cols = [
+    ['bad',  '🔴 Make now',  crit,    'Nothing critical right now.'],
+    ['warn', '🟡 Make soon', soon,    'Nothing running low.'],
+    ['good', '🟢 Covered',   covered, 'Nothing covered yet.'],
+  ];
+
+  var html = '<div class="bs-urgency-note">Cover ' + BS_COVER_WEEKENDS
+    + ' market weekends at current velocity (last ' + vel.weekends + ' weekend' + (vel.weekends !== 1 ? 's' : '') + ', recent weighted heavier)</div>';
+  html += '<div class="bs-urgency-cols">';
+  cols.forEach(function(c) {
+    html += '<div class="bs-ucol">';
+    html += '<div class="bs-ucol-head"><span class="bs-dot bs-dot-' + c[0] + '"></span>' + c[1] + ' <span class="sales-td-muted">(' + c[2].length + ')</span></div>';
+    if (!c[2].length) {
+      html += '<div class="sales-empty" style="text-align:left;padding:16px 4px">' + c[3] + '</div>';
+    } else {
+      c[2].forEach(function(r) {
+        html += '<div class="bs-ucard bs-ucard-' + c[0] + '">'
+          + '<div class="bs-ucard-top"><span>' + _bsEsc(r.name) + '</span><span class="bs-ucard-make">' + (r.make > 0 ? r.make : '✓') + '</span></div>'
+          + '<div class="bs-ucard-sub">' + _bsEsc(r.cat) + ' · ' + (r.have == null ? 'untracked' : r.have + ' on hand')
+          + ' · ' + (Math.round(r.vel * 10) / 10) + '/wknd</div>'
+          + '</div>';
+      });
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 // ── Backfill (one-time Square order history) ───
