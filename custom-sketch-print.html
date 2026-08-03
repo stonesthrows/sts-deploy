@@ -296,7 +296,7 @@
 
   <div class="moneystrip">
     <div class="m"><small>Subtotal</small><span id="m-sub" contenteditable="true"></span></div>
-    <div class="m"><small>Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
+    <div class="m"><small id="m-tax-lbl">Tax 8%</small><span id="m-tax" contenteditable="true"></span></div>
     <div class="m hide" id="m-ship-cell"><small>Shipping</small><span id="m-ship" contenteditable="true"></span></div>
     <div class="m b"><small>Total</small><span id="m-total"></span></div>
     <div class="m"><small>Deposit</small><span id="m-dep" contenteditable="true"></span></div>
@@ -414,6 +414,7 @@
     giftSurprise: q.get('giftSurprise') || '',
     deposit: q.get('deposit') || '', shipping: q.get('shipping') || '',
     fullyPaid: q.get('fullyPaid') || '',
+    tax: q.get('tax') || '',
     items: (() => { try { return JSON.parse(q.get('items') || '[]'); } catch (e) { return []; } })(),
   };
 
@@ -664,10 +665,16 @@
     el.classList.add('show');
   }
   const sub  = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-  const tax  = sub * 0.08;
+  // An explicit tax (e.g. '0' when an item is an already-final "Estimate
+  // Total") overrides the flat-rate guess — see _estimateTotalTax in
+  // js/orders.js. Without it, fall back to the flat 8% estimate as before.
+  const taxGiven = (src.tax !== '' && src.tax != null && !isNaN(parseFloat(src.tax)))
+    ? parseFloat(src.tax) : null;
+  const tax  = taxGiven !== null ? taxGiven : sub * 0.08;
   const ship = parseFloat(src.shipping) || 0;
   const dep  = parseFloat(src.deposit) || 0;
   const tot  = sub + tax + ship;
+  document.getElementById('m-tax-lbl').textContent = taxGiven !== null ? 'Tax (incl.)' : 'Tax 8%';
   document.getElementById('m-sub').textContent = sub ? money(sub) : '';
   document.getElementById('m-tax').textContent = sub ? money(tax) : '';
   if (ship) {

@@ -2297,6 +2297,17 @@ function printOrder(id) {
   window.open(bagLayoutRow(o, o.printLayout).build(o), '_blank');
 }
 
+// The intake estimate flow (js/intake.js intakeUseEstimate) writes a single
+// manual "Estimate Total" line item whose price is ALREADY the fully taxed,
+// shipping-included final number (materials × markup + labor, + tax, +
+// shipping — see calcEstimate/js/order-widgets.js). Bag templates default to
+// taxing whatever's in the items list themselves (sub * 8%), so printing
+// that item straight through double-taxes it. Passing an explicit tax='0'
+// tells the template the item is already final.
+function _estimateTotalTax(o) {
+  return (o.items || []).some(it => it && it.name === 'Estimate Total') ? '0' : '';
+}
+
 // Classic work-order bag (work-order-print.html) — the default template.
 function buildClassicBagUrl(o) {
   // Flat addr* fields are the address of record; shippingAddress{} is the
@@ -2335,6 +2346,7 @@ function buildClassicBagUrl(o) {
     // desc/amount feed the manual layouts' line-item table; the ecom layout
     // gets structured specs separately via the ecomItems param below.
     items:     JSON.stringify((o.items || []).filter(it => it.name).map(it => ({ desc: oiPrintLabel(it), amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1) }))),
+    tax:       _estimateTotalTax(o),
     orderId:   o.id || '',
   });
   // Per-kind layout params (order-normalize.js): drive which print variant
@@ -2414,6 +2426,7 @@ function buildSketchBagUrl(o) {
       desc:   oiPrintLabel(it),
       amount: (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 1),
     }))),
+    tax:       _estimateTotalTax(o),
     orderId:   o.id || '',
   });
   if (Array.isArray(o.rings) && o.rings.length) p.set('rings', JSON.stringify(o.rings));
@@ -2595,6 +2608,10 @@ function bagCoreParams(o) {
   });
   const bagMoney = typeof ecomMoney === 'function' ? ecomMoney(o) : null;
   if (bagMoney && bagMoney.tax !== null) p.set('tax', String(bagMoney.tax));
+  else {
+    const et = _estimateTotalTax(o);
+    if (et !== '') p.set('tax', et);
+  }
   return p;
 }
 

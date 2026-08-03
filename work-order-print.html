@@ -668,6 +668,12 @@
   // the totals block entirely today, so this only bites if that ever changes —
   // but the param is passed for every order, so honor it rather than ignore it.
   const taxApplies = p.get('taxApplies') !== '0';
+  // An explicit tax (e.g. '0' when an item is an already-final "Estimate
+  // Total" line from the intake estimate flow) overrides the flat-rate
+  // guess below — see _estimateTotalTax in js/orders.js.
+  const taxParam = p.get('tax');
+  const taxGiven = (taxParam !== '' && taxParam != null && !isNaN(parseFloat(taxParam)))
+    ? parseFloat(taxParam) : null;
   let lineItems = [];
   try { lineItems = JSON.parse(p.get('items') || '[]'); } catch (e) { lineItems = []; }
   // Structured per-item bag specs from ecomPrintItems() (order-normalize.js):
@@ -941,12 +947,12 @@
   function parseAmt(el) { return parseFloat((el.textContent || '').replace(/[$,\s]/g,'')) || 0; }
   function recalc() {
     const sub  = Array.from(document.querySelectorAll('.li-row:not(.tot) .li-a')).reduce((s,e) => s + parseAmt(e), 0);
-    const tax  = taxApplies ? sub * 0.08 : 0;
+    const tax  = taxGiven !== null ? taxGiven : (taxApplies ? sub * 0.08 : 0);
     const ship = parseAmt(document.getElementById('t-shipping'));
     const dep  = parseAmt(document.getElementById('t-deposit'));
     const tot  = sub + tax + ship;
     document.getElementById('t-subtotal').textContent = sub ? fmtMoney(sub) : '';
-    document.getElementById('t-salestax').textContent = tax ? fmtMoney(tax) : '';
+    document.getElementById('t-salestax').textContent = (tax || taxGiven === 0) ? fmtMoney(tax) : '';
     document.getElementById('t-total').textContent    = tot ? fmtMoney(tot) : '';
     document.getElementById('t-newtotal').textContent = fullyPaid ? fmtMoney(0) : fmtMoney(tot - dep);
   }
