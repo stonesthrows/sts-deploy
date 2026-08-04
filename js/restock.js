@@ -207,8 +207,11 @@ function _rqMatchSizesToVariants(variants, rawText) {
 function _rqClassifyToken(tok) {
   var t = (tok || '').trim();
   // "Silver & Gold Fill" (a combined-metal option, e.g. on Chevron Stacker's
-  // Double style) needs to match too.
-  if (/^(silver|gold[\s-]?fill|gold|rose[\s-]?gold|brass|bronze|sterling|copper)(\s*&\s*(silver|gold[\s-]?fill|gold|rose[\s-]?gold))?$/i.test(t)) return 'metal';
+  // Double style) needs to match too — as does the "GF" abbreviation Square
+  // items use in combo variants like "Silver & GF" (e.g. Double Hoop Faux
+  // Nose Ring), which used to fall through to 'other' and get silently
+  // dropped from every metal-grouped view since it had no group to join.
+  if (/^(silver|gold[\s-]?fill|gf|gold|rose[\s-]?gold|brass|bronze|sterling|copper)(\s*&\s*(silver|gold[\s-]?fill|gf|gold|rose[\s-]?gold))?$/i.test(t)) return 'metal';
   if (/^(xs|sm|small|med|medium|lg|large|xl|xxl)$/i.test(t)) return 'size';
   // Ring sizes — plain numbers (incl. half sizes) or "Size 7" / "Sz 7.5".
   if (/^(size|sz)?\s*\d+(\.\d+)?$/i.test(t)) return 'size';
