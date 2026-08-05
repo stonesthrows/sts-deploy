@@ -46,6 +46,7 @@ function _dsnOnViewportChange() {
 _dsnNarrowMq.addEventListener('change', _dsnOnViewportChange);
 window.addEventListener('resize', _dsnOnViewportChange);
 let _designsImgQueue = [];      // base64 strings staged for current edit session
+let _designsAttachQueue = [];   // {key,name,size,contentType} metadata for files uploaded to R2
 let _designsImgEditMode = false;
 
 // BOM (Phase 3): material recipe on the design record
@@ -169,6 +170,7 @@ function designsShowLibrary() {
   _designsEditId = null;
   _designsCurrentFull = null;
   _designsImgQueue = [];
+  _designsAttachQueue = [];
   _designsImgEditMode = false;
   _designsPricingOpen = false;
   const pricing = document.getElementById('designs-pricing');
@@ -192,6 +194,7 @@ async function designsShowForm(id) {
   _designsView   = 'form';
   _designsEditId = id || null;
   _designsImgQueue   = [];
+  _designsAttachQueue = [];
   _designsCurrentFull = null;
   _designsImgEditMode = false;
   _designsPricingOpen = false;
@@ -1253,6 +1256,8 @@ function designsRenderForm() {
 
   _designsImgQueue = design ? [...(design.images || [])] : [];
   designsRenderImagePreviews();
+  _designsAttachQueue = design ? [...(design.attachments || [])] : [];
+  designsRenderAttachments();
 
   const delBtn = document.getElementById('dsn-delete-btn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
@@ -1314,6 +1319,60 @@ function designsCloseImageOverlay() {
   document.getElementById('dsn-img-overlay-img').src = '';
 }
 
+// ── File attachments (Illustrator files, PDFs, etc. — stored in R2) ──
+function _dsnAttachFmtSize(bytes) {
+  if (bytes == null) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function designsRenderAttachments() {
+  const wrap = document.getElementById('dsn-attach-list');
+  if (!wrap) return;
+  if (_designsAttachQueue.length === 0) {
+    wrap.innerHTML = '<span style="color:var(--text3);font-size:12px">No files yet</span>';
+    return;
+  }
+  wrap.innerHTML = _designsAttachQueue.map((f, i) => `
+    <div class="dsn-attach-row">
+      <a href="/api/design-files?key=${encodeURIComponent(f.key)}" target="_blank" rel="noopener" class="dsn-attach-name">📎 ${escHtml(f.name)}</a>
+      <span class="dsn-attach-size">${_dsnAttachFmtSize(f.size)}</span>
+      <button type="button" class="dsn-attach-del" onclick="designsRemoveAttachment(${i})" title="Remove file">×</button>
+    </div>`).join('');
+}
+
+async function designsAttachFile(file) {
+  if (!file) return;
+  if (!_designsEditId) _designsEditId = 'dsn-' + Date.now();
+
+  const key = `designs/${_designsEditId}/${Date.now()}-${file.name}`;
+  try {
+    const resp = await fetch(`/api/design-files?key=${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    if (!resp.ok) throw new Error(`Upload failed (${resp.status})`);
+    _designsAttachQueue.push({ key, name: file.name, size: file.size, contentType: file.type || 'application/octet-stream' });
+    designsRenderAttachments();
+    toast('File attached', '📎');
+  } catch (e) {
+    toast('Attach failed — ' + (e.message || e), '❌');
+  }
+}
+
+async function designsRemoveAttachment(idx) {
+  const f = _designsAttachQueue[idx];
+  if (!f) return;
+  if (!confirm(`Remove "${f.name}"?`)) return;
+  try {
+    await fetch(`/api/design-files?key=${encodeURIComponent(f.key)}`, { method: 'DELETE' });
+  } catch (e) { /* best-effort — still drop it from the design */ }
+  _designsAttachQueue.splice(idx, 1);
+  designsRenderAttachments();
+}
+
 // ── Save / Delete ─────────────────────────────
 async function designsSaveDesign() {
   const name = document.getElementById('dsn-name').value.trim();
@@ -1352,6 +1411,7 @@ async function designsSaveDesign() {
     laborMinPerPieceOverride: _dsnNumOrNull((document.getElementById('dsn-labor-ov')  || {}).value),
     variants:     _dsnVariants,
     images:       [..._designsImgQueue],
+    attachments:  [..._designsAttachQueue],
     createdAt:    (_designsCurrentFull && _designsCurrentFull.createdAt) ? _designsCurrentFull.createdAt : now,
     updatedAt:    now,
     thumb:        _designsImgQueue.length

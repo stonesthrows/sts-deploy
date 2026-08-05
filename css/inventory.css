@@ -728,6 +728,12 @@
 .dsn-thumb:hover { border-color:var(--accent); box-shadow:var(--shadow-sm); }
 .dsn-thumb-del { position:absolute; top:7px; right:7px; width:28px; height:28px; border-radius:50%; background:rgba(192,57,43,.9); color:var(--accent-ink); border:2px solid rgba(255,255,255,.7); cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0; pointer-events:none; transition:opacity var(--dur-fast); }
 .dsn-img-col.edit-mode .dsn-thumb-del { opacity:1; pointer-events:auto; }
+.dsn-attach-list { display:flex; flex-direction:column; gap:6px; }
+.dsn-attach-row { display:flex; align-items:center; gap:8px; background:var(--card-head-bg); border:1px solid var(--bdr); border-radius:6px; padding:6px 8px; font-size:12px; }
+.dsn-attach-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text1); text-decoration:none; }
+.dsn-attach-name:hover { text-decoration:underline; }
+.dsn-attach-size { color:var(--text3); flex:none; }
+.dsn-attach-del { flex:none; width:20px; height:20px; border-radius:50%; background:rgba(192,57,43,.9); color:var(--accent-ink); border:none; cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
 .dsn-form-actions { display:flex; gap:8px; padding-top:4px; flex-wrap:wrap; }
 @media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
 /* Lightbox */

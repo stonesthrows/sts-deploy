@@ -2308,7 +2308,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260728a">
+<link rel="stylesheet" href="css/inventory.css?v=20260805a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2421,6 +2421,10 @@
           <button class="dsn-gear-item" id="dsn-img-edit-btn" onclick="designsToggleImageEdit()">🖼 Manage Images</button>
           <button class="dsn-gear-item" onclick="designsAddImageFromUrl()">🔗 Add Image from URL</button>
           <button class="dsn-gear-item" onclick="designsAddImageFromPhotos()">📷 Add from Google Photos</button>
+          <label class="dsn-gear-item">
+            📎 Attach File
+            <input type="file" style="display:none" onchange="designsAttachFile(this.files[0]);this.value='';designsCloseGearMenu()">
+          </label>
           <button class="dsn-gear-item" id="dsn-copy-btn" style="display:none" onclick="designsCopyDesign()">📄 Copy Design</button>
           <div class="dsn-gear-sep"></div>
           <button class="dsn-gear-item danger" id="dsn-delete-btn" style="display:none" onclick="designsDeleteDesign()">🗑 Delete Design</button>
@@ -2579,6 +2583,11 @@
               onchange="designsHandleImages(this.files);this.value=''">
           </label>
           <div style="font-size:11px;color:var(--text3);margin-top:4px">JPEG, PNG, HEIC — up to 10</div>
+        </div>
+
+        <label class="dsn-field-label" style="margin:16px 0 8px;display:block">Attached Files</label>
+        <div id="dsn-attach-list" class="dsn-attach-list">
+          <span style="color:var(--text3);font-size:12px">No files yet</span>
         </div>
       </div>
     </div>
@@ -3789,7 +3798,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=23"></script>
+<script src="js/designs.js?v=24"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260731b"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
