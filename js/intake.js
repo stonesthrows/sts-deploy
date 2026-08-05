@@ -25,6 +25,13 @@ let _lastSavedOrderId = null;
 // intakeLoadOrderForEdit) rather than creating a new one.
 let _editingOrder = null;
 
+// Set on a real (non-test) sendForApproval() send so the order-build below
+// can drop an "Estimate Sent" entry into o.timelineEvents — the same
+// milestone list the desktop app's Order timeline tab reads/edits
+// (js/orders.js EO_TIMELINE_*). Cleared on intakeReset() so it never
+// leaks onto the next customer's order.
+let _pendingEstimateSentEvent = null;
+
 function saveToStorage() {
   try { localStorage.setItem('sts-orders', JSON.stringify(ORDERS)); }
   catch (e) { toast('⚠ Could not save locally — storage full?', '⚠'); }
@@ -991,6 +998,9 @@ async function sendForApproval(isTest = false) {
     window._intakeApproval = { token, status: 'sent', sentAt: new Date().toISOString(),
                                notesForCustomer: snapshot.notesForCustomer, link: _apLink };
     if (_editingOrder) _editingOrder.approval = window._intakeApproval;
+    // Register on the order's timeline for the date it was actually sent —
+    // read back into o.timelineEvents by the order-build below.
+    _pendingEstimateSentEvent = { label: 'Estimate Sent', date: new Date().toISOString().slice(0, 10) };
   }
   g('ap-copy-btn')?.classList.remove('hidden');
   if (typeof intakeTabsRefresh === 'function') intakeTabsRefresh();
@@ -1407,6 +1417,18 @@ async function intakeSubmit() {
     // out of Notion App Data — the R2 keys inside estVariants carry it
     // cross-device; this is the instant/offline same-device copy.
     optionImages:  optionImagesSnapshot,
+    // Milestone list the desktop app's Order timeline tab reads/edits
+    // (js/orders.js EO_TIMELINE_*). Carries forward whatever the order
+    // already had, plus this session's "Estimate Sent" entry if a real
+    // (non-test) send just happened — deduped so re-saving the same day
+    // doesn't stack duplicates.
+    timelineEvents: (() => {
+      const existing = (_editingOrder && _editingOrder.timelineEvents) ? [..._editingOrder.timelineEvents] : [];
+      if (_pendingEstimateSentEvent && !existing.some(e => e.label === _pendingEstimateSentEvent.label && e.date === _pendingEstimateSentEvent.date)) {
+        existing.push(_pendingEstimateSentEvent);
+      }
+      return existing;
+    })(),
   };
 
   const isEdit = !!(_editingOrder && _editingOrder.id);
@@ -1532,6 +1554,7 @@ function intakeReset() {
   if (saveBtn) saveBtn.textContent = 'Save & Close';
 
   if (typeof window !== 'undefined') window._intakeApproval = null;
+  _pendingEstimateSentEvent = null;
   apClearAttachedImage();
   ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-deadline', 'f-job-desc', 'f-description',
    'f-materials', 'f-deposit', 'f-shipping', 'f-notes', 'f-customer-notes', 'f-approval-note', 'f-approval-greeting', 'f-approval-email',
