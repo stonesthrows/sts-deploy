@@ -740,6 +740,10 @@ function rqRenderProductionReport(forceRefresh) {
           totalMs: (s.totalMin || 0) * 60000,
           netMs: (s.netMin || 0) * 60000,
           laborRate: s.laborRate != null ? s.laborRate : null,
+          // Carried for the report's Ledger / Decision Board views (js/prod-report.js).
+          // The API has always returned these; the report just never mapped them.
+          notes: s.notes || '',
+          sku: s.sku || '',
         };
       });
       return _rqFillReportPriceFallbacks(sessions);
@@ -792,6 +796,7 @@ function _rqRenderReportBody(sessions) {
   var body = document.getElementById('prod-report-body');
   var summaryEl = document.getElementById('prod-report-summary');
   if (!body) return;
+  prInvalidate();   // one derived pass per render — see js/prod-report.js
   _rqRenderReportControls();
   if (!sessions.length) {
     body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">No production data yet</div>';
@@ -800,63 +805,27 @@ function _rqRenderReportBody(sessions) {
   }
 
   var idxs = _rqVisibleReportIdxs(sessions);
-  _rqRenderReportSummary(sessions, idxs, summaryEl);
   if (!idxs.length) {
+    if (summaryEl) summaryEl.innerHTML = '';
     body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">No sessions in this date range</div>';
     return;
   }
-  if (_rqReportView === 'design' || _rqReportView === 'category') {
-    _rqRenderAggView(sessions, idxs);
-    return;
+
+  // The four analysis views live in js/prod-report.js (loaded next) and each
+  // owns its own summary strip, because the figures worth pinning differ per
+  // view. By Design / By Category keep the original shared strip.
+  switch (_rqReportView) {
+    case 'makers': _prRenderMakers(sessions, idxs, body, summaryEl); return;
+    case 'trends': _prRenderTrends(sessions, idxs, body, summaryEl); return;
+    case 'decide': _prRenderDecisions(sessions, idxs, body, summaryEl); return;
+    case 'design':
+    case 'category':
+      _rqRenderReportSummary(sessions, idxs, summaryEl);
+      _rqRenderAggView(sessions, idxs);
+      return;
+    default:
+      _prRenderLedger(sessions, idxs, body, summaryEl);
   }
-
-  var cards = idxs.map(function(i) {
-    var s = sessions[i];
-    var primaryName = (s.items && s.items[0] && s.items[0].name) || '—';
-    var extraCount  = (s.items && s.items.length > 1) ? ' +' + (s.items.length - 1) + ' more' : '';
-    var safeName    = (primaryName + extraCount).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    var emp         = s.employee ? s.employee.name : '';
-
-    var totalPcs = null;
-    (s.items || []).forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
-
-    var m = _rqSessionMetrics(s);
-
-    var laborTxt  = 'Labor: $' + m.laborCost.toFixed(2) + ' (' + m.hrs.toFixed(1) + 'h × $' + m.rate.toFixed(2) + '/hr)' + (m.rateIsEstimate ? ' (est.)' : '');
-    var matTxt    = m.matCost > 0 ? 'Mat: $' + m.matCost.toFixed(2) : '';
-    var valueTxt  = m.hasAnyValue ? 'Value: $' + m.itemValue.toFixed(2) + (m.valueIsEstimate ? ' (est.)' : '') : 'Value: —';
-    var profitTxt = m.hasAnyValue ? 'Profit: ' + (m.profit >= 0 ? '+$' + m.profit.toFixed(2) : '-$' + Math.abs(m.profit).toFixed(2)) : 'Profit: —';
-    var profitColor = m.profit >= 0 ? '#3A7A4A' : '#A0402A';
-
-    var editRow = _rqSessionEditRowHTML('report', i, s);
-
-    return '<div class="rq-session-bar">'
-      + '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div class="rq-sbar-name">' + safeName + (totalPcs != null ? ' <span class="rq-sbar-pcs-inline">· ' + totalPcs + ' pc' + (totalPcs !== 1 ? 's' : '') + '</span>' : '') + '</div>'
-      + (emp ? '<div class="rq-sbar-meta">' + emp + '</div>' : '')
-      + '</div>'
-      + '<button class="rq-sbar-del" onclick="rqDeleteReportSession(' + i + ',this)" title="Delete">✕</button>'
-      + '</div>'
-      + '<div class="rq-sbar-time-row">'
-      + '<span class="rq-sbar-time-val">▶ ' + _rqFmtDT(s.startTime) + '</span>'
-      + '<span style="color:var(--bdr)">·</span>'
-      + '<span class="rq-sbar-time-val">⏹ ' + _rqFmtDT(s.stopTime) + '</span>'
-      + '<button class="rq-sbar-act-btn" onclick="rqStartEditSession(\'report\',' + i + ')">✎ Edit</button>'
-      + (s.startTime && s.stopTime ? '<button class="rq-sbar-act-btn" id="rq-sync-btn-report-' + i + '" onclick="rqSyncShiftsForSession(\'report\',' + i + ')">⟳ Sync</button>' : '')
-      + '</div>'
-      + '<div class="rq-sbar-footer" style="flex-wrap:wrap;">'
-      + '<span class="rq-sbar-net">Net: ' + _rqFmtDur(s.netMs) + '</span>'
-      + '<span class="rq-sbar-pieces">' + laborTxt + '</span>'
-      + (matTxt ? '<span class="rq-sbar-pieces">' + matTxt + '</span>' : '')
-      + '<span class="rq-sbar-pieces">' + valueTxt + '</span>'
-      + '<span class="rq-sbar-pieces" style="font-weight:700;color:' + profitColor + ';">' + profitTxt + '</span>'
-      + '</div>'
-      + editRow
-      + '</div>';
-  }).join('');
-
-  body.innerHTML = cards;
 }
 
 // Per-session derived cost/value figures — shared by the session cards, the
@@ -909,7 +878,9 @@ function _rqRenderReportSummary(sessions, idxs, summaryEl) {
 // rollups + Square sales join answer the planning questions (is this design
 // priced right / underperforming / worth doubling down on).
 
-var _rqReportView  = 'sessions';   // 'sessions' | 'design' | 'category'
+// 'ledger' | 'makers' | 'trends' | 'decide' rendered by js/prod-report.js;
+// 'design' | 'category' are the original rollup tables below.
+var _rqReportView  = 'ledger';
 var _rqReportRange = 'all';        // 'all' | 'month' | '30d' | '90d'
 var _rqAggSort     = { key: 'value', dir: -1 };
 var _rqSales       = {};           // { [range]: { status, byId: { [variationId]: { sold, revenue } }, capped } }
@@ -927,14 +898,27 @@ function _rqRenderReportControls() {
   var el = document.getElementById('prod-report-controls');
   if (!el) return;
   var ranges = [['all','All time'],['month','This month'],['30d','Last 30 days'],['90d','Last 90 days']];
-  var views  = [['sessions','Sessions'],['design','By Design'],['category','By Category']];
+  // The four analysis tabs first, then the two rollup tables. By Design still
+  // holds the only editor for per-design material cost, which every profit
+  // figure on the other tabs depends on.
+  var views  = [
+    ['ledger',   'Ledger',    'Every session, scored against its own design’s history'],
+    ['makers',   'By Maker',  'Throughput and pace per person'],
+    ['trends',   'Trends',    'The same figures over time, against the prior period'],
+    ['decide',   'What to do','Threshold rules ranked by dollars at stake'],
+    ['design',   'By Design', 'Per-design rollup and material costs'],
+    ['category', 'By Category','Per-category rollup'],
+  ];
   el.innerHTML = '<div class="rq-report-controls">'
     + '<select class="rq-report-range" onchange="rqSetReportRange(this.value)">'
     + ranges.map(function(r) { return '<option value="' + r[0] + '"' + (_rqReportRange === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
     + '</select>'
-    + '<div class="rq-report-views">'
+    + '<div class="rq-report-views" role="tablist">'
     + views.map(function(v) {
-        return '<button class="rq-report-view-btn' + (_rqReportView === v[0] ? ' rq-view-on' : '') + '" onclick="rqSetReportView(\'' + v[0] + '\')">' + v[1] + '</button>';
+        var on = _rqReportView === v[0];
+        return '<button class="rq-report-view-btn' + (on ? ' rq-view-on' : '') + '" role="tab"'
+          + ' aria-selected="' + (on ? 'true' : 'false') + '" title="' + v[2] + '"'
+          + ' onclick="rqSetReportView(\'' + v[0] + '\')">' + v[1] + '</button>';
       }).join('')
     + '</div>'
     + '</div>';

@@ -74,6 +74,15 @@
       --warn: #C2810C;    --warn-bg: #FDF3DC;  --warn-fg: #8A5D08;  --warn-line: #F0DCA8;
       --info: #3B6FD4;    --info-bg: #E9EFFB;  --info-fg: #2A54A8;  --info-line: #C4D5F2;
 
+      /* ── Chart series (Production Report) ──
+         A categorical set, assigned in fixed order and never cycled. These are
+         deliberately NOT aliases of --accent: the three hues were checked for
+         colour-vision separation (deutan/protan/tritan ΔE ≥ 8) against the card
+         background in each theme, so re-pointing them at the accent would
+         silently break that. Dark uses its own steps, not a lightened flip. */
+      --pr-ser1: #4F5AD8;  --pr-ser1-soft: rgba(79, 90, 216, 0.14);
+      --pr-ser2: #D97B1E;  --pr-ser3: #1AA07C;
+
       /* Aliases — map legacy/inconsistent names to canonical tokens above */
       --text1: var(--text);
       --text-muted: var(--text3);
@@ -172,6 +181,11 @@
       --danger: #EE6C6C;  --danger-bg: #351B1B; --danger-fg: #F49B9B; --danger-line: #4A2626;
       --warn: #E0B44E;    --warn-bg: #322915;  --warn-fg: #E8C46E;  --warn-line: #4A3C1C;
       --info: #6B9BF0;    --info-bg: #16233D;  --info-fg: #9EBEF7;  --info-line: #26355A;
+
+      /* Chart series — stepped for the dark card (#131417), not flipped from
+         light. Same CVD check, run against this surface. */
+      --pr-ser1: #6E79F0;  --pr-ser1-soft: rgba(110, 121, 240, 0.18);
+      --pr-ser2: #CC7C24;  --pr-ser3: #17A47D;
 
       --surface: #17191D;
       --surface2: #1A1C21;
