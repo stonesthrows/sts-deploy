@@ -968,6 +968,79 @@ function _rqVisibleReportIdxs(sessions) {
   return idxs;
 }
 
+// ── Category resolution ─────────────────────────────────────────────────────
+// Sessions carry a `category` captured when the session was created, but that
+// capture read Square's item_data.category_name — a field the Catalog API does
+// not have (items expose categories[] / reporting_category / the legacy
+// category_id, all of them IDs). So every session ever created persisted an
+// empty string and By Category showed one big "Uncategorized" bucket.
+//
+// Rather than trust the stored field, resolve categories at report time from
+// each item's Square ID. That repairs the whole history at once without
+// rewriting anything in Notion, and it reuses the catalogue map Best Sellers
+// already builds and caches (js/bestsellers.js) instead of a second fetch.
+
+// status: 'idle' before the first lookup; `tried` keeps this incremental, so
+// widening the date range resolves only the item IDs that are actually new
+// rather than re-fetching or — worse — never looking them up at all.
+var _rqCats = { status: 'idle', nameFor: {}, tried: {} };
+
+function _rqEnsureCats(sessions) {
+  if (_rqCats.status === 'loading') return;
+
+  var seen = {}, need = [];
+  (sessions || []).forEach(function(s) {
+    (s.items || []).forEach(function(it) {
+      var id = it.squareId;
+      if (!id || it.isCustom || seen[id] || _rqCats.tried[id]) return;
+      seen[id] = 1;
+      need.push(id);
+    });
+  });
+  if (!need.length) {
+    if (_rqCats.status === 'idle') _rqCats.status = 'ready';
+    return;
+  }
+  // bestsellers.js loads after this file; this only ever runs from a render,
+  // long after every script has parsed, but guard anyway.
+  if (typeof _bsEnsureCatMap !== 'function') { _rqCats.status = 'error'; return; }
+
+  _rqCats.status = 'loading';
+  need.forEach(function(id) { _rqCats.tried[id] = 1; });
+
+  Promise.resolve(_bsEnsureCatMap(need)).then(function() {
+    need.forEach(function(id) {
+      var entry = _bsCatMap && _bsCatMap.items && _bsCatMap.items[id];
+      var cats  = (entry && entry.cats) || [];
+      for (var i = 0; i < cats.length; i++) {
+        var n = _bsCatMap.catNames[cats[i]];
+        if (n) { _rqCats.nameFor[id] = n; break; }
+      }
+    });
+    _rqCats.status = 'ready';
+    if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+  }).catch(function() {
+    // Un-mark so a later render retries instead of pinning them Uncategorized.
+    need.forEach(function(id) { delete _rqCats.tried[id]; });
+    _rqCats.status = 'error';
+    if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions);
+  });
+}
+
+// A session's category is its primary (first piece-carrying) item's category.
+// Falls back to whatever was stored, which is what still labels the one-off
+// custom sessions that never had a Square item to look up.
+function _rqSessionCat(s) {
+  var resolved = _rqCats.nameFor;
+  var items = (s.items || []).filter(function(it) { return it.pieces > 0; });
+  if (!items.length) items = s.items || [];
+  for (var i = 0; i < items.length; i++) {
+    var n = items[i].squareId ? resolved[items[i].squareId] : null;
+    if (n) return n;
+  }
+  return s.category || '';
+}
+
 // ── Rollup: group filtered sessions by design (Square variation) or category.
 // A session's labor is allocated across its items proportionally by pieces.
 
@@ -994,19 +1067,22 @@ function _rqReportAgg(sessions, idxs, byCategory) {
       if (!g._seen[i]) { g._seen[i] = true; g.sessionCount++; }
       if (m.rateIsEstimate) g.estimate = true;
     }
+    // Resolved once per session — the whole session files under its primary
+    // item's category, which is what the note under the table promises.
+    var sCat = byCategory ? _rqSessionCat(s) : '';
     if (!items.length) {
       // Keep hours/labor from sessions with no counted pieces visible instead
       // of silently dropping their cost from the rollup.
-      var g0 = group(byCategory ? 'cat:' + (s.category || '') : '__none__',
-                     byCategory ? (s.category || 'Uncategorized') : '(no counted pieces)');
+      var g0 = group(byCategory ? 'cat:' + sCat : '__none__',
+                     byCategory ? (sCat || 'Uncategorized') : '(no counted pieces)');
       mark(g0);
       g0.hrs += m.hrs; g0.labor += m.laborCost;
       return;
     }
     items.forEach(function(it) {
       var itemKey = _rqAggKeyForItem(it);
-      var key = byCategory ? 'cat:' + (s.category || '') : itemKey;
-      var g = group(key, byCategory ? (s.category || 'Uncategorized') : (it.name || '—'), (!byCategory && it.squareId && !it.isCustom) ? it.squareId : '');
+      var key = byCategory ? 'cat:' + sCat : itemKey;
+      var g = group(key, byCategory ? (sCat || 'Uncategorized') : (it.name || '—'), (!byCategory && it.squareId && !it.isCustom) ? it.squareId : '');
       mark(g);
       var share = totalPcs ? it.pieces / totalPcs : 0;
       g.pcs   += it.pieces;
@@ -1113,6 +1189,9 @@ function _rqRenderAggView(sessions, idxs) {
   var body = document.getElementById('prod-report-body');
   if (!body) return;
   var byCategory = _rqReportView === 'category';
+  // Kick the catalogue lookup off before aggregating; the first pass groups on
+  // whatever is cached (usually nothing) and re-renders once names land.
+  if (byCategory) _rqEnsureCats(sessions);
   var rows = _rqReportAgg(sessions, idxs, byCategory);
   if (!rows.length) {
     body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Nothing to aggregate in this range</div>';
@@ -1210,7 +1289,13 @@ function _rqRenderAggView(sessions, idxs) {
   body.innerHTML = quad
     + '<div class="rq-agg-wrap"><table class="rq-agg-table"><thead>' + thead + '</thead><tbody>' + trs + totalRow + '</tbody></table></div>'
     + salesNote
-    + '<div class="rq-agg-note">Profit = Value − allocated labor − material · Labor is split across a session’s items by piece count' + (byCategory ? ' · Category comes from each session’s primary item' : '') + '</div>';
+    + '<div class="rq-agg-note">Profit = Value − allocated labor − material · Labor is split across a session’s items by piece count'
+    + (byCategory
+        ? ' · Category comes from each session’s primary item, read live from Square'
+          + (_rqCats && _rqCats.status === 'loading' ? ' <span class="rq-agg-cat-wait">— looking up categories…</span>' : '')
+          + (_rqCats && _rqCats.status === 'error'   ? ' <span class="rq-agg-cat-wait">— category lookup failed, showing stored values</span>' : '')
+        : '')
+    + '</div>';
 }
 
 // ── Margin quadrant (menu-engineering matrix): margin % vs units sold ──────

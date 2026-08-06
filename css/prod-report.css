@@ -134,6 +134,7 @@
 #prod-report-body .rq-quad-card { background: var(--card-bg); border: 1px solid var(--bdr-light); border-radius: var(--rad-md); box-shadow: var(--shadow-sm); padding: 10px 12px 4px; margin-bottom: 10px; position: relative; }
 #prod-report-body .rq-quad-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
 #prod-report-body .rq-quad-sub { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+#prod-report-body .rq-agg-cat-wait { color: var(--text3); font-style: italic; }
 #prod-report-body .rq-quad-call {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
   font-size: 11px; color: var(--text2);
