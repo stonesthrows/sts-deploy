@@ -184,8 +184,8 @@ async function fetchShifts(deps, empId, startTime, stopTime) {
 function reconcile(startTime, stopTime, shifts) {
   const pStartMs = new Date(startTime).getTime();
   const pStopMs  = new Date(stopTime).getTime();
-  const fTime = ms => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const fDay  = ms => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const fTime = ms => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+  const fDay  = ms => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
 
   const overlapping = shifts.filter(sh => {
     const cin  = new Date(sh.start_at).getTime();

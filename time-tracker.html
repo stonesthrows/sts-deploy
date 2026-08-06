@@ -948,20 +948,60 @@ async function patchActiveShiftLog(tid) {
   } catch(e) { console.warn('patchActiveShiftLog failed:', e); }
 }
 
+// The OPEN-shift poll only tells us the shift is gone, and it can be up to a
+// poll interval behind the actual punch. Go get the shift's own end_at so an
+// auto-stopped session ends where payroll says it did.
+async function _wtLastShiftEnd(emp, sinceMs) {
+  try {
+    const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({
+      query: {
+        filter: {
+          team_member_ids: [emp.id],
+          location_ids: [CFG.sqLocation],
+          start: { start_at: new Date(sinceMs - 24*3600*1000).toISOString() },
+        },
+        sort: { field:'START_AT', order:'DESC' },
+      },
+      limit: 10,
+    })});
+    // Only a clock-out after the timer started can end this session; an earlier
+    // shift's end_at would rewind the stop time behind the start.
+    const ends = (data.shifts||[])
+      .map(s => s.end_at ? new Date(s.end_at).getTime() : 0)
+      .filter(ms => ms > sinceMs);
+    return ends.length ? Math.max(...ends) : 0;
+  } catch(e) { console.warn('last shift end lookup failed:', e); return 0; }
+}
+
 async function pollShifts() {
   for (let tid = 0; tid < NUM_TIMERS; tid++) {
     const emp = T[tid].selectedEmployee; if (!emp) continue;
     try {
       const data = await sq('/labor/shifts/search', { method:'POST', body: JSON.stringify({ query:{ filter:{ team_member_ids:[emp.id], status:'OPEN', location_ids:[CFG.sqLocation] } }, limit:1 }) });
+      // sq() resolves the body whatever the status, so an error payload would
+      // otherwise read as an empty shift list — i.e. "clocked out" — and stop a
+      // running timer on nothing worse than a blip at the proxy.
+      if (data && data.errors) throw new Error((data.errors[0] && data.errors[0].detail) || 'shift search failed');
       const openShift = (data.shifts||[]).find(s => !s.end_at) || null;
       const nowOpen = !!openShift;
       const wasOpen = _lastShift[tid];
       if (T[tid].running) {
-        if (wasOpen && !nowOpen) {
-          T[tid].shiftEvents.push({ time: Date.now(), type: 'out' });
+        // `undefined` means this is the first poll against a timer we resumed
+        // rather than started — the clock-out may have happened while the tab
+        // was closed, which is exactly the case that used to bank 70-hour
+        // sessions. Treat "not clocked in now" as a clock-out either way.
+        if (!nowOpen && wasOpen !== false) {
+          // Without a real end_at we would have to stop at "now", banking every
+          // hour since the punch — the bug this is here to prevent. Leave the
+          // timer alone and try again on the next poll instead.
+          const endMs = await _wtLastShiftEnd(emp, T[tid].startTime);
+          if (!endMs) { console.warn(`No clock-out time for tid=${tid}; deferring auto-stop`); continue; }
+          T[tid].shiftEvents.push({ time: endMs, type: 'out' });
           renderShiftLog(tid);
-          showToast(`${emp.name} clocked out`);
-          patchActiveShiftLog(tid);
+          showToast(`${emp.name} clocked out — Timer ${tid+1} stopped`);
+          await stopTimer(tid, endMs);
+          _lastShift[tid] = false;
+          continue;
         } else if (!wasOpen && nowOpen && T[tid].running) {
           T[tid].shiftEvents.push({ time: Date.now(), type: 'in' });
           renderShiftLog(tid);
@@ -1037,14 +1077,15 @@ function resumeTimer(tid, saved) {
   showToast(`Timer ${tid+1} resumed — running since ${new Date(saved.startTime).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`);
 }
 
-async function stopTimer(tid) {
+async function stopTimer(tid, stopAtMs) {
   clearInterval(T[tid].tickInterval);
-  const stopTime  = new Date().toISOString();
+  const stopMs    = (stopAtMs && stopAtMs > T[tid].startTime) ? stopAtMs : Date.now();
+  const stopTime  = new Date(stopMs).toISOString();
   const startTime = new Date(T[tid].startTime).toISOString();
   localStorage.removeItem(`sts_activeTimer_${tid}`);
   localStorage.removeItem(`sts_notionPageId_${tid}`);
   _wtUnpersistTimer(tid);
-  const totalWall = Date.now() - T[tid].startTime;
+  const totalWall = stopMs - T[tid].startTime;
   $t(tid,'stop-btn').disabled = true; $t(tid,'stop-btn').textContent = 'Saving…';
   let clockedOutMs = 0;
   let shifts = [];

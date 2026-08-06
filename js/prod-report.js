@@ -457,35 +457,14 @@ function _prFindings(sessions, idxs, runs, design) {
     });
   });
 
-  // 5 — Clock gap: time clocked in but never on a production timer, so it is
-  // missing from every design's cost. This is the only reader of dedMin.
-  var offMin = 0, clkMin = 0, netMin = 0, offCost = 0;
-  var worst = [];
-  idxs.forEach(function(i) {
-    var s = sessions[i], p = _prPace(s), m = _rqSessionMetrics(s);
-    if (p.eff == null) return;
-    offMin += p.offMin; clkMin += p.totMin; netMin += p.netMin;
-    offCost += (p.offMin / 60) * (m.rate || 0);
-    worst.push({ s: s, p: p });
-  });
-  if (clkMin > 0 && offMin / clkMin > 0.12) {
-    worst.sort(function(a, b) { return a.p.eff - b.p.eff; });
-    out.push({
-      kind: 'Clock gap', tone: 'neutral', icon: '⚠',
-      title: _rqFmtDur(offMin * 60000) + ' clocked in but off the timer',
-      stake: offCost,
-      stakeLab: 'paid, not attributed to any design',
-      why: _prPct(offMin / clkMin) + ' of clocked time never landed on a production timer, '
-         + 'so it is missing from every design\'s labor cost.',
-      evid: worst.slice(0, 3).map(function(w) {
-        var nm = (w.s.items && w.s.items[0] && w.s.items[0].name) || 'Session';
-        return _prDate(w.s.startTime || w.s.stopTime) + ' · ' + (_prMaker(w.s) || '—')
-             + ' · ' + nm + ' — ' + _rqFmtDur(w.p.offMin * 60000) + ' off-timer of '
-             + _rqFmtDur(w.p.totMin * 60000) + ' (' + _prPct(w.p.eff) + ' at the bench)';
-      }),
-      view: 'ledger',
-    });
-  }
+  // 5 — (removed) There was a "Clock gap" rule here that charged off-timer
+  // minutes against payroll. It was wrong in both directions: labor cost is
+  // netMs * rate, so those minutes were never paid, and the quantity it summed
+  // was timer-ran-while-clocked-out, not the clocked-in-but-off-timer time it
+  // claimed. That latter figure happens entirely outside the timer window and
+  // is not recoverable from a session record. Its invented stake also sorted it
+  // to the top of a board ranked by dollars. Left-behind timers now surface as
+  // the per-session "on the clock" pill instead.
 
   // 6 — Missing prices: this labor already counts against profit, but the output
   // value behind it is unknown, so every total on the page is understated.
@@ -703,9 +682,11 @@ function _prRenderLedger(sessions, idxs, body, summaryEl) {
     var effHtml = '';
     if (p.eff != null) {
       var effTone = p.eff >= 0.85 ? 'pr-neutral' : p.eff >= 0.72 ? 'pr-warn' : 'pr-bad';
-      effHtml = '<span class="pr-pill ' + effTone + '" title="' + Math.round(p.offMin)
-        + ' min clocked in but off the production timer">Clocked ' + _rqFmtDur(p.totMin * 60000)
-        + ' · ' + _prPct(p.eff) + ' at the bench</span>';
+      effHtml = '<span class="pr-pill ' + effTone + '" title="The production timer ran '
+        + _rqFmtDur(p.totMin * 60000) + ', of which ' + Math.round(p.offMin)
+        + ' min fell outside a Square shift — a low figure here usually means the timer '
+        + 'was left running, not that the time was worked and unpaid">Timer ran '
+        + _rqFmtDur(p.totMin * 60000) + ' · ' + _prPct(p.eff) + ' on the clock</span>';
     }
 
     var valueTxt = m.hasAnyValue
@@ -780,7 +761,7 @@ function _prLedgerSummary(sessions, idxs, summaryEl) {
   };
   summaryEl.innerHTML = '<div class="pr-tiles">'
     + tile('Sessions', idxs.length, pcs + ' piece' + (pcs !== 1 ? 's' : ''))
-    + tile('Bench time', (net / 60).toFixed(1) + 'h', clocked > 0 ? _prPct(net / clocked) + ' of clocked' : 'clock not synced')
+    + tile('Bench time', (net / 60).toFixed(1) + 'h', clocked > 0 ? _prPct(net / clocked) + ' of timer span' : 'clock not synced')
     + tile('Labor', _rqFmtMoney(labor),
            (mat > 0 ? '+ ' + _rqFmtMoney(mat) + ' material' : 'no material cost set')
            + (unpaidN ? ' · ' + unpaidHrs.toFixed(1) + 'h unpaid' : ''))
