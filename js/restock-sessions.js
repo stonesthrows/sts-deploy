@@ -834,12 +834,11 @@ function _rqRenderReportBody(sessions) {
 
   // The four analysis views live in js/prod-report.js (loaded next) and each
   // owns its own summary strip, because the figures worth pinning differ per
-  // view. By Design / By Category keep the original shared strip.
+  // view. By Category keeps the original shared strip.
   switch (_rqReportView) {
     case 'makers': _prRenderMakers(sessions, idxs, body, summaryEl); return;
     case 'trends': _prRenderTrends(sessions, idxs, body, summaryEl); return;
     case 'decide': _prRenderDecisions(sessions, idxs, body, summaryEl); return;
-    case 'design':
     case 'category':
       _rqRenderReportSummary(sessions, idxs, summaryEl);
       _rqRenderAggView(sessions, idxs);
@@ -850,7 +849,7 @@ function _rqRenderReportBody(sessions) {
 }
 
 // Per-session derived cost/value figures — shared by the session cards, the
-// range summary, and the By Design / By Category rollups so every view agrees.
+// range summary, and the By Category rollup so every view agrees.
 function _rqSessionMetrics(s) {
   var emp = s.employee ? s.employee.name : '';
   var hrs = (s.netMs || 0) / 3600000;
@@ -895,12 +894,16 @@ function _rqRenderReportSummary(sessions, idxs, summaryEl) {
 }
 
 // ── Report views: controls, date range, rollups, sales, quadrant ────────────
-// The session ledger answers "what happened"; the By Design / By Category
-// rollups + Square sales join answer the planning questions (is this design
-// priced right / underperforming / worth doubling down on).
+// The session ledger answers "what happened"; the By Category rollup + Square
+// sales join answer the planning questions (is this design priced right /
+// underperforming / worth doubling down on).
 
 // 'ledger' | 'makers' | 'trends' | 'decide' rendered by js/prod-report.js;
-// 'design' | 'category' are the original rollup tables below.
+// 'category' is the original rollup table below. The old 'design' view was
+// dropped — What to do carries the same per-design board. _rqReportAgg still
+// runs with byCategory=false for that board (prod-report.js), but only
+// 'category' now reaches _rqRenderAggView, so that renderer's per-design
+// branches (material input, sold / sell-through columns, quadrant) are dead.
 var _rqReportView  = 'ledger';
 var _rqReportRange = 'all';        // 'all' | 'month' | '30d' | '90d'
 var _rqAggSort     = { key: 'value', dir: -1 };
@@ -919,15 +922,14 @@ function _rqRenderReportControls() {
   var el = document.getElementById('prod-report-controls');
   if (!el) return;
   var ranges = [['all','All time'],['month','This month'],['30d','Last 30 days'],['90d','Last 90 days']];
-  // The four analysis tabs first, then the two rollup tables. By Design still
-  // holds the only editor for per-design material cost, which every profit
-  // figure on the other tabs depends on.
+  // The four analysis tabs, then the category rollup. By Design was dropped:
+  // What to do carries the same per-design board (including the material-cost
+  // editor every profit figure depends on) alongside the reasoning.
   var views  = [
     ['ledger',   'Ledger',    'Every session, scored against its own design’s history'],
     ['makers',   'By Maker',  'Throughput and pace per person'],
     ['trends',   'Trends',    'The same figures over time, against the prior period'],
     ['decide',   'What to do','Threshold rules ranked by dollars at stake'],
-    ['design',   'By Design', 'Per-design rollup and material costs'],
     ['category', 'By Category','Per-category rollup'],
   ];
   el.innerHTML = '<div class="rq-report-controls">'
@@ -1220,30 +1222,62 @@ function _rqQuadrantHTML(rows) {
   if (pts.length < 3) return '';
   _rqQuadPoints = pts;
 
-  var W = 640, H = 290, L = 46, R = 14, T = 16, B = 34;
+  var W = 640, H = 360, L = 46, R = 16, T = 20, B = 44;
   var pw = W - L - R, ph = H - T - B;
 
-  var maxSold = 0, sumSold = 0, minM = 0, maxM = 0.5, sumM = 0;
+  var maxSold = 0, minM = 0, maxM = 0.5;
   pts.forEach(function(p) {
     if (p.sold > maxSold) maxSold = p.sold;
-    sumSold += p.sold;
     if (p.margin < minM) minM = p.margin;
     if (p.margin > maxM) maxM = p.margin;
-    sumM += p.margin;
   });
-  var xMax = Math.max(1, Math.ceil(maxSold * 1.08));
+  var xMax = Math.max(1, maxSold);
   var yMin = Math.floor((minM - 0.05) * 10) / 10;
   var yMax = Math.ceil((maxM + 0.05) * 10) / 10;
-  var xDiv = sumSold / pts.length;
-  var yDiv = sumM / pts.length;
 
-  var X = function(v) { return L + (v / xMax) * pw; };
+  // Units sold is long-tailed — a couple of designs sell dozens while most sell
+  // a handful — so a linear x-axis stacked nearly every dot against the left
+  // edge and spent the rest of the width on nothing. A square-root scale opens
+  // that crowd up and compresses the tail without dropping anyone, and unlike a
+  // log scale it handles the designs that sold 0.
+  var rt = function(v) { return Math.sqrt(Math.max(0, v)); };
+  var X = function(v) { return L + (rt(v) / rt(xMax)) * pw; };
   var Y = function(v) { return T + (1 - (v - yMin) / (yMax - yMin)) * ph; };
 
-  // Clean ticks: x at 0/half/max (rounded), y every 25 points of margin
-  var xTicks = [0, Math.round(xMax / 2), xMax];
+  // Dividers sit at the MEDIAN, not the mean. Two runaway sellers pull the mean
+  // above ~90% of the catalogue, which filed nearly every design into the two
+  // left quadrants and left the split saying nothing.
+  var med = function(vals) {
+    var a = vals.slice().sort(function(x, y) { return x - y; });
+    var m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  var xDiv = med(pts.map(function(p) { return p.sold; }));
+  var yDiv = med(pts.map(function(p) { return p.margin; }));
+
+  // Ticks read in real units even though they sit on the sqrt scale. Walk from
+  // the right so the max always survives, dropping any that would crowd it.
+  var xCand = [0, 1, 2, 5, 10, 25, 50, 100, 200, 400].filter(function(v) { return v < xMax; });
+  xCand.push(xMax);
+  var xTicks = [], lastX = Infinity;
+  for (var ti = xCand.length - 1; ti >= 0; ti--) {
+    var tx = X(xCand[ti]);
+    if (lastX - tx > 26 || ti === 0) { xTicks.unshift(xCand[ti]); lastX = tx; }
+  }
   var yTicks = [];
   for (var yv = Math.ceil(yMin * 4) / 4; yv <= yMax + 1e-9; yv += 0.25) yTicks.push(Math.round(yv * 100) / 100);
+
+  // Colour goes to genuine outliers, NOT to quadrant membership: once the
+  // dividers are medians, "above both" is a quarter of the catalogue by
+  // construction and half the chart lights up, which is no emphasis at all.
+  // The designs worth a second look are the few that actually sell and the few
+  // whose margin is thin — and margins here cluster so tightly (most sit in the
+  // 70s–90s) that only the ones under the median are a real signal.
+  var HOT = {};
+  pts.slice().sort(function(a, b) { return b.sold - a.sold; })
+     .slice(0, 3).forEach(function(p) { if (p.sold > 0) HOT[p.key] = 'top'; });
+  pts.slice().sort(function(a, b) { return a.margin - b.margin; })
+     .slice(0, 3).forEach(function(p) { if (p.margin < yDiv) HOT[p.key] = 'thin'; });
 
   var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" role="img" aria-label="Margin versus units sold per design">';
   yTicks.forEach(function(v) {
@@ -1253,9 +1287,9 @@ function _rqQuadrantHTML(rows) {
   xTicks.forEach(function(v) {
     svg += '<text x="' + X(v) + '" y="' + (H - B + 14) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + v + '</text>';
   });
-  // Quadrant dividers (means)
-  svg += '<line x1="' + X(xDiv) + '" y1="' + T + '" x2="' + X(xDiv) + '" y2="' + (H - B) + '" stroke="var(--bdr)" stroke-width="1"/>'
-      +  '<line x1="' + L + '" y1="' + Y(yDiv) + '" x2="' + (W - R) + '" y2="' + Y(yDiv) + '" stroke="var(--bdr)" stroke-width="1"/>';
+  // Quadrant dividers (medians)
+  svg += '<line x1="' + X(xDiv) + '" y1="' + T + '" x2="' + X(xDiv) + '" y2="' + (H - B) + '" stroke="var(--bdr)" stroke-width="1" stroke-dasharray="3 3"/>'
+      +  '<line x1="' + L + '" y1="' + Y(yDiv) + '" x2="' + (W - R) + '" y2="' + Y(yDiv) + '" stroke="var(--bdr)" stroke-width="1" stroke-dasharray="3 3"/>';
   // Corner labels
   var lab = function(x, y, anchor, text) {
     return '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-size="10" fill="var(--text3)">' + text + '</text>';
@@ -1264,23 +1298,61 @@ function _rqQuadrantHTML(rows) {
       +  lab(W - R - 5, T + 11, 'end', 'Star ★')
       +  lab(L + 5, H - B - 5, 'start', 'Sunset?')
       +  lab(W - R - 5, H - B - 5, 'end', 'Reprice');
+  // Name the dividers so the split reads as a median, not an arbitrary line
+  var xDivLab = 'median ' + Math.round(xDiv) + ' sold';
+  var yDivLab = 'median ' + Math.round(yDiv * 100) + '% margin';
+  svg += '<text x="' + (X(xDiv) + 4) + '" y="' + (T - 6) + '" text-anchor="start" font-size="9" fill="var(--text3)">' + xDivLab + '</text>'
+      +  '<text x="' + (W - R) + '" y="' + (Y(yDiv) - 4) + '" text-anchor="end" font-size="9" fill="var(--text3)">' + yDivLab + '</text>';
   // Axis titles
-  svg += '<text x="' + (L + pw / 2) + '" y="' + (H - 3) + '" text-anchor="middle" font-size="10" fill="var(--text3)">Units sold</text>';
-  // Dots (2px surface ring) + oversized transparent hit targets
-  pts.forEach(function(p, i) {
-    var cx = X(Math.min(p.sold, xMax)), cy = Y(Math.max(Math.min(p.margin, yMax), yMin));
+  svg += '<text x="' + (L + pw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--text3)">Units sold (square-root scale)</text>';
+  // Dots (2px surface ring) + oversized transparent hit targets. The crowd
+  // recedes to grey and only the two corners you can act on carry colour, so
+  // the eye lands on the designs there is actually a call to make about.
+  // Emphasised dots are drawn last so they sit on top of the pile.
+  var FILL = { top: 'var(--accent)', thin: 'var(--danger)' };
+  var dots = pts.map(function(p, i) {
+    var k = HOT[p.key] || null;
+    return {
+      p: p, i: i, kind: k,
+      cx: X(Math.min(p.sold, xMax)),
+      cy: Y(Math.max(Math.min(p.margin, yMax), yMin)),
+      hot: !!k,
+    };
+  });
+  dots.slice().sort(function(a, b) { return (a.hot ? 1 : 0) - (b.hot ? 1 : 0); }).forEach(function(d) {
     svg += '<g>'
-      + '<circle class="rq-quad-hit" data-i="' + i + '" cx="' + cx + '" cy="' + cy + '" r="14" fill="transparent" tabindex="0"'
+      + '<circle class="rq-quad-hit" data-i="' + d.i + '" cx="' + d.cx + '" cy="' + d.cy + '" r="14" fill="transparent" tabindex="0"'
       + ' onmouseenter="rqQuadTip(this)" onmouseleave="rqQuadTipHide(this)" onfocus="rqQuadTip(this)" onblur="rqQuadTipHide(this)"/>'
-      + '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="var(--accent)" stroke="var(--card-bg)" stroke-width="2" pointer-events="none"/>'
+      + '<circle cx="' + d.cx + '" cy="' + d.cy + '" r="' + (d.hot ? 5.5 : 4) + '" fill="' + (FILL[d.kind] || 'var(--text3)') + '"'
+      + (d.hot ? '' : ' opacity="0.45"')
+      + ' stroke="var(--card-bg)" stroke-width="2" pointer-events="none"/>'
       + '</g>';
   });
+
   svg += '</svg>';
+
+  // The coloured dots are named underneath rather than on the plot: these
+  // names are long and the part that tells two variants apart ("Gold Fill,
+  // 20ga") sits at the end, so anything short enough to fit beside a dot
+  // truncates away the very detail you need.
+  var callout = function(kind, label, sort) {
+    var list = dots.filter(function(d) { return d.kind === kind; }).sort(sort);
+    if (!list.length) return '';
+    return '<div class="rq-quad-call"><i style="background:' + FILL[kind] + '"></i>'
+      + '<b>' + label + '</b>'
+      + list.map(function(d) {
+          return '<span>' + _rqEsc2(d.p.name)
+            + ' <em>' + d.p.sold + ' sold · ' + Math.round(d.p.margin * 100) + '%</em></span>';
+        }).join('')
+      + '</div>';
+  };
 
   return '<div class="rq-quad-card">'
     + '<div class="rq-quad-title">Margin vs. units sold</div>'
-    + '<div class="rq-quad-sub">Each dot is a design · dividers sit at the averages · hover or tab to a dot for details</div>'
+    + '<div class="rq-quad-sub">Each dot is a design · dashed lines are the medians · units sold is spaced square-root, so the crowded low end stays readable · hover or tab to a dot for details</div>'
     + svg
+    + callout('top', 'Best sellers', function(a, b) { return b.p.sold - a.p.sold; })
+    + callout('thin', 'Thinnest margins', function(a, b) { return a.p.margin - b.p.margin; })
     + '<div class="rq-quad-tip"></div>'
     + '</div>';
 }

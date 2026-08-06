@@ -2,8 +2,8 @@
 //  PRODUCTION REPORT — the four analysis views
 //
 //  Loaded after js/restock-sessions.js, which still owns the report's data
-//  (fetching sessions, _rqSessionMetrics, the date-range filter, the By Design /
-//  By Category rollups and the Square sales join). This file adds the layer
+//  (fetching sessions, _rqSessionMetrics, the date-range filter, the
+//  By Category rollup and the Square sales join). This file adds the layer
 //  none of that computes: how long a piece actually took, and how that compares
 //  to every other time the same design was made.
 //
@@ -354,7 +354,6 @@ function _prFindings(sessions, idxs, runs, design) {
           + '/hr — the shop\'s best design returns ' + _rqFmtMoney(bestValPerHr) + '/hr',
         _rqFmtMoney(g.mat) + ' of material against ' + _rqFmtMoney(g.value) + ' of output value',
       ],
-      view: 'design',
     });
   });
 
@@ -386,7 +385,6 @@ function _prFindings(sessions, idxs, runs, design) {
         _rqFmtMoney(suggested) + ' each would lift it to about '
           + _rqFmtMoney(each > 0 ? g.valPerHr * suggested / each : 0) + '/bench hr',
       ],
-      view: 'design',
     });
   });
 
@@ -1134,10 +1132,14 @@ function _prRenderDecisions(sessions, idxs, body, summaryEl) {
           + '<ul class="pr-finding-evid">'
           + x.evid.map(function(e) { return '<li>' + _rqEsc2(e) + '</li>'; }).join('')
           + '</ul>'
-          + '<div class="pr-finding-acts">'
-          + '<button class="rq-sbar-act-btn" onclick="rqSetReportView(\'' + x.view + '\')">'
-          + (x.view === 'ledger' ? 'Open the sessions' : 'Open By Design') + '</button>'
-          + '</div></div>';
+          // Design-level findings no longer link out: By Design is gone and the
+          // per-design board sits directly below on this same tab.
+          + (x.view === 'ledger'
+              ? '<div class="pr-finding-acts">'
+                + '<button class="rq-sbar-act-btn" onclick="rqSetReportView(\'ledger\')">Open the sessions</button>'
+                + '</div>'
+              : '')
+          + '</div>';
       }).join('')
     : _prEmpty('No design in this range trips a threshold. The rules look for sunset candidates, '
              + 'underpriced sellers, pace drift, batch-size wins, off-timer clock and missing prices.');
