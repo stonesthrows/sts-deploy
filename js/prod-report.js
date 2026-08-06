@@ -21,9 +21,18 @@
           _rqSessionMetrics, _rqVisibleReportIdxs, _rqRangeStartMs, _rqAggKeyForItem,
           _rqReportAgg, _rqEnsureSales, _rqSessionEditRowHTML, _rqFmtDur, _rqFmtDT,
           _rqFmtMoney, _rqEsc2, _rqMatCostFor, _rqRenderReportBody, _rqQuadrantHTML,
-          RQ_SUNSET_SELLTHRU, RQ_SUNSET_MARGIN */
+          _rqCanonName, RQ_SUNSET_SELLTHRU, RQ_SUNSET_MARGIN */
 
 // ── Small formatters ────────────────────────────────────────────────────────
+
+// Who made a session, under one name. Sessions clocked through Square carry
+// the full legal name ('Stevana Schafer') while ones started from the queue
+// carry the short name ('Stevie') — read raw, one person becomes two rows in
+// By Maker, two entries in the Ledger's filter, and two lines on the same
+// design's run history. Every maker read in this file goes through here.
+function _prMaker(s) {
+  return _rqCanonName((s && s.employee && s.employee.name) || '');
+}
 
 function _prPct(n, dp) { return n == null ? '—' : (n * 100).toFixed(dp || 0) + '%'; }
 
@@ -102,7 +111,7 @@ function _prBuildRuns(sessions, idxs) {
         minPerPc: p.minPerPc, mixed: p.mixed, eff: p.eff,
         netMin: p.netMin, totMin: p.totMin, offMin: p.offMin, sessionPcs: p.totalPcs,
         when: s.startTime || s.stopTime || null,
-        who: (s.employee && s.employee.name) || '',
+        who: _prMaker(s),
         rate: (_rqSessionMetrics(s) || {}).rate || 0,
       };
       g.list.push(run);
@@ -184,7 +193,7 @@ function _prMakers(sessions, idxs, runs) {
   var by = {};
   idxs.forEach(function(i) {
     var s = sessions[i];
-    var who = (s.employee && s.employee.name) || '';
+    var who = _prMaker(s);
     if (!who) return;
     var m = _rqSessionMetrics(s), p = _prPace(s);
     var e = by[who] || (by[who] = {
@@ -266,7 +275,7 @@ function _prWeeks(sessions, idxs) {
     w.hrs += m.hrs;
     w.cost += m.laborCost + m.matCost;
     if (m.hasAnyValue) w.value += m.itemValue;
-    var who = (s.employee && s.employee.name) || 'Unassigned';
+    var who = _prMaker(s) || 'Unassigned';
     w.byMaker[who] = (w.byMaker[who] || 0) + m.hrs;
   });
   return Object.keys(wk).sort().map(function(k) { return wk[k]; });
@@ -470,7 +479,7 @@ function _prFindings(sessions, idxs, runs, design) {
          + 'so it is missing from every design\'s labor cost.',
       evid: worst.slice(0, 3).map(function(w) {
         var nm = (w.s.items && w.s.items[0] && w.s.items[0].name) || 'Session';
-        return _prDate(w.s.startTime || w.s.stopTime) + ' · ' + ((w.s.employee && w.s.employee.name) || '—')
+        return _prDate(w.s.startTime || w.s.stopTime) + ' · ' + (_prMaker(w.s) || '—')
              + ' · ' + nm + ' — ' + _rqFmtDur(w.p.offMin * 60000) + ' off-timer of '
              + _rqFmtDur(w.p.totMin * 60000) + ' (' + _prPct(w.p.eff) + ' at the bench)';
       }),
@@ -497,7 +506,7 @@ function _prFindings(sessions, idxs, runs, design) {
          + 'so every profit figure on this page is understated.',
       evid: unpriced.slice(0, 3).map(function(s) {
         var nm = (s.items && s.items[0] && s.items[0].name) || 'Session';
-        return _prDate(s.startTime || s.stopTime) + ' · ' + ((s.employee && s.employee.name) || '—') + ' · ' + nm;
+        return _prDate(s.startTime || s.stopTime) + ' · ' + (_prMaker(s) || '—') + ' · ' + nm;
       }).concat(unpriced.length > 3 ? ['…and ' + (unpriced.length - 3) + ' more'] : []),
       view: 'ledger',
     });
@@ -613,7 +622,7 @@ function _prRenderLedger(sessions, idxs, body, summaryEl) {
 
   var shown = idxs.filter(function(i) {
     var s = sessions[i];
-    if (_prLedgerMaker !== 'all' && ((s.employee && s.employee.name) || '') !== _prLedgerMaker) return false;
+    if (_prLedgerMaker !== 'all' && _prMaker(s) !== _prLedgerMaker) return false;
     if (_prLedgerOffPace) {
       var r = d.runs.byIdx[i];
       if (!r || r.delta == null || Math.abs(r.delta) <= 0.08) return false;
@@ -652,7 +661,7 @@ function _prRenderLedger(sessions, idxs, body, summaryEl) {
     var r = d.runs.byIdx[i];
     var primary = (s.items && s.items[0] && s.items[0].name) || '—';
     var extra = (s.items && s.items.length > 1) ? ' <span class="rq-sbar-pcs-inline">+' + (s.items.length - 1) + ' more</span>' : '';
-    var emp = s.employee ? s.employee.name : '';
+    var emp = _prMaker(s);
 
     // Pace chip. Three states: scored against the design's own history, shown
     // but not scored (a blended batch), or no piece count to work from at all.

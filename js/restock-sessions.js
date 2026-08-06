@@ -633,12 +633,33 @@ function _rqPushProdSettings() {
 // short first name used in the queue assignee dropdown — alias them so
 // historical sessions still resolve to a rate (see rqSyncShiftsForSession's
 // KNOWN map for the same full-name/short-name mismatch).
-var RQ_NAME_ALIASES = { 'Vanessa Bigley': 'Vanessa', 'Stevana Schafer': 'Stevie', 'Stevana': 'Stevie' };
+// 'Stevana Scafer' is not a typo: the surname reaches us spelled both with
+// and without the h depending on where the session was clocked, and both
+// have to land on the same person.
+var RQ_NAME_ALIASES = { 'Vanessa Bigley': 'Vanessa', 'Stevana Schafer': 'Stevie',
+                        'Stevana Scafer': 'Stevie', 'Stevana': 'Stevie' };
+
+// Matched on a case- and whitespace-folded key, so a stray capital or a
+// double space in the Notion field can't split one person into two.
+var _RQ_ALIAS_BY_KEY = Object.keys(RQ_NAME_ALIASES).reduce(function(m, k) {
+  m[_rqNameKey(k)] = RQ_NAME_ALIASES[k]; return m;
+}, {});
+
+function _rqNameKey(name) {
+  return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// The one name for a person, wherever a name is read — the rate lookup and
+// every maker rollup in the Production Report go through here, so an alias
+// can never appear as a second person in one view and not another.
+function _rqCanonName(name) {
+  var raw = String(name || '').trim();
+  return _RQ_ALIAS_BY_KEY[_rqNameKey(raw)] || raw;
+}
 
 function _rqRateFor(name) {
   var rates = _rqLoadRates();
-  var key = RQ_NAME_ALIASES[name] || name;
-  var r = rates[key];
+  var r = rates[_rqCanonName(name)];
   // null (not 0) when unset: a 0 here used to get snapshotted to Notion as an
   // authoritative $0/hr rate on any device where rates were never entered,
   // permanently zeroing that session's labor cost in the report.
