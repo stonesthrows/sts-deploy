@@ -136,8 +136,6 @@ let _invRingLoaded    = false;
 let _invPendantCurSub = 'p-spirit';
 let _invPendantLoaded = false;
 
-let _invSplitCache     = {};  // { varId: { you, georgina, pageId } }
-let _invSplitActiveVar = null;
 
 // ── Category name fallback search ────────────────────────────────────────────
 
@@ -255,8 +253,8 @@ function invHideItem(itemId, itemName, sub) {
 }
 
 // ── Reset a single item back to live Square state ────
-// Clears any local overrides (hidden variations, thresholds, unsaved edits,
-// split-stock) tied to this item's *old* variation IDs, then re-fetches the
+// Clears any local overrides (hidden variations, thresholds, unsaved edits)
+// tied to this item's *old* variation IDs, then re-fetches the
 // item fresh from Square. Use this when an item was restructured in Square
 // (e.g. a single variation split into several) and the card looks stale.
 
@@ -281,7 +279,6 @@ async function invResetItem(itemId, itemName, sub) {
   } catch {}
   oldVarIds.forEach(id => {
     delete _invDirty[id];
-    delete _invSplitCache[id];
     if (data) delete data.counts[id];
   });
 
@@ -311,7 +308,6 @@ async function invResetItem(itemId, itemName, sub) {
         });
       }
       _invRenderSub(sub);
-      _invApplySplitCache(sub);
       _invUpdateCountLabel();
     }
 
@@ -429,7 +425,6 @@ async function _invLoadSub(sub) {
     _invData[sub] = { items, counts };
     _invRenderSub(sub);
     _invUpdateCountLabel();
-    _invLoadSplit(sub);
   } catch (e) {
     _invSetPanelHtml(sub,
       '<div style="padding:32px;text-align:center;color:var(--danger);font-size:13px;">' +
@@ -597,15 +592,14 @@ function _invRenderSub(sub) {
         <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
         ${lastDateHtml}
         <span class="inv-badge ${badge}">${badgeTxt}</span>
-        <span class="inv-split-you" id="inv-sy-${varId}" onclick="invEditSplit('${varId}',event)" title="Click to set split stock">You –</span>
-        <span class="inv-split-georgina" id="inv-sg-${varId}" onclick="invEditSplit('${varId}',event)" title="Click to set split stock">G –</span>
         <div class="inv-dot ${dot}"></div>
         <div class="inv-stepper">
           <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
           <input class="inv-step-input" type="number" id="inv-inp-${varId}"
-            value="${pendingAdd}" min="0"
+            value="${pendingAdd}"
             onchange="invMarkDirty('${varId}',this.value)"
-            style="${dirty ? 'background:var(--accent-bg);' : ''}">
+            style="${dirty ? 'background:var(--accent-bg);' : ''}"
+            title="Positive adds stock, negative removes stock">
           <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
         </div>
         <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
@@ -639,14 +633,14 @@ function _invSetPanelHtml(sub, html) {
 function invStep(varId, delta) {
   const input = document.getElementById('inv-inp-' + varId);
   if (!input) return;
-  const newVal = Math.max(0, (parseInt(input.value) || 0) + delta);
+  const newVal = (parseInt(input.value) || 0) + delta;
   input.value = newVal;
   invMarkDirty(varId, newVal);
   input.style.background = 'var(--accent-bg)';
 }
 
 function invMarkDirty(varId, val) {
-  _invDirty[varId] = Math.max(0, parseInt(val) || 0);
+  _invDirty[varId] = parseInt(val) || 0;
   const input = document.getElementById('inv-inp-' + varId);
   if (input) input.style.background = 'var(--accent-bg)';
 }
@@ -716,7 +710,6 @@ async function _invSaveCount(qtyMap, sub) {
 
   _invLogChanges(absQtyMap, prevCounts, sub);
   _invRenderSub(sub);
-  _invApplySplitCache(sub);
   if (INV_RING_CAT_IDS[sub]) _invUpdateRingCountLabel();
   else if (INV_PENDANT_CAT_IDS[sub]) _invUpdatePendantCountLabel();
   else if (INV_PERM_CAT_IDS[sub]) _invUpdatePermJewelryCountLabel();
@@ -1323,188 +1316,6 @@ async function _invWarmLastAdded() {
   } catch (e) {
     console.warn('[inv] could not warm last-added cache:', e.message);
   }
-}
-
-// ── Split inventory (Notion per-device stock) ─────────────────────────────────
-
-function _invApplySplitCache(sub) {
-  const data = _invData[sub];
-  if (!data) return;
-  for (const item of data.items) {
-    for (const v of (item.item_data?.variations || [])) {
-      const s = _invSplitCache[v.id];
-      if (!s) continue;
-      const youEl = document.getElementById('inv-sy-' + v.id);
-      const gEl   = document.getElementById('inv-sg-' + v.id);
-      if (youEl) youEl.textContent = 'You ' + s.you;
-      if (gEl)   gEl.textContent   = 'G '   + s.georgina;
-    }
-  }
-}
-
-async function _invLoadSplit(sub) {
-  const data = _invData[sub];
-  if (!data) return;
-  try {
-    const res = await fetch('/api/notion-split-inv');
-    if (!res.ok) return;
-    const split = await res.json();
-    Object.assign(_invSplitCache, split);
-    _invApplySplitCache(sub);
-  } catch (e) {
-    console.warn('[inv] split stock fetch failed:', e.message);
-  }
-}
-
-function invEditSplit(varId, e) {
-  e.stopPropagation();
-  _invSplitActiveVar = varId;
-  const cached = _invSplitCache[varId] || { you: 0, georgina: 0, pageId: null };
-
-  let pop = document.getElementById('inv-split-popover');
-  if (!pop) {
-    pop = document.createElement('div');
-    pop.id = 'inv-split-popover';
-    pop.innerHTML = `
-      <div class="inv-sp-title">Set Split Stock</div>
-      <div class="inv-sp-row">
-        <span class="inv-split-you inv-sp-label">You</span>
-        <div class="inv-stepper">
-          <button class="inv-step-btn" onclick="invSplitStep('you',-1)">−</button>
-          <input id="inv-sp-you" type="number" min="0" class="inv-step-input"
-            onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
-          <button class="inv-step-btn" onclick="invSplitStep('you',1)">＋</button>
-        </div>
-      </div>
-      <div class="inv-sp-row">
-        <span class="inv-split-georgina inv-sp-label">G</span>
-        <div class="inv-stepper">
-          <button class="inv-step-btn" onclick="invSplitStep('g',-1)">−</button>
-          <input id="inv-sp-g" type="number" min="0" class="inv-step-input"
-            onkeydown="if(event.key==='Enter')invSaveSplit();if(event.key==='Escape')invCloseSplitPopover()">
-          <button class="inv-step-btn" onclick="invSplitStep('g',1)">＋</button>
-        </div>
-      </div>
-      <div class="inv-sp-btns">
-        <button class="inv-set-btn" id="inv-sp-save" onclick="invSaveSplit()">Save</button>
-        <button class="inv-sp-cancel" onclick="invSplitEven()">Split evenly</button>
-        <button class="inv-sp-cancel" onclick="invCloseSplitPopover()">Cancel</button>
-      </div>`;
-    document.body.appendChild(pop);
-    document.addEventListener('click', e => {
-      if (!pop.contains(e.target)) invCloseSplitPopover();
-    });
-  }
-
-  document.getElementById('inv-sp-you').value = cached.you;
-  document.getElementById('inv-sp-g').value   = cached.georgina;
-  const saveBtn = document.getElementById('inv-sp-save');
-  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
-
-  pop.style.display = 'block';
-  const rect = e.target.getBoundingClientRect();
-  pop.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
-  pop.style.left = (rect.left  + window.scrollX) + 'px';
-
-  requestAnimationFrame(() => {
-    const pr = pop.getBoundingClientRect();
-    if (pr.right > window.innerWidth - 8)
-      pop.style.left = Math.max(8, window.innerWidth - pr.width - 8) + 'px';
-  });
-
-  document.getElementById('inv-sp-you').focus();
-  document.getElementById('inv-sp-you').select();
-}
-
-function invSplitStep(field, delta) {
-  const id = field === 'you' ? 'inv-sp-you' : 'inv-sp-g';
-  const input = document.getElementById(id);
-  if (!input) return;
-  input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
-}
-
-function invSplitEven() {
-  const varId  = _invSplitActiveVar;
-  const youInp = document.getElementById('inv-sp-you');
-  const gInp   = document.getElementById('inv-sp-g');
-  if (!youInp || !gInp) return;
-  const invInput = document.getElementById('inv-inp-' + varId);
-  const total = invInput
-    ? (parseInt(invInput.value) || 0)
-    : (_invData[_invCurSub]?.counts?.[varId] || 0);
-  youInp.value = Math.ceil(total / 2);
-  gInp.value   = Math.floor(total / 2);
-}
-
-function _invGetVarName(varId) {
-  for (const sub of Object.keys(_invData)) {
-    for (const item of (_invData[sub]?.items || [])) {
-      for (const v of (item.item_data?.variations || [])) {
-        if (v.id === varId) {
-          const itemName = item.item_data?.name || '';
-          const varName  = v.item_variation_data?.name || '';
-          return (varName && varName !== 'Regular') ? itemName + ' – ' + varName : itemName;
-        }
-      }
-    }
-  }
-  return varId;
-}
-
-async function invSaveSplit() {
-  const varId  = _invSplitActiveVar;
-  if (!varId) return;
-
-  const you      = Math.max(0, parseInt(document.getElementById('inv-sp-you').value) || 0);
-  const georgina = Math.max(0, parseInt(document.getElementById('inv-sp-g').value)   || 0);
-
-  const btn = document.getElementById('inv-sp-save');
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-
-  try {
-    const cached = _invSplitCache[varId];
-    let pageId = cached?.pageId;
-
-    if (!pageId) {
-      const name = _invGetVarName(varId);
-      const res  = await fetch('/api/notion-split-inv', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ varId, name, you, georgina }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'create failed');
-      pageId = data.pageId;
-      _invSplitCache[varId] = { you, georgina, pageId };
-    } else {
-      const res  = await fetch('/api/notion-split-inv', {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pageId, you, georgina }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'update failed');
-      _invSplitCache[varId] = { ...cached, you, georgina };
-    }
-
-    const youEl = document.getElementById('inv-sy-' + varId);
-    const gEl   = document.getElementById('inv-sg-' + varId);
-    if (youEl) youEl.textContent = 'You ' + you;
-    if (gEl)   gEl.textContent   = 'G '   + georgina;
-
-    invCloseSplitPopover();
-    toast('Split stock updated ✓', '✓');
-  } catch (err) {
-    console.error('[inv] split save failed:', err.message);
-    toast('Failed to save: ' + err.message, '⚠');
-    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
-  }
-}
-
-function invCloseSplitPopover() {
-  const pop = document.getElementById('inv-split-popover');
-  if (pop) pop.style.display = 'none';
-  _invSplitActiveVar = null;
 }
 
 // ════════════════════════════════════════════
