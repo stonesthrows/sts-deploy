@@ -992,12 +992,19 @@ function designsRenderGuide() {
     return;
   }
   const imgs = d.images || [];
-  const hero = imgs.length
-    ? `<img class="dsn-gd-hero" src="${imgs[0]}" alt="${escHtml(d.name || 'Design')}" onclick="dsnGuideViewImage(0)">`
-    : '';
-  const thumbs = imgs.length > 1
-    ? `<div class="dsn-gd-thumbs">${imgs.slice(1).map((s, i) =>
-        `<img src="${s}" class="dsn-gd-thumb" alt="Reference ${i + 2}" onclick="dsnGuideViewImage(${i + 1})">`).join('')}</div>`
+  // PDFs and .ai files sit in the same gallery as the reference photos —
+  // a first-page thumbnail (rendered async below) stands in for them, and
+  // clicking one opens the same viewer as the Attached Files list.
+  const docAtt = (d.attachments || [])
+    .map((f, idx) => ({ f, idx }))
+    .filter(({ f }) => DSN_GALLERY_DOC_EXT.has(_dsnAttachExt(f.name)));
+  const gallery = [
+    ...imgs.map((src, i) => ({ kind: 'img', src, i })),
+    ...docAtt.map(({ f, idx }) => ({ kind: 'doc', f, idx })),
+  ];
+  const hero   = gallery.length ? _dsnGuideGalleryTile(gallery[0], 'dsn-gd-hero', d.name) : '';
+  const thumbs = gallery.length > 1
+    ? `<div class="dsn-gd-thumbs">${gallery.slice(1).map(item => _dsnGuideGalleryTile(item, 'dsn-gd-thumb', d.name)).join('')}</div>`
     : '';
   const upd = d.updatedAt
     ? new Date(d.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -1021,12 +1028,94 @@ function designsRenderGuide() {
     ${d.instructions
       ? `<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2>${_dsnGuideParseText(d.instructions)}</section>`
       : '<section class="dsn-gd-sec"><h2 class="dsn-gd-h2">Instructions</h2><p class="dsn-gd-p" style="color:var(--text3)">No instructions yet — open ✎ Edit to add them.</p></section>'}
+    ${(d.attachments && d.attachments.length)
+      ? `<section class="dsn-gd-sec dsn-no-print"><h2 class="dsn-gd-h2">Attached Files</h2><div class="dsn-attach-list">${_dsnGuideAttachHtml(d.attachments)}</div></section>`
+      : ''}
     <div id="dsn-guide-cost" class="dsn-no-print"></div>
     <div id="dsn-guide-var" class="dsn-no-print"></div>`;
 
   _dsnGuideBomRender();
   _dsnGuideCostRender();
   _dsnGuideVarRender();
+  _dsnGuideLoadDocThumbs(d);
+}
+
+// pdf/ai attachments that get pulled into the reference-image gallery
+// instead of staying a name-only row in the Attached Files list.
+const DSN_GALLERY_DOC_EXT = new Set(['pdf', 'ai']);
+
+function _dsnGuideGalleryTile(item, cls, designName) {
+  if (item.kind === 'img') {
+    return `<img class="${cls}" src="${item.src}" alt="${escHtml(designName || 'Design')}" onclick="dsnGuideViewImage(${item.i})">`;
+  }
+  const f   = item.f;
+  const ext = _dsnAttachExt(f.name);
+  return `<div class="${cls} dsn-gd-tile-doc" id="dsn-gd-doc-${item.idx}" onclick="dsnGuideViewAttachment(${item.idx})" title="${escHtml(f.name)}">
+    <span class="dsn-gd-tile-icon">${ext === 'ai' ? '🖋' : '📄'}</span>
+    <span class="dsn-gd-tile-badge">${ext.toUpperCase()}</span>
+  </div>`;
+}
+
+const _dsnGuideDocThumbCache = new Map(); // attachment key → rendered dataURL
+
+// Fires after the gallery is in the DOM: renders a first-page thumbnail for
+// each pdf/ai tile, one at a time (there are rarely more than a couple).
+// A tile that fails to render keeps its icon — it still opens in the viewer.
+async function _dsnGuideLoadDocThumbs(d) {
+  if (typeof window.pdfjsLib === 'undefined' || typeof dvecFetchAsFile !== 'function' || typeof _dvecRenderPdfThumb !== 'function') return;
+  const docAtt = (d.attachments || [])
+    .map((f, idx) => ({ f, idx }))
+    .filter(({ f }) => DSN_GALLERY_DOC_EXT.has(_dsnAttachExt(f.name)));
+  for (const { f, idx } of docAtt) {
+    const tile = document.getElementById('dsn-gd-doc-' + idx);
+    if (!tile) continue;
+    const cached = _dsnGuideDocThumbCache.get(f.key);
+    if (cached) { _dsnGuideApplyDocThumb(tile, cached); continue; }
+    tile.classList.add('loading');
+    try {
+      const file    = await dvecFetchAsFile(_dsnAttachUrl(f), f.name);
+      const dataUrl = await _dvecRenderPdfThumb(file);
+      _dsnGuideDocThumbCache.set(f.key, dataUrl);
+      // Bail if the guide moved on to a different design mid-fetch.
+      if (_designsCurrentFull === d) _dsnGuideApplyDocThumb(tile, dataUrl);
+    } catch (e) {
+      tile.classList.remove('loading');
+    }
+  }
+}
+
+function _dsnGuideApplyDocThumb(tile, dataUrl) {
+  tile.classList.remove('loading');
+  if (!dataUrl) return;
+  tile.style.backgroundImage = `url("${dataUrl}")`;
+  tile.classList.add('has-thumb');
+}
+
+// Read-only attachment list for the guide view — same viewer as the form's,
+// minus the remove button (guide is look-don't-touch).
+function _dsnGuideAttachHtml(files) {
+  return files.map((f, i) => {
+    const ext      = _dsnAttachExt(f.name);
+    const viewable = DSN_ATTACH_VIEWABLE.has(ext);
+    const url      = _dsnAttachUrl(f);
+    const icon     = viewable ? (ext === 'pdf' || ext === 'ai' ? '📄' : '🖼') : '📎';
+    const label = viewable
+      ? `<button type="button" class="dsn-attach-name" onclick="dsnGuideViewAttachment(${i})" title="Open in viewer">${icon} ${escHtml(f.name)}</button>`
+      : `<a href="${url}" target="_blank" rel="noopener" class="dsn-attach-name">${icon} ${escHtml(f.name)}</a>`;
+    const dl = viewable
+      ? `<a class="dsn-attach-dl" href="${url}" target="_blank" rel="noopener" title="Download a copy">⬇</a>`
+      : '';
+    return `<div class="dsn-attach-row">${label}<span class="dsn-attach-size">${_dsnAttachFmtSize(f.size)}</span>${dl}</div>`;
+  }).join('');
+}
+
+function dsnGuideViewAttachment(idx) {
+  const d = _designsCurrentFull;
+  const f = d && d.attachments && d.attachments[idx];
+  if (!f) return;
+  const url = _dsnAttachUrl(f);
+  if (typeof dvecOpenUrl !== 'function') { window.open(url, '_blank', 'noopener'); return; }
+  dvecOpenUrl(url, f.name, d.name || '');
 }
 
 // Light formatter: numbered lines ("1." / "Step 1:") become badged steps,
@@ -1337,6 +1426,12 @@ function _dsnAttachFmtSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+// Types the in-app viewer can render. Anything else still downloads.
+const DSN_ATTACH_VIEWABLE = new Set(['pdf', 'ai', 'svg', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+
+function _dsnAttachExt(name) { return (String(name).split('.').pop() || '').toLowerCase(); }
+function _dsnAttachUrl(f)    { return '/api/design-files?key=' + encodeURIComponent(f.key); }
+
 function designsRenderAttachments() {
   const wrap = document.getElementById('dsn-attach-list');
   if (!wrap) return;
@@ -1344,12 +1439,37 @@ function designsRenderAttachments() {
     wrap.innerHTML = '<span style="color:var(--text3);font-size:12px">No files yet</span>';
     return;
   }
-  wrap.innerHTML = _designsAttachQueue.map((f, i) => `
+  wrap.innerHTML = _designsAttachQueue.map((f, i) => {
+    const ext      = _dsnAttachExt(f.name);
+    const viewable = DSN_ATTACH_VIEWABLE.has(ext);
+    const url      = _dsnAttachUrl(f);
+    const icon     = viewable ? (ext === 'pdf' || ext === 'ai' ? '📄' : '🖼') : '📎';
+    // Names carry apostrophes, so the click goes by index rather than by name.
+    const label = viewable
+      ? `<button type="button" class="dsn-attach-name" onclick="designsViewAttachment(${i})" title="Open in viewer">${icon} ${escHtml(f.name)}</button>`
+      : `<a href="${url}" target="_blank" rel="noopener" class="dsn-attach-name">${icon} ${escHtml(f.name)}</a>`;
+    const dl = viewable
+      ? `<a class="dsn-attach-dl" href="${url}" target="_blank" rel="noopener" title="Download a copy">⬇</a>`
+      : '';
+    return `
     <div class="dsn-attach-row">
-      <a href="/api/design-files?key=${encodeURIComponent(f.key)}" target="_blank" rel="noopener" class="dsn-attach-name">📎 ${escHtml(f.name)}</a>
+      ${label}
       <span class="dsn-attach-size">${_dsnAttachFmtSize(f.size)}</span>
+      ${dl}
       <button type="button" class="dsn-attach-del" onclick="designsRemoveAttachment(${i})" title="Remove file">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+// PDFs, .ai artwork and images open in the same full-screen viewer the
+// Vector Files browser uses — page nav, zoom, and "save a copy" included.
+function designsViewAttachment(idx) {
+  const f = _designsAttachQueue[idx];
+  if (!f) return;
+  const url = _dsnAttachUrl(f);
+  if (typeof dvecOpenUrl !== 'function') { window.open(url, '_blank', 'noopener'); return; }
+  const name = document.getElementById('dsn-name');
+  dvecOpenUrl(url, f.name, name && name.value ? name.value.trim() : '');
 }
 
 async function designsAttachFile(file) {

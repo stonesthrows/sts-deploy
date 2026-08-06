@@ -487,7 +487,22 @@ function _dvecEntry(path) {
 
 async function _dvecFileOf(entry) {
   if (entry.file) return entry.file;
+  // Attachments live in R2, not the picked folder — fetch once, then the
+  // entry behaves like any other loose file (viewer, zoom, save a copy).
+  if (entry.url) {
+    entry.file = await dvecFetchAsFile(entry.url, entry.name);
+    return entry.file;
+  }
   return await entry.handle.getFile();
+}
+
+// Shared with the Design Library's own attachment gallery (designs.js),
+// which needs the same R2 file → File conversion to build PDF thumbnails.
+async function dvecFetchAsFile(url, name) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Could not fetch that file (${resp.status})`);
+  const blob = await resp.blob();
+  return new File([blob], name, { type: blob.type || 'application/octet-stream' });
 }
 
 // ── Thumbnails ──────────────────────────────────────────────
@@ -665,6 +680,24 @@ function _dvecRenderImgThumb(file) {
 async function dvecOpenEntry(path) {
   const entry = _dvecEntry(path);
   if (!entry) { toast('That file is no longer in the folder', '⚠'); return; }
+  return dvecOpenFile(entry);
+}
+
+// Open a file the folder browser doesn't own — a design's attachment, held
+// in R2 and named by URL. Same viewer, so a PDF attached to a design reads
+// exactly like an .ai from the artwork folder.
+function dvecOpenUrl(url, name, subtitle) {
+  _dvecBindKeys();
+  return dvecOpenFile({
+    name,
+    ext:  (name.split('.').pop() || '').toLowerCase(),
+    path: url,
+    dir:  subtitle || '',
+    url,
+  });
+}
+
+async function dvecOpenFile(entry) {
   const overlay = document.getElementById('dvec-viewer');
   if (!overlay) return;
   dvecViewerClose();
@@ -682,7 +715,7 @@ async function dvecOpenEntry(path) {
       if (!lib) throw new Error('PDF reader not loaded');
       const buf = await file.arrayBuffer();
       const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
-      if (!_dvecView || _dvecView.entry.path !== path) { try { pdf.destroy(); } catch (e) {} return; }
+      if (!_dvecView || _dvecView.entry !== entry) { try { pdf.destroy(); } catch (e) {} return; }
       _dvecView.pdf   = pdf;
       _dvecView.pages = pdf.numPages;
       stage.innerHTML = '<canvas id="dvec-canvas" class="dvec-canvas"></canvas>';
@@ -697,9 +730,12 @@ async function dvecOpenEntry(path) {
       stage.innerHTML = _dvecNoPreview(entry, 'No preview for .' + esc(entry.ext) + ' files.');
     }
   } catch (e) {
-    const msg = /pdf|password|structure|invalid/i.test(e && e.message || '')
+    const broken = /pdf|password|structure|invalid/i.test(e && e.message || '');
+    const msg = broken && entry.ext === 'ai'
       ? 'This .ai file has no PDF preview inside it — re-save it from Illustrator with “Create PDF Compatible File” ticked and it will open here.'
-      : ('Couldn’t read the file: ' + esc(e && e.message || e));
+      : broken
+        ? 'That file wouldn’t open as a PDF — it may be damaged or password-protected.'
+        : ('Couldn’t read the file: ' + esc(e && e.message || e));
     stage.innerHTML = _dvecNoPreview(entry, msg);
   }
   _dvecViewerHead();
