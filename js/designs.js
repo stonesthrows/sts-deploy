@@ -133,6 +133,7 @@ function _designsLoadCosting() {
 }
 
 function _designsShowLoadingPlaceholder() {
+  if (typeof dvecHide === 'function') dvecHide();
   document.getElementById('designs-library').style.display = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
   document.getElementById('designs-guide-wrap').style.display = 'none';
@@ -177,6 +178,9 @@ function designsShowLibrary() {
   if (pricing) pricing.style.display = 'none';
   const priceBtn = document.getElementById('dsn-pricing-btn');
   if (priceBtn) { priceBtn.style.display = ''; priceBtn.textContent = '💲 Pricing Sheet'; }
+  if (typeof dvecHide === 'function') dvecHide();
+  const vecBtn = document.getElementById('dsn-vectors-btn');
+  if (vecBtn) vecBtn.style.display = '';
   document.getElementById('designs-library').style.display  = '';
   document.getElementById('designs-form-wrap').style.display = 'none';
   document.getElementById('designs-guide-wrap').style.display = 'none';
@@ -202,6 +206,9 @@ async function designsShowForm(id) {
   if (pricing) pricing.style.display = 'none';
   const priceBtn = document.getElementById('dsn-pricing-btn');
   if (priceBtn) priceBtn.style.display = 'none';
+  if (typeof dvecHide === 'function') dvecHide();
+  const vecBtn = document.getElementById('dsn-vectors-btn');
+  if (vecBtn) vecBtn.style.display = 'none';
   document.getElementById('designs-library').style.display   = 'none';
   document.getElementById('designs-form-wrap').style.display = '';
   document.getElementById('designs-guide-wrap').style.display = 'none';
@@ -953,6 +960,9 @@ async function designsShowGuide(id) {
   if (newBtn) newBtn.style.display = 'none';
   const folderBtn = document.getElementById('dsn-folder-btn');
   if (folderBtn) folderBtn.style.display = 'none';
+  if (typeof dvecHide === 'function') dvecHide();
+  const vecBtn = document.getElementById('dsn-vectors-btn');
+  if (vecBtn) vecBtn.style.display = 'none';
   document.getElementById('designs-library').style.display    = 'none';
   document.getElementById('designs-form-wrap').style.display  = 'none';
   document.getElementById('designs-guide-wrap').style.display = '';

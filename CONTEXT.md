@@ -146,6 +146,15 @@ The per-piece bill of materials on a Design: material lines with quantities and 
 **Costing**
 The Design's cost rollup: material cost + labor (from timers or override) vs. retail (from the linked Square item or override). On the Design Guide it appears only as a collapsed summary; it never appears in print.
 
+**Vector Files**
+A view of the Design Library — reached from the 🖋 Vector Files button — that browses the Illustrator artwork folder on disk and renders `.ai` files in the app. Separate from a Design: nothing here is stored in the designs API, and a file has no BOM, costing, or Guide. It answers "what does this design look like", not "how is it made".
+
+**Artwork Folder**
+The disk folder the Vector Files view reads, picked once through the browser's folder picker and remembered afterwards (in practice, *Spirit Animals* on the Drive mount). Files are read in place on every visit: nothing is uploaded, copied, or cached server-side, so what the view shows is whatever Illustrator last saved. The browser drops read permission between sessions, hence the one-click **Reconnect**.
+
+**PDF-Compatible .ai**
+An `.ai` saved with Illustrator's "Create PDF Compatible File" option, which makes the file a valid PDF as well — this is what lets the Vector Files view render it without a conversion step. All 157 files in the artwork folder are currently PDF-compatible; one saved without the option would list normally but show "no preview" instead of artwork. Layers hidden in Illustrator stay hidden in the preview, since the visibility state travels in the file.
+
 **Guide Printout**
 The Design Guide printed to 8.5×11 letter. Carries the same formatting as the on-screen Guide but excludes the Materials (BOM) and Costing modules — the free-text Specifications section is the only materials information on paper, so a printout must be self-sufficient at the bench. Long designs flow to a second sheet rather than shrinking type.
 

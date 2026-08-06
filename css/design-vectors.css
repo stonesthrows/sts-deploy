@@ -1,0 +1,226 @@
+/* ════════════════════════════════════════════
+   DESIGN VECTORS  —  css/design-vectors.css
+   The Design Library's "Vector Files" view: folder rail, thumbnail grid,
+   and the full-screen artwork viewer. Markup in jewelry-workflow.html,
+   behaviour in js/design-vectors.js.
+
+   Artwork sits on --paper, which stays light in dark mode — .ai linework
+   is black on white and would vanish against a dark card.
+   ════════════════════════════════════════════ */
+
+/* ── Connect card (no folder picked yet) ───────────────────── */
+.dvec-connect { display:flex; justify-content:center; padding:var(--sp-4) 0 32px; }
+.dvec-connect-card {
+  max-width:520px; text-align:center;
+  background:var(--card-bg); border:1px solid var(--bdr); border-radius:var(--rad-lg);
+  padding:32px 28px; box-shadow:var(--shadow-sm);
+}
+.dvec-connect-icon  { font-size:34px; line-height:1; margin-bottom:var(--sp-3); }
+.dvec-connect-title { font-size:16px; font-weight:800; color:var(--text); margin-bottom:var(--sp-2); }
+.dvec-connect-body  { font-size:12.5px; line-height:1.6; color:var(--text2); margin-bottom:var(--sp-4); }
+.dvec-connect-actions { display:flex; gap:var(--sp-2); justify-content:center; flex-wrap:wrap; }
+/* The fallback file input wears a <label>, so it needs the button's layout
+   rules restated — .btn assumes it's on a button. */
+.dvec-file-btn { display:inline-flex; align-items:center; cursor:pointer; }
+
+/* ── Toolbar ───────────────────────────────────────────────── */
+.dvec-bar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px 10px;
+  margin-bottom:var(--sp-3);
+}
+.dvec-crumb { display:flex; align-items:center; flex-wrap:wrap; gap:2px; min-width:120px; }
+.dvec-crumb-bit {
+  font-size:13px; font-weight:700; font-family:inherit; color:var(--text2);
+  background:none; border:none; padding:2px 4px; border-radius:5px; cursor:pointer;
+  transition:color var(--dur-fast) var(--ease-smooth), background var(--dur-fast) var(--ease-smooth);
+}
+.dvec-crumb-bit:hover { color:var(--text); background:var(--hover); }
+.dvec-crumb-bit:last-of-type { color:var(--text); }
+.dvec-crumb-sep { color:var(--text3); font-size:12px; }
+.dvec-count { font-size:11px; font-weight:600; color:var(--text3); white-space:nowrap; }
+
+.dvec-search-wrap { position:relative; flex:1; min-width:200px; }
+.dvec-search-icon {
+  position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  font-size:12px; color:var(--text3); pointer-events:none;
+}
+.dvec-search-input {
+  width:100%; padding:7px 30px 7px 30px;
+  border:1px solid var(--bdr); border-radius:var(--rad-md);
+  background:var(--input-bg); color:var(--text);
+  font-size:12.5px; font-family:inherit;
+}
+.dvec-search-input:focus { outline:none; border-color:var(--accent-border); box-shadow:var(--focus-ring); }
+.dvec-search-clear {
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  background:none; border:none; cursor:pointer; color:var(--text3);
+  font-size:12px; line-height:1; padding:2px;
+}
+.dvec-search-clear:hover { color:var(--text); }
+
+.dvec-filters { display:flex; gap:2px; background:var(--surface2); border-radius:var(--rad-md); padding:2px; }
+.dvec-filter-btn {
+  border:none; background:none; cursor:pointer; font-family:inherit;
+  font-size:11.5px; font-weight:700; color:var(--text3);
+  padding:5px 10px; border-radius:var(--rad-sm);
+  transition:color var(--dur-fast) var(--ease-smooth), background var(--dur-fast) var(--ease-smooth);
+}
+.dvec-filter-btn:hover  { color:var(--text); }
+.dvec-filter-btn.active { background:var(--card-bg); color:var(--accent-fg); box-shadow:var(--shadow-sm); }
+
+/* ── Rail + body ───────────────────────────────────────────── */
+.dvec-split { display:grid; grid-template-columns:230px minmax(0,1fr); gap:var(--sp-4); align-items:start; }
+.dvec-body  { min-width:0; }
+.dvec-rail {
+  position:sticky; top:var(--sp-2);
+  max-height:calc(100vh - 200px); overflow-y:auto;
+  padding:var(--sp-2) 4px var(--sp-2) 0;
+  border-right:1px solid var(--bdr);
+}
+.dvec-rail-row {
+  display:flex; align-items:center; gap:2px;
+  border-radius:var(--rad-sm); padding-right:6px;
+  transition:background var(--dur-fast) var(--ease-smooth);
+}
+.dvec-rail-row:hover   { background:var(--card-head-bg); }
+.dvec-rail-row.active  { background:var(--accent-bg); }
+.dvec-rail-twist {
+  flex:none; width:16px; height:22px; padding:0;
+  background:none; border:none; cursor:pointer;
+  color:var(--text3); font-size:9px; font-family:inherit; line-height:1;
+}
+.dvec-rail-twist:hover { color:var(--text); }
+.dvec-rail-twist.empty { cursor:default; opacity:.45; }
+.dvec-rail-twist:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:3px; }
+.dvec-rail-name {
+  flex:1; min-width:0; display:flex; align-items:center; gap:6px; text-align:left;
+  background:none; border:none; cursor:pointer;
+  padding:5px 2px; font-size:12.5px; font-family:inherit; font-weight:600;
+  color:var(--text2); line-height:1.25;
+}
+.dvec-rail-name:hover { color:var(--text); }
+.dvec-rail-name:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:4px; }
+.dvec-rail-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dvec-rail-count { flex:none; font-size:10.5px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; }
+.dvec-rail-row.active .dvec-rail-name { color:var(--accent-fg); font-weight:800; }
+
+/* Files opened through the fallback input have no folder behind them:
+   no tree to show, and nothing the type filter could hide. */
+.dvec-browse.loose .dvec-split   { grid-template-columns:minmax(0,1fr); gap:0; }
+.dvec-browse.loose .dvec-rail    { display:none; }
+.dvec-browse.loose .dvec-filters { display:none; }
+
+/* ── Sub-folder chips ──────────────────────────────────────── */
+.dvec-folders { display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-bottom:var(--sp-4); }
+.dvec-folder {
+  display:flex; align-items:center; gap:7px;
+  background:var(--card-bg); border:1px solid var(--bdr); border-radius:var(--rad-md);
+  padding:8px 12px; cursor:pointer; font-family:inherit;
+  transition:border-color var(--dur-fast) var(--ease-smooth), background var(--dur-fast) var(--ease-smooth);
+}
+.dvec-folder:hover { border-color:var(--accent-border); background:var(--accent-bg); }
+.dvec-folder:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dvec-folder-icon  { font-size:13px; }
+.dvec-folder-name  { font-size:12.5px; font-weight:700; color:var(--text); }
+.dvec-folder-count { font-size:10.5px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; }
+
+/* ── File cards ────────────────────────────────────────────── */
+.dvec-grid {
+  display:grid; gap:var(--sp-3);
+  grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+}
+.dvec-card {
+  display:flex; flex-direction:column; gap:6px; text-align:left;
+  background:var(--card-bg); border:1px solid var(--bdr); border-radius:var(--rad-md);
+  padding:8px; cursor:pointer; font-family:inherit;
+  transition:border-color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.dvec-card:hover { border-color:var(--accent-border); box-shadow:var(--shadow-md); }
+.dvec-card:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dvec-thumb {
+  display:flex; align-items:center; justify-content:center;
+  aspect-ratio:4 / 3; overflow:hidden;
+  background:var(--paper); border:1px solid var(--paper-bdr); border-radius:var(--rad-sm);
+}
+.dvec-thumb img { max-width:100%; max-height:100%; object-fit:contain; }
+.dvec-thumb-ext {
+  font-size:10.5px; font-weight:800; letter-spacing:.06em;
+  color:var(--text3);
+}
+.dvec-thumb.has-img .dvec-thumb-ext { display:none; }
+.dvec-thumb.loading { animation:dvecPulse 1.3s var(--ease-smooth) infinite; }
+.dvec-thumb.no-preview .dvec-thumb-ext { color:var(--text-dim); opacity:.7; }
+@keyframes dvecPulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+.dvec-card-name {
+  font-size:12px; font-weight:700; color:var(--text); line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.dvec-card-sub {
+  font-size:10.5px; color:var(--text3); line-height:1.3;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dvec-empty {
+  padding:36px 12px; text-align:center;
+  font-size:12.5px; color:var(--text3);
+}
+
+/* ── Viewer ────────────────────────────────────────────────── */
+.dvec-viewer {
+  position:fixed; inset:0; z-index:9998;
+  display:none; flex-direction:column;
+  background:var(--bg);
+}
+body.dvec-viewer-open { overflow:hidden; }
+.dvec-v-head {
+  flex:none; display:flex; align-items:center; gap:var(--sp-3);
+  padding:10px var(--sp-4);
+  background:var(--hdr); border-bottom:1px solid var(--hdr-bdr);
+}
+.dvec-v-title { flex:1; min-width:0; }
+.dvec-v-name {
+  font-size:13.5px; font-weight:800; color:var(--text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dvec-v-path {
+  font-size:11px; color:var(--text3);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dvec-v-nav, .dvec-v-tools { flex:none; display:flex; align-items:center; gap:4px; }
+.dvec-v-page { font-size:11.5px; font-weight:700; color:var(--text2); font-variant-numeric:tabular-nums; min-width:46px; text-align:center; }
+.dvec-v-btn {
+  min-width:30px; height:30px; padding:0 8px;
+  background:var(--hdr-pill); border:1px solid var(--bdr); border-radius:var(--rad-sm);
+  color:var(--text2); font-size:14px; font-family:inherit; line-height:1; cursor:pointer;
+  transition:background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
+}
+.dvec-v-btn:hover { background:var(--hover); color:var(--text); }
+.dvec-v-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.dvec-v-zoom { font-size:11.5px; font-weight:700; min-width:52px; }
+.dvec-v-close { font-size:19px; }
+.dvec-stage {
+  flex:1; min-height:0; overflow:auto;
+  display:flex; align-items:center; justify-content:center;
+  padding:var(--sp-4); background:var(--surface2);
+}
+.dvec-canvas, .dvec-img {
+  display:block; margin:auto;
+  background:var(--paper); border:1px solid var(--paper-bdr); border-radius:var(--rad-sm);
+  box-shadow:var(--shadow-md);
+}
+.dvec-img { max-width:100%; max-height:100%; object-fit:contain; }
+.dvec-stage-msg {
+  max-width:420px; text-align:center;
+  font-size:12.5px; line-height:1.6; color:var(--text2);
+}
+.dvec-stage-icon  { font-size:30px; margin-bottom:var(--sp-2); }
+.dvec-stage-title { font-size:14px; font-weight:800; color:var(--text); margin-bottom:var(--sp-2); word-break:break-word; }
+.dvec-stage-body  { margin-bottom:var(--sp-4); }
+
+/* ── Narrow screens ────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .dvec-split { grid-template-columns:minmax(0,1fr); gap:0; }
+  .dvec-rail  { display:none; }
+  .dvec-grid  { grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); }
+  .dvec-v-head { flex-wrap:wrap; gap:var(--sp-2); }
+  .dvec-v-title { flex-basis:100%; }
+}

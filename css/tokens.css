@@ -96,6 +96,13 @@
       --hover-bg: rgba(16, 18, 22, 0.04);
       --input-bg: #FFFFFF;
       --bg2: var(--hdr-pill);
+      /* Artwork canvas. Vector art (.ai/.svg) is drawn on white paper, so
+         its backdrop stays white in both themes — flipping it dark would
+         erase the linework, and tinting it grey shows a seam against the
+         white the artwork itself renders. Dark mode gets a darker frame
+         around it instead. */
+      --paper: #FFFFFF;
+      --paper-bdr: #E5E6E9;
       /* Editorial display face. Used where a surface should read as a
          considered document rather than a dense control panel — the
          Customer Card's headings, the inline edit form. Not a body face:
@@ -193,6 +200,8 @@
       --hover: #1A1C21;
       --hover-bg: rgba(255, 255, 255, 0.05);
       --input-bg: #17191D;
+      --paper: #FFFFFF;
+      --paper-bdr: #2C2F36;
 
       --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
       --shadow-md: 0 4px 14px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);

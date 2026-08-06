@@ -26,7 +26,7 @@
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
-  <link rel="stylesheet" href="css/tokens.css?v=20260806a">
+  <link rel="stylesheet" href="css/tokens.css?v=20260806b">
   <link rel="stylesheet" href="css/app.css?v=20260803a">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -2309,6 +2309,7 @@
 </div>
 
 <link rel="stylesheet" href="css/inventory.css?v=20260805a">
+<link rel="stylesheet" href="css/design-vectors.css?v=20260806a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
 <div id="tab-designs" class="tab-panel">
@@ -2318,6 +2319,7 @@
       <div class="page-sub">Jewelry design specs, instructions &amp; reference images</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
+      <button id="dsn-vectors-btn" class="btn btn-outline btn-sm" onclick="dvecToggle()">🖋 Vector Files</button>
       <button id="dsn-pricing-btn" class="btn btn-outline btn-sm" onclick="dsnPricingToggle()">💲 Pricing Sheet</button>
       <button id="dsn-folder-btn" class="btn btn-outline btn-sm" onclick="dsnFolderCreate()">📁 Add Folder</button>
       <button id="dsn-new-btn" class="btn btn-gold btn-sm" onclick="designsShowForm()">✚ New Design</button>
@@ -2391,6 +2393,40 @@
       </div>
     </div>
     <div class="dsn-grid" id="designs-list"></div>
+  </div>
+
+  <!-- Vector Files view — Illustrator artwork read straight off the disk
+       folder it already lives in (see js/design-vectors.js) -->
+  <div id="designs-vectors" style="display:none">
+    <div id="dvec-connect" class="dvec-connect"></div>
+    <div id="dvec-browse" class="dvec-browse" style="display:none">
+      <div class="dvec-bar">
+        <div class="dvec-crumb" id="dvec-crumb" aria-label="Folder path"></div>
+        <div class="dvec-count" id="dvec-count"></div>
+        <div class="dvec-search-wrap">
+          <span class="dvec-search-icon">🔍</span>
+          <input id="dvec-search" class="dvec-search-input" type="search" autocomplete="off"
+                 placeholder="Search every folder — “fox pendant”…"
+                 oninput="dvecSetSearch(this.value)">
+          <button type="button" class="dvec-search-clear" id="dvec-search-clear" style="display:none"
+                  onclick="dvecClearSearch()" aria-label="Clear search">✕</button>
+        </div>
+        <div class="dvec-filters" role="group" aria-label="File type">
+          <button type="button" class="dvec-filter-btn active" data-dvec-filter="vector" onclick="dvecSetFilter('vector')">Vectors</button>
+          <button type="button" class="dvec-filter-btn" data-dvec-filter="image"  onclick="dvecSetFilter('image')">Images</button>
+          <button type="button" class="dvec-filter-btn" data-dvec-filter="all"    onclick="dvecSetFilter('all')">All</button>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="dvecRefresh()" title="Re-read the folder from disk">↻</button>
+        <button class="btn btn-outline btn-sm" onclick="dvecPickFolder()" title="Pick a different folder">📂</button>
+        <!-- Fallback for browsers with no folder picker (Safari, iPad) -->
+        <input type="file" id="dvec-loose-input" multiple accept=".ai,.pdf,.svg,image/*"
+               style="display:none" onchange="dvecOpenLoose(this.files);this.value=''">
+      </div>
+      <div class="dvec-split">
+        <nav class="dvec-rail" id="dvec-rail" aria-label="Folder tree"></nav>
+        <div class="dvec-body" id="dvec-body"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Guide view (read-only, printable) -->
@@ -2592,6 +2628,29 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Vector file viewer (kept outside #tab-designs so it can go full-screen) -->
+<div id="dvec-viewer" class="dvec-viewer" style="display:none">
+  <div class="dvec-v-head">
+    <div class="dvec-v-title">
+      <div class="dvec-v-name" id="dvec-v-name"></div>
+      <div class="dvec-v-path" id="dvec-v-path"></div>
+    </div>
+    <div class="dvec-v-nav" id="dvec-v-nav" style="display:none">
+      <button class="dvec-v-btn" onclick="dvecViewerPage(-1)" aria-label="Previous page">‹</button>
+      <span class="dvec-v-page" id="dvec-v-page"></span>
+      <button class="dvec-v-btn" onclick="dvecViewerPage(1)" aria-label="Next page">›</button>
+    </div>
+    <div class="dvec-v-tools">
+      <button class="dvec-v-btn" onclick="dvecViewerZoom(0.8)" aria-label="Zoom out">−</button>
+      <button class="dvec-v-btn dvec-v-zoom" id="dvec-v-zoom" onclick="dvecViewerFit()" title="Fit to window">Fit</button>
+      <button class="dvec-v-btn" onclick="dvecViewerZoom(1.25)" aria-label="Zoom in">+</button>
+      <button class="dvec-v-btn" onclick="dvecViewerSave()" title="Save a copy">⬇</button>
+      <button class="dvec-v-btn dvec-v-close" onclick="dvecViewerClose()" aria-label="Close">×</button>
+    </div>
+  </div>
+  <div class="dvec-stage" id="dvec-stage"></div>
 </div>
 
 <!-- Designs image lightbox -->
@@ -3799,7 +3858,8 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=24"></script>
+<script src="js/designs.js?v=25"></script>
+<script src="js/design-vectors.js?v=1"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260731b"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
