@@ -252,6 +252,9 @@ function totalUnreadMessages() {
 // aren't in the DOM (e.g. filtered out by search/sub-tab).
 function renderAllMessageBadges() {
   renderMessageBell();
+  // A poll landing while the bell panel is open should add the new message
+  // to the list rather than leave a stale one on screen.
+  if (typeof messagePanelOpen === 'function' && messagePanelOpen()) renderMessagePanel();
   renderTopbarStaff();
   renderAllOrderMsgChips();
   if (typeof eoUpdateMsgTabBadge === 'function') eoUpdateMsgTabBadge();
@@ -314,13 +317,156 @@ function hideMessagePop() {
 
 // Fixed coords go stale on resize/rotate — just dismiss rather than leave
 // the bubble floating away from its icon.
-window.addEventListener('resize', function() { hideMessagePop(); });
-
-function messageBellClick() {
+window.addEventListener('resize', function() {
   hideMessagePop();
+  if (typeof hideMessagePanel === 'function') hideMessagePanel();
+});
+
+// ── Bell panel: the actual new messages ──────
+// Clicking the bell used to dump you on the Customers tab, leaving you to
+// hunt for which row had the new message. It now opens a panel listing the
+// unread ones themselves; picking one still jumps to the thread it lives
+// in (the order card's Messages tab when the message is tagged to an
+// order, the customer's row otherwise), which is also what marks it read.
+// With nothing unread the panel shows the latest few so the icon is never
+// a dead end.
+var MSG_PANEL_RECENT = 5;
+
+// Unread across every customer, newest first. Each entry carries the
+// customer name the key came from so the row can be labelled and the jump
+// can find the row/order again.
+function unreadMessageList() {
+  if (typeof CUSTOMERS === 'undefined') return [];
+  var map    = _msgLastViewedMap();
+  var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
+  var out = [];
+  CUSTOMERS.forEach(function(c) {
+    var key = custKey(c.name);
+    messagesFor(key).forEach(function(m) {
+      if (myName && m.author === myName) return;
+      var since = _msgSeenAt(map, key, m.orderId);
+      if (since && m.createdAt <= since) return;
+      out.push({ m: m, name: c.name });
+    });
+  });
+  return out.sort(function(a, b) { return a.m.createdAt < b.m.createdAt ? 1 : -1; });
+}
+
+// Fallback list for an empty panel — most recent messages from anyone but
+// you, regardless of read state.
+function recentMessageList(limit) {
+  var myName = localStorage.getItem(MSG_STAFF_NAME_KEY) || '';
+  return MESSAGES_DATA
+    .filter(function(m) { return !myName || m.author !== myName; })
+    .slice()
+    .sort(function(a, b) { return a.createdAt < b.createdAt ? 1 : -1; })
+    .slice(0, limit)
+    .map(function(m) { return { m: m, name: m.customerName || m.customerKey }; });
+}
+
+// A JS string literal safe to sit inside a double-quoted HTML attribute.
+// The value has to survive verbatim — openMessagesForCustomer() matches on
+// the raw customer name, so HTML-escaping it (as esc() would) breaks the
+// lookup for anyone with an "&" or a quote in their name.
+function _msgAttrArg(value) {
+  return JSON.stringify(String(value == null ? '' : value))
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+function _msgPanelRowHtml(entry, unread) {
+  var m = entry.m;
+  var when = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  var tag = m.orderLabel
+    ? '<span class="msg-order-tag">📦 ' + esc(m.orderLabel) + '</span>' : '';
+  return '<button type="button" class="msg-panel-row' + (unread ? ' unread' : '') + '"'
+    + ' onclick="openMessageFromPanel(' + _msgAttrArg(entry.name)
+      + ',' + _msgAttrArg(m.orderId || '') + ')">'
+    + '<div class="msg-panel-row-top">'
+    + '<span class="msg-author">' + esc(m.author || 'Unknown') + '</span>'
+    + '<span class="msg-panel-who">→ ' + esc(entry.name || 'Unknown') + '</span>'
+    + '<span class="msg-time">' + esc(when) + '</span>'
+    + '</div>'
+    + tag
+    + '<div class="msg-panel-row-text">' + esc(m.text) + '</div>'
+    + '</button>';
+}
+
+function renderMessagePanel() {
+  var panel = document.getElementById('msgPanel');
+  if (!panel) return;
+  var list  = unreadMessageList();
+  var empty = !list.length;
+  if (empty) list = recentMessageList(MSG_PANEL_RECENT);
+
+  var head = '<div class="msg-panel-head">'
+    + (empty ? 'No new messages' : list.length + ' new message' + (list.length === 1 ? '' : 's'))
+    + '</div>';
+  var body = list.length
+    ? list.map(function(e) { return _msgPanelRowHtml(e, !empty); }).join('')
+    : '<div class="msg-panel-empty">Nothing here yet.</div>';
+  panel.innerHTML = head + body
+    + '<button type="button" class="msg-panel-foot" onclick="openAllMessages()">Open Customers →</button>';
+}
+
+function messagePanelOpen() {
+  var panel = document.getElementById('msgPanel');
+  return !!panel && panel.classList.contains('open');
+}
+
+// Same fixed-position + clamp trick as showMessagePop(): the panel hangs
+// below the fixed .topbar, where an absolutely-positioned child would not
+// paint.
+function showMessagePanel() {
+  var panel = document.getElementById('msgPanel');
+  var btn   = document.querySelector('.msg-bell-btn');
+  if (!panel || !btn) return;
+  hideMessagePop();
+  renderMessagePanel();
+  if (panel.parentElement !== document.body) document.body.appendChild(panel);
+  panel.classList.add('open');
+  var r    = btn.getBoundingClientRect();
+  var w    = panel.offsetWidth;
+  var left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+  panel.style.top  = (r.bottom + 10) + 'px';
+  panel.style.left = left + 'px';
+}
+
+function hideMessagePanel() {
+  var panel = document.getElementById('msgPanel');
+  if (panel) panel.classList.remove('open');
+}
+
+function messageBellClick(event) {
+  if (event) event.stopPropagation();
+  if (messagePanelOpen()) hideMessagePanel();
+  else showMessagePanel();
+}
+
+// A row lands on the thread the message actually lives in. Opening that
+// thread is what marks it read, so nothing is cleared here.
+function openMessageFromPanel(name, orderId) {
+  hideMessagePanel();
+  var order = (orderId && typeof ORDERS !== 'undefined')
+    ? ORDERS.find(function(o) { return o.id === orderId; }) : null;
+  if (order && typeof openOrderMessages === 'function') openOrderMessages(orderId);
+  else openMessagesForCustomer(name);
+}
+
+function openAllMessages() {
+  hideMessagePanel();
   if (typeof sbNav === 'function') sbNav('custom-orders', 'customers');
   else if (typeof switchTab === 'function') switchTab('customers');
 }
+
+// Click-outside and Escape close it, like the other topbar popovers.
+document.addEventListener('click', function(e) {
+  if (!messagePanelOpen()) return;
+  if (e.target.closest('#msgPanel') || e.target.closest('.msg-bell-wrap')) return;
+  hideMessagePanel();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') hideMessagePanel();
+});
 
 // Pops the bubble when the unread total grows (someone asked something),
 // and once on the first load after boot if messages are already waiting.

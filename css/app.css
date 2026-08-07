@@ -1847,6 +1847,58 @@
       to   { opacity: 1; transform: none; }
     }
 
+    /* ── Bell panel: the unread messages themselves ──── */
+    /* position:fixed for the same reason as .msg-pop — it hangs below the
+       fixed .topbar. showMessagePanel() sets top/left in viewport coords. */
+    .msg-panel {
+      display: none; position: fixed;
+      width: min(340px, calc(100vw - 16px));
+      max-height: min(60vh, 460px); overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--bdr);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      z-index: 401;
+    }
+    .msg-panel.open { display: block; animation: msgPopIn var(--dur-med) var(--ease-smooth); }
+    .msg-panel-head {
+      padding: 10px 14px;
+      font-family: var(--font-head); font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .04em;
+      color: var(--text3);
+      border-bottom: 1px solid var(--bdr-light);
+      position: sticky; top: 0; background: var(--surface);
+    }
+    .msg-panel-row {
+      display: block; width: 100%; text-align: left;
+      padding: 10px 14px; border: 0;
+      border-bottom: 1px solid var(--bdr-light);
+      background: none; color: var(--text); cursor: pointer;
+      font: inherit;
+    }
+    .msg-panel-row:hover { background: var(--nav); }
+    .msg-panel-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .msg-panel-row.unread { border-left: 3px solid var(--accent); }
+    .msg-panel-row-top {
+      display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 3px;
+    }
+    .msg-panel-who { font-size: 11px; color: var(--text3); }
+    .msg-panel-row-top .msg-time { margin-left: auto; }
+    .msg-panel-row-text {
+      font-size: 13px; line-height: 1.35; color: var(--text2);
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .msg-panel-empty { padding: 14px; font-size: 13px; color: var(--text3); }
+    .msg-panel-foot {
+      display: block; width: 100%; padding: 10px 14px;
+      border: 0; background: none; cursor: pointer;
+      font-family: var(--font-head); font-size: 12px; font-weight: 700;
+      color: var(--accent); text-align: center;
+    }
+    .msg-panel-foot:hover { background: var(--nav); }
+
     /* ── Inline customer edit form ───────────── */
     .ct-exp-edit-form {
       padding: 10px 20px 12px;
