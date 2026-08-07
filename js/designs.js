@@ -1290,12 +1290,12 @@ function _dsnGuideRefresh() {
   _dsnGuideVarRender();
 }
 
-// Lightbox over the guide's own image set
+// Lightbox over the guide's own image set. Only the images page here —
+// the pdf/ai tiles in the same gallery route to dsnGuideViewAttachment,
+// since those need the vector renderer, not an <img>.
 function dsnGuideViewImage(idx) {
-  const src = ((_designsCurrentFull && _designsCurrentFull.images) || [])[idx];
-  if (!src) return;
-  document.getElementById('dsn-img-overlay-img').src = src;
-  document.getElementById('dsn-img-overlay').style.display = 'flex';
+  const d = _designsCurrentFull;
+  dsnLightboxOpen((d && d.images) || [], idx, (d && d.name) || 'Design');
 }
 
 function dsnGuidePrint() { window.print(); }
@@ -1406,16 +1406,152 @@ function designsRemoveImage(idx) {
   designsRenderImagePreviews();
 }
 
-function designsViewImage(idx) {
-  const src = _designsImgQueue[idx];
-  if (!src) return;
-  document.getElementById('dsn-img-overlay-img').src = src;
-  document.getElementById('dsn-img-overlay').style.display = 'flex';
+// ── Image lightbox (carousel) ─────────────────
+// One viewer, two callers: the edit form pages through _designsImgQueue
+// (which includes images staged but not yet saved) and the guide view
+// pages through the saved _designsCurrentFull.images. They are different
+// arrays, so the list is passed in rather than read from a global.
+//
+// Images are base64 data URLs already resident in memory, so paging costs
+// a decode and nothing else — no preloading or spinner is warranted.
+// Note the stored images are capped at 1200px wide by designsHandleImages,
+// so the viewer fits to the window and deliberately offers no zoom: past
+// about 1.5× there is no detail left to magnify, only JPEG artifacts.
+let _dsnLbList  = [];
+let _dsnLbIdx   = 0;
+let _dsnLbTitle = '';
+let _dsnLbKeyHandler   = null;
+let _dsnLbPrevFocus    = null;
+let _dsnLbTouchX       = null;
+
+function dsnLightboxOpen(list, idx, title) {
+  const imgs = (list || []).filter(Boolean);
+  if (!imgs.length) return;
+  _dsnLbList  = imgs;
+  _dsnLbIdx   = Math.min(Math.max(idx || 0, 0), imgs.length - 1);
+  _dsnLbTitle = title || '';
+
+  const overlay = document.getElementById('dsn-img-overlay');
+  if (!overlay) return;
+  _dsnLbPrevFocus = document.activeElement;
+  overlay.style.display = 'flex';
+  _dsnLbRender();
+
+  // Esc/arrows only while open, so the Designs tab keeps its own key
+  // handling (and other tabs keep theirs) the rest of the time.
+  _dsnLbKeyHandler = (e) => {
+    if (e.key === 'Escape')          { e.preventDefault(); designsCloseImageOverlay(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); dsnLightboxGo(1); }
+    else if (e.key === 'ArrowLeft')  { e.preventDefault(); dsnLightboxGo(-1); }
+    else if (e.key === 'Tab')        { _dsnLbTrapFocus(e); }
+  };
+  document.addEventListener('keydown', _dsnLbKeyHandler);
+
+  const stage = document.getElementById('dsn-lb-stage');
+  if (stage) {
+    stage.addEventListener('touchstart', _dsnLbTouchStart, { passive: true });
+    stage.addEventListener('touchend',   _dsnLbTouchEnd,   { passive: true });
+  }
+
+  const closeBtn = document.getElementById('dsn-img-overlay-close');
+  if (closeBtn) closeBtn.focus();
+}
+
+// Keep Tab inside the overlay — without this, tabbing walks the design
+// form behind the backdrop, which is invisible and unusable.
+function _dsnLbTrapFocus(e) {
+  const overlay = document.getElementById('dsn-img-overlay');
+  if (!overlay) return;
+  const items = [...overlay.querySelectorAll('button:not([disabled])')]
+    .filter(el => el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+function _dsnLbRender() {
+  const img = document.getElementById('dsn-img-overlay-img');
+  if (!img) return;
+  const n = _dsnLbList.length;
+  img.src = _dsnLbList[_dsnLbIdx];
+  img.alt = (_dsnLbTitle ? _dsnLbTitle + ' — ' : '') + 'image ' + (_dsnLbIdx + 1) + ' of ' + n;
+
+  const title = document.getElementById('dsn-lb-title');
+  if (title) title.textContent = _dsnLbTitle;
+  const count = document.getElementById('dsn-lb-count');
+  if (count) count.textContent = n > 1 ? (_dsnLbIdx + 1) + ' / ' + n : '';
+
+  // A single-image design gets no arrows and no filmstrip — the controls
+  // would all be no-ops.
+  const solo = n < 2;
+  ['dsn-lb-prev', 'dsn-lb-next'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = solo ? 'none' : '';
+  });
+
+  const film = document.getElementById('dsn-lb-film');
+  if (!film) return;
+  if (solo) { film.style.display = 'none'; film.innerHTML = ''; return; }
+  film.style.display = '';
+  film.innerHTML = _dsnLbList.map((src, i) =>
+    `<img class="dsn-lb-thumb${i === _dsnLbIdx ? ' on' : ''}" src="${src}"` +
+    ` alt="Show image ${i + 1}" onclick="dsnLightboxJump(${i})">`).join('');
+  const active = film.children[_dsnLbIdx];
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+
+// Wraps around — at the last image, next returns to the first.
+function dsnLightboxGo(delta) {
+  const n = _dsnLbList.length;
+  if (n < 2) return;
+  _dsnLbIdx = (_dsnLbIdx + delta + n) % n;
+  _dsnLbRender();
+}
+
+function dsnLightboxJump(i) {
+  if (i < 0 || i >= _dsnLbList.length) return;
+  _dsnLbIdx = i;
+  _dsnLbRender();
+}
+
+// Swipe on touch — the app runs on an iPad at markets, where the arrow
+// keys don't exist and the arrows are a small target.
+function _dsnLbTouchStart(e) {
+  _dsnLbTouchX = e.changedTouches && e.changedTouches.length ? e.changedTouches[0].clientX : null;
+}
+function _dsnLbTouchEnd(e) {
+  if (_dsnLbTouchX == null || !e.changedTouches || !e.changedTouches.length) return;
+  const dx = e.changedTouches[0].clientX - _dsnLbTouchX;
+  _dsnLbTouchX = null;
+  if (Math.abs(dx) > 40) dsnLightboxGo(dx < 0 ? 1 : -1); // drag left = next
 }
 
 function designsCloseImageOverlay() {
-  document.getElementById('dsn-img-overlay').style.display = 'none';
-  document.getElementById('dsn-img-overlay-img').src = '';
+  const overlay = document.getElementById('dsn-img-overlay');
+  if (overlay) overlay.style.display = 'none';
+  const img = document.getElementById('dsn-img-overlay-img');
+  if (img) img.src = '';
+  const film = document.getElementById('dsn-lb-film');
+  if (film) film.innerHTML = '';
+  if (_dsnLbKeyHandler) {
+    document.removeEventListener('keydown', _dsnLbKeyHandler);
+    _dsnLbKeyHandler = null;
+  }
+  const stage = document.getElementById('dsn-lb-stage');
+  if (stage) {
+    stage.removeEventListener('touchstart', _dsnLbTouchStart);
+    stage.removeEventListener('touchend',   _dsnLbTouchEnd);
+  }
+  _dsnLbTouchX = null;
+  _dsnLbList = [];
+  if (_dsnLbPrevFocus && _dsnLbPrevFocus.focus) _dsnLbPrevFocus.focus();
+  _dsnLbPrevFocus = null;
+}
+
+function designsViewImage(idx) {
+  const name = document.getElementById('dsn-name');
+  dsnLightboxOpen(_designsImgQueue, idx, (name && name.value.trim()) || 'Design');
 }
 
 // ── File attachments (Illustrator files, PDFs, etc. — stored in R2) ──

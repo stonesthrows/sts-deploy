@@ -655,11 +655,59 @@
 .dsn-attach-del { flex:none; width:20px; height:20px; border-radius:50%; background:rgba(192,57,43,.9); color:var(--accent-ink); border:none; cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
 .dsn-form-actions { display:flex; gap:8px; padding-top:4px; flex-wrap:wrap; }
 @media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
-/* Lightbox */
-#dsn-img-overlay { position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:9999; display:none; align-items:center; justify-content:center; animation:dsnFade var(--dur-med) var(--ease-smooth); }
+/* Lightbox carousel — a design's reference images, paged.
+   The --dsn-lb-* tokens live in tokens.css and are deliberately the same
+   in both themes; see the comment there for why a photo viewer keeps dark
+   chrome even in light mode. */
+#dsn-img-overlay {
+  position:fixed; inset:0; z-index:9999; display:none; flex-direction:column;
+  background:var(--dsn-lb-scrim);
+  animation:dsnFade var(--dur-med) var(--ease-smooth);
+}
 @keyframes dsnFade { from { opacity:0; } }
-#dsn-img-overlay img { max-width:92vw; max-height:88vh; border-radius:var(--rad-md); object-fit:contain; }
-#dsn-img-overlay-close { position:absolute; top:16px; right:20px; font-size:28px; color:var(--accent-ink); cursor:pointer; line-height:1; }
+
+.dsn-lb-top { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; flex:none; }
+.dsn-lb-title { font-size:13px; font-weight:600; color:var(--dsn-lb-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsn-lb-top-right { display:flex; align-items:center; gap:14px; flex:none; }
+.dsn-lb-count { font-size:11.5px; color:var(--dsn-lb-dim); font-variant-numeric:tabular-nums; }
+.dsn-lb-btn {
+  background:none; border:none; padding:0; cursor:pointer; line-height:1;
+  font:inherit; font-size:26px; color:var(--dsn-lb-ink);
+}
+.dsn-lb-btn:hover { color:#fff; }
+
+.dsn-lb-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:18px; padding:0 24px; }
+#dsn-img-overlay-img { max-width:100%; max-height:100%; min-height:0; border-radius:var(--rad-md); object-fit:contain; }
+.dsn-lb-arrow {
+  flex:none; width:38px; height:38px; border-radius:50%; cursor:pointer;
+  display:grid; place-items:center; font:inherit; font-size:17px;
+  background:var(--dsn-lb-ctl); color:var(--dsn-lb-ink);
+  border:1px solid var(--dsn-lb-line);
+  transition:background var(--dur-fast) var(--ease-smooth);
+}
+.dsn-lb-arrow:hover { background:var(--dsn-lb-ctl-hi); }
+.dsn-lb-btn:focus-visible, .dsn-lb-arrow:focus-visible { outline:2px solid var(--accent-mid); outline-offset:2px; }
+
+.dsn-lb-film { flex:none; display:flex; gap:8px; padding:14px 20px; overflow-x:auto; border-top:1px solid var(--dsn-lb-line); }
+.dsn-lb-thumb {
+  width:52px; height:52px; flex:none; border-radius:var(--rad-sm); object-fit:cover;
+  cursor:pointer; opacity:.5; border:2px solid transparent;
+  transition:opacity var(--dur-fast) var(--ease-smooth);
+}
+.dsn-lb-thumb:hover { opacity:.85; }
+.dsn-lb-thumb.on { opacity:1; border-color:var(--accent-mid); }
+.dsn-lb-thumb:focus-visible { outline:2px solid var(--accent-mid); outline-offset:2px; }
+
+/* Touch: swipe carries navigation, so the arrows shrink out of the way */
+@media (max-width:600px) {
+  .dsn-lb-stage { gap:8px; padding:0 10px; }
+  .dsn-lb-arrow { width:32px; height:32px; font-size:15px; }
+  .dsn-lb-thumb { width:44px; height:44px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  #dsn-img-overlay { animation:none; }
+  .dsn-lb-arrow, .dsn-lb-thumb { transition:none; }
+}
 @media (max-width:600px) {
   .dsn-grid { grid-template-columns:1fr 1fr; }
   .dsn-card-thumb-wrap { height:90px; }

@@ -26,7 +26,7 @@
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
-  <link rel="stylesheet" href="css/tokens.css?v=20260806b">
+  <link rel="stylesheet" href="css/tokens.css?v=20260807a">
   <link rel="stylesheet" href="css/app.css?v=20260807a">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -2319,7 +2319,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260806d">
+<link rel="stylesheet" href="css/inventory.css?v=20260807b">
 <link rel="stylesheet" href="css/design-vectors.css?v=20260806a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
@@ -2664,10 +2664,22 @@
   <div class="dvec-stage" id="dvec-stage"></div>
 </div>
 
-<!-- Designs image lightbox -->
-<div id="dsn-img-overlay" onclick="if(event.target===this)designsCloseImageOverlay()">
-  <span id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()">×</span>
-  <img id="dsn-img-overlay-img" src="" alt="Design reference image">
+<!-- Designs image lightbox — carousel over one design's reference images -->
+<div id="dsn-img-overlay" role="dialog" aria-modal="true" aria-label="Design reference images"
+     onclick="if(event.target===this)designsCloseImageOverlay()">
+  <div class="dsn-lb-top">
+    <div class="dsn-lb-title" id="dsn-lb-title"></div>
+    <div class="dsn-lb-top-right">
+      <span class="dsn-lb-count" id="dsn-lb-count"></span>
+      <button class="dsn-lb-btn" id="dsn-img-overlay-close" onclick="designsCloseImageOverlay()" aria-label="Close (Esc)">×</button>
+    </div>
+  </div>
+  <div class="dsn-lb-stage" id="dsn-lb-stage">
+    <button class="dsn-lb-arrow" id="dsn-lb-prev" onclick="dsnLightboxGo(-1)" aria-label="Previous image">‹</button>
+    <img id="dsn-img-overlay-img" src="" alt="">
+    <button class="dsn-lb-arrow" id="dsn-lb-next" onclick="dsnLightboxGo(1)" aria-label="Next image">›</button>
+  </div>
+  <div class="dsn-lb-film" id="dsn-lb-film"></div>
 </div>
 
 <!-- Design Variation editor modal -->
@@ -3870,7 +3882,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=28"></script>
+<script src="js/designs.js?v=29"></script>
 <script src="js/design-vectors.js?v=3"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260806a"></script>

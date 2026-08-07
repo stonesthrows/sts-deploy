@@ -143,6 +143,20 @@
       /* Blend strengths for deriving a stage's column head and body from
          its hue. Dark needs a stronger mix to read at all. */
       --mix-head: 13%; --mix-head-fg: 72%; --mix-body: 5%;
+
+      /* ── Design Library image lightbox ──
+         Deliberately NOT redefined for dark: this is a photo viewer, and
+         light chrome around a photo changes how the metal and stone colour
+         read. The scrim stays dark in both themes, so its inks and controls
+         must stay light in both — a --text token here would flip to
+         near-black in light mode and disappear against the scrim. Defined
+         once, on purpose. */
+      --dsn-lb-ink:    #E9EAEC;
+      --dsn-lb-dim:    #8B8D94;
+      --dsn-lb-scrim:  rgba(8, 8, 10, 0.88);
+      --dsn-lb-ctl:    rgba(255, 255, 255, 0.08);
+      --dsn-lb-ctl-hi: rgba(255, 255, 255, 0.18);
+      --dsn-lb-line:   rgba(255, 255, 255, 0.10);
     }
 
     /* ── Dark ──
