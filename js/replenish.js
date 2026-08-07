@@ -1,8 +1,17 @@
 // ════════════════════════════════════════════
-//  REPLENISHMENT ENGINE  —  js/replenish.js
+//  ASSORTMENT ENGINE  —  js/replenish.js
+//  (tab id stays 'replenish' — the label is what changed. Renaming the id
+//   would mean touching NAV_GROUPS, the tab hook, the panel id and every
+//   user's persisted sts-nav-sub-inventory value for no visible gain.)
+//
 //  Phase 6 of the costing/inventory build (the capstone), now sales-driven.
-//  One page that answers: what's selling, what's low, whether the studio
-//  can build it from material on hand, and what to order first.
+//  One page that answers BOTH halves of the assortment question: what's
+//  selling and needs building, AND what has stopped selling and should be
+//  retired. The second half is why the page reads the Square catalog and
+//  not just the sales feed — a piece that never sells never appears in
+//  sales data, so it is invisible to any sales-driven list by construction.
+//
+//  What's low / what to build (the original engine, unchanged below):
 //    · Weekend market sales (Sat 00:00 → Mon 00:00, COMPLETED orders at
 //      the market location) are pulled from Square and stored server-side
 //      via /api/weekend-sales so every device sees the same numbers.
@@ -25,16 +34,39 @@
 //    · "→ Queue" creates a Restock Queue card (Notion note, block
 //      'Inventory Restock') pre-linked to the design's Square item, so
 //      the timers and Phase 5 close-out complete the loop.
+//  What's dead / what to sunset (the Assortment half):
+//    · The item universe is the whole Square catalog under the app's
+//      Inventory categories, not just design-linked items — see
+//      _rpLoadUniverse. Services, shipping, gift cards and .Discontinued
+//      categories are excluded using bestsellers.js's own skip regexes.
+//    · Every item gets a state: restock / healthy / overstocked / fading /
+//      sunset / never. See _rpClassify for the exact ladder.
+//    · "Sunsetting" writes replenishmentActive:false on the linked design,
+//      which is the existing flag _rpComputeQueue already honours — so a
+//      sunset piece drops out of the restock queue with no new plumbing.
 //  Known limit: a size/variation added in Square after a design's item
 //  was first resolved shows up on the next page open (design links are
 //  re-resolved every load); sales history itself is never re-fetched.
 //  Loaded ONLY by jewelry-workflow.html, after inventory.js (needs
-//  INV_LOCATION_ID) — uses toast() from app.js.
+//  INV_LOCATION_ID and the INV_*_CAT_IDS maps) — uses toast() from app.js.
+//  js/assort-chat.js loads after this file and reads _rpRows.
 // ════════════════════════════════════════════
 
 var RP_LOOKBACK_WEEKENDS = 8; // velocity window
 var RP_COVER_WEEKENDS    = 2; // suggested par = velocity × this
 var RP_TOP_SELLERS       = 10;
+
+// ── Assortment thresholds ──────────────────────
+var AS_TRUE_WINDOW    = 12; // weekends of market history behind velTrue/cover
+var AS_STALE_WEEKENDS = 8;  // no sale in N market weekends → sunset candidate
+var AS_FADE_WEEKENDS  = 4;  // no sale in N market weekends → fading
+var AS_COVER_MIN      = 2;  // fewer than N weekends of cover → restock
+var AS_COVER_MAX      = 6;  // more than N weekends of cover, still selling → overstocked
+var AS_TREND_WINDOW   = 4;  // recent N active weekends vs the N before them
+// Cost fallback when a design has no BOM to price: assume material runs
+// this fraction of retail. Rows priced this way are flagged est:true and
+// rendered with a ~ so the capital totals never pretend to be measured.
+var AS_COST_RATIO     = 0.35;
 
 var _rpDesigns   = null; // designs index
 var _rpMaterials = null; // materials library
@@ -48,11 +80,32 @@ var _rpVelWeekends = 0;  // how many weekends fed the velocity math
 var _rpLoading   = false;
 var _rpQueued    = {};   // designId -> true, added to production queue this visit
 
+// ── Assortment state ───────────────────────────
+var _rpCatalog   = {};   // squareItemId -> { id, name, category, varIds, price }
+var _rpRows      = [];   // computed assortment rows — the table AND the chat read this
+var _rpActiveKeys = [];  // Saturday keys of final weekends the market actually ran
+var _rpFilter    = 'all';    // active state chip
+var _rpCatFilter = 'all';    // active category filter
+var _rpSort      = { col: 'tied', dir: 'desc' };
+
+// The six states an item can be in, in classifier order. Labels and the
+// colour family are declared once here so the chips, the pills and the
+// chat briefing can never drift apart.
+var AS_STATES = [
+  { key: 'restock',     label: 'Restock',     tone: 'danger' },
+  { key: 'healthy',     label: 'Healthy',     tone: 'ok'     },
+  { key: 'overstocked', label: 'Overstocked', tone: 'info'   },
+  { key: 'fading',      label: 'Fading',      tone: 'warn'   },
+  { key: 'sunset',      label: 'Sunset',      tone: 'mute'   },
+  { key: 'never',       label: 'Never sold',  tone: 'danger' },
+];
+
 function _rpEsc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function replenishInit() {
+  if (typeof acRenderPanel === 'function') acRenderPanel();
   rpRender(true);
 }
 
@@ -92,7 +145,121 @@ function _rpLoadAll() {
   return Promise.all([pDesigns, pMats, pSet, pSales])
     .then(_rpSyncSales)
     .then(_rpResolveDesignItems)
-    .then(function() { _rpComputeVelocity(); return _rpLoadOnHand(); });
+    .then(function() { _rpComputeVelocity(); return _rpLoadOnHand(); })
+    .then(_rpLoadUniverse);
+}
+
+// ── The item universe (catalog-side, not sales-side) ──
+// Everything above this point is driven by what SOLD. A piece that has
+// never sold produces no sales record, so it can only be found from the
+// catalog. This walks every Square category the Inventory tab knows about
+// and pulls the items plus their on-hand counts.
+//
+// Reads INV_*_CAT_IDS from js/inventory.js. Those are `const`s in another
+// script; bestsellers.js's skip regexes load AFTER this file, so both are
+// read inside function bodies and typeof-guarded rather than at parse time.
+function _rpCatFamilies() {
+  var fams = [];
+  var add = function(label, map) {
+    if (!map) return;
+    var ids = [];
+    Object.keys(map).forEach(function(k) {
+      (map[k] || []).forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); });
+    });
+    if (ids.length) fams.push({ label: label, ids: ids });
+  };
+  add('Rings',             typeof INV_RING_CAT_IDS       !== 'undefined' ? INV_RING_CAT_IDS       : null);
+  add('Meditation Rings',  typeof INV_MEDITATION_CAT_IDS !== 'undefined' ? INV_MEDITATION_CAT_IDS : null);
+  add('Pendants',          typeof INV_PENDANT_CAT_IDS    !== 'undefined' ? INV_PENDANT_CAT_IDS    : null);
+  add('Permanent Jewelry', typeof INV_PERM_CAT_IDS       !== 'undefined' ? INV_PERM_CAT_IDS       : null);
+  add('Faux Nose Rings',   typeof INV_NOSERING_CAT_IDS   !== 'undefined' ? INV_NOSERING_CAT_IDS   : null);
+  add('Earrings',          typeof INV_CAT_IDS            !== 'undefined' ? INV_CAT_IDS            : null);
+  return fams;
+}
+
+// Non-stock lines (services, shipping, gift cards, retired categories)
+// would otherwise show as "never sold, N on hand" forever. Reuse
+// bestsellers.js's regexes so both pages skip exactly the same things;
+// fall back to local copies if that file hasn't parsed yet.
+function _rpSkipName(name) {
+  var whole = typeof BS_SKIP_NAME_RE !== 'undefined' ? BS_SKIP_NAME_RE
+    : /^(repair|resize|sizing|shipping|deposit|gift ?card|custom order|upgrade to .*chain)$/i;
+  var any = typeof BS_SKIP_NAME_ANY_RE !== 'undefined' ? BS_SKIP_NAME_ANY_RE
+    : /\b(shipping|postage|re-?siz(e|ed|ing)|gift ?card|deposit)\b/i;
+  var n = String(name || '').trim();
+  return !n || whole.test(n) || any.test(n);
+}
+
+// Square moved item→category from a scalar to a list; handle both shapes.
+function _rpItemCatIds(itemData) {
+  var out = [];
+  if (itemData.category_id) out.push(itemData.category_id);
+  (itemData.categories || []).forEach(function(c){ if (c && c.id) out.push(c.id); });
+  if (itemData.reporting_category && itemData.reporting_category.id) out.push(itemData.reporting_category.id);
+  return out;
+}
+
+async function _rpLoadUniverse() {
+  var fams = _rpCatFamilies();
+  var catOf = {}, allIds = [];
+  fams.forEach(function(f) {
+    f.ids.forEach(function(id){ catOf[id] = f.label; if (allIds.indexOf(id) < 0) allIds.push(id); });
+  });
+  if (!allIds.length) return; // no categories configured — table falls back to linked designs only
+
+  _rpStatus('Reading the Square catalog…');
+  _rpCatalog = {};
+  var newVarIds = [], cursor = null, guard = 0;
+  do {
+    var body = { category_ids: allIds, limit: 100 };
+    if (cursor) body.cursor = cursor;
+    var json;
+    try { json = await _rpSq('/v2/catalog/search-catalog-items', body); }
+    catch (e) { break; } // partial universe still renders; retried next open
+    (json.items || []).forEach(function(it) {
+      var d = it.item_data || {};
+      if (d.is_archived) return;
+      if (d.product_type && d.product_type !== 'REGULAR') return; // gift cards, appointments
+      if (_rpSkipName(d.name)) return;
+      var cats = _rpItemCatIds(d);
+      var fam = null;
+      for (var i = 0; i < cats.length && !fam; i++) fam = catOf[cats[i]] || null;
+      if (!fam) return; // matched the search but not one of our families
+
+      var vars = (d.variations || []);
+      var price = null;
+      vars.forEach(function(v) {
+        var vd = v.item_variation_data || {};
+        if (price == null && vd.price_money && vd.price_money.amount) price = vd.price_money.amount / 100;
+      });
+      var varIds = vars.map(function(v){ return v.id; });
+      _rpCatalog[it.id] = { id: it.id, name: d.name || '', category: fam, varIds: varIds, price: price };
+      // Keep the shared item maps in step so on-hand pooling works the
+      // same way for catalog-only items as it does for linked designs.
+      if (!_rpItemNames[it.id]) _rpItemNames[it.id] = d.name || '';
+      _rpItemVars[it.id] = varIds;
+      varIds.forEach(function(v){ if (_rpOnHand[v] == null) newVarIds.push(v); });
+    });
+    cursor = json.cursor || null;
+  } while (cursor && ++guard < 100);
+
+  if (!newVarIds.length) return;
+  _rpStatus('Counting stock on hand…');
+  // Square caps batch-retrieve at 100 ids per call
+  var batches = [];
+  for (var j = 0; j < newVarIds.length; j += 100) batches.push(newVarIds.slice(j, j + 100));
+  await Promise.all(batches.map(function(batch) {
+    return _rpSq('/v2/inventory/counts/batch-retrieve', {
+      catalog_object_ids: batch, location_ids: [INV_LOCATION_ID],
+    }).then(function(data) {
+      (data.counts || []).forEach(function(c) {
+        // Square reports negatives for pieces sold but never received.
+        // Left unfloored, a -19 reads as "you are 19 in the hole" and
+        // invents restock work that doesn't exist.
+        _rpOnHand[c.catalog_object_id] = Math.max(parseInt(c.quantity, 10) || 0, 0);
+      });
+    }).catch(function(){});
+  }));
 }
 
 // ── Weekend date helpers ───────────────────────
@@ -345,6 +512,195 @@ function _rpVelTxt(v) {
   return v > 0 ? (Math.round(v * 10) / 10) + '/wk' : '—';
 }
 
+// ══ Assortment metrics ═════════════════════════
+//
+// ⚠ There are deliberately TWO velocities in this file, and conflating
+// them is the easiest way to break this page.
+//
+//   _rpVelocity  (above)  — recency-weighted, and it SKIPS zero-sale
+//     weekends, because a skipped market is not zero demand. Right for
+//     "how many should I build", which is all it has ever driven.
+//
+//   velTrue      (below)  — divides by every weekend the market actually
+//     ran, zeros included. Right for "has this stopped selling", where
+//     the zero weekends ARE the signal. Using the weighted velocity for
+//     sunset decisions would make a piece that sold twice a year look
+//     identical to one that sells every weekend.
+//
+// The denominator for velTrue is "active" weekends — final weekends with
+// at least one sale of anything. That excludes markets nobody worked
+// (which would drag every item toward dead) while still counting the
+// weekends the market ran and this piece didn't sell.
+function _rpActiveWeekendKeys() {
+  var weekends = (_rpSales && _rpSales.weekends) || {};
+  return Object.keys(weekends).sort().reverse().filter(function(k) {
+    var e = weekends[k];
+    if (!e || e.final !== true) return false;
+    if ((e.uncatalogued || 0) > 0) return true;
+    var its = e.items || {};
+    return Object.keys(its).some(function(id){ return its[id].qty > 0; });
+  });
+}
+
+// Units sold for one item over a slice of active weekends
+function _rpUnitsOver(itemId, keys) {
+  var weekends = (_rpSales && _rpSales.weekends) || {};
+  var n = 0;
+  keys.forEach(function(k) {
+    var e = weekends[k]; if (!e || !e.items) return;
+    var it = e.items[itemId];
+    if (it && it.qty > 0) n += it.qty;
+  });
+  return n;
+}
+
+// Lifetime units + revenue across EVERY stored weekend, backfill included
+function _rpLifetime(itemId) {
+  var weekends = (_rpSales && _rpSales.weekends) || {};
+  var units = 0, revenue = 0;
+  Object.keys(weekends).forEach(function(k) {
+    var e = weekends[k]; if (!e || !e.items) return;
+    var it = e.items[itemId]; if (!it) return;
+    units += it.qty || 0;
+    revenue += it.revenue || 0;
+  });
+  return { units: units, revenue: Math.round(revenue * 100) / 100 };
+}
+
+// How many active weekends back the last sale was. 0 = sold this weekend,
+// null = never sold in any stored weekend.
+function _rpWeekendsSinceSale(itemId) {
+  for (var i = 0; i < _rpActiveKeys.length; i++) {
+    if (_rpUnitsOver(itemId, [_rpActiveKeys[i]]) > 0) return i;
+  }
+  return null;
+}
+
+// Material cost of one piece from the design's BOM (metals carry waste).
+// Null when there is no BOM, or no material in it carries a cost.
+function _rpUnitCost(d) {
+  if (!d || !Array.isArray(d.bom) || !d.bom.length) return null;
+  var matById = {};
+  (_rpMaterials || []).forEach(function(m){ matById[m.notionPageId] = m; });
+  var total = 0, any = false;
+  d.bom.forEach(function(l) {
+    if (!l.materialId || !(l.qty > 0)) return;
+    var m = matById[l.materialId]; if (!m) return;
+    var unit = m.currentCostPerUnit;
+    if (unit == null || isNaN(unit)) return;
+    total += _rpPerPiece(d, l, m) * unit;
+    any = true;
+  });
+  return any ? total : null;
+}
+
+// Cost basis for "capital sitting in the case", with an honest fallback
+// chain. est:true means it was derived from retail, not measured.
+function _rpCostBasis(d, cat) {
+  var measured = _rpUnitCost(d);
+  if (measured != null) return { cost: measured, est: false };
+  var retail = (d && d.retailPriceOverride != null) ? d.retailPriceOverride
+    : (cat && cat.price != null ? cat.price : null);
+  if (retail != null) return { cost: retail * AS_COST_RATIO, est: true };
+  return { cost: null, est: false };
+}
+
+// Recent N active weekends vs the N before → up / flat / down.
+// Needs a full prior window to say anything; short history is 'flat'.
+function _rpTrend(itemId) {
+  var w = AS_TREND_WINDOW;
+  if (_rpActiveKeys.length < w * 2) return 'flat';
+  var recent = _rpUnitsOver(itemId, _rpActiveKeys.slice(0, w)) / w;
+  var prior  = _rpUnitsOver(itemId, _rpActiveKeys.slice(w, w * 2)) / w;
+  if (prior === 0 && recent === 0) return 'flat';
+  if (prior === 0) return 'up';
+  var change = (recent - prior) / prior;
+  if (change > 0.25) return 'up';
+  if (change < -0.25) return 'down';
+  return 'flat';
+}
+
+// The state ladder — first match wins. Order matters: a piece with stock
+// and no sales at all is "never", not "restock", even though its cover is
+// technically zero.
+function _rpClassify(r) {
+  if (r.onHand > 0 && r.unitsLTD === 0) return 'never';
+  if (r.onHand > 0 && r.sinceSale != null && r.sinceSale >= AS_STALE_WEEKENDS) return 'sunset';
+  if (r.trend === 'down' && r.sinceSale != null && r.sinceSale >= AS_FADE_WEEKENDS) return 'fading';
+  // A manually set par stays authoritative — that contract predates this
+  // page and the cover test only applies where no par has been set.
+  if (r.par != null) return r.onHand <= r.par ? 'restock' : (r.cover > AS_COVER_MAX ? 'overstocked' : 'healthy');
+  if (r.cover < AS_COVER_MIN) return 'restock';
+  if (r.cover > AS_COVER_MAX) return 'overstocked';
+  return 'healthy';
+}
+
+// ── Build one row per catalog item ─────────────
+// Universe = every catalog item, plus any linked design whose item never
+// came back from the catalog walk (deleted category, manual pin) so a
+// design with a par can never silently vanish from its own page.
+function _rpComputeRows() {
+  _rpActiveKeys = _rpActiveWeekendKeys();
+  var window = _rpActiveKeys.slice(0, AS_TRUE_WINDOW);
+  var denom = window.length;
+
+  var designByItem = {};
+  (_rpDesigns || []).forEach(function(d) {
+    if (!d.squareItemId) return;
+    var itemId = _rpDesignItemId(d);
+    if (itemId && !designByItem[itemId]) designByItem[itemId] = d;
+  });
+
+  // Queue rows carry the BOM/buildability/shortfall math — index them by
+  // design so a restock row can show "material for 6 ✓" and a → Queue button.
+  var queueByDesign = {};
+  _rpComputeQueue().forEach(function(q){ queueByDesign[q.d.id] = q; });
+
+  var itemIds = Object.keys(_rpCatalog);
+  Object.keys(designByItem).forEach(function(id){ if (!_rpCatalog[id]) itemIds.push(id); });
+
+  var rows = itemIds.map(function(itemId) {
+    var cat = _rpCatalog[itemId] || null;
+    var d = designByItem[itemId] || null;
+
+    var onHand = 0, tracked = false;
+    ((cat && cat.varIds) || _rpItemVars[itemId] || []).forEach(function(v) {
+      if (_rpOnHand[v] != null) { onHand += _rpOnHand[v]; tracked = true; }
+    });
+
+    var lt = _rpLifetime(itemId);
+    var velTrue = denom ? _rpUnitsOver(itemId, window) / denom : 0;
+    var basis = _rpCostBasis(d, cat);
+
+    var r = {
+      itemId: itemId,
+      name: (d && d.name) || (cat && cat.name) || _rpItemNames[itemId] || 'Unknown item',
+      category: (cat && cat.category) || 'Unlinked',
+      design: d,
+      onHand: onHand,
+      tracked: tracked,
+      par: (d && d.parLevel != null) ? d.parLevel : null,
+      velWeighted: _rpVelocity[itemId] || 0,
+      velTrue: velTrue,
+      cover: velTrue > 0 ? onHand / velTrue : Infinity,
+      unitsLTD: lt.units,
+      revenueLTD: lt.revenue,
+      sinceSale: _rpWeekendsSinceSale(itemId),
+      trend: _rpTrend(itemId),
+      unitCost: basis.cost,
+      costEst: basis.est,
+      tied: basis.cost != null ? basis.cost * onHand : null,
+      q: d ? (queueByDesign[d.id] || null) : null,
+    };
+    r.state = _rpClassify(r);
+    return r;
+  });
+
+  // Items with zero stock that have also never sold are catalog noise
+  // (placeholders, retired lines Square still lists) — nothing to decide.
+  return rows.filter(function(r){ return r.onHand > 0 || r.unitsLTD > 0; });
+}
+
 // ── On-hand counts (live from Square) ──────────
 function _rpLoadOnHand() {
   var idSet = {};
@@ -439,70 +795,251 @@ function _rpComputeQueue() {
 
 // ── Render ─────────────────────────────────────
 async function rpRender(reload) {
-  var body = document.getElementById('rp-body');
+  var body = document.getElementById('as-body');
   if (!body) return;
   if (_rpLoading) return;
   if (reload || _rpDesigns === null) {
     _rpLoading = true;
-    body.innerHTML = '<tr><td colspan="8" class="oh-empty">Checking weekend sales, Square stock, and material levels…</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="oh-empty">Checking weekend sales, the Square catalog, stock, and material levels…</td></tr>';
     await _rpLoadAll();
     _rpLoading = false;
   }
 
-  var rows = _rpComputeQueue();
-  var linked = (_rpDesigns || []).filter(function(d){ return d.squareItemId; }).length;
+  _rpRows = _rpComputeRows();
 
   var note = document.getElementById('rp-note');
   if (note) {
-    note.textContent = linked
-      ? rows.length + ' design' + (rows.length !== 1 ? 's' : '') + ' at or below par · ' + linked + ' linked design' + (linked !== 1 ? 's' : '') + ' checked'
-        + (_rpVelWeekends ? ' · velocity from last ' + _rpVelWeekends + ' market weekend' + (_rpVelWeekends !== 1 ? 's' : '') : ' · no market sales history yet')
-      : 'No designs are linked to Square items yet — link them in Designs → (open design) → Costing, then set par levels here.';
+    note.textContent = _rpRows.length
+      ? _rpRows.length + ' piece' + (_rpRows.length !== 1 ? 's' : '') + ' tracked · '
+        + _rpActiveKeys.length + ' market weekend' + (_rpActiveKeys.length !== 1 ? 's' : '') + ' of history'
+      : 'No stock or sales history found yet — check the Square categories in the Inventory tab.';
   }
 
+  _rpRenderKpis();
+  _rpRenderFilters();
+  _rpRenderTable();
+
   _rpRenderTopSellers();
-  _rpRenderShoppingList(rows);
+  _rpRenderShoppingList(_rpComputeQueue());
+  _rpRenderParTable();
+}
+
+function _rpMoney(n) {
+  if (n == null) return '—';
+  return '$' + Math.round(n).toLocaleString();
+}
+
+// ── Scorecard ──────────────────────────────────
+function _rpRenderKpis() {
+  var el = document.getElementById('as-kpis');
+  if (!el) return;
+  var dead = 0, deadN = 0, total = 0, never = 0, below = 0, covers = [], anyEst = false;
+  _rpRows.forEach(function(r) {
+    if (r.tied != null) { total += r.tied; if (r.costEst) anyEst = true; }
+    if (r.state === 'sunset' || r.state === 'never') { deadN++; if (r.tied != null) dead += r.tied; }
+    if (r.state === 'never') never++;
+    if (r.state === 'restock') below++;
+    if (isFinite(r.cover)) covers.push(r.cover);
+  });
+  // Median, not mean: a handful of dead pieces sit on 40+ weekends of
+  // cover and drag an average clean out of the target band, so the tile
+  // would read "8.5, target 2–6" on a lineup that is mostly healthy.
+  var mid = null;
+  if (covers.length) {
+    covers.sort(function(a, b){ return a - b; });
+    var h = Math.floor(covers.length / 2);
+    mid = covers.length % 2 ? covers[h] : (covers[h - 1] + covers[h]) / 2;
+    mid = Math.round(mid * 10) / 10;
+  }
+  var tilde = anyEst ? '~' : '';
+
+  var tiles = [
+    { tone: 'crit', v: tilde + _rpMoney(dead), l: 'Dead capital', d: deadN + ' piece' + (deadN !== 1 ? 's' : '') + ', no sale in ' + AS_STALE_WEEKENDS + '+ weekends' },
+    { tone: 'warn', v: below,                  l: 'Need restocking', d: 'below par or under ' + AS_COVER_MIN + ' weekends of cover' },
+    { tone: 'info', v: tilde + _rpMoney(total),l: 'Total stock at cost', d: _rpRows.length + ' pieces tracked' },
+    { tone: 'good', v: mid != null ? mid : '—',l: 'Median weekends of cover', d: 'target ' + AS_COVER_MIN + '–' + AS_COVER_MAX },
+    { tone: 'crit', v: never,                  l: 'Never sold', d: 'in stock, zero sales on record' },
+  ];
+  el.innerHTML = tiles.map(function(t) {
+    return '<div class="as-kpi as-kpi-' + t.tone + '">'
+      + '<div class="as-kpi-v">' + t.v + '</div>'
+      + '<div class="as-kpi-l">' + _rpEsc(t.l) + '</div>'
+      + '<div class="as-kpi-d">' + _rpEsc(t.d) + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// ── State chips + category select ──────────────
+function _rpRenderFilters() {
+  var el = document.getElementById('as-filters');
+  if (!el) return;
+  var counts = {};
+  _rpRows.forEach(function(r){ counts[r.state] = (counts[r.state] || 0) + 1; });
+
+  var html = '<button class="as-chip' + (_rpFilter === 'all' ? ' as-chip-on' : '')
+    + '" onclick="rpSetFilter(\'all\')">All ' + _rpRows.length + '</button>';
+  html += AS_STATES.map(function(s) {
+    var n = counts[s.key] || 0;
+    if (!n) return '';
+    return '<button class="as-chip as-chip-' + s.tone + (_rpFilter === s.key ? ' as-chip-on' : '')
+      + '" onclick="rpSetFilter(\'' + s.key + '\')">' + s.label + ' ' + n + '</button>';
+  }).join('');
+
+  var cats = [];
+  _rpRows.forEach(function(r){ if (cats.indexOf(r.category) < 0) cats.push(r.category); });
+  cats.sort();
+  html += '<select class="as-catsel" onchange="rpSetCatFilter(this.value)" aria-label="Filter by category">'
+    + '<option value="all">All categories</option>'
+    + cats.map(function(c) {
+        return '<option value="' + _rpEsc(c) + '"' + (_rpCatFilter === c ? ' selected' : '') + '>' + _rpEsc(c) + '</option>';
+      }).join('')
+    + '</select>';
+  el.innerHTML = html;
+}
+
+function rpSetFilter(state) {
+  _rpFilter = state;
+  _rpRenderFilters();
+  _rpRenderTable();
+}
+
+function rpSetCatFilter(v) {
+  _rpCatFilter = v;
+  _rpRenderTable();
+}
+
+function rpSortBy(col) {
+  if (_rpSort.col === col) _rpSort.dir = _rpSort.dir === 'asc' ? 'desc' : 'asc';
+  else _rpSort = { col: col, dir: col === 'name' || col === 'category' ? 'asc' : 'desc' };
+  _rpRenderTable();
+}
+
+function _rpVisibleRows() {
+  return _rpRows.filter(function(r) {
+    if (_rpFilter !== 'all' && r.state !== _rpFilter) return false;
+    if (_rpCatFilter !== 'all' && r.category !== _rpCatFilter) return false;
+    return true;
+  });
+}
+
+// ── The table ──────────────────────────────────
+var _AS_COLS = [
+  { key: 'name',     label: 'Piece',      num: false },
+  { key: 'category', label: 'Category',   num: false },
+  { key: 'onHand',   label: 'On hand',    num: true  },
+  { key: 'velTrue',  label: 'Sells/wknd', num: true  },
+  { key: 'cover',    label: 'Cover',      num: true  },
+  { key: 'sinceSale',label: 'Last sold',  num: true  },
+  { key: 'tied',     label: 'Tied up',    num: true  },
+];
+
+// Eight active weekends of unit sales, oldest → newest. Endpoint is
+// emphasised so the direction reads without counting points.
+function _rpSpark(r) {
+  var keys = _rpActiveKeys.slice(0, 8).reverse();
+  if (keys.length < 2) return '<span class="as-dim">—</span>';
+  var vals = keys.map(function(k){ return _rpUnitsOver(r.itemId, [k]); });
+  var max = Math.max.apply(null, vals.concat([1]));
+  var w = 46, h = 14, step = w / (vals.length - 1);
+  var pts = vals.map(function(v, i) {
+    return (i * step).toFixed(1) + ',' + (h - 2 - (v / max) * (h - 4)).toFixed(1);
+  });
+  var stroke = r.trend === 'up' ? 'var(--ok)' : r.trend === 'down' ? 'var(--danger)' : 'var(--text-dim)';
+  var last = pts[pts.length - 1].split(',');
+  return '<svg class="as-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"'
+    + ' role="img" aria-label="' + r.trend + ' trend over ' + vals.length + ' weekends">'
+    + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + stroke + '" stroke-width="1.5"/>'
+    + '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2" fill="' + stroke + '"/>'
+    + '</svg>';
+}
+
+function _rpCoverTxt(r) {
+  if (!isFinite(r.cover)) return '<span class="as-dim">∞</span>';
+  var v = Math.round(r.cover * 10) / 10;
+  var cls = r.cover < AS_COVER_MIN ? 'as-bad' : r.cover > AS_COVER_MAX ? 'as-wrn' : 'as-good';
+  return '<span class="' + cls + '">' + v + '</span>';
+}
+
+function _rpLastSoldTxt(r) {
+  if (r.sinceSale == null) return '<span class="as-bad">never</span>';
+  if (r.sinceSale === 0) return 'this wknd';
+  var txt = r.sinceSale + ' wknd' + (r.sinceSale !== 1 ? 's' : '');
+  if (r.sinceSale >= AS_STALE_WEEKENDS) return '<span class="as-bad">' + txt + '</span>';
+  if (r.sinceSale >= AS_FADE_WEEKENDS) return '<span class="as-wrn">' + txt + '</span>';
+  return txt;
+}
+
+// The action a row deserves depends on its state: build it, retire it, or
+// nothing at all. Sunsetting needs a linked design to carry the flag.
+function _rpRowAction(r) {
+  var d = r.design;
+  if (r.state === 'restock' && d && r.q) {
+    if (_rpQueued[d.id]) return '<span class="as-good">✓ queued</span>';
+    return '<button class="btn btn-gold btn-sm" onclick="rpAddToQueue(\'' + d.id + '\',' + r.q.batch + ',this)">→ Queue ' + r.q.batch + '</button>';
+  }
+  if (r.state === 'sunset' || r.state === 'never' || r.state === 'fading') {
+    if (!d) return '<span class="as-dim" title="Link this Square item to a design in Designs → Costing to retire it from here">not linked</span>';
+    if (d.replenishmentActive === false) return '<span class="as-dim">retired</span>';
+    return '<button class="btn btn-sm" onclick="rpSetField(\'' + d.id + '\',\'replenishmentActive\',false)">Retire</button>';
+  }
+  return '';
+}
+
+function _rpRenderTable() {
+  var body = document.getElementById('as-body');
+  var head = document.getElementById('as-head');
+  if (!body) return;
+
+  if (head) {
+    head.innerHTML = '<tr>' + _AS_COLS.map(function(c) {
+      var on = _rpSort.col === c.key;
+      return '<th class="' + (c.num ? 'as-num ' : '') + 'as-sortable' + (on ? ' as-sorted' : '') + '"'
+        + ' onclick="rpSortBy(\'' + c.key + '\')" role="button" tabindex="0"'
+        + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();rpSortBy(\'' + c.key + '\')}">'
+        + c.label + (on ? '<span class="as-caret">' + (_rpSort.dir === 'asc' ? '▲' : '▼') + '</span>' : '')
+        + '</th>';
+    }).join('') + '<th>Trend</th><th>State</th><th></th></tr>';
+  }
+
+  var rows = _rpVisibleRows();
+  var dir = _rpSort.dir === 'asc' ? 1 : -1;
+  var col = _rpSort.col;
+  rows.sort(function(a, b) {
+    var av = a[col], bv = b[col];
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    // null last-sold means "never" and Infinity means "never sells" — both
+    // are the extreme end of their column, so they sort past every number
+    // rather than landing at zero.
+    if (av == null) av = Infinity;
+    if (bv == null) bv = Infinity;
+    if (av === bv) return 0;
+    return (av < bv ? -1 : 1) * dir;
+  });
 
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="8" class="oh-empty">'
-      + (linked ? 'Nothing below par 🎉 — adjust par levels below if this looks wrong.' : 'Link designs to Square items to start planning.')
-      + '</td></tr>';
-    _rpRenderParTable();
+    body.innerHTML = '<tr><td colspan="10" class="oh-empty">Nothing in this view.</td></tr>';
     return;
   }
 
+  var stateOf = {};
+  AS_STATES.forEach(function(s){ stateOf[s.key] = s; });
+
   body.innerHTML = rows.map(function(r) {
-    var d = r.d;
-    var hasBom = Array.isArray(d.bom) && d.bom.length > 0;
-    var buildTxt = !hasBom
-      ? '<span class="rp-flag">⚖ weigh me</span>'
-      : (r.buildable >= r.batch
-          ? '<span class="rp-ok">' + r.buildable + '</span>'
-          : '<span class="rp-short-n">' + r.buildable + '</span>');
-    var shortTxt = !hasBom ? '—'
-      : (r.shorts.length
-          ? r.shorts.map(function(s) {
-              var unit = matUnitAbbr(s.m.unit);
-              return 'short ' + (Math.round(s.short * 10) / 10) + unit + ' ' + _rpEsc(s.m.name);
-            }).join(' · ')
-          : '<span class="rp-ok">material for ' + r.batch + ' ✓</span>');
-    var queued = _rpQueued[d.id];
+    var s = stateOf[r.state] || { label: r.state, tone: 'mute' };
+    var tied = r.tied == null ? '—' : (r.costEst ? '~' : '') + _rpMoney(r.tied);
     return '<tr>'
-      + '<td>' + _rpEsc(d.name || 'Untitled') + '</td>'
-      + '<td>' + r.onHand + '</td>'
-      + '<td class="rp-vel">' + _rpVelTxt(r.vel) + '</td>'
-      + '<td><input type="number" min="0" step="1" class="rp-inline" value="' + r.par + '" onchange="rpSetField(\'' + d.id + '\',\'parLevel\',this.value)">' + _rpSugChip(d, r.sug, r.par) + '</td>'
-      + '<td><input type="number" min="0" step="1" class="rp-inline" value="' + (d.suggestedBatchSize != null ? d.suggestedBatchSize : '') + '" placeholder="' + r.deficit + '" onchange="rpSetField(\'' + d.id + '\',\'suggestedBatchSize\',this.value)"></td>'
-      + '<td>' + buildTxt + '</td>'
-      + '<td class="rp-short-detail">' + shortTxt + '</td>'
-      + '<td>' + (queued
-          ? '<span class="rp-ok">✓ queued</span>'
-          : '<button class="btn btn-gold btn-sm" onclick="rpAddToQueue(\'' + d.id + '\',' + r.batch + ',this)">→ Queue ' + r.batch + '</button>')
-      + '</td>'
+      + '<td class="as-name">' + _rpEsc(r.name) + (r.design ? '' : ' <span class="as-unlinked" title="No design is linked to this Square item — link one in Designs → Costing for BOM, par and queue actions">⚠</span>') + '</td>'
+      + '<td>' + _rpEsc(r.category) + '</td>'
+      + '<td class="as-num' + (r.onHand === 0 ? ' as-bad' : '') + '">' + (r.tracked ? r.onHand : '—') + '</td>'
+      + '<td class="as-num">' + (r.velTrue > 0 ? (Math.round(r.velTrue * 10) / 10) : '<span class="as-dim">0</span>') + '</td>'
+      + '<td class="as-num">' + _rpCoverTxt(r) + '</td>'
+      + '<td class="as-num">' + _rpLastSoldTxt(r) + '</td>'
+      + '<td class="as-num" title="' + (r.costEst ? 'Estimated from retail — this design has no costed BOM' : 'From the design BOM') + '">' + tied + '</td>'
+      + '<td>' + _rpSpark(r) + '</td>'
+      + '<td><span class="as-pill as-pill-' + s.tone + '">' + s.label + '</span></td>'
+      + '<td class="as-rowact">' + _rpRowAction(r) + '</td>'
       + '</tr>';
   }).join('');
-
-  _rpRenderParTable();
 }
 
 // Suggested-par chip: shown when velocity implies a different par than the

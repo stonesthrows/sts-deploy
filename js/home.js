@@ -8,7 +8,7 @@
     'inv-adjust':        'Adjust Inventory',
     'to-restock':        'To Restock',
     'prod-report':       'Production Report',
-    'replenish':         'Replenishment',
+    'replenish':         'Assortment',
     'supplier':          'Order Materials',
     'order-history':     'Order History',
     'materials':         'Materials Library',

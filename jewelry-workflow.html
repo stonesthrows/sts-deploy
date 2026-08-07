@@ -59,7 +59,7 @@
     <div class="sb-item" data-sb="to-restock" onclick="sbNav('inventory','to-restock',this)">📦 To Restock</div>
     <div class="sb-item sb-item-desktop-only" data-sb="inv-adjust"        onclick="sbNav('inventory','inv-adjust',this)">💎 Adjust Inventory</div>
     <div class="sb-item sb-item-desktop-only" data-sb="prod-report"       onclick="sbNav('inventory','prod-report',this)">📊 Production Report</div>
-    <div class="sb-item sb-item-desktop-only" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🔄 Replenishment</div>
+    <div class="sb-item sb-item-desktop-only" data-sb="replenish"         onclick="sbNav('inventory','replenish',this)">🎯 Assortment</div>
 
     <div class="sb-section sb-item-desktop-only">Supplies</div>
     <div class="sb-item" data-sb="supplier"      onclick="sbNav('supplies','supplier',this)">📦 Order Materials</div>
@@ -152,7 +152,7 @@
     📊 Production Report
   </div>
   <div class="sub-nav-tab" role="tab" tabindex="0" aria-selected="false" data-tab="replenish" onclick="switchSubTab('replenish',this)">
-    🔄 Replenishment
+    🎯 Assortment
   </div>
 </div>
 
@@ -2046,38 +2046,49 @@
   </div>
 </div>
 
-<!-- Replenishment Tab (Phase 6) -->
+<!-- Assortment Tab (Phase 6) — id stays 'replenish', see js/replenish.js header -->
 <div id="tab-replenish" class="tab-panel">
   <div class="oh-head-row">
-    <div class="oh-title">🔄 Replenishment</div>
+    <div class="oh-title">🎯 Assortment</div>
     <div class="oh-head-actions">
       <div class="oh-refresh-lbl" id="rp-note"></div>
-      <button class="btn btn-outline btn-sm" onclick="rpRender(true)" title="Re-check weekend sales, Square stock, and material levels">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="rpRender(true)" title="Re-check weekend sales, the Square catalog, stock, and material levels">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div id="as-kpis" class="as-kpis"></div>
+  <div id="as-filters" class="as-filters"></div>
+
+  <div class="as-main">
+    <div class="as-tablecard">
+      <div class="as-tscroll">
+        <table class="as-table">
+          <thead id="as-head"></thead>
+          <tbody id="as-body">
+            <tr><td colspan="10" class="oh-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="as-chat">
+      <div class="as-chat-head">
+        <span>Ask about your lineup</span>
+        <button class="as-chat-clear" onclick="acClear()">Clear</button>
+      </div>
+      <div id="as-chat-body" class="as-chat-body"></div>
+      <div class="as-chat-foot">
+        <div id="as-chat-sugg" class="as-sugg-row"></div>
+        <div class="as-inp">
+          <input id="as-chat-input" type="text" placeholder="Ask anything…" autocomplete="off" onkeydown="acKey(event)" aria-label="Ask about your lineup">
+          <button class="as-send" onclick="acSend()" aria-label="Send">↑</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="rp-top" class="rp-top"></div>
   <div id="rp-shopping" class="rp-shopping"></div>
-
-  <div class="oh-table-wrap">
-    <table class="oh-table">
-      <thead>
-        <tr>
-          <th>Design</th>
-          <th>On Hand</th>
-          <th>Sells</th>
-          <th>Par</th>
-          <th>Batch</th>
-          <th>Buildable</th>
-          <th>Material Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="rp-body">
-        <tr><td colspan="8" class="oh-empty">Loading…</td></tr>
-      </tbody>
-    </table>
-  </div>
 
   <div class="rp-par-head">Par levels — all Square-linked designs</div>
   <div class="oh-table-wrap">
@@ -3734,6 +3745,7 @@
 <link rel="stylesheet" href="css/prod-report.css?v=20260806c">
 
 <link rel="stylesheet" href="css/restock-queue.css?v=20260726e">
+<link rel="stylesheet" href="css/assortment.css?v=20260807a">
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
 <script src="js/api-auth.js?v=1"></script>
@@ -3863,7 +3875,8 @@
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260806a"></script>
 <script src="js/inv-manager.js?v=20260727a"></script>
-<script src="js/replenish.js?v=3"></script>
+<script src="js/replenish.js?v=4"></script>
+<script src="js/assort-chat.js?v=1"></script>
 <script src="js/bestsellers.js?v=10"></script>
 <script src="js/calendar.js?v=20260726e"></script>
 <script src="js/ui-shell.js?v=20260720a"></script>
@@ -3889,7 +3902,7 @@
 </nav>
 
 <!-- ══ SIDEBAR NAV JS ════════════════════════════════ -->
-<script src="js/home.js?v=20260720a"></script>
+<script src="js/home.js?v=20260807a"></script>
 <!-- ═════════════════════════════════════════════════ -->
 
 <script>
