@@ -2319,7 +2319,7 @@
 
 </div>
 
-<link rel="stylesheet" href="css/inventory.css?v=20260807b">
+<link rel="stylesheet" href="css/inventory.css?v=20260808a">
 <link rel="stylesheet" href="css/design-vectors.css?v=20260806a">
 
 <!-- ═══════════════════ DESIGNS ══════════════════ -->
@@ -2676,7 +2676,9 @@
   </div>
   <div class="dsn-lb-stage" id="dsn-lb-stage">
     <button class="dsn-lb-arrow" id="dsn-lb-prev" onclick="dsnLightboxGo(-1)" aria-label="Previous image">‹</button>
-    <img id="dsn-img-overlay-img" src="" alt="">
+    <img id="dsn-img-overlay-img" alt="">
+    <!-- Full-size images are fetched as they're paged to, not up front -->
+    <div class="dsn-lb-loading" id="dsn-lb-loading" role="status" hidden>Loading…</div>
     <button class="dsn-lb-arrow" id="dsn-lb-next" onclick="dsnLightboxGo(1)" aria-label="Next image">›</button>
   </div>
   <div class="dsn-lb-film" id="dsn-lb-film"></div>
@@ -3882,7 +3884,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=29"></script>
+<script src="js/designs.js?v=30"></script>
 <script src="js/design-vectors.js?v=3"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260806a"></script>

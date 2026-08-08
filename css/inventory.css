@@ -676,8 +676,18 @@
 }
 .dsn-lb-btn:hover { color:#fff; }
 
-.dsn-lb-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:18px; padding:0 24px; }
+.dsn-lb-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:18px; padding:0 24px; position:relative; }
 #dsn-img-overlay-img { max-width:100%; max-height:100%; min-height:0; border-radius:var(--rad-md); object-fit:contain; }
+/* The viewer holds no image bytes until one is paged to, so the stage can be
+   empty for a moment on a slow connection — say so rather than showing a
+   blank rectangle. Centred over the stage so the arrows stay put. */
+#dsn-img-overlay-img:not([src]) { display:none; }
+.dsn-lb-loading {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-size:12.5px; color:var(--dsn-lb-dim); letter-spacing:.3px;
+}
+.dsn-lb-thumb:not([src]) { background:var(--dsn-lb-ctl); }
+.dsn-lb-thumb.failed { opacity:.4; }
 .dsn-lb-arrow {
   flex:none; width:38px; height:38px; border-radius:50%; cursor:pointer;
   display:grid; place-items:center; font:inherit; font-size:17px;
@@ -729,6 +739,13 @@
 }
 .dsn-gd-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .dsn-gd-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bdr); cursor: zoom-in; }
+/* Reference images are fetched one at a time as they come into view
+   (_dsnGuideLoadImages), so a tile can be in the layout before it has a src.
+   Its width/height already hold the box; this keeps the empty box reading as
+   a placeholder instead of flashing the alt text at the reader. */
+.dsn-gd-img:not([src]) { background: var(--paper); border-color: var(--paper-bdr); color: transparent; }
+.dsn-gd-img.loading { animation: dsnGdThumbPulse 1.3s var(--ease-smooth) infinite; }
+.dsn-gd-img.failed { opacity: .5; }
 /* pdf/ai attachments in the reference-image gallery — a first-page thumbnail
    fills in as a background-image once rendered; until then, an icon + ext badge. */
 .dsn-gd-tile-doc {
@@ -789,6 +806,12 @@
   .dsn-guide-page { padding: 22px 18px; }
   .dsn-gd-head { flex-direction: column-reverse; }
   .dsn-gd-hero { width: 100%; max-width: 280px; }
+  /* One scrolling row rather than three wrapped ones. Two reasons: a
+     ten-image design otherwise buries the specs under a wall of thumbnails
+     on a phone, and since each tile only fetches once it scrolls into view,
+     the ones parked off-screen cost nothing until they're looked at. */
+  .dsn-gd-thumbs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .dsn-gd-thumb { flex: none; }
 }
 
 /* ── Designs: guide print (8.5×11 letter) ──
@@ -820,6 +843,9 @@
   body.dsn-printing .dsn-gd-stepnum { border-color: var(--text) !important; }
   body.dsn-printing .dsn-gd-hero { width: 3in; cursor: default; }
   body.dsn-printing .dsn-gd-thumb { width: 0.9in; height: 0.9in; cursor: default; }
+  /* Printing from a phone would otherwise inherit the narrow screen's
+     scrolling filmstrip and put a single row of thumbnails on paper. */
+  body.dsn-printing .dsn-gd-thumbs { flex-wrap: wrap; overflow: visible; }
   /* clean breaks */
   body.dsn-printing .dsn-gd-step,
   body.dsn-printing .dsn-gd-matlist li,

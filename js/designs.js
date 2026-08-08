@@ -65,8 +65,12 @@ let _designsPricingOpen = false;
 let _designsPricingFamilyFilter = null; // family name to scope Pricing Sheet rows (null = all designs)
 
 // ── KV API helpers ────────────────────────────
-async function _designsApiFetch(id) {
-  const url = id ? `/api/designs?id=${encodeURIComponent(id)}` : '/api/designs';
+// opts.slim asks for the record without its base64 image payloads — see the
+// lazy image loader below for why the guide never wants them inline.
+async function _designsApiFetch(id, opts) {
+  const url = id
+    ? `/api/designs?id=${encodeURIComponent(id)}${(opts && opts.slim) ? '&slim=1' : ''}`
+    : '/api/designs';
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Load failed (${resp.status})`);
   return resp.json();
@@ -170,6 +174,7 @@ function designsShowLibrary() {
   _designsView   = 'library';
   _designsEditId = null;
   _designsCurrentFull = null;
+  _dsnImgCacheReset(null);
   _designsImgQueue = [];
   _designsAttachQueue = [];
   _designsImgEditMode = false;
@@ -200,6 +205,7 @@ async function designsShowForm(id) {
   _designsImgQueue   = [];
   _designsAttachQueue = [];
   _designsCurrentFull = null;
+  _dsnImgCacheReset(null);   // the form works from the full record's own data URLs
   _designsImgEditMode = false;
   _designsPricingOpen = false;
   const pricing = document.getElementById('designs-pricing');
@@ -935,6 +941,95 @@ async function dsnFolderDelete(path) {
 }
 
 // ════════════════════════════════════════════
+//  REFERENCE IMAGES — fetched one at a time, on demand
+//
+//  Images are stored as base64 data URLs on the design record, so reading a
+//  design used to mean downloading every one of them before the guide could
+//  paint. A ten-image design is several MB of base64 over a phone's
+//  connection, all of it blocking the specs and instructions that are the
+//  actual reason for opening the sheet.
+//
+//  So the guide reads the record slim (no image bytes) and pulls images
+//  individually: raw bytes instead of base64, only once a tile is about to
+//  be seen, and cached by the browser forever after (the URL carries the
+//  design's updatedAt, so an edit busts it).
+//
+//  They can't be plain <img src="/api/designs?…"> — the API gate wants an
+//  X-STS-Key header that an <img> can't send (js/api-auth.js) — hence
+//  fetch() plus a blob: URL.
+// ════════════════════════════════════════════
+
+const _dsnImgBlobs = new Map();  // "designId|idx" → {url, promise}
+let   _dsnImgOwner    = null;    // design the cache currently belongs to
+let   _dsnImgGen      = 0;       // bumped on every reset — see dsnImgLoad
+let   _dsnImgObserver = null;    // watches guide tiles for "about to be seen"
+
+function _dsnImgKey(id, idx) { return id + '|' + idx; }
+
+// How many reference images a record has, whether it came back slim
+// (imgCount) or full (the form's copy, which still carries them inline).
+function _dsnImgCount(d) {
+  if (!d) return 0;
+  if (Array.isArray(d.images)) return d.images.length;
+  return d.imgCount || 0;
+}
+
+function _dsnIsSlim(d) { return !!d && !Array.isArray(d.images) && typeof d.imgCount === 'number'; }
+
+// Blob URLs pin their bytes in memory until revoked, so a browsing session
+// would otherwise hold on to every image of every design it passed through.
+// Cache one design's worth; the HTTP cache makes going back cheap anyway.
+function _dsnImgCacheReset(nextOwner) {
+  if (_dsnImgObserver) { _dsnImgObserver.disconnect(); _dsnImgObserver = null; }
+  if (_dsnImgOwner === nextOwner) return;
+  _dsnImgBlobs.forEach(e => { if (e.url) URL.revokeObjectURL(e.url); });
+  _dsnImgBlobs.clear();
+  _dsnImgGen++;
+  _dsnImgOwner = nextOwner || null;
+}
+
+// Resolves to a displayable src for reference image `idx` of the design on
+// screen. Concurrent callers (a tile scrolling in while the lightbox opens
+// on the same image) share one request.
+function dsnImgLoad(idx) {
+  const d = _designsCurrentFull;
+  if (!d || !d.id) return Promise.reject(new Error('No design loaded'));
+  if (Array.isArray(d.images) && d.images[idx]) return Promise.resolve(d.images[idx]);
+
+  const key = _dsnImgKey(d.id, idx);
+  const hit = _dsnImgBlobs.get(key);
+  if (hit) return hit.promise;
+
+  const url = `/api/designs?id=${encodeURIComponent(d.id)}&img=${idx}` +
+              `&v=${encodeURIComponent(d.updatedAt || '0')}`;
+  const gen = _dsnImgGen;
+  const entry = { url: null, promise: null };
+  entry.promise = fetch(url)
+    .then(r => { if (!r.ok) throw new Error(`Image ${idx + 1} failed (${r.status})`); return r.blob(); })
+    .then(b => {
+      const objUrl = URL.createObjectURL(b);
+      // Landed after the reader moved on: the cache that would have owned
+      // this URL is already gone, so free it here or it's held till reload.
+      if (gen !== _dsnImgGen) { URL.revokeObjectURL(objUrl); throw new Error('Design closed'); }
+      entry.url = objUrl;
+      return objUrl;
+    })
+    .catch(e => { _dsnImgBlobs.delete(key); throw e; });  // let a retry through
+  _dsnImgBlobs.set(key, entry);
+  return entry.promise;
+}
+
+// Already in hand, or null — for the paths that would rather show nothing
+// than wait a frame (the lightbox filmstrip re-renders on every arrow press).
+function dsnImgCached(idx) {
+  const d = _designsCurrentFull;
+  if (!d) return null;
+  if (Array.isArray(d.images) && d.images[idx]) return d.images[idx];
+  const e = d.id && _dsnImgBlobs.get(_dsnImgKey(d.id, idx));
+  return (e && e.url) || null;
+}
+
+// ════════════════════════════════════════════
 //  GUIDE VIEW — read-only formatted Design Guide
 //  Library card click lands here; ✎ Edit opens the form.
 //  Prints to 8.5×11 letter via window.print() — BOM and
@@ -949,6 +1044,7 @@ async function designsShowGuide(id) {
   _designsView   = 'guide';
   _designsEditId = id;
   _designsCurrentFull = null;
+  _dsnImgCacheReset(id);
   _dsnGuideCostOpen   = false;
   _dsnGuideVarOpen    = false;
   _designsPricingOpen = false;
@@ -971,7 +1067,9 @@ async function designsShowGuide(id) {
   if (page) page.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">Loading design…</div>';
 
   try {
-    _designsCurrentFull = await _designsApiFetch(id);
+    // Slim: the guide renders as soon as the text lands, and the gallery
+    // fills in behind it. See the reference-image block above.
+    _designsCurrentFull = await _designsApiFetch(id, { slim: true });
   } catch(e) {
     if (page) page.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">❌ Could not load design — ${escHtml(e.message || String(e))}</div>`;
     return;
@@ -991,7 +1089,7 @@ function designsRenderGuide() {
     page.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px">Could not load this design.</div>';
     return;
   }
-  const imgs = d.images || [];
+  const imgN = _dsnImgCount(d);
   // PDFs and .ai files sit in the same gallery as the reference photos —
   // a first-page thumbnail (rendered async below) stands in for them, and
   // clicking one opens the same viewer as the Attached Files list.
@@ -999,12 +1097,13 @@ function designsRenderGuide() {
     .map((f, idx) => ({ f, idx }))
     .filter(({ f }) => DSN_GALLERY_DOC_EXT.has(_dsnAttachExt(f.name)));
   const gallery = [
-    ...imgs.map((src, i) => ({ kind: 'img', src, i })),
+    ...Array.from({ length: imgN }, (_, i) => ({ kind: 'img', i })),
     ...docAtt.map(({ f, idx }) => ({ kind: 'doc', f, idx })),
   ];
-  const hero   = gallery.length ? _dsnGuideGalleryTile(gallery[0], 'dsn-gd-hero', d.name) : '';
+  const heroThumb = _dsnGuideHeroThumb(d);
+  const hero   = gallery.length ? _dsnGuideGalleryTile(gallery[0], 'dsn-gd-hero', d.name, heroThumb) : '';
   const thumbs = gallery.length > 1
-    ? `<div class="dsn-gd-thumbs">${gallery.slice(1).map(item => _dsnGuideGalleryTile(item, 'dsn-gd-thumb', d.name)).join('')}</div>`
+    ? `<div class="dsn-gd-thumbs">${gallery.slice(1).map(item => _dsnGuideGalleryTile(item, 'dsn-gd-thumb', d.name, heroThumb)).join('')}</div>`
     : '';
   const upd = d.updatedAt
     ? new Date(d.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -1037,6 +1136,7 @@ function designsRenderGuide() {
   _dsnGuideBomRender();
   _dsnGuideCostRender();
   _dsnGuideVarRender();
+  _dsnGuideLoadImages();
   _dsnGuideLoadDocThumbs(d);
 }
 
@@ -1044,9 +1144,23 @@ function designsRenderGuide() {
 // instead of staying a name-only row in the Attached Files list.
 const DSN_GALLERY_DOC_EXT = new Set(['pdf', 'ai']);
 
-function _dsnGuideGalleryTile(item, cls, designName) {
+// The library index already holds a 600px square crop of each design's first
+// image, and it's in memory the moment the library has loaded. The hero is a
+// square crop 200px wide (280 on a phone), so that thumbnail is already
+// sharper than the slot it fills — pulling the 1200px original for it would
+// be the single biggest download on the page in exchange for nothing.
+function _dsnGuideHeroThumb(d) {
+  const entry = d && d.id && _designs.find(x => x.id === d.id);
+  return (entry && entry.thumb) || null;
+}
+
+function _dsnGuideGalleryTile(item, cls, designName, heroThumb) {
   if (item.kind === 'img') {
-    return `<img class="${cls}" src="${item.src}" alt="${escHtml(designName || 'Design')}" onclick="dsnGuideViewImage(${item.i})">`;
+    // No src on the rest: _dsnGuideLoadImages fills them in as they come
+    // into view. The box is held by CSS, so nothing reflows when they land.
+    const placeholder = (item.i === 0 && heroThumb) ? ` src="${heroThumb}"` : '';
+    return `<img class="${cls} dsn-gd-img" data-dsn-img="${item.i}"${placeholder}` +
+           ` alt="${escHtml(designName || 'Design')}" onclick="dsnGuideViewImage(${item.i})">`;
   }
   const f   = item.f;
   const ext = _dsnAttachExt(f.name);
@@ -1054,6 +1168,46 @@ function _dsnGuideGalleryTile(item, cls, designName) {
     <span class="dsn-gd-tile-icon">${ext === 'ai' ? '🖋' : '📄'}</span>
     <span class="dsn-gd-tile-badge">${ext.toUpperCase()}</span>
   </div>`;
+}
+
+// Fires after the gallery is in the DOM. Tiles that came out of the render
+// with no src get one — the hero's placeholder counts, so a design whose
+// gallery is a single photo costs no image request at all to open.
+function _dsnGuideLoadImages() {
+  if (_dsnImgObserver) { _dsnImgObserver.disconnect(); _dsnImgObserver = null; }
+  const page = document.getElementById('dsn-guide-page');
+  if (!page) return;
+
+  const todo = [...page.querySelectorAll('img[data-dsn-img]')].filter(el => !el.getAttribute('src'));
+  if (!todo.length) return;
+
+  // No IntersectionObserver (very old Safari) → load them all rather than
+  // leave a gallery of empty boxes.
+  if (!('IntersectionObserver' in window)) { todo.forEach(_dsnGuideShowTile); return; }
+
+  // rootMargin so a tile is already on its way by the time it's scrolled to,
+  // but not so far ahead that a phone pulls the whole strip anyway.
+  _dsnImgObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      obs.unobserve(e.target);
+      _dsnGuideShowTile(e.target);
+    });
+  }, { rootMargin: '200px' });
+  todo.forEach(el => _dsnImgObserver.observe(el));
+}
+
+function _dsnGuideShowTile(el) {
+  const idx = Number(el.dataset.dsnImg);
+  el.classList.add('loading');
+  dsnImgLoad(idx).then(src => {
+    el.src = src;
+    el.dataset.dsnFull = '1';     // full resolution — print can skip it
+    el.classList.remove('loading');
+  }).catch(() => {
+    el.classList.remove('loading');
+    el.classList.add('failed');
+  });
 }
 
 const _dsnGuideDocThumbCache = new Map(); // attachment key → rendered dataURL
@@ -1295,10 +1449,38 @@ function _dsnGuideRefresh() {
 // since those need the vector renderer, not an <img>.
 function dsnGuideViewImage(idx) {
   const d = _designsCurrentFull;
-  dsnLightboxOpen((d && d.images) || [], idx, (d && d.name) || 'Design');
+  const n = _dsnImgCount(d);
+  if (!n) return;
+  // Placeholders, not images: the guide holds no image bytes, so the viewer
+  // is handed the count and fetches each original as it's paged to.
+  dsnLightboxOpen(new Array(n).fill(null), idx, (d && d.name) || 'Design', dsnImgLoad);
 }
 
-function dsnGuidePrint() { window.print(); }
+// The gallery is lazy, and the hero deliberately shows the small library
+// thumbnail rather than the 1200px original — fine on a screen, not on
+// paper. So pull every tile at full resolution and wait for them to decode
+// before handing the page to the print dialog.
+async function dsnGuidePrint() {
+  const page  = document.getElementById('dsn-guide-page');
+  const tiles = page ? [...page.querySelectorAll('img[data-dsn-img]')] : [];
+  const stale = tiles.filter(el => !el.dataset.dsnFull);
+
+  if (stale.length) {
+    if (_dsnImgObserver) { _dsnImgObserver.disconnect(); _dsnImgObserver = null; }
+    if (typeof toast === 'function') toast('Preparing images for print…', '🖨');
+    await Promise.all(stale.map(el =>
+      dsnImgLoad(Number(el.dataset.dsnImg))
+        .then(src => {
+          el.src = src;
+          el.dataset.dsnFull = '1';
+          el.classList.remove('loading');
+          return el.decode ? el.decode().catch(() => {}) : null;
+        })
+        .catch(() => {})   // a failed image prints as it looks on screen
+    ));
+  }
+  window.print();
+}
 
 // Scope print styling to the guide — Ctrl+P works too, and other tabs
 // printing this document are untouched because the class never lands.
@@ -1407,27 +1589,35 @@ function designsRemoveImage(idx) {
 }
 
 // ── Image lightbox (carousel) ─────────────────
-// One viewer, two callers: the edit form pages through _designsImgQueue
-// (which includes images staged but not yet saved) and the guide view
-// pages through the saved _designsCurrentFull.images. They are different
-// arrays, so the list is passed in rather than read from a global.
+// One viewer, two callers with different sources. The edit form pages
+// through _designsImgQueue — base64 data URLs already in memory, including
+// ones staged but not yet saved — and hands them over directly. The guide
+// has no image bytes at all (it read the record slim), so it passes a
+// length and a `load` function, and each image is fetched the first time
+// it's actually looked at.
 //
-// Images are base64 data URLs already resident in memory, so paging costs
-// a decode and nothing else — no preloading or spinner is warranted.
 // Note the stored images are capped at 1200px wide by designsHandleImages,
 // so the viewer fits to the window and deliberately offers no zoom: past
 // about 1.5× there is no detail left to magnify, only JPEG artifacts.
 let _dsnLbList  = [];
 let _dsnLbIdx   = 0;
 let _dsnLbTitle = '';
+let _dsnLbLoad  = null;   // (i) → Promise<src>
+let _dsnLbSync  = null;   // (i) → src already in hand, or null
+let _dsnLbToken = 0;      // guards against a slow image landing after paging on
+let _dsnLbFilmObs = null;
 let _dsnLbKeyHandler   = null;
 let _dsnLbPrevFocus    = null;
 let _dsnLbTouchX       = null;
 
-function dsnLightboxOpen(list, idx, title) {
-  const imgs = (list || []).filter(Boolean);
+// `list` is either the images themselves or, with `load` supplied, a
+// placeholder array whose only job is to carry the count.
+function dsnLightboxOpen(list, idx, title, load) {
+  const imgs = load ? (list || []) : (list || []).filter(Boolean);
   if (!imgs.length) return;
   _dsnLbList  = imgs;
+  _dsnLbLoad  = load || (i => Promise.resolve(_dsnLbList[i]));
+  _dsnLbSync  = load ? dsnImgCached : (i => _dsnLbList[i]);
   _dsnLbIdx   = Math.min(Math.max(idx || 0, 0), imgs.length - 1);
   _dsnLbTitle = title || '';
 
@@ -1474,8 +1664,36 @@ function _dsnLbRender() {
   const img = document.getElementById('dsn-img-overlay-img');
   if (!img) return;
   const n = _dsnLbList.length;
-  img.src = _dsnLbList[_dsnLbIdx];
   img.alt = (_dsnLbTitle ? _dsnLbTitle + ' — ' : '') + 'image ' + (_dsnLbIdx + 1) + ' of ' + n;
+
+  // Paging is faster than the network, so every load is stamped and a stale
+  // one is dropped rather than flashing the wrong image into the stage.
+  const token = ++_dsnLbToken;
+  const stage = document.getElementById('dsn-lb-stage');
+  const wait  = document.getElementById('dsn-lb-loading');
+  const done  = (src) => {
+    img.src = src;
+    if (stage) stage.classList.remove('loading');
+    if (wait)  wait.hidden = true;
+  };
+  // Anything already fetched goes up in this frame — waiting a microtask for
+  // a resolved promise would blink the stage on every arrow press.
+  const have = _dsnLbSync(_dsnLbIdx);
+  if (have) {
+    done(have);
+  } else {
+    img.removeAttribute('src');
+    if (stage) stage.classList.add('loading');
+    if (wait)  { wait.hidden = false; wait.textContent = 'Loading…'; }
+    _dsnLbLoad(_dsnLbIdx).then(src => {
+      if (token !== _dsnLbToken) return;
+      done(src);
+    }).catch(() => {
+      if (token !== _dsnLbToken) return;
+      if (stage) stage.classList.remove('loading');
+      if (wait)  { wait.hidden = false; wait.textContent = "Couldn't load this image"; }
+    });
+  }
 
   const title = document.getElementById('dsn-lb-title');
   if (title) title.textContent = _dsnLbTitle;
@@ -1492,11 +1710,33 @@ function _dsnLbRender() {
 
   const film = document.getElementById('dsn-lb-film');
   if (!film) return;
+  if (_dsnLbFilmObs) { _dsnLbFilmObs.disconnect(); _dsnLbFilmObs = null; }
   if (solo) { film.style.display = 'none'; film.innerHTML = ''; return; }
   film.style.display = '';
-  film.innerHTML = _dsnLbList.map((src, i) =>
-    `<img class="dsn-lb-thumb${i === _dsnLbIdx ? ' on' : ''}" src="${src}"` +
-    ` alt="Show image ${i + 1}" onclick="dsnLightboxJump(${i})">`).join('');
+  // Anything already in hand is painted straight away; the rest wait until
+  // they're scrolled to, so a ten-image design doesn't pull ten originals
+  // the moment the viewer opens.
+  film.innerHTML = _dsnLbList.map((src, i) => {
+    const have = _dsnLbSync(i);
+    return `<img class="dsn-lb-thumb${i === _dsnLbIdx ? ' on' : ''}"${have ? ` src="${have}"` : ''}` +
+           ` data-dsn-lb-i="${i}" alt="Show image ${i + 1}" onclick="dsnLightboxJump(${i})">`;
+  }).join('');
+
+  const pending = [...film.querySelectorAll('img[data-dsn-lb-i]')].filter(el => !el.getAttribute('src'));
+  if (pending.length) {
+    const fill = el => _dsnLbLoad(Number(el.dataset.dsnLbI))
+      .then(s => { el.src = s; })
+      .catch(() => { el.classList.add('failed'); });
+    if ('IntersectionObserver' in window) {
+      _dsnLbFilmObs = new IntersectionObserver((entries, obs) => {
+        entries.forEach(e => { if (e.isIntersecting) { obs.unobserve(e.target); fill(e.target); } });
+      }, { root: film, rootMargin: '150px' });
+      pending.forEach(el => _dsnLbFilmObs.observe(el));
+    } else {
+      pending.forEach(fill);
+    }
+  }
+
   const active = film.children[_dsnLbIdx];
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
@@ -1531,14 +1771,19 @@ function designsCloseImageOverlay() {
   const overlay = document.getElementById('dsn-img-overlay');
   if (overlay) overlay.style.display = 'none';
   const img = document.getElementById('dsn-img-overlay-img');
-  if (img) img.src = '';
+  if (img) img.removeAttribute('src');
+  _dsnLbToken++;                 // strand any load still in flight
+  const stage = document.getElementById('dsn-lb-stage');
+  if (stage) stage.classList.remove('loading');
+  const wait = document.getElementById('dsn-lb-loading');
+  if (wait) wait.hidden = true;
+  if (_dsnLbFilmObs) { _dsnLbFilmObs.disconnect(); _dsnLbFilmObs = null; }
   const film = document.getElementById('dsn-lb-film');
   if (film) film.innerHTML = '';
   if (_dsnLbKeyHandler) {
     document.removeEventListener('keydown', _dsnLbKeyHandler);
     _dsnLbKeyHandler = null;
   }
-  const stage = document.getElementById('dsn-lb-stage');
   if (stage) {
     stage.removeEventListener('touchstart', _dsnLbTouchStart);
     stage.removeEventListener('touchend',   _dsnLbTouchEnd);
@@ -1699,8 +1944,11 @@ async function designsCopyDesign() {
   if (!_designsEditId) return;
   designsCloseGearMenu();
   try {
-    // Copy the saved version from KV so images, BOM, and overrides all carry over
-    const src = _designsCurrentFull || await _designsApiFetch(_designsEditId);
+    // Copy the saved version from KV so images, BOM, and overrides all carry
+    // over — a slim record has no image bytes in it, so re-read in that case.
+    const src = (_designsCurrentFull && !_dsnIsSlim(_designsCurrentFull))
+      ? _designsCurrentFull
+      : await _designsApiFetch(_designsEditId);
     const now = new Date().toISOString();
     const copy = {
       ...src,
