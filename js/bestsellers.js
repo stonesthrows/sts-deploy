@@ -176,30 +176,38 @@ var BS_FOCUS_FAMILIES = [
     re: /\b(earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
     note: 'Apart from Seamless Hoops this is a long tail — nearly every stud, dangle and climber sells under the '
         + BS_MIN_VELOCITY + '/weekend floor, so the board never shows them.' },
-  // Rings are the biggest family by a distance (stackers alone clear 1,400
-  // units a year), so most of this card IS on the restock board. It earns
-  // its place on year-over-year and on the designs below the floor.
-  //   · The family label does the heavy lifting: the stackers are named
-  //     "Stacker (Regular)" etc with no "ring" in the name at all, and are
-  //     caught only because Stackable Rings is in INV_RING_CAT_IDS.
-  //   · Nose rings would otherwise match on \bring\b; they're kept off every
-  //     card by BS_FOCUS_EXCLUDE_RE, not by a veto here — see that comment.
-  //   · Meditation rings are claimed by the def above, not here.
-  //
-  // Ahead of rings, or \brings?\b would swallow them. Pinned to
-  // INV_MEDITATION_CAT_IDS rather than a name match because the names don't
-  // all say "meditation" — INV_RING_INCLUDE lists "tri-color" as one — so
-  // the category ids are the only reliable handle. The regex stays as a
-  // fallback for a meditation ring filed outside those categories.
+  // The three ring defs below are ordered narrowest-first, because the
+  // catch-all ring def's \brings?\b would otherwise swallow both of its
+  // siblings. Each of the two specific ones pins itself to inventory.js
+  // category ids rather than trusting names — see each comment for why.
+
+  // Meditation rings: the names don't all say "meditation" (INV_RING_INCLUDE
+  // lists "tri-color" as one of the four), so category ids are the only
+  // reliable handle. The regex is a fallback for one filed elsewhere.
   { key: 'meditation', icon: '🧘', title: 'Meditation ring focus',
     catIds: typeof INV_MEDITATION_CAT_IDS !== 'undefined' ? INV_MEDITATION_CAT_IDS : null,
     re: /\bmeditation\b/i,
     note: 'Meditation rings have their own Inventory tab and the highest average price of any market line, so they get their own card instead of being averaged in behind the stackers.' },
+
+  // Stackers: same problem, worse. They are named "Stacker (Regular)",
+  // "Chevron Stacker" and so on — no "ring" in the name at all — so only the
+  // Stackable Rings category ids identify them. Matching \bstackers?\b by
+  // name would also be wrong on its own: "Stackable Ear Cuff" and the
+  // "Stackable Cuffs" category are ear cuffs, kept out only because the ear
+  // cuff def is listed further up and claims them first.
+  { key: 'stackers', icon: '📚', title: 'Stacker focus',
+    catIds: typeof INV_RING_CAT_IDS !== 'undefined' ? { stackable: INV_RING_CAT_IDS.stackable } : null,
+    re: /\bstackers?\b/i,
+    note: 'Stackers are the single biggest line in the shop at roughly 1,470 units a year — an order of magnitude past any other ring — so they get their own card instead of flattening every design on the ring card.' },
+
+  // Everything else worn on a finger. Keeps the 'Rings' family label as the
+  // catch-all. Nose rings would match \bring\b here; they're kept off every
+  // card by BS_FOCUS_EXCLUDE_RE rather than by a veto on this def.
   { key: 'rings', icon: '💍', title: 'Ring focus',
     family: 'Rings',
-    re: /\b(rings?|stackers?|bands?)\b/i,
-    note: 'Rings are your deepest family, so most of this card also appears on the board above — the value here is the year-over-year column and the designs selling under the '
-        + BS_MIN_VELOCITY + '/weekend floor. Meditation rings have their own card.' },
+    re: /\b(rings?|bands?)\b/i,
+    note: 'Spirit animal, geometric and symbolic ring designs, minus the stackers and meditation rings that have their own cards. Most sit near the '
+        + BS_MIN_VELOCITY + '/weekend floor, which is where the year-over-year column earns its keep.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
