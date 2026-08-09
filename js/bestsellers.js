@@ -143,11 +143,25 @@ var BS_FOCUS_FAMILIES = [
     re: /\b(pendant|necklace)s?\b/i,
     note: 'Every pendant sells below the ' + BS_MIN_VELOCITY
         + '/weekend floor the board above uses, so none of them appear there — this card is their cut.' },
+  // Ear cuffs come BEFORE earrings and deliberately carry no `family`.
+  // inventory.js files ear cuffs under the same 'Earrings' family as studs,
+  // hoops and dangles, so a family label here would claim the whole lot and
+  // leave the earring card empty. Matching on name/category instead splits
+  // them, and first-claim-wins keeps "Hoop Ear Cuffs" out of the hoops card.
+  { key: 'earcuffs', icon: '🌀', title: 'Ear cuff focus',
+    re: /\b(ear ?cuffs?|earcuffs?)\b/i,
+    // Two ear cuff categories aren't named "ear cuff" at all. "Cuff
+    // Bracelets" is a bracelet and must not match, so no bare \bcuff\b.
+    catRe: /\b(ear ?cuffs?|earcuffs?|stackable cuffs?|wide cuffs?)\b/i,
+    note: 'Ear cuffs are your deepest line — the top dozen designs already appear on the board above, so this card is for the year-over-year column and the tail selling under the '
+        + BS_MIN_VELOCITY + '/weekend floor.' },
+  // Everything else worn on the ear. Keeps the 'Earrings' family label as a
+  // catch-all so a new stud or dangle lands here without a regex change.
   { key: 'earrings', icon: '🌿', title: 'Earring focus',
     family: 'Earrings',
-    re: /\b(ear ?cuffs?|earcuffs?|earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
-    note: 'The biggest earring designs already appear on the board above; this card adds the year-over-year column and the tail selling under the '
-        + BS_MIN_VELOCITY + '/weekend floor, which the board never shows.' },
+    re: /\b(earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
+    note: 'Apart from Seamless Hoops this is a long tail — nearly every stud, dangle and climber sells under the '
+        + BS_MIN_VELOCITY + '/weekend floor, so the board above never shows them.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
@@ -767,8 +781,12 @@ function bsRestockFocus(vel, includeCovered) {
 
 // ── Design focus (aggregation) ─────────────────
 function _bsFamilyClaims(def, itemId) {
-  if (_bsAppCategory(itemId) === def.family) return true;
-  if (_bsCatNamesOf(itemId).some(function(n){ return n && def.re.test(n); })) return true;
+  // `family` is optional: a def that shares an inventory.js family with a
+  // sibling def (ear cuffs vs the rest of the earrings) matches on name and
+  // category only, and relies on being listed first.
+  if (def.family && _bsAppCategory(itemId) === def.family) return true;
+  var catRe = def.catRe || def.re;
+  if (_bsCatNamesOf(itemId).some(function(n){ return n && catRe.test(n); })) return true;
   return def.re.test(String(_bsNameOf(itemId)));
 }
 
