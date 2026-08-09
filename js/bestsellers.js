@@ -126,10 +126,24 @@ var BS_FOCUS_RECENT_DAYS  = 182; // "still selling" window (~6 months)
 var BS_FOCUS_COVER_MONTHS = 3;   // a design's make-count covers this much demand
 var BS_FOCUS_WINDOW_DAYS  = 730; // total history the cards read
 
-// Parts and add-ons ring up beside the designs they attach to and share
-// their categories ("Chain Only", "Titanium Ball for Seamless Hoop"). They
-// aren't designs and would pad the tail of every card.
-var BS_FOCUS_SKIP_RE = /\b(add-?on|chain only|ball for)\b/i;
+// Parts, add-ons and bench services ring up beside the designs they attach
+// to and share their categories ("Chain Only", "Titanium Ball for Seamless
+// Hoop", "Ring Repair-Texas"). They aren't designs and would pad the tail of
+// every card. Note this is deliberately broader than restock focus's
+// BS_SKIP_NAME_RE, which keeps "repair" whole-name-only so a hypothetical
+// "Repair Cuff" product survives — these cards are an advisory design list,
+// where wrongly omitting a piece costs far less than listing a repair
+// ticket as a design to go and make.
+var BS_FOCUS_SKIP_RE = /\b(add-?on|chain only|ball for|repairs?)\b/i;
+
+// Product lines that belong on NO card, checked against name and category
+// before any family is offered the item. Nose rings are the case: they're
+// their own Inventory tab, INV_NOSERING_CAT_IDS is still empty so they
+// arrive only as a Square category name, and their names collide with two
+// families at once — "Nose Rings" reads as a ring, "Double Hoop Faux Nose
+// Ring" reads as a hoop. A per-family veto can't fix that, because whichever
+// family is tested first claims it before the vetoing one is reached.
+var BS_FOCUS_EXCLUDE_RE = /\bnose\b/i;
 
 // A family claims an item by app family label, by Square category name, or
 // by the item's own name — in that order of preference but any one is
@@ -161,7 +175,23 @@ var BS_FOCUS_FAMILIES = [
     family: 'Earrings',
     re: /\b(earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
     note: 'Apart from Seamless Hoops this is a long tail — nearly every stud, dangle and climber sells under the '
-        + BS_MIN_VELOCITY + '/weekend floor, so the board above never shows them.' },
+        + BS_MIN_VELOCITY + '/weekend floor, so the board never shows them.' },
+  // Rings are the biggest family by a distance (stackers alone clear 1,400
+  // units a year), so most of this card IS on the restock board. It earns
+  // its place on year-over-year and on the designs below the floor.
+  //   · The family label does the heavy lifting: the stackers are named
+  //     "Stacker (Regular)" etc with no "ring" in the name at all, and are
+  //     caught only because Stackable Rings is in INV_RING_CAT_IDS.
+  //   · Nose rings would otherwise match on \bring\b; they're kept off every
+  //     card by BS_FOCUS_EXCLUDE_RE, not by a veto here — see that comment.
+  //   · Meditation rings ARE folded in here. They have their own Inventory
+  //     tab but no entry in _bsFamilyDefs, so they arrive by category name.
+  //     Give them their own def if they ever deserve a card of their own.
+  { key: 'rings', icon: '💍', title: 'Ring focus',
+    family: 'Rings',
+    re: /\b(rings?|stackers?|bands?)\b/i,
+    note: 'Rings are your deepest family, so most of this card also appears on the board above — the value here is the year-over-year column and the designs selling under the '
+        + BS_MIN_VELOCITY + '/weekend floor. Meditation rings are included.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
@@ -310,7 +340,7 @@ function _bsView() {
   if (!v || typeof v !== 'object') v = {};
   if (['month','quarter','year'].indexOf(v.type) < 0) v.type = 'month';
   if (['qty','revenue'].indexOf(v.sort) < 0) v.sort = 'revenue';
-  if (['restock','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
+  if (['restock','focus','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
   return v;
 }
 
@@ -781,17 +811,21 @@ function bsRestockFocus(vel, includeCovered) {
 
 // ── Design focus (aggregation) ─────────────────
 function _bsFamilyClaims(def, itemId) {
+  var name = String(_bsNameOf(itemId));
+  var cats = _bsCatNamesOf(itemId);
   // `family` is optional: a def that shares an inventory.js family with a
   // sibling def (ear cuffs vs the rest of the earrings) matches on name and
   // category only, and relies on being listed first.
   if (def.family && _bsAppCategory(itemId) === def.family) return true;
   var catRe = def.catRe || def.re;
-  if (_bsCatNamesOf(itemId).some(function(n){ return n && catRe.test(n); })) return true;
-  return def.re.test(String(_bsNameOf(itemId)));
+  if (cats.some(function(n){ return n && catRe.test(n); })) return true;
+  return def.re.test(name);
 }
 
 // The family an item belongs to, or null. First claim wins.
 function _bsFocusFamilyOf(itemId) {
+  if (BS_FOCUS_EXCLUDE_RE.test(String(_bsNameOf(itemId)))) return null;
+  if (_bsCatNamesOf(itemId).some(function(n){ return n && BS_FOCUS_EXCLUDE_RE.test(n); })) return null;
   for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
     if (_bsFamilyClaims(BS_FOCUS_FAMILIES[i], itemId)) return BS_FOCUS_FAMILIES[i].key;
   }
@@ -910,7 +944,10 @@ async function bestsellersInit() {
     var vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
     _bsLoadOnHand(vel).then(function() {
       _bsOnHandReady = true;
-      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      var tab = _bsView().tab;
+      // Restock and Focus repaint in place; the other tabs need a full
+      // re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
       else bsRender();
     });
   }
@@ -997,7 +1034,10 @@ async function _bsAutoSyncWeekend() {
     var vel = bsVelocity(_bsSales.weekends);
     _bsLoadOnHand(vel).then(function() {
       _bsOnHandReady = true;
-      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      var tab = _bsView().tab;
+      // Restock and Focus repaint in place; the other tabs need a full
+      // re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
       else bsRender();
     });
   } catch (e) { /* silent — throttle window or next tab open retries */ }
@@ -1034,12 +1074,15 @@ function bsRender() {
   // ── Toolbar ──────────────────────────────
   html += '<div class="bs-toolbar">';
   html += '<div class="bs-seg" role="tablist" aria-label="View">';
-  [['restock','🔧 Restock'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
+  [['restock','🔧 Restock'],['focus','🎯 Focus'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
     html += '<button class="bs-seg-btn' + (view.tab === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
       + (view.tab === t[0]) + '" onclick="bsSetTab(\'' + t[0] + '\')">' + t[1] + '</button>';
   });
   html += '</div>';
-  if (view.tab !== 'restock') {
+  // Restock and Focus both read their own fixed windows (the velocity
+  // lookback / the two-year design history), not the selected period, so the
+  // period picker would be a dead control on either.
+  if (view.tab !== 'restock' && view.tab !== 'focus') {
     html += '<div class="bs-seg" role="tablist" aria-label="Period type">';
     [['month','Month'],['quarter','Quarter'],['year','Year']].forEach(function(t) {
       html += '<button class="bs-seg-btn' + (view.type === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
@@ -1076,6 +1119,8 @@ function bsRender() {
 
   if (view.tab === 'restock') {
     html += '<div id="bsRestock"></div>';
+  } else if (view.tab === 'focus') {
+    html += '<div id="bsFocus"></div>';
   } else if (view.tab === 'trends') {
     html += bsRenderTrendsTab(buckets, view);
   } else {
@@ -1083,7 +1128,16 @@ function bsRender() {
   }
 
   el.innerHTML = html;
-  if (view.tab === 'restock') _bsRenderRestockBoard(vel);
+  _bsRenderStockTab(vel);
+}
+
+// Both stock-backed tabs paint after the shell is in the DOM, and both have
+// to repaint on their own once the Square on-hand fetch lands. One entry
+// point so a caller never has to know which tab is showing.
+function _bsRenderStockTab(vel) {
+  var tab = _bsView().tab;
+  if (tab === 'restock') _bsRenderRestockBoard(vel);
+  else if (tab === 'focus') _bsRenderFocusBoard();
 }
 
 // ── Items tab: flat sortable table of every item in the selected period ──
@@ -1218,7 +1272,20 @@ function bsSparkCard(name, cat, hist, metric) {
   + '</div>';
 }
 
-// ── Design focus cards (rendered under the restock board) ──
+// ── Focus tab: one design card per product family ──
+function _bsRenderFocusBoard() {
+  var el = document.getElementById('bsFocus');
+  if (!el) return;
+  if (!_bsOnHandReady) {
+    el.innerHTML = '<div class="sales-empty">Checking Square stock levels…</div>';
+    return;
+  }
+  var html = '<div class="bs-urgency-note">Units over the last 12 months against the 12 before, per design. '
+    + 'Names are merged across renamed and duplicate listings; parts, add-ons and bench services are left out.</div>';
+  html += bsRenderFocusCards();
+  el.innerHTML = html;
+}
+
 function bsRenderFocusCards() {
   return BS_FOCUS_FAMILIES.map(bsRenderFocusCard).join('');
 }
@@ -1300,7 +1367,6 @@ function _bsRenderRestockBoard(vel) {
     html += '</div>';
   });
   html += '</div>';
-  html += bsRenderFocusCards();
   el.innerHTML = html;
 }
 
