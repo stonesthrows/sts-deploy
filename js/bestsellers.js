@@ -110,6 +110,22 @@ function _bsRestockName(itemId) {
   return BS_ALIAS_NAMES[raw.toLowerCase()] || raw;
 }
 
+// ── Pendant focus card ─────────────────────────
+// Pendants move ~100 units a year against 1,400+ stackable rings, so every
+// pendant design sits under BS_MIN_VELOCITY and NONE of them ever reach the
+// restock board. This card is the family's own cut, on a far longer window
+// than the 12-weekend velocity: units over the trailing 12 months against
+// the 12 before, recent-half momentum, and live on-hand.
+var BS_PEND_FOCUS_N      = 5;   // designs called out as the focus set
+var BS_PEND_RECENT_DAYS  = 182; // "still selling" window (~6 months)
+var BS_PEND_COVER_MONTHS = 3;   // a design's make-count covers this much demand
+
+// What counts as a pendant here. The family label alone isn't enough: the
+// best-selling pendant of the lot sits in Square's "Seedpod Designs"
+// category and the Haloed Pendant has no category at all, so the item's own
+// name gets the final say.
+var BS_PENDANT_RE = /\b(pendant|necklace)s?\b/i;
+
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
 var _bsOnHand          = {};    // variationId -> on-hand count
@@ -636,6 +652,12 @@ function _bsLoadOnHand(vel) {
     if (!_bsRestockEligible(itemId)) return;
     Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
   });
+  // The pendant card reads a two-year window, not the velocity window, so
+  // most of its designs sold nothing recent enough to be picked up above.
+  _bsPendantItemIds().forEach(function(itemId) {
+    if (!_bsRestockEligible(itemId)) return;
+    Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
+  });
   var ids = Object.keys(idSet);
   if (!ids.length) return Promise.resolve();
   // Square caps batch-retrieve at 100 ids per call
@@ -716,6 +738,96 @@ function bsRestockFocus(vel, includeCovered) {
   });
 
   rows.sort(function(a, b){ return (b.make - a.make) || (b.rev - a.rev); });
+  return rows;
+}
+
+// ── Pendant focus (aggregation) ────────────────
+function _bsIsPendant(itemId) {
+  if (_bsAppCategory(itemId) === 'Pendants') return true;
+  if (_bsCatNamesOf(itemId).some(function(n){ return n && BS_PENDANT_RE.test(n); })) return true;
+  return BS_PENDANT_RE.test(String(_bsNameOf(itemId)));
+}
+
+// Pendant designs with sales in the last two years, merged by name the same
+// way restock focus merges them (BS_ALIAS_NAMES, then lowercased name) so a
+// renamed listing and its successor count as one design rather than two
+// half-designs.
+//   → [{ ids, name, cat, y1, y0, recent, rev1, rev0, anyLive }]
+function _bsPendantGroups() {
+  var weekends = (_bsSales && _bsSales.weekends) || {};
+  var now = Date.now(), DAY = 86400000;
+  var groups = {};
+  Object.keys(weekends).forEach(function(k) {
+    var e = weekends[k];
+    if (!e || e.final !== true) return;
+    var age = (now - new Date(k + 'T00:00:00').getTime()) / DAY;
+    if (age < 0 || age > 730) return;
+    var its = e.items || {};
+    Object.keys(its).forEach(function(id) {
+      var qty = its[id].qty || 0;
+      if (!(qty > 0)) return;
+      if (!_bsRestockSkuValid(id)) return; // drops chain upgrades, shipping, retired categories
+      if (!_bsIsPendant(id)) return;
+      var name = _bsRestockName(id);
+      var g = groups[name.toLowerCase()];
+      if (!g) {
+        g = groups[name.toLowerCase()] = {
+          ids: [], name: name, cat: _bsAppCategory(id), anyLive: false,
+          y1: 0, y0: 0, recent: 0, rev1: 0, rev0: 0,
+        };
+      }
+      if (g.ids.indexOf(id) < 0) g.ids.push(id);
+      g.anyLive = g.anyLive || !_bsIsDiscontinued(id);
+      if (g.cat === 'Uncategorized') g.cat = _bsAppCategory(id);
+      var rev = its[id].revenue || 0;
+      if (age <= 365) {
+        g.y1 += qty; g.rev1 += rev;
+        if (age <= BS_PEND_RECENT_DAYS) g.recent += qty;
+      } else {
+        g.y0 += qty; g.rev0 += rev;
+      }
+    });
+  });
+  // Every listing under this name archived or deleted — genuinely retired,
+  // not a rename with a live successor.
+  return Object.keys(groups).map(function(k){ return groups[k]; })
+    .filter(function(g){ return g.anyLive; });
+}
+
+// Item ids the pendant card needs stock counts for. These are exactly the
+// ids the velocity-driven on-hand fetch skips, so _bsLoadOnHand asks for
+// them explicitly — otherwise the card's On hand column is all '—'.
+function _bsPendantItemIds() {
+  var ids = [];
+  _bsPendantGroups().forEach(function(g){ ids = ids.concat(g.ids); });
+  return ids;
+}
+
+// Rank and classify. focus = the BS_PEND_FOCUS_N biggest two-year earners
+// still selling in the recent half; watch = still selling, outside the top;
+// fading = sold inside the two-year window but nothing lately.
+function bsPendantFocus() {
+  var varsByItem = _bsVarsByItem();
+  var rows = _bsPendantGroups();
+  rows.forEach(function(g) {
+    g.rev = g.rev1 + g.rev0;
+    g.have = null;
+    if (_bsOnHandReady) {
+      g.ids.forEach(function(id) {
+        var h = _bsItemOnHand(id, varsByItem);
+        if (h != null) g.have = (g.have || 0) + h;
+      });
+    }
+    // A BS_PEND_COVER_MONTHS run at the last 12 months' rate, less what's on
+    // the shelf. Square reports negatives for stock sold but never received
+    // — floor at 0, it means "none on hand", not "owes 11".
+    g.make = Math.max(0, Math.ceil(g.y1 * (BS_PEND_COVER_MONTHS / 12)) - Math.max(0, g.have || 0));
+    g.status = g.recent > 0 ? 'watch' : 'fading';
+  });
+  rows.sort(function(a, b){ return (b.rev - a.rev) || (b.y1 - a.y1); });
+  rows.filter(function(r){ return r.status === 'watch'; })
+      .slice(0, BS_PEND_FOCUS_N)
+      .forEach(function(r){ r.status = 'focus'; });
   return rows;
 }
 
@@ -1048,6 +1160,45 @@ function bsSparkCard(name, cat, hist, metric) {
   + '</div>';
 }
 
+// ── Pendant focus card (rendered under the restock board) ──
+function bsRenderPendantCard() {
+  var rows = bsPendantFocus();
+  if (!rows.length) return '';
+  var rank = { focus: 0, watch: 1, fading: 2 };
+  rows.sort(function(a, b){ return (rank[a.status] - rank[b.status]) || (b.rev - a.rev); });
+
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">📿 Pendant focus — last 12 months vs the 12 before</div>';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+  ['Design','12 mo','Prior 12','Last 6 mo','2-yr net','On hand','Make'].forEach(function(h) {
+    html += '<th>' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach(function(r) {
+    var pill  = r.status === 'focus' ? 'up' : r.status === 'fading' ? 'down' : 'flat';
+    var label = r.status === 'focus' ? 'Focus' : r.status === 'fading' ? 'Fading' : 'Watch';
+    var make  = r.status === 'fading' ? '<span class="sales-td-muted">—</span>'
+              : r.make > 0 ? r.make
+              : '<span class="sales-td-muted">✓</span>';
+    html += '<tr>'
+      + '<td class="sales-td-label">' + _bsEsc(r.name) + ' <span class="trend-pill ' + pill + '">' + label + '</span></td>'
+      + '<td>' + Math.round(r.y1) + '</td>'
+      + '<td class="sales-td-muted">' + Math.round(r.y0) + '</td>'
+      + '<td>' + Math.round(r.recent) + '</td>'
+      + '<td>' + _bsMoney(r.rev) + '</td>'
+      + '<td>' + (r.have == null ? '<span class="sales-td-muted">—</span>' : r.have) + '</td>'
+      + '<td>' + make + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '</div></div>';
+  html += '<div class="bs-footnote">Make covers ' + BS_PEND_COVER_MONTHS
+    + ' months at the last 12 months’ rate, less what Square has on hand. Every pendant sells below the '
+    + BS_MIN_VELOCITY + '/weekend floor the board above uses, so none of them appear there — this card is their cut.</div>';
+  return html;
+}
+
 // ── Restock tab: urgency board (make now / make soon / covered) ──
 function _bsRenderRestockBoard(vel) {
   var el = document.getElementById('bsRestock');
@@ -1087,6 +1238,7 @@ function _bsRenderRestockBoard(vel) {
     html += '</div>';
   });
   html += '</div>';
+  html += bsRenderPendantCard();
   el.innerHTML = html;
 }
 
