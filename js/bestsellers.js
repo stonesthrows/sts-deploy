@@ -783,9 +783,12 @@ function _bsFocusFamilyOf(itemId) {
 // One family's designs with sales in the window, merged by name the same way
 // restock focus merges them (BS_ALIAS_NAMES, then lowercased name) so a
 // renamed listing and its successor count as one design rather than two half
-// designs. This also folds Square's case and whitespace duplicates together
-// — "X Ear Cuff"/"X ear cuff" and "Spiral ear cuff"/"Spiral Ear Cuff " are
-// each one design split across two listings.
+// designs. Note this is for genuinely separate catalog items only. A plain
+// RENAME needs no merging here: weekend entries are keyed by Square item id
+// and _bsNameOf prefers the live catalog name, so an item's whole history
+// groups under whatever it is called today. (Square's own reports do NOT do
+// this — they keep the name as it was at the time of each sale, so one
+// renamed item shows up there as two rows. Don't read those as duplicates.)
 //   → [{ ids, name, cat, y1, y0, recent, rev1, rev0, anyLive }]
 function _bsFamilyGroups(def) {
   var weekends = (_bsSales && _bsSales.weekends) || {};
