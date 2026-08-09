@@ -145,6 +145,15 @@ var BS_FOCUS_SKIP_RE = /\b(add-?on|chain only|ball for|repairs?)\b/i;
 // family is tested first claims it before the vetoing one is reached.
 var BS_FOCUS_EXCLUDE_RE = /\bnose\b/i;
 
+// The one exception to the permanent-jewelry exclusion below. The premade
+// chain bracelets live in the PJ category but aren't welds — they're
+// ordinary stocked product with real counts, so a design row and a make
+// count do mean something for them. Matched on "premade" because that is
+// the only thing separating them from the weld lines in the same category:
+// "Premade Silver Bracelet" is stock, "Silver Bracelet" is a weld sold by
+// the inch, and nothing else distinguishes the two.
+var BS_FOCUS_PERM_KEEP_RE = /\bpre-?made\b/i;
+
 // A family claims an item by app family label, by Square category name, or
 // by the item's own name — in that order of preference but any one is
 // enough. Name matters because category alone misses real sellers: the
@@ -220,7 +229,7 @@ var BS_FOCUS_FAMILIES = [
   // one, so on name alone they would take every focus slot.
   { key: 'bracelets', icon: '🔗', title: 'Bracelet focus',
     re: /\b(bracelets?|bangles?)\b/i,
-    note: 'Cuff bracelets and bangles. Permanent jewelry is deliberately absent: those bracelets are welded to the customer rather than stocked, so a make-count for them would be meaningless — they have their own tab.' },
+    note: 'Cuff bracelets, bangles and the premade chain bracelets. Welded permanent jewelry is deliberately absent — it is fitted to the customer rather than stocked, so a make-count for it would be meaningless, and it has its own tab.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
@@ -878,8 +887,9 @@ function _bsFocusFamilyOf(itemId) {
   // Permanent jewelry is welded to the customer by the inch, so a design
   // list and a make-count mean nothing for it — and it has its own tab. It
   // would only ever surface here through the bracelet def, where its two
-  // weld lines outsell every stocked cuff bracelet about ten to one.
-  if (_bsIsPermJewelry(itemId)) return null;
+  // weld lines outsell every stocked cuff bracelet about ten to one. The
+  // premade chain bracelets in the same category are the exception.
+  if (_bsIsPermJewelry(itemId) && !BS_FOCUS_PERM_KEEP_RE.test(String(_bsNameOf(itemId)))) return null;
   for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
     if (_bsFamilyClaims(BS_FOCUS_FAMILIES[i], itemId)) return BS_FOCUS_FAMILIES[i].key;
   }
