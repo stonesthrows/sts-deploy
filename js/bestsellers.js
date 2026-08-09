@@ -588,9 +588,23 @@ function _bsIsPermJewelry(itemId) {
 // in bsRestockFocus, it just isn't eligible on its own (see below). Items
 // with no catalog entry stay eligible — an unresolved lookup shouldn't
 // silently drop a real seller.
+// Square product types that genuinely aren't stock. Everything else counts,
+// including types nobody expected: this used to require product_type ===
+// 'REGULAR', which is an allowlist of one, and a real physical product can
+// carry a wrong type from however it was created. Both premade chain
+// bracelet items are FOOD_AND_BEV, which made them invisible to restock
+// focus AND to the design cards — and invisible to the on-hand fetch, so
+// they showed "—" stock — while still listing in the Items table, which
+// never calls this. Excluding by known service types instead of demanding
+// one blessed type stops a data-entry slip from silently hiding real stock.
+var BS_NON_STOCK_PTYPES = {
+  APPOINTMENTS_SERVICE: 1, GIFT_CARD: 1, DONATION: 1,
+  LEGACY_SQUARE_ONLINE_SERVICE: 1, LEGACY_SQUARE_ONLINE_MEMBERSHIP: 1,
+};
+
 function _bsRestockSkuValid(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
-  if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
+  if (entry && entry.ptype && BS_NON_STOCK_PTYPES[entry.ptype]) return false;
   var nm = String(_bsNameOf(itemId)).trim();
   if (BS_SKIP_NAME_RE.test(nm)) return false;
   if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
