@@ -110,21 +110,45 @@ function _bsRestockName(itemId) {
   return BS_ALIAS_NAMES[raw.toLowerCase()] || raw;
 }
 
-// ── Pendant focus card ─────────────────────────
-// Pendants move ~100 units a year against 1,400+ stackable rings, so every
-// pendant design sits under BS_MIN_VELOCITY and NONE of them ever reach the
-// restock board. This card is the family's own cut, on a far longer window
-// than the 12-weekend velocity: units over the trailing 12 months against
-// the 12 before, recent-half momentum, and live on-hand.
-var BS_PEND_FOCUS_N      = 5;   // designs called out as the focus set
-var BS_PEND_RECENT_DAYS  = 182; // "still selling" window (~6 months)
-var BS_PEND_COVER_MONTHS = 3;   // a design's make-count covers this much demand
+// ── Design focus cards ─────────────────────────
+// The restock board only ever lists designs clearing BS_MIN_VELOCITY, and it
+// says nothing about year over year. These cards give a product family its
+// own cut on a far longer window than the 12-weekend velocity: units over
+// the trailing 12 months against the 12 before, recent-half momentum, live
+// on-hand, and a make-count for a short run.
+//   · Pendants need it most — the whole family sells under the floor, so not
+//     one pendant has ever reached the board.
+//   · Earrings are the opposite shape: the top dozen designs are all on the
+//     board already, so the card earns its place on the year-over-year
+//     column and the long tail sitting below the floor.
+var BS_FOCUS_N            = 5;   // designs called out as the focus set
+var BS_FOCUS_RECENT_DAYS  = 182; // "still selling" window (~6 months)
+var BS_FOCUS_COVER_MONTHS = 3;   // a design's make-count covers this much demand
+var BS_FOCUS_WINDOW_DAYS  = 730; // total history the cards read
 
-// What counts as a pendant here. The family label alone isn't enough: the
-// best-selling pendant of the lot sits in Square's "Seedpod Designs"
-// category and the Haloed Pendant has no category at all, so the item's own
-// name gets the final say.
-var BS_PENDANT_RE = /\b(pendant|necklace)s?\b/i;
+// Parts and add-ons ring up beside the designs they attach to and share
+// their categories ("Chain Only", "Titanium Ball for Seamless Hoop"). They
+// aren't designs and would pad the tail of every card.
+var BS_FOCUS_SKIP_RE = /\b(add-?on|chain only|ball for)\b/i;
+
+// A family claims an item by app family label, by Square category name, or
+// by the item's own name — in that order of preference but any one is
+// enough. Name matters because category alone misses real sellers: the
+// best-selling pendant sits in Square's "Seedpod Designs" category and the
+// Haloed Pendant has no category at all. Families are tested IN ORDER and an
+// item joins the first that claims it, so nothing lands on two cards.
+var BS_FOCUS_FAMILIES = [
+  { key: 'pendants', icon: '📿', title: 'Pendant focus',
+    family: 'Pendants',
+    re: /\b(pendant|necklace)s?\b/i,
+    note: 'Every pendant sells below the ' + BS_MIN_VELOCITY
+        + '/weekend floor the board above uses, so none of them appear there — this card is their cut.' },
+  { key: 'earrings', icon: '🌿', title: 'Earring focus',
+    family: 'Earrings',
+    re: /\b(ear ?cuffs?|earcuffs?|earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
+    note: 'The biggest earring designs already appear on the board above; this card adds the year-over-year column and the tail selling under the '
+        + BS_MIN_VELOCITY + '/weekend floor, which the board never shows.' },
+];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
@@ -652,9 +676,9 @@ function _bsLoadOnHand(vel) {
     if (!_bsRestockEligible(itemId)) return;
     Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
   });
-  // The pendant card reads a two-year window, not the velocity window, so
-  // most of its designs sold nothing recent enough to be picked up above.
-  _bsPendantItemIds().forEach(function(itemId) {
+  // The focus cards read a two-year window, not the velocity window, so many
+  // of their designs sold nothing recent enough to be picked up above.
+  _bsFocusItemIds().forEach(function(itemId) {
     if (!_bsRestockEligible(itemId)) return;
     Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
   });
@@ -741,19 +765,29 @@ function bsRestockFocus(vel, includeCovered) {
   return rows;
 }
 
-// ── Pendant focus (aggregation) ────────────────
-function _bsIsPendant(itemId) {
-  if (_bsAppCategory(itemId) === 'Pendants') return true;
-  if (_bsCatNamesOf(itemId).some(function(n){ return n && BS_PENDANT_RE.test(n); })) return true;
-  return BS_PENDANT_RE.test(String(_bsNameOf(itemId)));
+// ── Design focus (aggregation) ─────────────────
+function _bsFamilyClaims(def, itemId) {
+  if (_bsAppCategory(itemId) === def.family) return true;
+  if (_bsCatNamesOf(itemId).some(function(n){ return n && def.re.test(n); })) return true;
+  return def.re.test(String(_bsNameOf(itemId)));
 }
 
-// Pendant designs with sales in the last two years, merged by name the same
-// way restock focus merges them (BS_ALIAS_NAMES, then lowercased name) so a
-// renamed listing and its successor count as one design rather than two
-// half-designs.
+// The family an item belongs to, or null. First claim wins.
+function _bsFocusFamilyOf(itemId) {
+  for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
+    if (_bsFamilyClaims(BS_FOCUS_FAMILIES[i], itemId)) return BS_FOCUS_FAMILIES[i].key;
+  }
+  return null;
+}
+
+// One family's designs with sales in the window, merged by name the same way
+// restock focus merges them (BS_ALIAS_NAMES, then lowercased name) so a
+// renamed listing and its successor count as one design rather than two half
+// designs. This also folds Square's case and whitespace duplicates together
+// — "X Ear Cuff"/"X ear cuff" and "Spiral ear cuff"/"Spiral Ear Cuff " are
+// each one design split across two listings.
 //   → [{ ids, name, cat, y1, y0, recent, rev1, rev0, anyLive }]
-function _bsPendantGroups() {
+function _bsFamilyGroups(def) {
   var weekends = (_bsSales && _bsSales.weekends) || {};
   var now = Date.now(), DAY = 86400000;
   var groups = {};
@@ -761,14 +795,15 @@ function _bsPendantGroups() {
     var e = weekends[k];
     if (!e || e.final !== true) return;
     var age = (now - new Date(k + 'T00:00:00').getTime()) / DAY;
-    if (age < 0 || age > 730) return;
+    if (age < 0 || age > BS_FOCUS_WINDOW_DAYS) return;
     var its = e.items || {};
     Object.keys(its).forEach(function(id) {
       var qty = its[id].qty || 0;
       if (!(qty > 0)) return;
       if (!_bsRestockSkuValid(id)) return; // drops chain upgrades, shipping, retired categories
-      if (!_bsIsPendant(id)) return;
+      if (_bsFocusFamilyOf(id) !== def.key) return;
       var name = _bsRestockName(id);
+      if (BS_FOCUS_SKIP_RE.test(name)) return;
       var g = groups[name.toLowerCase()];
       if (!g) {
         g = groups[name.toLowerCase()] = {
@@ -780,9 +815,9 @@ function _bsPendantGroups() {
       g.anyLive = g.anyLive || !_bsIsDiscontinued(id);
       if (g.cat === 'Uncategorized') g.cat = _bsAppCategory(id);
       var rev = its[id].revenue || 0;
-      if (age <= 365) {
+      if (age <= BS_FOCUS_WINDOW_DAYS / 2) {
         g.y1 += qty; g.rev1 += rev;
-        if (age <= BS_PEND_RECENT_DAYS) g.recent += qty;
+        if (age <= BS_FOCUS_RECENT_DAYS) g.recent += qty;
       } else {
         g.y0 += qty; g.rev0 += rev;
       }
@@ -794,21 +829,23 @@ function _bsPendantGroups() {
     .filter(function(g){ return g.anyLive; });
 }
 
-// Item ids the pendant card needs stock counts for. These are exactly the
-// ids the velocity-driven on-hand fetch skips, so _bsLoadOnHand asks for
-// them explicitly — otherwise the card's On hand column is all '—'.
-function _bsPendantItemIds() {
+// Item ids the focus cards need stock counts for. The slow-moving ones are
+// exactly what the velocity-driven on-hand fetch skips, so _bsLoadOnHand
+// asks for these explicitly — otherwise their On hand column is all '—'.
+function _bsFocusItemIds() {
   var ids = [];
-  _bsPendantGroups().forEach(function(g){ ids = ids.concat(g.ids); });
+  BS_FOCUS_FAMILIES.forEach(function(def) {
+    _bsFamilyGroups(def).forEach(function(g){ ids = ids.concat(g.ids); });
+  });
   return ids;
 }
 
-// Rank and classify. focus = the BS_PEND_FOCUS_N biggest two-year earners
-// still selling in the recent half; watch = still selling, outside the top;
-// fading = sold inside the two-year window but nothing lately.
-function bsPendantFocus() {
+// Rank and classify one family. focus = the BS_FOCUS_N biggest two-year
+// earners still selling in the recent half; watch = still selling, outside
+// the top; fading = sold inside the window but nothing lately.
+function bsFamilyFocus(def) {
   var varsByItem = _bsVarsByItem();
-  var rows = _bsPendantGroups();
+  var rows = _bsFamilyGroups(def);
   rows.forEach(function(g) {
     g.rev = g.rev1 + g.rev0;
     g.have = null;
@@ -818,15 +855,15 @@ function bsPendantFocus() {
         if (h != null) g.have = (g.have || 0) + h;
       });
     }
-    // A BS_PEND_COVER_MONTHS run at the last 12 months' rate, less what's on
+    // A BS_FOCUS_COVER_MONTHS run at the last 12 months' rate, less what's on
     // the shelf. Square reports negatives for stock sold but never received
     // — floor at 0, it means "none on hand", not "owes 11".
-    g.make = Math.max(0, Math.ceil(g.y1 * (BS_PEND_COVER_MONTHS / 12)) - Math.max(0, g.have || 0));
+    g.make = Math.max(0, Math.ceil(g.y1 * (BS_FOCUS_COVER_MONTHS / 12)) - Math.max(0, g.have || 0));
     g.status = g.recent > 0 ? 'watch' : 'fading';
   });
   rows.sort(function(a, b){ return (b.rev - a.rev) || (b.y1 - a.y1); });
   rows.filter(function(r){ return r.status === 'watch'; })
-      .slice(0, BS_PEND_FOCUS_N)
+      .slice(0, BS_FOCUS_N)
       .forEach(function(r){ r.status = 'focus'; });
   return rows;
 }
@@ -1160,15 +1197,20 @@ function bsSparkCard(name, cat, hist, metric) {
   + '</div>';
 }
 
-// ── Pendant focus card (rendered under the restock board) ──
-function bsRenderPendantCard() {
-  var rows = bsPendantFocus();
+// ── Design focus cards (rendered under the restock board) ──
+function bsRenderFocusCards() {
+  return BS_FOCUS_FAMILIES.map(bsRenderFocusCard).join('');
+}
+
+function bsRenderFocusCard(def) {
+  var rows = bsFamilyFocus(def);
   if (!rows.length) return '';
   var rank = { focus: 0, watch: 1, fading: 2 };
   rows.sort(function(a, b){ return (rank[a.status] - rank[b.status]) || (b.rev - a.rev); });
 
   var html = '<div class="sales-card sales-block">';
-  html += '<div class="sales-card-head">📿 Pendant focus — last 12 months vs the 12 before</div>';
+  html += '<div class="sales-card-head">' + def.icon + ' ' + _bsEsc(def.title)
+       + ' — last 12 months vs the 12 before</div>';
   html += '<div class="sales-card-body sales-flush">';
   html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
   ['Design','12 mo','Prior 12','Last 6 mo','2-yr net','On hand','Make'].forEach(function(h) {
@@ -1193,9 +1235,8 @@ function bsRenderPendantCard() {
   });
   html += '</tbody></table></div>';
   html += '</div></div>';
-  html += '<div class="bs-footnote">Make covers ' + BS_PEND_COVER_MONTHS
-    + ' months at the last 12 months’ rate, less what Square has on hand. Every pendant sells below the '
-    + BS_MIN_VELOCITY + '/weekend floor the board above uses, so none of them appear there — this card is their cut.</div>';
+  html += '<div class="bs-footnote">Make covers ' + BS_FOCUS_COVER_MONTHS
+    + ' months at the last 12 months’ rate, less what Square has on hand. ' + def.note + '</div>';
   return html;
 }
 
@@ -1238,7 +1279,7 @@ function _bsRenderRestockBoard(vel) {
     html += '</div>';
   });
   html += '</div>';
-  html += bsRenderPendantCard();
+  html += bsRenderFocusCards();
   el.innerHTML = html;
 }
 
