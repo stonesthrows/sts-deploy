@@ -208,6 +208,19 @@ var BS_FOCUS_FAMILIES = [
     re: /\b(rings?|bands?)\b/i,
     note: 'Spirit animal, geometric and symbolic ring designs, minus the stackers and meditation rings that have their own cards. Most sit near the '
         + BS_MIN_VELOCITY + '/weekend floor, which is where the year-over-year column earns its keep.' },
+
+  // Bracelets. Matched by name and category rather than ids — bracelets
+  // aren't an Inventory tab, so there's no INV_ constant to pin to. The
+  // "Cuff Bracelets" category is safe to match on \bbracelet\b: it's the ear
+  // cuff defs above that have to avoid a bare \bcuff\b, not this one.
+  //
+  // The whole card depends on permanent jewelry being excluded — see
+  // _bsIsPermJewelry in _bsFocusFamilyOf. PJ welds ring up as "Silver
+  // Bracelet" and "Gold Fill Bracelet" and outsell the cuffs roughly ten to
+  // one, so on name alone they would take every focus slot.
+  { key: 'bracelets', icon: '🔗', title: 'Bracelet focus',
+    re: /\b(bracelets?|bangles?)\b/i,
+    note: 'Cuff bracelets and bangles. Permanent jewelry is deliberately absent: those bracelets are welded to the customer rather than stocked, so a make-count for them would be meaningless — they have their own tab.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
@@ -862,6 +875,11 @@ function _bsFamilyClaims(def, itemId) {
 function _bsFocusFamilyOf(itemId) {
   if (BS_FOCUS_EXCLUDE_RE.test(String(_bsNameOf(itemId)))) return null;
   if (_bsCatNamesOf(itemId).some(function(n){ return n && BS_FOCUS_EXCLUDE_RE.test(n); })) return null;
+  // Permanent jewelry is welded to the customer by the inch, so a design
+  // list and a make-count mean nothing for it — and it has its own tab. It
+  // would only ever surface here through the bracelet def, where its two
+  // weld lines outsell every stocked cuff bracelet about ten to one.
+  if (_bsIsPermJewelry(itemId)) return null;
   for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
     if (_bsFamilyClaims(BS_FOCUS_FAMILIES[i], itemId)) return BS_FOCUS_FAMILIES[i].key;
   }
