@@ -895,6 +895,37 @@ function _bsFocusItemIds() {
   return ids;
 }
 
+// Variations carrying stock that have never sold, pooled over a design's
+// merged item ids. → { count, units }
+//
+// Per-variation sales are NOT in the weekend store: both sync paths roll
+// every variation up to its parent item before writing, so items[] is
+// item-keyed and a variation's own history is gone. varMap is the way in —
+// it only ever gains a variation when one turns up in an order, so "listed
+// in the catalog, carrying stock, absent from varMap" is precisely a
+// variation that has never sold across the synced history.
+//
+// This is a MARKET claim, not an all-channels one. The store holds Sat/Sun
+// orders at INV_LOCATION_ID only, so a variation that sells online and never
+// at a booth reads as dead here — which is why the UI says "no market
+// sales" rather than "never sold". For the question these cards answer (what
+// is worth carrying to a market) that is the right denominator.
+function _bsDeadVariations(itemIds) {
+  var varMap = (_bsSales && _bsSales.varMap) || {};
+  var out = { count: 0, units: 0 };
+  itemIds.forEach(function(id) {
+    var entry = _bsCatMap && _bsCatMap.items[id];
+    ((entry && entry.vars) || []).forEach(function(v) {
+      if (varMap[v]) return;                  // has sold at least once
+      var have = _bsOnHand[v];
+      if (have == null || have <= 0) return;  // untracked or empty — not dead STOCK
+      out.count += 1;
+      out.units += have;
+    });
+  });
+  return out;
+}
+
 // Rank and classify one family. focus = the BS_FOCUS_N biggest two-year
 // earners still selling in the recent half; watch = still selling, outside
 // the top; fading = sold inside the window but nothing lately.
@@ -904,11 +935,13 @@ function bsFamilyFocus(def) {
   rows.forEach(function(g) {
     g.rev = g.rev1 + g.rev0;
     g.have = null;
+    g.dead = null;
     if (_bsOnHandReady) {
       g.ids.forEach(function(id) {
         var h = _bsItemOnHand(id, varsByItem);
         if (h != null) g.have = (g.have || 0) + h;
       });
+      g.dead = _bsDeadVariations(g.ids);
     }
     // A BS_FOCUS_COVER_MONTHS run at the last 12 months' rate, less what's on
     // the shelf. Square reports negatives for stock sold but never received
@@ -1290,6 +1323,19 @@ function bsRenderFocusCards() {
   return BS_FOCUS_FAMILIES.map(bsRenderFocusCard).join('');
 }
 
+// On hand is pooled across every variation of a design, which is the right
+// grain for "is this design worth bench time" but hides where the depth
+// actually sits: a 12-variation matrix can read as well stocked while a
+// third of it is sizes nobody buys. Flag that inline, on the number itself.
+function _bsOnHandCell(r) {
+  if (r.have == null) return '<span class="sales-td-muted">—</span>';
+  if (!r.dead || !r.dead.count) return String(r.have);
+  var plural = function(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); };
+  return r.have + ' <span class="sales-td-muted" title="'
+    + plural(r.dead.units, 'unit') + ' across ' + plural(r.dead.count, 'variation')
+    + ' with no market sales on record">· ' + r.dead.units + ' dead</span>';
+}
+
 function bsRenderFocusCard(def) {
   var rows = bsFamilyFocus(def);
   if (!rows.length) return '';
@@ -1317,14 +1363,19 @@ function bsRenderFocusCard(def) {
       + '<td class="sales-td-muted">' + Math.round(r.y0) + '</td>'
       + '<td>' + Math.round(r.recent) + '</td>'
       + '<td>' + _bsMoney(r.rev) + '</td>'
-      + '<td>' + (r.have == null ? '<span class="sales-td-muted">—</span>' : r.have) + '</td>'
+      + '<td>' + _bsOnHandCell(r) + '</td>'
       + '<td>' + make + '</td>'
       + '</tr>';
   });
   html += '</tbody></table></div>';
   html += '</div></div>';
   html += '<div class="bs-footnote">Make covers ' + BS_FOCUS_COVER_MONTHS
-    + ' months at the last 12 months’ rate, less what Square has on hand. ' + def.note + '</div>';
+    + ' months at the last 12 months’ rate, less what Square has on hand. ' + def.note;
+  if (rows.some(function(r){ return r.dead && r.dead.count; })) {
+    html += ' “Dead” counts stock sitting in variations with no market sales on record —'
+         + ' it is already included in the On hand figure beside it.';
+  }
+  html += '</div>';
   return html;
 }
 
