@@ -184,14 +184,22 @@ var BS_FOCUS_FAMILIES = [
   //     caught only because Stackable Rings is in INV_RING_CAT_IDS.
   //   · Nose rings would otherwise match on \bring\b; they're kept off every
   //     card by BS_FOCUS_EXCLUDE_RE, not by a veto here — see that comment.
-  //   · Meditation rings ARE folded in here. They have their own Inventory
-  //     tab but no entry in _bsFamilyDefs, so they arrive by category name.
-  //     Give them their own def if they ever deserve a card of their own.
+  //   · Meditation rings are claimed by the def above, not here.
+  //
+  // Ahead of rings, or \brings?\b would swallow them. Pinned to
+  // INV_MEDITATION_CAT_IDS rather than a name match because the names don't
+  // all say "meditation" — INV_RING_INCLUDE lists "tri-color" as one — so
+  // the category ids are the only reliable handle. The regex stays as a
+  // fallback for a meditation ring filed outside those categories.
+  { key: 'meditation', icon: '🧘', title: 'Meditation ring focus',
+    catIds: typeof INV_MEDITATION_CAT_IDS !== 'undefined' ? INV_MEDITATION_CAT_IDS : null,
+    re: /\bmeditation\b/i,
+    note: 'Meditation rings have their own Inventory tab and the highest average price of any market line, so they get their own card instead of being averaged in behind the stackers.' },
   { key: 'rings', icon: '💍', title: 'Ring focus',
     family: 'Rings',
     re: /\b(rings?|stackers?|bands?)\b/i,
     note: 'Rings are your deepest family, so most of this card also appears on the board above — the value here is the year-over-year column and the designs selling under the '
-        + BS_MIN_VELOCITY + '/weekend floor. Meditation rings are included.' },
+        + BS_MIN_VELOCITY + '/weekend floor. Meditation rings have their own card.' },
 ];
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
@@ -810,9 +818,29 @@ function bsRestockFocus(vel, includeCovered) {
 }
 
 // ── Design focus (aggregation) ─────────────────
+// Square category id union for a def pinned to an inventory.js category map
+// ({subTab: [ids]}), unioned once and cached on the def.
+function _bsDefCatIdSet(def) {
+  if (def._catIdSet) return def._catIdSet;
+  var set = {};
+  Object.keys(def.catIds || {}).forEach(function(sub) {
+    (def.catIds[sub] || []).forEach(function(id){ set[id] = true; });
+  });
+  return (def._catIdSet = set);
+}
+
 function _bsFamilyClaims(def, itemId) {
   var name = String(_bsNameOf(itemId));
   var cats = _bsCatNamesOf(itemId);
+  // Category IDS beat every other test — the only handle that survives a
+  // category rename, and the only one that catches a design whose name says
+  // nothing about its family (a "Tri-Color" meditation ring).
+  if (def.catIds) {
+    var idSet = _bsDefCatIdSet(def);
+    var entry = _bsCatMap && _bsCatMap.items[itemId];
+    var ids = (entry && entry.cats) || [];
+    for (var i = 0; i < ids.length; i++) if (idSet[ids[i]]) return true;
+  }
   // `family` is optional: a def that shares an inventory.js family with a
   // sibling def (ear cuffs vs the rest of the earrings) matches on name and
   // category only, and relies on being listed first.
