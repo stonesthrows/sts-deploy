@@ -71,6 +71,22 @@ const INV_CAT_IDS = {
 
 const INV_LOCATION_ID = 'D7EZ98V48F79A';
 
+// ── Retired duplicate listings ───────────────────────────────────────────────
+// Square carries the chevron ear cuffs twice over, and both halves still hold
+// stock, so neither can just be deleted. This is the retired half: it stays in
+// Square untouched — counts, sales history and the online listing all intact —
+// but off the Adjust Inventory page, so there is one obvious card to count
+// against instead of two that look alike.
+//
+// Nothing here writes to Square. Drop the id to bring the card back, or pin the
+// item explicitly in ⚙ Manage Items, which still overrides this list.
+const INV_RETIRED_ITEM_IDS = new Set([
+  // "Chevron Ear Cuff" (Single/Double Silver/GF, Sm/Lg, Left/Right) —
+  // superseded by "Chevron Ear Cuffs" (CFQQC742DSTLZVPHVLNCRKSH), which carries
+  // the same product with mm sizes and the Silver & GF option.
+  'ADBLTHDPWIS54X6RFVB6CNFB',
+]);
+
 // Category name substrings for fallback lookup when hardcoded IDs return 0 items
 const INV_CAT_NAME_HINTS = {
   'hoops': 'seamless hoop',
@@ -158,7 +174,7 @@ async function _invFallbackCatSearch(sub) {
       method: 'POST',
       body: JSON.stringify({ category_ids: matchedIds }),
     });
-    return (searchRes.items || []).filter(o => !o.is_deleted);
+    return (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
   } catch (e) {
     console.warn(`[inv] fallback search failed for ${sub}:`, e.message);
     return [];
@@ -371,7 +387,7 @@ async function _invLoadSub(sub) {
           category_ids: catIds,
         }),
       });
-      items = (searchRes.items || []).filter(o => !o.is_deleted);
+      items = (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
       console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
     }
 
@@ -513,8 +529,10 @@ const INV_CARD_SPLITS = {
     { label: 'Chevron Ear Cuffs',        test: n => !/\bdouble\b/.test(n) },
     { label: 'Double Chevron Ear Cuffs', test: n =>  /\bdouble\b/.test(n) },
   ],
-  // Older listing of the same product — "Single"/"Double" rather than the
-  // chevron count, otherwise identical.
+  // Same product on the retired duplicate listing (see INV_RETIRED_ITEM_IDS),
+  // which names the halves "Single"/"Double" instead of by chevron count. Kept
+  // so restoring that listing — or renaming the live one to the singular —
+  // still splits correctly.
   'chevron ear cuff': [
     { label: 'Chevron Ear Cuff',         test: n => !/\bdouble\b/.test(n) },
     { label: 'Double Chevron Ear Cuff',  test: n =>  /\bdouble\b/.test(n) },
