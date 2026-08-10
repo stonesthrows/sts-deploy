@@ -1,62 +1,73 @@
 # Stacker sales history (recovered)
 
 Consolidated record of every stacker sale from **January 2019 to 10 August
-2026**, normalised across the 35 different catalog listings the line has been
-sold under.
+2026**, normalised across the 49 catalog listings the line has been sold
+under.
+
+> **Corrected 10 Aug 2026.** The first version of this file understated the
+> history by 3,872 units and $62,452 — it found listings by searching item
+> names for "stacker", and the entire chevron range is named without it
+> (`GF Chevron (Skinny)`, `Double Silver Chevron`, `Chevron`). It reported
+> Double Chevron as 25 units when the real figure is 492, and Single Chevron
+> as 730 against 3,994. This version selects by **category** instead, which
+> is what should have been done first.
 
 ## Why this file exists
 
-The stacker listings have been restructured several times — renamed, split by
-metal and width, merged back, and older ones deleted. Deleting a listing
-removes it from the Square catalog but **not** from the order history: every
-order still records the item and variation name as they were at the time of
-sale.
+The stacker listings have been restructured repeatedly — renamed, split by
+metal and width, merged back, older ones deleted. Deleting a listing removes
+it from the Square catalog but **not** from the order history: every order
+still records the item and variation name as they were at the time of sale.
 
 What is lost is the *link* between those sales and today's catalog. Square's
 inventory reporting can only attribute a sale to a variation that still
 exists, so roughly 3,900 units across the whole catalog now show against no
-current variation. In the app this is why the Best Sellers focus cards cannot
-judge per-variation performance for a rebuilt design, and why the dead-stock
-flag stays silent for them.
+current variation. In the app this is why the Best Sellers focus cards
+cannot judge per-variation performance for a rebuilt design.
 
 This file captures the history in a form that no longer depends on the
 catalog, so a future restructure cannot cost it again.
 
-**Source:** Square Reporting API, `ProductMixReport`, grouped by
-`item_name` + `item_variation_name`. That report keys off the names recorded
-on each order, which is why it still sees deleted listings.
+**Source:** Square Reporting API, `ProductMixReport`, filtered on
+`category_name = "Stackable Rings"` and grouped by `item_name` +
+`item_variation_name`. That report keys off what was recorded on each order,
+so it still sees deleted listings.
 
-**Regenerating it:** re-run the same query with a later end date. Nothing here
-is derived from the app's own weekend-sales store, so it is independent of
-what has or hasn't been synced.
+**Select by category, never by name.** Names are the one thing that changed
+every time the line was reorganised; the category is what stayed put. A name
+filter silently drops whole ranges, which is exactly how the first version
+of this file went wrong.
 
 ---
 
 ## Totals
 
-**8,797 units · $133,840 net**, across 35 listing names.
+**12,669 units · $196,292**, across 49 listing names.
 
 | Current design | Units | Net sales | Sold under |
 |---|---|---|---|
 | Stacker (Regular) | 7,265 | $98,324 | 16 names |
-| Stacker (Single Chevron) | 730 | $20,705 | 2 names |
-| Stacker (Hexagon) | 460 | $6,102 | 4 names |
-| Stacker (Beaded) | 197 | $4,056 | 2 names |
-| Stacker (Square) | 78 | $1,249 | 2 names |
-| Stacker (Double Chevron) | 25 | $1,019 | current only |
-| Birthstone Stacker | 35 | $1,485 | separate line |
-| Gold / custom one-offs | 7 | $901 | 6 names |
+| Stacker (Single Chevron) | 3,994 | $69,891 | 14 names |
+| Stacker (Hexagon) | 547 | $6,942 | 6 names |
+| **Stacker (Double Chevron)** | **492** | **$14,711** | 3 names |
+| Stacker (Beaded) | 196 | $4,038 | 2 names |
+| Stacker (Square) | 175 | $2,386 | 8 names |
 
-The Regular stacker is 83% of all stacker units and 73% of the revenue.
+Outside the category, and not in the totals above: **Birthstone Stacker**
+(35 units, $1,485) and seven custom gold one-offs ($901).
+
+The Regular stacker is 57% of units; Regular and Single Chevron together are
+89%.
 
 ---
 
-## The size curve
+## Size curves
 
-This is the part worth keeping. **4,771 units carry a real ring size**, from
-the era when stackers were listed as `GF Stacker (Skinny)`,
-`Silver Stacker (Reg)` and similar — one listing per metal and width, with
-sizes as variations.
+### Regular stackers — 4,771 sales
+
+From the listings that recorded a real size, one per metal and width with
+sizes as variations. **This is the curve the app uses** — see
+`BS_STACKER_CURVE` in `js/bestsellers.js`.
 
 | Size | Units | Share | | Size | Units | Share |
 |---|---|---|---|---|---|---|
@@ -71,55 +82,73 @@ sizes as variations.
 | 6 | 348 | 7.3% | | 11 | 151 | 3.2% |
 | 6.5 | 326 | 6.8% | | 11.5 | 5 | 0.1% |
 
-Grouped:
-
-- **Core, 6 – 9.5:** 2,751 units — **58%** of everything
+- **Core, 6 – 9.5:** 2,751 units — **58%**
 - **Small, 2 – 5.5:** 1,493 units — 31%
 - **Large, 10 – 11.5:** 527 units — 11%
 
-A single clean peak at **7 – 8**, tapering evenly both ways. This is a
-believable distribution built on 4,771 real sales, and it is the best
-available guide to how deep to stock each size.
+### Double Chevron — 467 sales
 
-The 31% in sizes 2–5.5 is higher than a typical ring-size curve, and sizes
-2–4.5 alone account for 983 units (21%). Worth knowing whether those are
-genuinely small fingers, or midi and toe rings being sold from the same
-listings — it changes what that third of the curve is telling you.
+Recovered from `Double Silver Chevron` (285 units) and `Double GF Chevron`
+(182), both of which recorded real sizes. Three further sales sit on a
+"Regular" variation and carry no size.
+
+| Size | Units | Share | | Size | Units | Share |
+|---|---|---|---|---|---|---|
+| 2 | 10 | 2.1% | | 7 | **47** | **10.1%** |
+| 2.5 | 17 | 3.6% | | 7.5 | 36 | 7.7% |
+| 3 | 21 | 4.5% | | 8 | 43 | 9.2% |
+| 3.5 | 27 | 5.8% | | 8.5 | 30 | 6.4% |
+| 4 | 20 | 4.3% | | 9 | 22 | 4.7% |
+| 4.5 | 23 | 4.9% | | 9.5 | 6 | 1.3% |
+| 5 | 27 | 5.8% | | 10 | 15 | 3.2% |
+| 5.5 | 29 | 6.2% | | 10.5 | 10 | 2.1% |
+| 6 | 45 | 9.6% | | 11 | 5 | 1.1% |
+| 6.5 | 34 | 7.3% | | | | |
+
+Core 6 – 9.5 is 263 units, **56%** — the same shape as the Regular curve,
+peaking at 7 and tapering evenly. That agreement is worth something: two
+independent size records, eight years and several restructures apart,
+describing the same distribution.
+
+**Note:** the app's curve is built on the Regular-era subset only. Widening
+it to include the chevron listings would roughly double the sample. The
+shape barely moves, so this is a refinement rather than a correction.
 
 ---
 
 ## What could not be recovered
 
-**3,467 units have no usable size.** They are recorded against a placeholder
-variation — whatever sat first in the list:
+**3,896 units have no usable size** — recorded against a placeholder
+variation, whatever sat first in the list:
 
 | Listing | Variation recorded | Units | Net sales |
 |---|---|---|---|
 | Stackable Ring | `2` | 1,265 | $15,663 |
 | Stacker | `2` | 1,107 | $17,808 |
 | Chevron Stacker | `Regular` | 700 | $20,114 |
-| Beaded/Twisted Stacker | `Regular` | 173 | $3,578 |
+| Chevron | `Regular` | 430 | $8,374 |
+| Beaded/Twisted Stacker | `Regular` | 172 | $3,560 |
 | Hexagon Stacker | `Size 2` | 149 | $2,391 |
 | Square Stacker | *(blank)* | 73 | $1,174 |
 
-2,372 units rung up as "size 2" is not a real size distribution — size 2 is a
-child's ring. These were sold across the full size range; the till simply
-recorded the default variation each time.
+2,372 units rung up as "size 2" is not a real distribution — size 2 is a
+child's ring. These sold across the full range; the till recorded the default
+variation each time.
 
-**Their units and revenue are sound.** Only the size breakdown is unusable, so
-they are excluded from the size curve above and included in the totals.
+**Their units and revenue are sound.** Only the size breakdown is unusable,
+so they are in the totals and out of the curves.
 
-The same pattern is visible in current data — Circle Ring shows 37 of 38
-sales on Size 5, Spiral Rings 82 of 100 on Silver-5 — which suggests it is
-still happening at checkout rather than being purely historical. If so, per-size
-stock counts drift out of true over time: the tapped size depletes on paper
-while the size that actually left the table does not.
+The same pattern shows in current data — Circle Ring 37 of 38 sales on Size
+5, Spiral Rings 82 of 100 on Silver-5 — which suggests it is still happening
+at checkout rather than being purely historical. If so, per-size stock counts
+drift out of true over time: the tapped size depletes on paper while the size
+that actually left the table does not.
 
 ---
 
 ## Full listing map
 
-Every historical name, and the current design it belongs to.
+All 49 listings in the Stackable Rings category, by current design.
 
 ### → Stacker (Regular) — 7,265 units, $98,324
 
@@ -142,45 +171,70 @@ Every historical name, and the current design it belongs to.
 | Stacker (Skinny Silv) | 12 | $109 | ✅ |
 | Stacker (Regular GF) | 6 | $110 | ✅ |
 
-Note the near-duplicate names — `Silver Stacker (Skinny)` / `Silv Stacker
-(Skinny)`, `Stacker (Skinny GF)` / `Stacker (Skinny Gold Fill)`. Each pair is
-the same product under a differently abbreviated listing.
-
-### → Stacker (Single Chevron) — 730 units, $20,705
+### → Stacker (Single Chevron) — 3,994 units, $69,891
 
 | Listing | Units | Net sales | Sizes? |
 |---|---|---|---|
+| GF Chevron (Skinny) | 1,119 | $19,421 | ✅ |
+| Silv Chevron (Skinny) | 1,024 | $12,518 | ✅ |
 | Chevron Stacker | 700 | $20,114 | ❌ placeholder |
+| Chevron | 430 | $8,374 | ❌ placeholder |
+| Chevron (Skinny Silver) | 355 | $3,598 | ✅ |
+| Chevron (Skinny Gold Fill) | 253 | $3,901 | ✅ |
 | Stacker (Single Chevron) *(current)* | 30 | $591 | ✅ |
+| Chevron (Regular Silver) | 20 | $280 | ✅ |
+| Chevron (Skinny GF) | 19 | $327 | ✅ |
+| Silver Chevron (Reg) | 15 | $262 | ✅ |
+| Chevron (Skinny Silv) | 9 | $113 | ✅ |
+| Chevron (Regular Gold Fill) | 9 | $175 | ✅ |
+| GF Chevron (Reg) | 6 | $131 | ✅ |
+| Silv Chevron (Reg) | 5 | $88 | ✅ |
 
-### → Stacker (Hexagon) — 460 units, $6,102
+This is the range the first version of the file missed entirely.
+
+### → Stacker (Double Chevron) — 492 units, $14,711
+
+| Listing | Units | Net sales | Sizes? |
+|---|---|---|---|
+| Double Silver Chevron | 285 | $7,247 | ✅ |
+| Double GF Chevron | 182 | $6,445 | ✅ |
+| Stacker (Double Chevron) *(current)* | 25 | $1,019 | ✅ |
+
+Nearly all of it is recoverable **with sizes** — see the curve above. The
+current listing is only 5% of the design's history.
+
+### → Stacker (Hexagon) — 547 units, $6,942
 
 | Listing | Units | Net sales | Sizes? |
 |---|---|---|---|
 | Gold Fill Hexagon Stacker | 153 | $2,182 | ✅ |
 | Hexagon Stacker | 149 | $2,391 | ❌ placeholder |
 | Silver Hexagon Stacker | 148 | $1,367 | ✅ |
+| Hexagon | 86 | $827 | unverified |
 | Stacker (Hexagon) *(current)* | 10 | $162 | ✅ |
+| Silver Hexagon Stackwr | 1 | $13 | typo listing |
 
-### → Stacker (Beaded) — 197 units, $4,056
-
-| Listing | Units | Net sales | Sizes? |
-|---|---|---|---|
-| Beaded/Twisted Stacker | 173 | $3,578 | ❌ placeholder |
-| Stacker (Beaded) *(current)* | 24 | $479 | ✅ |
-
-### → Stacker (Square) — 78 units, $1,249
+### → Stacker (Square) — 175 units, $2,386
 
 | Listing | Units | Net sales | Sizes? |
 |---|---|---|---|
 | Square Stacker | 73 | $1,174 | ❌ blank |
+| Square | 34 | $350 | unverified |
+| Square Skinny Silver | 23 | $218 | ✅ |
+| Square (Skinny Gold Fill) | 22 | $316 | ✅ |
+| Square (Regular Silver ) | 9 | $125 | ✅ |
+| Square Skinny | 5 | $48 | ✅ |
+| Square (Regular Gold Fill) | 4 | $80 | ✅ |
 | Stacker (Square) *(current)* | 5 | $75 | ✅ |
 
-### → Stacker (Double Chevron) — 25 units, $1,019
+### → Stacker (Beaded) — 196 units, $4,038
 
-Only ever sold under its current name.
+| Listing | Units | Net sales | Sizes? |
+|---|---|---|---|
+| Beaded/Twisted Stacker | 172 | $3,560 | ❌ placeholder |
+| Stacker (Beaded) *(current)* | 24 | $479 | ✅ |
 
-### Separate lines
+### Outside the category
 
 | Listing | Units | Net sales |
 |---|---|---|
@@ -192,12 +246,12 @@ Only ever sold under its current name.
 | Wide Silver Stacker set with 4mm Pink Tourmaline | 1 | $110 |
 | Rose Gold fill Chevron Stacker | 1 | $15 |
 
-Birthstone Stacker is its own line rather than a stacker variant. The rest
-are custom gold pieces, listed for completeness — they are not part of the
-production stacker range.
+Birthstone Stacker is its own line. The rest are custom gold pieces, not part
+of the production range.
 
-*Excluded: "Labor to melt gold and make spinner, stacker and toe ring"
-($75) — a service line, not a piece.*
+A handful of units differ by one or two from a name-based count of the same
+listing — those sales happened while the item sat in a different category.
+The category figures are the ones used here.
 
 ---
 
@@ -208,4 +262,4 @@ weekend* sales only. This file covers **all channels, all history**, which is
 why its numbers are larger and not directly comparable.
 
 Use the app for what to make next; use this for how the line has performed
-over its life, and for the size curve.
+over its life, and for the size curves.
