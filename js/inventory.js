@@ -449,28 +449,6 @@ async function _invLoadSub(sub) {
   }
 }
 
-// ── Variant row tint (by material/style keywords) ────────────────────────────
-
-function _invVarTint(varName) {
-  const n = varName.toLowerCase();
-  const orbMatch = n.match(/(\d+)\s+orbs?/);
-  if (orbMatch) {
-    const orbs = parseInt(orbMatch[1]);
-    if (orbs === 1) return '#EEF4FD';
-    if (orbs === 2) return '#EEF7F1';
-    if (orbs === 3) return '#FDF5EE';
-  }
-  const isSingle = n.includes('single');
-  const isDouble = n.includes('double');
-  const isGF     = n.includes(' gf') || n.includes('gold fill');
-  const isSilver = n.includes('silver');
-  if (isSingle && isSilver) return '#EFF4FB';
-  if (isSingle && isGF)     return '#FDF8EC';
-  if (isDouble && isSilver) return '#E6EDF7';
-  if (isDouble && isGF)     return '#FBF0DC';
-  return '';
-}
-
 // ── Render ───────────────────────────────────
 
 const _INV_SIZE_RANK = { 'xs':0,'x-small':0,'xsmall':0,'extra small':0,'s':1,'sm':1,'small':1,'m':2,'md':2,'med':2,'medium':2,'l':3,'lg':3,'large':3,'xl':4,'x-large':4,'xlarge':4,'extra large':4,'xxl':5,'2xl':5 };
@@ -687,7 +665,9 @@ function _invRenderSub(sub) {
           const varSafe   = _esc(varName).replace(/'/g, '&#39;');
           const threshold = _invGetThreshold(varId);
           const isLow     = sqQty !== null && sqQty < threshold;
-          const rowTint   = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '');
+          // Zebra only. The old per-material tints were raw light hex, so every
+          // silver/GF row went unreadable in dark mode.
+          const rowTint   = rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '';
 
           html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
             <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
