@@ -990,13 +990,13 @@ function _bsFocusItemIds() {
 // is worth carrying to a market) that is the right denominator.
 function _bsDeadVariations(itemIds) {
   var varMap = (_bsSales && _bsSales.varMap) || {};
-  var out = { count: 0, units: 0 };
+  var out = { count: 0, units: 0, sold: 0 };
   itemIds.forEach(function(id) {
     var entry = _bsCatMap && _bsCatMap.items[id];
     ((entry && entry.vars) || []).forEach(function(v) {
-      if (varMap[v]) return;                  // has sold at least once
+      if (varMap[v]) { out.sold += 1; return; } // has sold at least once
       var have = _bsOnHand[v];
-      if (have == null || have <= 0) return;  // untracked or empty — not dead STOCK
+      if (have == null || have <= 0) return;    // untracked or empty — not dead STOCK
       out.count += 1;
       out.units += have;
     });
@@ -1020,6 +1020,19 @@ function bsFamilyFocus(def) {
         if (h != null) g.have = (g.have || 0) + h;
       });
       g.dead = _bsDeadVariations(g.ids);
+      // A design whose variation list was REBUILT in Square keeps all its
+      // sales on the retired variation ids, so every current variation reads
+      // as never-sold and the flag condemns the whole design. Simple Bands is
+      // the case: 82 units and ~$6k over two years, all recorded against a
+      // "Regular" variation that no longer exists, then rebuilt into ~60
+      // size × texture variations — it showed 41 of 41 units dead.
+      //
+      // The tell is that NOT ONE live variation has ever sold while the
+      // design plainly has sales. That combination can't mean "nobody buys
+      // any of these"; it means the per-variation history doesn't line up
+      // with the current variations, so the flag has nothing to say. Better
+      // silent than confidently wrong about a top seller.
+      if (g.dead.sold === 0 && (g.y1 + g.y0) > 0) g.dead = { count: 0, units: 0, sold: 0 };
     }
     // A BS_FOCUS_COVER_MONTHS run at the last 12 months' rate, less what's on
     // the shelf. Square reports negatives for stock sold but never received
