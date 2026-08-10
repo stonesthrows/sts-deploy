@@ -245,6 +245,21 @@ var BS_FOCUS_FAMILIES = [
 // DETECT the condition: sum the counts across a design's live variations and
 // compare against what the design actually sold. If the two don't reconcile,
 // the per-variation history is severed and the flag has nothing to say.
+// Dead-stock flagging is OFF for now. The counts were arithmetically correct
+// — verified variation by variation against Square — but they are not a
+// trustworthy signal, because nearly every sized ring has its sales piled
+// onto one size: Circle Ring 37 of 38 on Size 5, Spiral Rings 82 of 100 on
+// Silver-5, Hexagon Ring 18 of 20 on Size 5. As a real size distribution
+// that isn't credible; it looks like what gets tapped at checkout. Until
+// that's settled the flag would be condemning sizes that may well be
+// selling, and a confident wrong answer is worse than no answer.
+//
+// Set to true to bring it back. Everything underneath stays intact and
+// tested, including the reconciliation test that keeps it quiet for designs
+// whose variations were rebuilt. Turning it on also re-enables the daily
+// Reporting API query, which is skipped entirely while this is false.
+var BS_DEAD_FLAG = false;
+
 var BS_VARSOLD_CACHE_KEY = 'sts-bs-varsold-v1';
 var BS_VARSOLD_TTL_MS    = 24 * 60 * 60 * 1000; // a day
 // Attribution must account for at least this share of a design's own units
@@ -1004,6 +1019,8 @@ function _bsFocusItemIds() {
 // varMap inference we now know to be unreliable.
 async function _bsLoadVarSold() {
   if (_bsVarSoldReady) return;
+  // Flag is off — don't spend a Square request on data nothing will read.
+  if (!BS_DEAD_FLAG) { _bsVarSold = null; _bsVarSoldReady = true; return; }
   try {
     var raw = localStorage.getItem(BS_VARSOLD_CACHE_KEY);
     if (raw) {
@@ -1065,7 +1082,7 @@ async function _bsLoadVarSold() {
 // sales" rather than "never sold". For the question these cards answer (what
 // is worth carrying to a market) that is the right denominator.
 function _bsDeadVariations(itemIds) {
-  var out = { count: 0, units: 0, attributed: 0, ok: !!_bsVarSold };
+  var out = { count: 0, units: 0, attributed: 0, ok: BS_DEAD_FLAG && !!_bsVarSold };
   if (!out.ok) return out;
   itemIds.forEach(function(id) {
     var entry = _bsCatMap && _bsCatMap.items[id];
