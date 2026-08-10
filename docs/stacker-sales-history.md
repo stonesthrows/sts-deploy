@@ -152,11 +152,43 @@ variation each time.
 **Their units and revenue are sound.** Only the size breakdown is unusable,
 so they are in the totals and out of the curves.
 
-The same pattern shows in current data — Circle Ring 37 of 38 sales on Size
-5, Spiral Rings 82 of 100 on Silver-5 — which suggests it is still happening
-at checkout rather than being purely historical. If so, per-size stock counts
-drift out of true over time: the tapped size depletes on paper while the size
-that actually left the table does not.
+### It was still happening until the rebuild — and the rebuild fixed it
+
+This is not an old problem that stopped on its own. Of the **1,479 stacker
+units sold in the twelve months to 10 August 2026, 1,330 — 90% — went
+through five of the listings above, each recording every single sale against
+one variation.** Not mostly one variation; one, with nothing else beside it:
+
+| Listing | Every sale recorded as | Units (12 mo) |
+|---|---|---|
+| Stacker | `2` | 536 |
+| Chevron Stacker | `Regular` | 470 |
+| Beaded/Twisted Stacker | `Regular` | 172 |
+| Hexagon Stacker | `Size 2` | 103 |
+| Square Stacker | *(blank)* | 49 |
+
+**The restructure ended it.** The rebuilt `Stacker (…)` listings — the other
+149 units, sold since the changeover — record real sizes with a proper
+spread across some sixty size-and-metal combinations: Size 6.5 Silver 5,
+Size 8 Gold Fill 4, Size 7.5 Silver 4, on down. That is what the data should
+look like, and it is what it now looks like.
+
+So for stackers the placeholder era is closed. Two things follow:
+
+- **The curves above are historical and will stay that way.** Nothing
+  collected before the rebuild can be repaired. But sized data is
+  accumulating again from 149 units and counting — after a full year of
+  markets the curve can be rebuilt from live sales instead of 2019–2024.
+- **Per-size stock counts were drifting the whole time.** Every one of those
+  1,330 sales decremented one variation on paper while a different ring left
+  the table. Counts on the retired listings should be read as fiction; the
+  744 units on the rebuilt listings are the trustworthy figure.
+
+**Other lines may still be affected.** Circle Ring shows 37 of 38 sales on
+Size 5 and Spiral Rings 82 of 100 on Silver-5 — the same signature, on
+designs that have not been rebuilt. This file does not establish how far the
+pattern runs; it establishes that rebuilding a listing with real size
+variations is what stops it.
 
 ---
 
@@ -330,3 +362,12 @@ why its numbers are larger and not directly comparable.
 
 Use the app for what to make next; use this for how the line has performed
 over its life, and for the size curves.
+
+**The listing map above is live code.** `BS_ALIAS_NAMES` in
+`js/bestsellers.js` carries all 49 names, because the Stacker card had the
+same failure this file did: a deleted listing has no catalog entry, so the
+category ids are gone and its own name is all that is left — and "Chevron",
+"Square" and "Hexagon" match nothing, while "Stackable Ring" matched
+`\bring\b` and landed on the Ring card with 1,265 units in tow. Family
+routing reads the alias-merged name for exactly that reason. **If a stacker
+listing is ever renamed again, add it to both.**
