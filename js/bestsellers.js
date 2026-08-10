@@ -232,6 +232,30 @@ var BS_FOCUS_FAMILIES = [
     note: 'Cuff bracelets, bangles and the premade chain bracelets. Welded permanent jewelry is deliberately absent — it is fitted to the customer rather than stocked, so a make-count for it would be meaningless, and it has its own tab.' },
 ];
 
+// Real per-variation sold counts, from Square's Reporting API (SellThrough).
+// The dead flag used to infer this from varMap membership — "has this
+// variation ever turned up in a synced order" — which silently breaks
+// whenever an item's variations are recreated, because the sales stay
+// attached to the retired ids. Roughly 3,900 units across the catalogue are
+// attributed to variations that no longer exist, so the inference was wrong
+// far more often than it was right.
+//
+// Fetching real counts does NOT recover those sales; nothing can, they
+// happened on catalog objects that are gone. What it buys is the ability to
+// DETECT the condition: sum the counts across a design's live variations and
+// compare against what the design actually sold. If the two don't reconcile,
+// the per-variation history is severed and the flag has nothing to say.
+var BS_VARSOLD_CACHE_KEY = 'sts-bs-varsold-v1';
+var BS_VARSOLD_TTL_MS    = 24 * 60 * 60 * 1000; // a day
+// Attribution must account for at least this share of a design's own units
+// before the flag is trusted. Generous on purpose: the counts cover every
+// channel while the design total is market weekends only, so an intact
+// design should comfortably exceed 1.0 and only a severed one falls near 0.
+var BS_DEAD_ATTRIB_MIN   = 0.5;
+
+var _bsVarSold         = null;  // { variationId: unitsSold }, null = unavailable
+var _bsVarSoldReady    = false;
+
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
 var _bsOnHand          = {};    // variationId -> on-hand count
@@ -973,6 +997,58 @@ function _bsFocusItemIds() {
   return ids;
 }
 
+// One Reporting API query for every variation with a sale in the window,
+// cached a day. Failure is deliberately silent and total: if reporting is
+// unavailable (the server token needs REPORTING_READ), _bsVarSold stays null
+// and the dead flag shows nothing at all rather than falling back to the
+// varMap inference we now know to be unreliable.
+async function _bsLoadVarSold() {
+  if (_bsVarSoldReady) return;
+  try {
+    var raw = localStorage.getItem(BS_VARSOLD_CACHE_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.ts && (Date.now() - c.ts) < BS_VARSOLD_TTL_MS && c.sold) {
+        _bsVarSold = c.sold; _bsVarSoldReady = true; return;
+      }
+    }
+  } catch (e) { /* unreadable cache — refetch */ }
+
+  var end = new Date();
+  var start = new Date(end.getTime() - BS_FOCUS_WINDOW_DAYS * 86400000);
+  try {
+    var res = await _bsSq('/reporting/v1/load', {
+      query: {
+        measures: ['SellThrough.units_sold'],
+        dimensions: ['SellThrough.item_variation_id'],
+        timeDimensions: [{
+          dimension: 'SellThrough.reporting_period',
+          dateRange: [_bsDateKey(start), _bsDateKey(end)],
+        }],
+        segments: ['SellThrough.has_sales'], // only variations that actually sold
+        limit: 5000,
+      },
+    });
+    var rows = (res && res.data) || [];
+    if (!rows.length) throw new Error('reporting returned no rows');
+    var sold = {};
+    rows.forEach(function(r) {
+      var id = r['SellThrough.item_variation_id'];
+      // The id-less row is Square's own bucket for sales whose variation no
+      // longer exists — the thing this whole mechanism exists to notice.
+      if (!id) return;
+      sold[id] = (sold[id] || 0) + (r['SellThrough.units_sold'] || 0);
+    });
+    _bsVarSold = sold;
+    try {
+      localStorage.setItem(BS_VARSOLD_CACHE_KEY, JSON.stringify({ ts: Date.now(), sold: sold }));
+    } catch (e) { /* quota — refetched next visit */ }
+  } catch (e) {
+    _bsVarSold = null;
+  }
+  _bsVarSoldReady = true;
+}
+
 // Variations carrying stock that have never sold, pooled over a design's
 // merged item ids. → { count, units }
 //
@@ -989,12 +1065,14 @@ function _bsFocusItemIds() {
 // sales" rather than "never sold". For the question these cards answer (what
 // is worth carrying to a market) that is the right denominator.
 function _bsDeadVariations(itemIds) {
-  var varMap = (_bsSales && _bsSales.varMap) || {};
-  var out = { count: 0, units: 0, sold: 0 };
+  var out = { count: 0, units: 0, attributed: 0, ok: !!_bsVarSold };
+  if (!out.ok) return out;
   itemIds.forEach(function(id) {
     var entry = _bsCatMap && _bsCatMap.items[id];
     ((entry && entry.vars) || []).forEach(function(v) {
-      if (varMap[v]) { out.sold += 1; return; } // has sold at least once
+      var sold = _bsVarSold[v] || 0;
+      out.attributed += sold;
+      if (sold > 0) return;                     // sold at least once
       var have = _bsOnHand[v];
       if (have == null || have <= 0) return;    // untracked or empty — not dead STOCK
       out.count += 1;
@@ -1020,19 +1098,19 @@ function bsFamilyFocus(def) {
         if (h != null) g.have = (g.have || 0) + h;
       });
       g.dead = _bsDeadVariations(g.ids);
-      // A design whose variation list was REBUILT in Square keeps all its
-      // sales on the retired variation ids, so every current variation reads
-      // as never-sold and the flag condemns the whole design. Simple Bands is
-      // the case: 82 units and ~$6k over two years, all recorded against a
-      // "Regular" variation that no longer exists, then rebuilt into ~60
-      // size × texture variations — it showed 41 of 41 units dead.
+      // Reconcile: do the design's live variations account for what the
+      // design actually sold? When an item's variations are recreated the
+      // sales stay on the retired ids, so attribution collapses toward zero
+      // while the design plainly sells — Antler Ring sold 38 with 2
+      // attributable, Simple Bands 83 with none. Left alone the flag would
+      // condemn nearly all their stock. Whole ranges of rings are in this
+      // state, so this is the common case, not an edge case.
       //
-      // The tell is that NOT ONE live variation has ever sold while the
-      // design plainly has sales. That combination can't mean "nobody buys
-      // any of these"; it means the per-variation history doesn't line up
-      // with the current variations, so the flag has nothing to say. Better
-      // silent than confidently wrong about a top seller.
-      if (g.dead.sold === 0 && (g.y1 + g.y0) > 0) g.dead = { count: 0, units: 0, sold: 0 };
+      // Suppress rather than guess. The units genuinely can't be judged:
+      // their sales history belongs to catalog objects that no longer exist.
+      if (g.dead.attributed < (g.y1 + g.y0) * BS_DEAD_ATTRIB_MIN) {
+        g.dead = { count: 0, units: 0, attributed: g.dead.attributed, ok: g.dead.ok };
+      }
     }
     // A BS_FOCUS_COVER_MONTHS run at the last 12 months' rate, less what's on
     // the shelf. Square reports negatives for stock sold but never received
@@ -1066,7 +1144,7 @@ async function bestsellersInit() {
   bsRender();
   if (!_bsOnHandReady) {
     var vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
-    _bsLoadOnHand(vel).then(function() {
+    Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
       var tab = _bsView().tab;
       // Restock and Focus repaint in place; the other tabs need a full
@@ -1156,7 +1234,7 @@ async function _bsAutoSyncWeekend() {
     _bsOnHandReady = false; // this weekend may have sold something not counted yet
     bsRender();
     var vel = bsVelocity(_bsSales.weekends);
-    _bsLoadOnHand(vel).then(function() {
+    Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
       var tab = _bsView().tab;
       // Restock and Focus repaint in place; the other tabs need a full
@@ -1424,7 +1502,7 @@ function _bsOnHandCell(r) {
   var plural = function(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); };
   return r.have + ' <span class="sales-td-muted" title="'
     + plural(r.dead.units, 'unit') + ' across ' + plural(r.dead.count, 'variation')
-    + ' with no market sales on record">· ' + r.dead.units + ' dead</span>';
+    + ' with no sales on record">· ' + r.dead.units + ' dead</span>';
 }
 
 function bsRenderFocusCard(def) {
@@ -1463,8 +1541,10 @@ function bsRenderFocusCard(def) {
   html += '<div class="bs-footnote">Make covers ' + BS_FOCUS_COVER_MONTHS
     + ' months at the last 12 months’ rate, less what Square has on hand. ' + def.note;
   if (rows.some(function(r){ return r.dead && r.dead.count; })) {
-    html += ' “Dead” counts stock sitting in variations with no market sales on record —'
-         + ' it is already included in the On hand figure beside it.';
+    html += ' “Dead” counts stock in variations Square records no sales against, already'
+         + ' included in the On hand figure beside it. It is left off entirely for a'
+         + ' design whose variations were rebuilt, since its per-variation history'
+         + ' belongs to catalog entries that no longer exist.';
   }
   html += '</div>';
   return html;
