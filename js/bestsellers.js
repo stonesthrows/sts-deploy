@@ -154,6 +154,38 @@ var BS_FOCUS_EXCLUDE_RE = /\bnose\b/i;
 // the inch, and nothing else distinguishes the two.
 var BS_FOCUS_PERM_KEEP_RE = /\bpre-?made\b/i;
 
+// ── Stacker size curve ─────────────────────────
+// Units sold per ring size, recovered from 4,771 sales across the listings
+// that recorded a real size — see docs/stacker-sales-history.md for the full
+// derivation and for the 3,467 units that could not be broken down.
+//
+// A design-level card cannot answer the question a size run actually poses.
+// "Make 20 Regular stackers" is not an instruction until it says which
+// sizes, and pooled on-hand hides the shape completely: 266 units spread
+// almost flat reads as well stocked while size 6.5 sits at zero.
+//
+// Raw counts rather than percentages, so this stays checkable against the
+// file and the shares recompute if it is ever extended.
+var BS_STACKER_CURVE = {
+  2: 103, 2.5: 113, 3: 191, 3.5: 200, 4: 188, 4.5: 188, 5: 251, 5.5: 259,
+  6: 348, 6.5: 326, 7: 433, 7.5: 356, 8: 416, 8.5: 320, 9: 320, 9.5: 232,
+  10: 255, 10.5: 116, 11: 151, 11.5: 5,
+};
+
+// Ring size out of a variation name. Square has recorded these several ways
+// over the years — "Size 7.5, Silver, Thin", "Gold Fill, Size 9.5",
+// "Silver - 5", or a bare "7" — so try the labelled form first, then a
+// standalone number. Anything else (a metal, a finish, "Thin GF") has no
+// size and is counted separately rather than guessed at.
+function _bsSizeOf(name) {
+  if (!name) return null;
+  var m = /\bsize\s*([0-9]{1,2}(?:\.5)?)\b/i.exec(name)
+       || /(?:^|[\s,\-])([0-9]{1,2}(?:\.5)?)(?=$|[\s,])/.exec(name);
+  if (!m) return null;
+  var size = parseFloat(m[1]);
+  return (size >= 1 && size <= 16) ? size : null;   // outside ring range: not a size
+}
+
 // A family claims an item by app family label, by Square category name, or
 // by the item's own name — in that order of preference but any one is
 // enough. Name matters because category alone misses real sellers: the
@@ -207,6 +239,7 @@ var BS_FOCUS_FAMILIES = [
   { key: 'stackers', icon: '📚', title: 'Stacker focus',
     catIds: typeof INV_RING_CAT_IDS !== 'undefined' ? { stackable: INV_RING_CAT_IDS.stackable } : null,
     re: /\bstackers?\b/i,
+    curve: BS_STACKER_CURVE,   // adds the size-mix table below the designs
     note: 'Stackers are the single biggest line in the shop at roughly 1,470 units a year — an order of magnitude past any other ring — so they get their own card instead of flattening every design on the ring card.' },
 
   // Everything else worn on a finger. Keeps the 'Rings' family label as the
@@ -457,7 +490,12 @@ function bsToggleSort() {
 // v4 entries also carry a deleted flag for items gone from Square
 // entirely; the bump forces one refetch so those drop out of the
 // Bestseller list and restock focus alongside archived designs.
-var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v4';
+// v5 adds varNames (variation id -> its display name). v4 stored only ids,
+// so a size-aware view had nothing to parse; the bump forces one refetch.
+// It also refreshes every entry's `vars` list, which fixes designs whose
+// sizes were expanded after the cache was written — those were pooling
+// on-hand over a stale, shorter variation list and under-reporting stock.
+var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v5';
 var BS_CAT_TTL_MS    = 7 * 24 * 60 * 60 * 1000;
 
 // The app's product families, in display order. Each entry unions every
@@ -526,10 +564,15 @@ async function _bsEnsureCatMap(itemIds) {
         var cats = (d.categories || []).map(function(c){ return c.id; });
         if (d.reporting_category && d.reporting_category.id && cats.indexOf(d.reporting_category.id) < 0) cats.push(d.reporting_category.id);
         if (d.category_id && cats.indexOf(d.category_id) < 0) cats.push(d.category_id);
+        var varNames = {};
+        (d.variations || []).forEach(function(v) {
+          varNames[v.id] = (v.item_variation_data && v.item_variation_data.name) || '';
+        });
         return {
           cats: cats, name: d.name || '', ptype: d.product_type || 'REGULAR',
           archived: !!d.is_archived,
           vars: (d.variations || []).map(function(v){ return v.id; }),
+          varNames: varNames,
         };
       };
       Object.keys(items).forEach(function(id){ _bsCatMap.items[id] = entryFromItem(items[id]); });
@@ -1491,6 +1534,96 @@ function bsSparkCard(name, cat, hist, metric) {
   + '</div>';
 }
 
+// ── Size mix (families sold as a size run) ─────
+// Pools every variation of every design in the family by ring size, then
+// reshapes the CURRENT total to the demand curve. Deliberately not a growth
+// plan: it distributes the stock already owned, so `make` answers "what
+// would square up the shape at today's level" rather than proposing a bigger
+// pile. Sizes over target need nothing made and are shown as over.
+//   → { rows:[{size,have,share,ideal,make,over}], total, unsized, missing }
+function bsFamilySizeMix(def, rows) {
+  if (!def.curve || !_bsOnHandReady) return null;
+  var have = {}, unsized = 0, total = 0;
+  rows.forEach(function(r) {
+    r.ids.forEach(function(id) {
+      var entry = _bsCatMap && _bsCatMap.items[id];
+      if (!entry) return;
+      var names = entry.varNames || {};
+      (entry.vars || []).forEach(function(v) {
+        var qty = _bsOnHand[v];
+        if (qty == null || qty <= 0) return;   // untracked, empty, or negative
+        total += qty;
+        var size = _bsSizeOf(names[v]);
+        if (size == null) { unsized += qty; return; }
+        have[size] = (have[size] || 0) + qty;
+      });
+    });
+  });
+  // Nothing to place: either no stock, or not one variation names a size —
+  // a table of zeros says less than no table at all.
+  var sizedTotal = total - unsized;
+  if (!total || !sizedTotal) return null;
+
+  var curveTotal = 0;
+  Object.keys(def.curve).forEach(function(s){ curveTotal += def.curve[s]; });
+  // Distribute only the stock that could be placed on a size — the unsized
+  // remainder can't be assigned to one, so folding it in would inflate every
+  // target by the same unattributable amount.
+  var sized = sizedTotal;
+  var sizes = {};
+  Object.keys(def.curve).forEach(function(s){ sizes[s] = true; });
+  Object.keys(have).forEach(function(s){ sizes[s] = true; });
+
+  var out = [], missing = 0;
+  Object.keys(sizes).map(parseFloat).sort(function(a, b){ return a - b; }).forEach(function(size) {
+    var units = have[size] || 0;
+    var share = (def.curve[size] || 0) / curveTotal;
+    var ideal = Math.round(share * sized);
+    var make  = Math.max(0, ideal - units);
+    if (make > 0) missing += make;
+    out.push({ size: size, have: units, share: share, ideal: ideal,
+               make: make, over: Math.max(0, units - ideal) });
+  });
+  return { rows: out, total: total, sized: sized, unsized: unsized, missing: missing };
+}
+
+function bsRenderSizeMix(mix) {
+  if (!mix) return '';
+  var pct = function(n){ return (n * 100).toFixed(1) + '%'; };
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">📏 Size mix — stock against the demand curve</div>';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+  ['Size','On hand','Share','Demand','Target','Make','Over'].forEach(function(h) {
+    html += '<th>' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  mix.rows.forEach(function(r) {
+    // Flag the two states worth acting on: a size the curve wants that is
+    // empty, and stock in a size the curve barely asks for.
+    var pill = r.have === 0 && r.ideal > 0 ? '<span class="trend-pill down">out</span>'
+             : r.over > 0 && r.share < 0.02 ? '<span class="trend-pill flat">excess</span>' : '';
+    html += '<tr>'
+      + '<td class="sales-td-label">' + r.size + (pill ? ' ' + pill : '') + '</td>'
+      + '<td>' + r.have + '</td>'
+      + '<td class="sales-td-muted">' + pct(mix.sized ? r.have / mix.sized : 0) + '</td>'
+      + '<td>' + pct(r.share) + '</td>'
+      + '<td class="sales-td-muted">' + r.ideal + '</td>'
+      + '<td>' + (r.make > 0 ? r.make : '<span class="sales-td-muted">✓</span>') + '</td>'
+      + '<td>' + (r.over > 0 ? '<span class="sales-td-muted">+' + r.over + '</span>' : '') + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '</div></div>';
+  html += '<div class="bs-footnote">Pooled across every design on this card — you make a batch of'
+    + ' a size, not of a design. ' + mix.sized + ' of ' + mix.total + ' units on hand carry a ring size'
+    + (mix.unsized ? ' (' + mix.unsized + ' do not and are left out of the split)' : '')
+    + '. Target reshapes that stock to the demand curve recovered in docs/stacker-sales-history.md'
+    + ' — 4,771 real sales — rather than proposing a bigger pile, so Make totals '
+    + mix.missing + ' and is funded by the sizes marked over.</div>';
+  return html;
+}
+
 // ── Focus tab: one design card per product family ──
 function _bsRenderFocusBoard() {
   var el = document.getElementById('bsFocus');
@@ -1564,6 +1697,9 @@ function bsRenderFocusCard(def) {
          + ' belongs to catalog entries that no longer exist.';
   }
   html += '</div>';
+  // Families sold as a size run get the size breakdown the design rows
+  // structurally cannot give — which sizes to actually make.
+  html += bsRenderSizeMix(bsFamilySizeMix(def, rows));
   return html;
 }
 
