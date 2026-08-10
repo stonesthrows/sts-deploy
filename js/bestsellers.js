@@ -83,19 +83,80 @@ var BS_SKIP_NAME_ANY_RE = /\b(shipping|postage|re-?siz(e|ed|ing)|gift ?card|depo
 // the handful that actually move. Raise toward 0.5 for a tighter list.
 var BS_MIN_VELOCITY = 0.25;
 
-// Square carries some pieces under two separate catalog items (an older
-// name and the current one). Restock focus merges those into one row so
-// the velocity and on-hand counts aren't split. Key = lowercased Square
-// item name, value = the name the merged row should display under.
-// Only used by restock focus — the per-category bestseller cards still
-// show Square's own names.
+// Square carries some pieces under several separate catalog items (older
+// names and the current one). Restock focus and the design focus cards
+// merge those into one row so velocity, sales and on-hand aren't split
+// across half-designs. Key = lowercased Square item name, value = the name
+// the merged row should display under. The per-category bestseller cards
+// are the exception — they still show Square's own names.
+// The stacker block below is the full listing map from
+// docs/stacker-sales-history.md — 49 names across the six current designs.
+// It is long because the line has been restructured more than any other:
+// renamed, split by metal and width, merged back, older listings deleted.
+// Without every name here the card fragments one design into a dozen rows
+// (GF Stacker (Skinny) and Silv Stacker (Skinny) are the same product) and
+// the chevron/square/hexagon ranges never reach it at all, because their
+// old names contain neither "stacker" nor "ring" and their catalog entries
+// are gone, so there is no category id left to match on. See
+// _bsFamilyClaims: routing reads the merged name for exactly that reason.
 var BS_ALIAS_NAMES = {
-  'chevron stacker':          'Stacker (Single Chevron)',
-  'stacker (single chevron)': 'Stacker (Single Chevron)',
-  'stacker':                  'Stacker (Regular)',
-  'stacker (regular)':        'Stacker (Regular)',
-  'square stacker':           'Stacker (Square)',
-  'stacker (square)':         'Stacker (Square)',
+  // → Stacker (Regular)
+  'gf stacker (skinny)':          'Stacker (Regular)',
+  'stackable ring':               'Stacker (Regular)',
+  'stacker':                      'Stacker (Regular)',
+  'silver stacker (skinny)':      'Stacker (Regular)',
+  'silver stacker (reg)':         'Stacker (Regular)',
+  'gf stacker (regular)':         'Stacker (Regular)',
+  'silv stacker (skinny)':        'Stacker (Regular)',
+  'stacker (skinny silver)':      'Stacker (Regular)',
+  'stacker (skinny gold fill)':   'Stacker (Regular)',
+  'stacker (regular silver)':     'Stacker (Regular)',
+  'stacker (regular gold fill)':  'Stacker (Regular)',
+  'stacker (regular)':            'Stacker (Regular)',
+  'stacker (reg silver)':         'Stacker (Regular)',
+  'stacker (skinny gf)':          'Stacker (Regular)',
+  'stacker (skinny silv)':        'Stacker (Regular)',
+  'stacker (regular gf)':         'Stacker (Regular)',
+  // → Stacker (Single Chevron)
+  'gf chevron (skinny)':          'Stacker (Single Chevron)',
+  'silv chevron (skinny)':        'Stacker (Single Chevron)',
+  'chevron stacker':              'Stacker (Single Chevron)',
+  'chevron':                      'Stacker (Single Chevron)',
+  'chevron (skinny silver)':      'Stacker (Single Chevron)',
+  'chevron (skinny gold fill)':   'Stacker (Single Chevron)',
+  'stacker (single chevron)':     'Stacker (Single Chevron)',
+  'chevron (regular silver)':     'Stacker (Single Chevron)',
+  'chevron (skinny gf)':          'Stacker (Single Chevron)',
+  'silver chevron (reg)':         'Stacker (Single Chevron)',
+  'chevron (skinny silv)':        'Stacker (Single Chevron)',
+  'chevron (regular gold fill)':  'Stacker (Single Chevron)',
+  'gf chevron (reg)':             'Stacker (Single Chevron)',
+  'silv chevron (reg)':           'Stacker (Single Chevron)',
+  // → Stacker (Double Chevron)
+  'double silver chevron':        'Stacker (Double Chevron)',
+  'double gf chevron':            'Stacker (Double Chevron)',
+  'stacker (double chevron)':     'Stacker (Double Chevron)',
+  // → Stacker (Hexagon). NOT "Hexagon Ring" — that is a separate open-style
+  // ring design with its own 168 units, and it keeps its own row.
+  'gold fill hexagon stacker':    'Stacker (Hexagon)',
+  'hexagon stacker':              'Stacker (Hexagon)',
+  'silver hexagon stacker':       'Stacker (Hexagon)',
+  'silver hexagon stackwr':       'Stacker (Hexagon)',   // typo listing, real sales
+  'hexagon':                      'Stacker (Hexagon)',
+  'stacker (hexagon)':            'Stacker (Hexagon)',
+  // → Stacker (Square)
+  'square stacker':               'Stacker (Square)',
+  'square':                       'Stacker (Square)',
+  'square skinny silver':         'Stacker (Square)',
+  'square (skinny gold fill)':    'Stacker (Square)',
+  'square (regular silver )':     'Stacker (Square)',     // trailing space is in Square
+  'square skinny':                'Stacker (Square)',
+  'square (regular gold fill)':   'Stacker (Square)',
+  'stacker (square)':             'Stacker (Square)',
+  // → Stacker (Beaded)
+  'beaded/twisted stacker':       'Stacker (Beaded)',
+  'stacker (beaded)':             'Stacker (Beaded)',
+
   'chevron ear cuff':         'Chevron Ear Cuff',
   'chevron ear cuffs':        'Chevron Ear Cuff',
   // "~ Tapered" is a genuinely different hoop and stays its own row.
@@ -956,7 +1017,16 @@ function _bsDefCatIdSet(def) {
 }
 
 function _bsFamilyClaims(def, itemId) {
-  var name = String(_bsNameOf(itemId));
+  // The MERGED name, not the raw one. A deleted listing has no catalog
+  // entry, so category ids and the app family label are both unavailable
+  // and its own name is all that is left — and the old stacker names are
+  // exactly the ones that say nothing useful. "Chevron", "Square" and
+  // "Hexagon" match no family at all and fell off every card; "Stackable
+  // Ring" matched \bring\b and landed on the ring card, taking 1,265 units
+  // of stacker history with it. Routing on the alias-merged name fixes both
+  // without a second regex to keep in step: whatever a listing was called,
+  // it routes as the design it is today. Names with no alias are unchanged.
+  var name = _bsRestockName(itemId);
   var cats = _bsCatNamesOf(itemId);
   // Category IDS beat every other test — the only handle that survives a
   // category rename, and the only one that catches a design whose name says
