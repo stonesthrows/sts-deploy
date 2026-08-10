@@ -89,6 +89,22 @@
   font-size: 13px;
   color: var(--text);
 }
+/* Subheading inside a card (left ear / right ear). Deliberately quieter than
+   .inv-card-head — the card still has to read as one product. */
+.inv-group-head {
+  padding: 5px 14px;
+  background: var(--card-head-bg);
+  border-top: 1px solid var(--bdr-light);
+  border-bottom: 1px solid var(--bdr-light);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* No double rule where a subheading leads the card */
+.inv-card-head + .inv-group-head { border-top: none; }
+
 .inv-row {
   display: flex;
   align-items: center;
