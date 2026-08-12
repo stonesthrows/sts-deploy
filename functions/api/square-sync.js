@@ -49,10 +49,29 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
   const notionToken = context.env.NOTION_TOKEN;
   const squareToken  = context.env.SQUARE_TOKEN;
-  if (!notionToken) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
   if (!squareToken)  return jsonResp({ error: 'SQUARE_TOKEN not set' }, 500);
 
   const body = await context.request.json().catch(() => ({}));
+
+  // Square-only action: is this employee still on the clock, and if not, when
+  // did they punch out? Drives the Restock Queue's auto-stop (js/restock.js).
+  // Lives here rather than client-side so it can reuse resolveTeamMemberId and
+  // the KNOWN_TEAM_MEMBER_IDS alias map — the queue only knows an employee by
+  // name, and a second copy of that mapping is exactly what this file exists
+  // to avoid. Needs no Notion access, so it runs before the NOTION_TOKEN gate.
+  if (body.action === 'shift-status') {
+    try {
+      const deps = { squareToken };
+      const teamMembers = await fetchTeamMembers(deps);
+      return jsonResp(await shiftStatus(deps, teamMembers, body.employeeName || '', body.sinceIso || null));
+    } catch (e) {
+      // 502, not a 200 with a null shift: the caller stops a running timer on
+      // this answer, and "the lookup broke" must never read as "clocked out".
+      return jsonResp({ error: e.message || String(e) }, 502);
+    }
+  }
+
+  if (!notionToken) return jsonResp({ error: 'NOTION_TOKEN not set' }, 500);
 
   try {
     const deps = { notionToken, squareToken };
@@ -140,6 +159,52 @@ async function fetchTeamMembers(deps) {
   return (data.team_members || []).filter(m => m.status === 'ACTIVE');
 }
 
+// Clock state for one employee, for the Restock Queue's auto-stop.
+//   { clockedIn, lastEndAt }
+// lastEndAt is the most recent clock-out AFTER sinceIso (the timer's start).
+// Filtering by sinceIso matters: an earlier shift's end_at would rewind a
+// session's stop time behind its own start. Null means "no recoverable punch"
+// — the caller must then leave the timer alone rather than stopping at "now",
+// which would bank every hour since the punch it couldn't see.
+async function shiftStatus(deps, teamMembers, empName, sinceIso) {
+  const empId = resolveTeamMemberId(empName, teamMembers);
+  if (!empId) throw new Error('employee not matched in Square: ' + (empName || '(none)'));
+
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : 0;
+  if (sinceIso && isNaN(sinceMs)) throw new Error('bad sinceIso');
+
+  const res = await fetch(`${SQUARE_API}/v2/labor/shifts/search`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + deps.squareToken, 'Square-Version': SQUARE_VER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: {
+        filter: {
+          team_member_ids: [empId],
+          location_ids: [SQ_LOCATION],
+          // 24h back from the timer start covers an overnight or adjacent shift.
+          start: { start_at: new Date((sinceMs || Date.now()) - 24 * 60 * 60 * 1000).toISOString() },
+        },
+        sort: { field: 'START_AT', order: 'DESC' },
+      },
+      limit: 10,
+    }),
+  });
+  const data = await res.json();
+  // An error payload must throw, not fall through as an empty shift list — an
+  // empty list reads as "clocked out" and would stop every running timer on
+  // nothing worse than a blip at Square.
+  if (!res.ok || (data.errors && data.errors.length)) {
+    throw new Error((data.errors && data.errors[0] && data.errors[0].detail) || data.message || 'Square shift search failed');
+  }
+
+  const shifts = data.shifts || [];
+  const ends = shifts.map(s => (s.end_at ? new Date(s.end_at).getTime() : 0)).filter(ms => ms > sinceMs);
+  return {
+    clockedIn: shifts.some(s => !s.end_at),
+    lastEndAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+  };
+}
+
 function resolveTeamMemberId(empName, teamMembers) {
   if (!empName) return '';
   if (KNOWN_TEAM_MEMBER_IDS[empName]) return KNOWN_TEAM_MEMBER_IDS[empName];
@@ -181,7 +246,7 @@ async function fetchShifts(deps, empId, startTime, stopTime) {
 
 // ── Reconciliation (the math previously duplicated client-side) ───────
 
-function reconcile(startTime, stopTime, shifts) {
+function reconcile(startTime, stopTime, shifts, recordedDedMs) {
   const pStartMs = new Date(startTime).getTime();
   const pStopMs  = new Date(stopTime).getTime();
   const fTime = ms => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
@@ -218,7 +283,19 @@ function reconcile(startTime, stopTime, shifts) {
     const cout = Math.min(sh.end_at ? new Date(sh.end_at).getTime() : pStopMs, pStopMs);
     if (cout > cin) workedMs += (cout - cin);
   });
-  const dedMs = Math.max(0, totalMs - workedMs) + 15 * 60000;
+  // Two independent readings of off-bench time: the span the employee was
+  // clocked out of Square inside the timer window, and the time they actually
+  // paused the timer (recorded at Stop). Take the larger, never the sum — a
+  // lunch that was both paused and punched out is one lunch, and adding them
+  // would bill it twice. This under-counts when a pause and a clock-out cover
+  // different minutes; an exact union needs per-pause timestamps, which the
+  // session record doesn't carry.
+  //
+  // There is no flat 15-minute break here any more. It was applied to every
+  // session regardless of length, so a 20-minute restock reconciled to 5
+  // minutes of bench time and anything shorter reconciled to zero.
+  const clockedOutMs = Math.max(0, totalMs - workedMs);
+  const dedMs = Math.max(clockedOutMs, recordedDedMs || 0);
   const netMs = Math.max(0, totalMs - dedMs);
 
   return { matched: overlapping.length > 0, notionBlock, timeline, totalMs, dedMs, netMs };
@@ -236,6 +313,10 @@ async function syncOneSession(deps, teamMembers, page) {
   const startTime = props['Start Time']?.date?.start || null;
   const stopTime  = props['Stop Time']?.date?.start || null;
   const empName   = txt(props['Employee']);
+  // The deduction the app recorded at Stop — pause time the employee actually
+  // banked. Null on sessions saved before it was written, which reconcile()
+  // treats as "no pause signal" and falls back to the clocked-out span alone.
+  const recordedDedMin = props['Clocked-Out Deducted (min)']?.number ?? null;
   if (!startTime || !stopTime) return { pageId, status: 'skipped', reason: 'incomplete session' };
 
   const empId = resolveTeamMemberId(empName, teamMembers);
@@ -250,7 +331,7 @@ async function syncOneSession(deps, teamMembers, page) {
     return { pageId, status: 'error', reason: e.message };
   }
 
-  const rec = reconcile(startTime, stopTime, shifts);
+  const rec = reconcile(startTime, stopTime, shifts, recordedDedMin != null ? recordedDedMin * 60000 : null);
 
   if (!rec.matched) {
     if (pastFailCutoff) {

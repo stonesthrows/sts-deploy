@@ -1108,7 +1108,9 @@ async function stopTimer(tid, stopAtMs) {
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
   }
-  clockedOutMs += 15 * 60000;
+  // No flat 15-minute break. /api/square-sync stopped applying one, and a
+  // deduction added here would only survive until that Worker's next sweep
+  // overwrote it — the two writers have to agree or the number moves on its own.
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const shiftLog = _formatShiftLog(shifts, T[tid].startTime, new Date(stopTime).getTime());
   const notes = $t(tid,'notes-input')?.value.trim() || '';

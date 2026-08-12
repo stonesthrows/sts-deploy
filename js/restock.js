@@ -1155,13 +1155,41 @@ function _rqShortName(text) {
   return idx === -1 ? text : text.slice(0, idx).trim();
 }
 
+// Live stopwatch readout. Seconds matter here: the old minute-only format read
+// "0m" for the whole of a session's first minute, which looks like a timer that
+// never started. M:SS under an hour, H:MM:SS above — carrying the seconds past
+// the hour mark too, so 1:00:00 can't be misread as one minute.
 function _rqFmtElapsed(ms) {
-  var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
-  return h > 0 ? h + 'h ' + (m % 60) + 'm' : m + 'm';
+  var total = Math.max(0, Math.floor(ms / 1000));
+  var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+  return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
 }
 
 function _rqFmtTime(ms) {
   return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+// A timer still running from a previous day — or for more than half a day — is
+// far more likely to be one somebody forgot to stop than real bench time. Say
+// so on the card instead of quietly folding those hours into the session.
+// Computed at render time from startTime, so it covers every way a timer comes
+// back: reload, cross-device adopt, or a PWA tab waking after days asleep.
+var _RQ_STALE_MS = 12 * 60 * 60 * 1000;
+
+function _rqTimerIsStale(t) {
+  if (!t || !t.startTime) return false;
+  if (Date.now() - t.startTime > _RQ_STALE_MS) return true;
+  return new Date(t.startTime).toDateString() !== new Date().toDateString();
+}
+
+function _rqStaleBannerHtml(t) {
+  if (!_rqTimerIsStale(t)) return '';
+  var d = new Date(t.startTime);
+  var lbl = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          + ' at ' + _rqFmtTime(t.startTime);
+  return '<div class="rq-timer-stale">⚠ Running since ' + lbl
+       + ' — check the time before saving</div>';
 }
 
 // Stable per-browser id, so a device can tell which shared timers are ITS OWN
@@ -1337,6 +1365,74 @@ var _rqReconcilePoll = null;
 function _rqStartReconcilePoll() {
   if (_rqReconcilePoll) return;
   _rqReconcilePoll = setInterval(_rqReconcileTimers, 25000);
+  _rqStartShiftPoll();
+}
+
+// ── Auto-stop at the Square clock-out ───────────────────────────────────────
+// A timer left running past the end of a shift banks hours nobody worked —
+// 70-hour sessions, in the case this was written for. time-tracker.html got
+// this guard when the timer still lived there; the timer now lives inline in
+// this queue (see js/ui-shell.js), so it has to live here too.
+//
+// 3 minutes, not the 25s device-reconcile cadence: a Square punch is not a
+// fast-moving fact, and each tick is a Square API round trip per running timer.
+var _rqShiftPoll  = null;
+var _rqShiftBusy  = false;
+
+function _rqStartShiftPoll() {
+  if (_rqShiftPoll) return;
+  _rqPollShifts();
+  _rqShiftPoll = setInterval(_rqPollShifts, 180000);
+}
+
+function _rqShiftStatus(employeeName, sinceIso) {
+  return fetch('/api/square-sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'shift-status', employeeName: employeeName, sinceIso: sinceIso }),
+  }).then(function(r) {
+    return r.json().then(function(d) {
+      // Never let a failed lookup read as "clocked out" — that would stop every
+      // running timer on a proxy blip. Throwing leaves the timer alone.
+      if (!r.ok || d.error) throw new Error(d.error || ('shift-status ' + r.status));
+      return d;
+    });
+  });
+}
+
+function _rqPollShifts() {
+  if (_rqShiftBusy) return;
+  var pids = Object.keys(_rqTimers).filter(function(pid) {
+    var t = _rqTimers[pid];
+    // Only the device that started a timer may auto-stop it; a relay device
+    // acting too would race the owner and double-save the session.
+    return t && !t.pausedAt && t.employee && t.employee.name && t.deviceId === _rqDeviceId();
+  });
+  if (!pids.length) return;
+  _rqShiftBusy = true;
+
+  var i = 0;
+  function next() {
+    if (i >= pids.length) { _rqShiftBusy = false; return; }
+    var pid = pids[i++];
+    var t = _rqTimers[pid];
+    if (!t) { next(); return; }
+    var startIso = new Date(t.startTime).toISOString();
+    _rqShiftStatus(t.employee.name, startIso).then(function(d) {
+      if (!_rqTimers[pid]) return;               // stopped while we were asking
+      if (d.clockedIn) return;                   // still on the clock
+      // Clocked out — but without a real end_at the only stop time available is
+      // "now", which banks every hour since the punch: the exact bug this
+      // prevents. Defer to the next poll instead.
+      if (!d.lastEndAt) { console.warn('rq: no clock-out time for ' + pid + '; deferring auto-stop'); return; }
+      var endMs = new Date(d.lastEndAt).getTime();
+      if (!endMs || endMs <= t.startTime) return;
+      toast((t.employee.name || 'Employee') + ' clocked out — timer stopped', '⏹');
+      rqStopTimer(pid, endMs, true);
+    }).catch(function(e) {
+      console.warn('rq shift poll:', e && e.message);
+    }).then(next, next);
+  }
+  next();
 }
 
 // Working time for a timer: wall clock minus every completed pause span, and
@@ -1346,27 +1442,24 @@ function _rqElapsedMs(t) {
   return Math.max(0, (t.pausedAt || Date.now()) - t.startTime - (t.pausedMs || 0));
 }
 
+// One tick per running timer, repainting the elapsed pill every second. The
+// immediate paint matters after a render: restockQueueRender rebuilds the card,
+// so the pill would otherwise sit blank until the first interval fired.
+// (Was two near-identical functions differing only in that immediate paint.)
 function _rqStartTick(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
   clearInterval(t.tickInterval);
-  t.tickInterval = setInterval(function() {
+  var paint = function() {
     var el = document.getElementById('rq-elapsed-' + pid);
     if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
-  }, 30000);
+  };
+  paint();
+  t.tickInterval = setInterval(paint, 1000);
 }
 
 function _rqRestartTicks() {
-  Object.keys(_rqTimers).forEach(function(pid) {
-    var t = _rqTimers[pid];
-    clearInterval(t.tickInterval);
-    var el = document.getElementById('rq-elapsed-' + pid);
-    if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
-    t.tickInterval = setInterval(function() {
-      var elInner = document.getElementById('rq-elapsed-' + pid);
-      if (elInner) elInner.textContent = _rqFmtElapsed(_rqElapsedMs(t));
-    }, 30000);
-  });
+  Object.keys(_rqTimers).forEach(function(pid) { _rqStartTick(pid); });
 }
 
 // ── Queue render ──────────────────────────────────────────────────────────────
@@ -1566,6 +1659,7 @@ function restockQueueRender() {
       var startLbl = _rqFmtTime(timer.startTime);
       var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
       timerPanel = '<div class="rq-timer-panel">'
+        + _rqStaleBannerHtml(timer)
         + '<div class="rq-timer-running-row">'
         + '<span class="rq-timer-dot' + (isPaused ? ' rq-dot-paused' : '') + '" id="rq-dot-' + safePid + '"></span>'
         + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
@@ -1720,7 +1814,7 @@ function _rqCastStartTick(pid) {
   t.tickInterval = setInterval(function() {
     var btn = document.getElementById('rq-cast-btn-' + pid);
     if (btn) btn.textContent = _rqCastBtnLabel(t);
-  }, 30000);
+  }, 1000);
 }
 
 function rqStartCastTimer(pid) {
@@ -1949,12 +2043,17 @@ function rqTogglePauseTimer(pid) {
   if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
 }
 
-function rqStopTimer(pid) {
+// stopAtMs / auto are set only by the Square clock-out auto-stop (_rqPollShifts),
+// which ends the session at the shift's own end_at rather than at "now".
+function rqStopTimer(pid, stopAtMs, auto) {
   var t = _rqTimers[pid];
   if (!t) return;
   // Require every item/variant to have a piece count before the session can
   // be saved — otherwise "Pieces Made" silently stays blank in Notion forever.
-  var missingRow = _rqLiveTimerRows(t).some(function(r) { return r.pieces == null; });
+  // An auto-stop can't satisfy that (nobody is at the bench to type it), and
+  // refusing to save would bank the hours this whole path exists to protect —
+  // so it saves what it has and flags the gap in the note instead.
+  var missingRow = !auto && _rqLiveTimerRows(t).some(function(r) { return r.pieces == null; });
   if (missingRow) {
     toast('Enter pieces made before stopping the timer', '⚠');
     var firstInput = document.querySelector('#rq-match-row-' + pid + ' .rq-variant-qty-inline, #rq-match-row-' + pid + ' .rq-variant-qty, .rq-timer-pieces.rq-pieces-missing .rq-piece-input');
@@ -1968,10 +2067,25 @@ function rqStopTimer(pid) {
   // the bar's permanent match cache, so they survive after the timer ends
   // instead of reverting to whatever was set when the timer started.
   if (t.richMatch) { _rqAmSet(pid, t.richMatch); _rqSaveSizesFor(pid, t.richMatch.selectedVariants || []); }
-  var stopTime = new Date().toISOString();
-  var totalMs  = _rqElapsedMs(t); // paused spans don't count as work time
-  var totalMin = parseFloat((totalMs / 60000).toFixed(2));
-  var netMin   = Math.max(0, totalMin - 15);
+  // totalMin is WALL CLOCK — the same thing it means in time-tracker.html and
+  // /api/square-sync. The off-bench time rides separately in dedMin rather than
+  // being silently baked into the total: baking it in is what let the reconcile
+  // Worker (which recomputes total from the Notion start/stop stamps) re-add
+  // every pause on its next sweep. There is no flat break deduction any more —
+  // net is what the timer actually measured, so a 20-minute restock records 20
+  // minutes instead of 5, and a session under 15 minutes stops recording zero.
+  var stopMs   = stopAtMs || Date.now();
+  var stopTime = new Date(stopMs).toISOString();
+  var wallMs   = Math.max(0, stopMs - t.startTime);
+  // Bank an open pause span. _rqElapsedMs only freezes the readout at pausedAt,
+  // so stopping while paused would otherwise lose the pause entirely once the
+  // total is reframed as wall clock.
+  var pausedMs = (t.pausedMs || 0) + (t.pausedAt ? Math.max(0, stopMs - t.pausedAt) : 0);
+  pausedMs     = Math.min(pausedMs, wallMs);
+  var netMs    = Math.max(0, wallMs - pausedMs);
+  var totalMin = parseFloat((wallMs   / 60000).toFixed(2));
+  var dedMin   = parseFloat((pausedMs / 60000).toFixed(2));
+  var netMin   = parseFloat((netMs    / 60000).toFixed(2));
   // Capture notes from the live DOM before clearing state; piece counts
   // come from the matched sizes table (_rqLiveTimerRows), reading whatever
   // was last edited — not a snapshot taken when the timer started.
@@ -1981,6 +2095,10 @@ function rqStopTimer(pid) {
   // the chain batch is its own timed session (see _rqChainInfoFor).
   var chainInfo = _rqChainInfoFor(t);
   if (chainInfo) notes = notes ? notes + '\n' + _rqChainNoteText(chainInfo) : _rqChainNoteText(chainInfo);
+  if (auto) {
+    var autoNote = 'Auto-stopped at Square clock-out — verify pieces';
+    notes = notes ? notes + '\n' + autoNote : autoNote;
+  }
   var rows     = _rqLiveTimerRows(t);
   var expandedItems = rows.map(function(row) {
     return { name: row.label, squareId: row.squareId, pieces: row.pieces, isCustom: row.isCustom };
@@ -1995,8 +2113,12 @@ function rqStopTimer(pid) {
     laborRate: laborRate,
     startTime: new Date(t.startTime).toISOString(),
     stopTime: stopTime,
-    totalMs: totalMs,
-    netMs: netMin * 60000,
+    totalMs: wallMs,
+    // dedMs carried explicitly so the session log and the edit form's
+    // prevDedMs (restock-sessions.js) read a recorded deduction instead of
+    // reconstructing one from total - net.
+    dedMs: pausedMs,
+    netMs: netMs,
     notes: notes,
     saved: false,
     error: null,
@@ -2027,6 +2149,7 @@ function rqStopTimer(pid) {
         startTime:    session.startTime,
         stopTime:     stopTime,
         totalMin:     totalMin,
+        dedMin:       dedMin,
         netMin:       netMin,
         notes:        notes,
         itemsJson:    JSON.stringify(_rqItemsForJson(pricedItems)),
@@ -2050,7 +2173,7 @@ function rqStopTimer(pid) {
   }
   _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
     session.items = pricedItems;
-    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(_rqItemsForJson(pricedItems)) };
+    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, dedMin: dedMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(_rqItemsForJson(pricedItems)) };
     if (totalPcs  != null) patchBody.pieces    = totalPcs;
     // Only snapshot a real configured rate — writing the 0 that _rqRateFor
     // used to return for "no rate set" locked sessions at $0/hr forever.

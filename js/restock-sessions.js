@@ -35,6 +35,7 @@ function rqLoadSessions() {
             startTime: s.startTime || null,
             stopTime:  s.stopTime  || null,
             totalMs:   (s.totalMin || 0) * 60000,
+            dedMs:     s.dedMin != null ? s.dedMin * 60000 : null,
             netMs:     (s.netMin   || 0) * 60000,
             notes:     s.notes || '',
             laborRate: s.laborRate != null ? s.laborRate : null,
@@ -449,12 +450,18 @@ function rqSaveEditSession(store, i) {
   }
   s.startTime = newStart; s.stopTime = newStop;
   if (newStart && newStop) {
-    // Preserve the session's existing deduction (Square-reconciled clocked-out
-    // time, or the default 15 min) instead of resetting to a flat 15 min —
-    // editing times used to silently wipe the /api/square-sync reconciliation.
-    var prevDedMs = Math.max(0, (s.totalMs || 0) - (s.netMs || 0)) || 15 * 60000;
+    // Preserve the session's existing deduction (recorded pause time, or the
+    // Square-reconciled clocked-out span) instead of recomputing one — editing
+    // times used to silently wipe the /api/square-sync reconciliation. Sessions
+    // saved before dedMs was recorded fall back to reconstructing it from
+    // total - net. No flat-15 fallback: a session with no pauses and no
+    // clocked-out gap has a genuinely zero deduction, and the old `|| 15min`
+    // turned that zero back into a quarter hour of unworked time.
+    var prevDedMs = s.dedMs != null ? s.dedMs : Math.max(0, (s.totalMs || 0) - (s.netMs || 0));
     s.totalMs = new Date(newStop) - new Date(newStart);
-    s.netMs   = Math.max(0, s.totalMs - prevDedMs);
+    // A shortened window can't carry a deduction bigger than itself.
+    s.dedMs   = Math.min(prevDedMs, s.totalMs);
+    s.netMs   = Math.max(0, s.totalMs - s.dedMs);
   }
   var rateEl = document.getElementById('rq-edit-rate-' + store + '-' + i);
   var newRate = null;
@@ -512,7 +519,7 @@ function rqSaveEditSession(store, i) {
     if (newStart && newStop) {
       patch.totalMin = parseFloat((s.totalMs / 60000).toFixed(2));
       patch.netMin   = parseFloat((s.netMs   / 60000).toFixed(2));
-      patch.dedMin   = parseFloat(((s.totalMs - s.netMs) / 60000).toFixed(2));
+      patch.dedMin   = parseFloat(((s.dedMs || 0)        / 60000).toFixed(2));
     }
     if (totalPcs != null) patch.pieces = totalPcs;
     // Send the rate even when cleared (null) — omitting it left the old rate
@@ -759,6 +766,7 @@ function rqRenderProductionReport(forceRefresh) {
           category: s.category || '',
           startTime: s.startTime, stopTime: s.stopTime,
           totalMs: (s.totalMin || 0) * 60000,
+          dedMs: s.dedMin != null ? s.dedMin * 60000 : null,
           netMs: (s.netMin || 0) * 60000,
           laborRate: s.laborRate != null ? s.laborRate : null,
           // Carried for the report's Ledger / Decision Board views (js/prod-report.js).

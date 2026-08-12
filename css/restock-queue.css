@@ -92,6 +92,21 @@
   border-color: var(--bdr);
   color: var(--text3);
 }
+/* Forgotten-timer banner: a session still running from a previous day, or for
+   more than 12 hours. Warning family rather than error — the hours may well be
+   real, they just need a look before they land in the Production Report. */
+#tab-to-restock .rq-timer-stale {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border: 1px solid var(--warn-line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--rad-sm);
+  padding: 6px 10px;
+  margin-bottom: var(--sp-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 #tab-to-restock .rq-timer-dot { box-shadow: 0 0 0 3px rgba(58,122,74,0.15); }
 #tab-to-restock .rq-timer-emp { font-weight: 600; color: var(--text2); }
 #tab-to-restock .rq-stop-btn,
