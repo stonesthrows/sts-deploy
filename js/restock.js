@@ -292,6 +292,37 @@ function _rqEsc(s) {
 // section per metal instead of one flat wall of "Size N, Metal" chips.
 // Returns null when no variant has a recognizable metal token, so the
 // caller falls back to a single ungrouped list.
+// When a parent item's stocked quantities are all on one metal (e.g. only
+// Silver has qty > 0 while Gold Fill and Silver & Gold Fill are untouched),
+// the restock listing name should call that out — "Silver Stacker (Double
+// Chevron)" instead of the bare item name — so the shop knows at a glance
+// which version to pull/make. Returns null when metals are mixed (2+ have
+// qty) or the item only has one metal to begin with (nothing to disambiguate).
+function _rqSingleSelectedMetal(match) {
+  var grouping = _rqGroupVariantsByMetal(match.variants || []);
+  if (!grouping || grouping.metals.length < 2) return null;
+  var selectedIds = {};
+  (match.selectedVariants || []).forEach(function(v) { if (v.qty > 0) selectedIds[v.id] = true; });
+  if (!Object.keys(selectedIds).length) return null;
+  var selectedMetals = [];
+  grouping.rows.forEach(function(r) {
+    if (selectedIds[r.variant.id] && r.metal && selectedMetals.indexOf(r.metal) === -1) {
+      selectedMetals.push(r.metal);
+    }
+  });
+  return selectedMetals.length === 1 ? selectedMetals[0] : null;
+}
+
+// Normalizes a raw metal token (as it appears in Square variant names, e.g.
+// "gf", "gold fill", "rose gold") into the display form used in listing names.
+function _rqMetalDisplay(metal) {
+  var t = (metal || '').trim();
+  if (/^gf$/i.test(t)) return 'Gold Fill';
+  if (/^gold[\s-]?fill$/i.test(t)) return 'Gold Fill';
+  if (/^rose[\s-]?gold$/i.test(t)) return 'Rose Gold';
+  return t.replace(/\w\S*/g, function(w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); });
+}
+
 function _rqGroupVariantsByMetal(variants) {
   var rows = variants.map(function(v) {
     var tokens = (v.name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
@@ -784,9 +815,11 @@ function _rqMatchRowInner(pid) {
     });
     var stoneList = _rqStoneOptionsFor(match);
     var body = _rqVariantFlatHtml(safePid, filteredVariants, qtyByVariantId, undefined, stoneList, stoneByVariantId, undefined, timerActive);
+    var singleMetal = _rqSingleSelectedMetal(match);
+    var displayName = singleMetal ? _rqEsc(_rqMetalDisplay(singleMetal)) + ' ' + safeName : safeName;
     return '<div class="rq-match-found" style="margin-bottom:5px;">'
       + '<span class="rq-match-check">✓</span>'
-      + '<span class="rq-match-name">' + safeName + '</span>'
+      + '<span class="rq-match-name">' + displayName + '</span>'
       + '<button class="rq-match-change" onclick="rqOpenMatchEdit(\'' + safePid + '\')">✎ change item</button>'
       + '</div>'
       + styleFilter.filterTabsHtml
