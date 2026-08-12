@@ -364,6 +364,8 @@ var BS_DEAD_ATTRIB_MIN   = 0.5;
 
 var _bsVarSold         = null;  // { variationId: unitsSold }, null = unavailable
 var _bsVarSoldReady    = false;
+var _bsVarSoldPromise  = null;  // in-flight/settled fetch, so it runs at most once
+var _bsVarSoldDone     = false; // that fetch has settled (success or not)
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
@@ -511,7 +513,7 @@ function _bsView() {
   if (!v || typeof v !== 'object') v = {};
   if (['month','quarter','year'].indexOf(v.type) < 0) v.type = 'month';
   if (['qty','revenue'].indexOf(v.sort) < 0) v.sort = 'revenue';
-  if (['restock','focus','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
+  if (['restock','focus','earcuffs','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
   return v;
 }
 
@@ -1134,6 +1136,24 @@ async function _bsLoadVarSold() {
   if (_bsVarSoldReady) return;
   // Flag is off — don't spend a Square request on data nothing will read.
   if (!BS_DEAD_FLAG) { _bsVarSold = null; _bsVarSoldReady = true; return; }
+  return _bsEnsureVarSold();
+}
+
+// Same query, not gated on BS_DEAD_FLAG. The Ear Cuffs tab reads per-variation
+// units to show the mix, which is a weaker claim than the dead flag's "this
+// stock is condemnable" and survives the attribution doubts that keep the flag
+// off. Fetched lazily on that tab and deduped so the day-cache still holds.
+// _bsVarSoldReady can't answer "has the fetch happened" for this caller: with
+// BS_DEAD_FLAG off it is set true with null data precisely to mean "we never
+// asked". Track the fetch itself.
+function _bsEnsureVarSold() {
+  if (!_bsVarSoldPromise) {
+    _bsVarSoldPromise = _bsFetchVarSold().then(function(){ _bsVarSoldDone = true; });
+  }
+  return _bsVarSoldPromise;
+}
+
+async function _bsFetchVarSold() {
   try {
     var raw = localStorage.getItem(BS_VARSOLD_CACHE_KEY);
     if (raw) {
@@ -1277,9 +1297,9 @@ async function bestsellersInit() {
     Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
       var tab = _bsView().tab;
-      // Restock and Focus repaint in place; the other tabs need a full
-      // re-render to pick the counts up.
-      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
+      // Restock, Focus and Ear Cuffs repaint in place; the other tabs need a
+      // full re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus' || tab === 'earcuffs') _bsRenderStockTab(vel);
       else bsRender();
     });
   }
@@ -1367,9 +1387,9 @@ async function _bsAutoSyncWeekend() {
     Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
       var tab = _bsView().tab;
-      // Restock and Focus repaint in place; the other tabs need a full
-      // re-render to pick the counts up.
-      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
+      // Restock, Focus and Ear Cuffs repaint in place; the other tabs need a
+      // full re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus' || tab === 'earcuffs') _bsRenderStockTab(vel);
       else bsRender();
     });
   } catch (e) { /* silent — throttle window or next tab open retries */ }
@@ -1406,15 +1426,15 @@ function bsRender() {
   // ── Toolbar ──────────────────────────────
   html += '<div class="bs-toolbar">';
   html += '<div class="bs-seg" role="tablist" aria-label="View">';
-  [['restock','🔧 Restock'],['focus','🎯 Focus'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
+  [['restock','🔧 Restock'],['focus','🎯 Focus'],['earcuffs','🌀 Ear Cuffs'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
     html += '<button class="bs-seg-btn' + (view.tab === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
       + (view.tab === t[0]) + '" onclick="bsSetTab(\'' + t[0] + '\')">' + t[1] + '</button>';
   });
   html += '</div>';
-  // Restock and Focus both read their own fixed windows (the velocity
-  // lookback / the two-year design history), not the selected period, so the
-  // period picker would be a dead control on either.
-  if (view.tab !== 'restock' && view.tab !== 'focus') {
+  // Restock, Focus and Ear Cuffs all read their own fixed windows (the
+  // velocity lookback / the two-year design history), not the selected
+  // period, so the period picker would be a dead control on any of them.
+  if (view.tab !== 'restock' && view.tab !== 'focus' && view.tab !== 'earcuffs') {
     html += '<div class="bs-seg" role="tablist" aria-label="Period type">';
     [['month','Month'],['quarter','Quarter'],['year','Year']].forEach(function(t) {
       html += '<button class="bs-seg-btn' + (view.type === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
@@ -1453,6 +1473,8 @@ function bsRender() {
     html += '<div id="bsRestock"></div>';
   } else if (view.tab === 'focus') {
     html += '<div id="bsFocus"></div>';
+  } else if (view.tab === 'earcuffs') {
+    html += '<div id="bsCuffs"></div>';
   } else if (view.tab === 'trends') {
     html += bsRenderTrendsTab(buckets, view);
   } else {
@@ -1470,6 +1492,7 @@ function _bsRenderStockTab(vel) {
   var tab = _bsView().tab;
   if (tab === 'restock') _bsRenderRestockBoard(vel);
   else if (tab === 'focus') _bsRenderFocusBoard();
+  else if (tab === 'earcuffs') _bsRenderCuffBoard();
 }
 
 // ── Items tab: flat sortable table of every item in the selected period ──
@@ -1692,6 +1715,220 @@ function bsRenderSizeMix(mix) {
     + ' — 4,771 real sales — rather than proposing a bigger pile, so Make totals '
     + mix.missing + ' and is funded by the sizes marked over.</div>';
   return html;
+}
+
+// ── Ear Cuffs tab: the line broken down to the variation ──────────────
+// Every other tab stops at the design, because the weekend store rolls each
+// variation up to its parent item before writing. Ear cuffs are the one line
+// deep enough that the design is the wrong grain — "Double Chevron" says
+// nothing about whether the gold filled right-ear one is what actually
+// moves. Per-variation units come from the Reporting API instead of the
+// weekend store, which means ALL channels and a fixed two-year window, not
+// the period picker. Both differences are stated on the card.
+
+function _bsCuffDef() {
+  for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
+    if (BS_FOCUS_FAMILIES[i].key === 'earcuffs') return BS_FOCUS_FAMILIES[i];
+  }
+  return null;
+}
+
+// Variation names are freeform and years of them are inconsistent — "Gold
+// Filled, Right", "GF - R ear", "14k gf right". Pull the two attributes that
+// exist across the whole line and leave anything unrecognised out of the
+// rollups rather than bucketing it wrong.
+function _bsCuffMetal(name) {
+  if (!name) return null;
+  if (/\brose\s*gold\b/i.test(name)) return 'Rose Gold';
+  if (/\b(gold\s*fill(ed)?|gf|14k?\s*gf)\b/i.test(name)) return 'Gold Filled';
+  if (/\b(solid\s*)?(14k|18k|yellow\s*gold)\b/i.test(name)) return 'Solid Gold';
+  if (/\b(sterling|silver|ss|argentium)\b/i.test(name)) return 'Sterling Silver';
+  if (/\bniobium\b/i.test(name)) return 'Niobium';
+  if (/\btitanium\b/i.test(name)) return 'Titanium';
+  if (/\b(copper|brass|bronze)\b/i.test(name)) return 'Copper / Brass';
+  return null;
+}
+
+function _bsCuffSide(name) {
+  if (!name) return null;
+  if (/\b(pair|both|set)\b/i.test(name)) return 'Pair';
+  if (/\bright\b|\bR\s*ear\b/i.test(name)) return 'Right';
+  if (/\bleft\b|\bL\s*ear\b/i.test(name)) return 'Left';
+  return null;
+}
+
+// One row per variation of one design, merged by name across the design's
+// merged item ids — a renamed listing carries its own catalog object, so the
+// same "Gold Filled, Right" can arrive twice and must add up, not double.
+//   → [{ name, metal, side, sold, have }]
+function _bsCuffVariations(ids) {
+  var byName = {};
+  ids.forEach(function(id) {
+    var entry = _bsCatMap && _bsCatMap.items[id];
+    if (!entry) return;
+    var names = entry.varNames || {};
+    (entry.vars || []).forEach(function(v) {
+      var name = names[v] || 'Unnamed';
+      var key = name.toLowerCase();
+      var r = byName[key];
+      if (!r) {
+        r = byName[key] = {
+          name: name, metal: _bsCuffMetal(name), side: _bsCuffSide(name),
+          sold: 0, have: null,
+        };
+      }
+      r.sold += (_bsVarSold && _bsVarSold[v]) || 0;
+      var h = _bsOnHand[v];
+      if (h != null) r.have = (r.have || 0) + Math.max(0, h);
+    });
+  });
+  return Object.keys(byName).map(function(k){ return byName[k]; })
+    .filter(function(r){ return r.sold > 0 || (r.have || 0) > 0; })
+    .sort(function(a, b){ return (b.sold - a.sold) || ((b.have || 0) - (a.have || 0)); });
+}
+
+// Pool one attribute across every ear cuff design. → [{ label, sold, have }]
+function _bsCuffRollup(designs, attr) {
+  var by = {};
+  designs.forEach(function(d) {
+    d.vars.forEach(function(r) {
+      var label = r[attr];
+      if (!label) return;   // unparseable name — counted in the footnote, not here
+      var e = by[label] || (by[label] = { label: label, sold: 0, have: 0 });
+      e.sold += r.sold;
+      e.have += r.have || 0;
+    });
+  });
+  return Object.keys(by).map(function(k){ return by[k]; })
+    .sort(function(a, b){ return b.sold - a.sold; });
+}
+
+function _bsRenderCuffRollup(title, rows, note) {
+  if (!rows.length) return '';
+  var max = Math.max.apply(null, rows.map(function(r){ return r.sold; }).concat([1]));
+  var total = rows.reduce(function(s, r){ return s + r.sold; }, 0);
+  var html = '<div class="sales-card bs-cat-card">';
+  html += '<div class="sales-card-head">' + _bsEsc(title)
+    + ' <span class="bs-cat-tot">' + Math.round(total).toLocaleString() + ' pcs</span></div>';
+  html += '<div class="sales-card-body"><div class="sales-bar-wrap">';
+  rows.forEach(function(r) {
+    var pct = Math.round((r.sold / max) * 100);
+    var share = total ? (r.sold / total) * 100 : 0;
+    html += '<div class="sales-bar-row">'
+      + '<div class="sales-bar-lbl"><span>' + _bsEsc(r.label)
+      + ' <span class="sales-td-muted">×' + Math.round(r.sold) + '</span></span>'
+      + '<span class="sales-bar-amt">' + share.toFixed(0) + '% · ' + r.have + ' on hand</span></div>'
+      + '<div class="sales-bar-track"><div class="sales-bar-fill sf-gold" style="width:' + pct + '%"></div></div>'
+      + '</div>';
+  });
+  html += '</div>';
+  if (note) html += '<div class="bs-cat-more">' + _bsEsc(note) + '</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function _bsRenderCuffDesign(d) {
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">' + _bsEsc(d.name)
+    + ' <span class="bs-cat-tot">' + Math.round(d.sold).toLocaleString() + ' pcs · '
+    + d.have + ' on hand · ' + d.vars.length + ' variation' + (d.vars.length === 1 ? '' : 's') + '</span></div>';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+  ['Variation','Metal','Ear','Sold','Share','On hand'].forEach(function(h) {
+    html += '<th>' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  d.vars.forEach(function(r) {
+    var share = d.sold ? (r.sold / d.sold) * 100 : 0;
+    // The two states worth acting on, same vocabulary as the size mix card.
+    var pill = r.sold === 0 ? '<span class="trend-pill down">no sales</span>'
+             : (r.have || 0) === 0 ? '<span class="trend-pill flat">out</span>' : '';
+    html += '<tr>'
+      + '<td class="sales-td-label">' + _bsEsc(r.name) + (pill ? ' ' + pill : '') + '</td>'
+      + '<td class="sales-td-muted">' + _bsEsc(r.metal || '—') + '</td>'
+      + '<td class="sales-td-muted">' + _bsEsc(r.side || '—') + '</td>'
+      + '<td>' + Math.round(r.sold) + '</td>'
+      + '<td class="sales-td-muted">' + share.toFixed(0) + '%</td>'
+      + '<td>' + (r.have == null ? '<span class="sales-td-muted">—</span>' : r.have) + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+  return html;
+}
+
+function _bsRenderCuffBoard() {
+  var el = document.getElementById('bsCuffs');
+  if (!el) return;
+  if (!_bsVarSoldDone) {
+    el.innerHTML = '<div class="sales-empty">Loading per-variation sales from Square…</div>';
+    _bsEnsureVarSold().then(function() {
+      if (_bsView().tab === 'earcuffs') _bsRenderCuffBoard();
+    });
+    return;
+  }
+  if (!_bsOnHandReady) {
+    el.innerHTML = '<div class="sales-empty">Checking Square stock levels…</div>';
+    return;
+  }
+  if (!_bsVarSold) {
+    el.innerHTML = '<div class="sales-empty">Square\'s Reporting API didn\'t answer, so per-variation units aren\'t'
+      + ' available. The Focus tab still has the design-level ear cuff card.</div>';
+    return;
+  }
+
+  var def = _bsCuffDef();
+  var designs = (def ? _bsFamilyGroups(def) : []).map(function(g) {
+    var vars = _bsCuffVariations(g.ids);
+    return {
+      name: g.name, vars: vars,
+      sold: vars.reduce(function(s, r){ return s + r.sold; }, 0),
+      have: vars.reduce(function(s, r){ return s + (r.have || 0); }, 0),
+    };
+  }).filter(function(d){ return d.vars.length; });
+  designs.sort(function(a, b){ return (b.sold - a.sold) || (b.have - a.have); });
+
+  if (!designs.length) {
+    el.innerHTML = '<div class="sales-empty">No ear cuff designs with catalog variations in the last two years.</div>';
+    return;
+  }
+
+  var totalSold = designs.reduce(function(s, d){ return s + d.sold; }, 0);
+  var totalVars = designs.reduce(function(s, d){ return s + d.vars.length; }, 0);
+  var unnamed = 0;
+  designs.forEach(function(d) {
+    d.vars.forEach(function(r){ if (!r.metal && !r.side) unnamed += 1; });
+  });
+
+  var html = '<div class="bs-urgency-note">Units per variation over the last '
+    + Math.round(BS_FOCUS_WINDOW_DAYS / 365) + ' years, across every channel — not the market-weekend store the'
+    + ' other tabs read, so these totals run higher and the period picker doesn\'t apply.</div>';
+
+  html += '<div class="sales-stats bs-stats-3">';
+  html += statCard('🌀', 'si-purple', 'Ear Cuff Units', Math.round(totalSold).toLocaleString(),
+    designs.length + ' design' + (designs.length === 1 ? '' : 's'));
+  html += statCard('🎛️', 'si-gold', 'Variations', String(totalVars),
+    'stocked or sold in the window');
+  html += statCard('📦', 'si-green', 'On Hand',
+    designs.reduce(function(s, d){ return s + d.have; }, 0).toLocaleString(),
+    'pooled across every variation');
+  html += '</div>';
+
+  html += '<div class="bs-cat-grid">';
+  html += _bsRenderCuffRollup('Metal mix', _bsCuffRollup(designs, 'metal'),
+    'Pooled across every ear cuff design.');
+  html += _bsRenderCuffRollup('Ear mix', _bsCuffRollup(designs, 'side'),
+    'Only variations whose name says a side.');
+  html += '</div>';
+
+  designs.forEach(function(d){ html += _bsRenderCuffDesign(d); });
+
+  html += '<div class="bs-footnote">Metal and ear are read out of the variation name, which has been written'
+    + ' several ways over the years'
+    + (unnamed ? ' — ' + unnamed + ' variation' + (unnamed === 1 ? '' : 's') + ' name neither and sit out of the two mix cards above' : '')
+    + '. A variation reading "no sales" here means no sales on this catalog object: when an item\'s variations'
+    + ' are rebuilt the history stays on the retired ids, so check the design total before condemning stock.</div>';
+
+  el.innerHTML = html;
 }
 
 // ── Focus tab: one design card per product family ──
