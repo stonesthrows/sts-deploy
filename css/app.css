@@ -3548,6 +3548,10 @@
     .bs-proj-note { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
     .bs-footnote { margin-top: var(--sp-3); font-size: 11.5px; color: var(--text3); }
     .bs-stats-3 { grid-template-columns: repeat(3,1fr); }
+    /* Ear Cuffs tab — the BS_ALIAS_NAMES lines to paste once a pair is confirmed */
+    .bs-alias-block { margin: var(--sp-3) 0 0; padding: var(--sp-3); background: var(--bg2);
+      border: 1px solid var(--bdr-light); border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px; line-height: 1.6; color: var(--text2); overflow-x: auto; white-space: pre; }
     #tab-bestsellers .stat-card { cursor: default; }
     #tab-bestsellers .stat-card:hover { border-color: var(--bdr); box-shadow: var(--shadow-md); transform: translateY(-1px); }
     #tab-bestsellers .stat-value { font-variant-numeric: tabular-nums; }

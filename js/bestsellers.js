@@ -1856,6 +1856,217 @@ function _bsRenderCuffDesign(d) {
   return html;
 }
 
+// ── Copied-listing pairing ────────────────────────────────────────────────
+// Rebuilding a listing with variations instead of modifiers means a NEW
+// catalog item: the sales stay on the old one and the copy reads as a design
+// that has never sold. The rest of this page can't even see the copy —
+// _bsCatMap and the design groups are both built from the weekend store, and
+// a listing with no sales is in neither — so the pairing starts from the
+// catalog instead.
+//
+// Suggest, never merge. A wrong pair silently adds someone else's history to
+// a design; BS_ALIAS_NAMES is hand-curated for exactly that reason, and the
+// card below prints the line to add rather than acting on the guess.
+
+var _bsCuffCatalog        = null;  // [{id,name,archived,varCount}], null = unavailable
+var _bsCuffCatalogPromise = null;
+var _bsCuffCatalogDone    = false;
+var BS_CUFF_CAT_CACHE_KEY = 'sts-bs-cuffcat-v1';
+
+function _bsEnsureCuffCatalog() {
+  if (!_bsCuffCatalogPromise) {
+    _bsCuffCatalogPromise = _bsFetchCuffCatalog().then(function(){ _bsCuffCatalogDone = true; });
+  }
+  return _bsCuffCatalogPromise;
+}
+
+async function _bsFetchCuffCatalog() {
+  var catIds = (typeof INV_CAT_IDS !== 'undefined' && INV_CAT_IDS['ear-cuffs']) || [];
+  if (!catIds.length) { _bsCuffCatalog = null; return; }
+  try {
+    var raw = localStorage.getItem(BS_CUFF_CAT_CACHE_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.ts && (Date.now() - c.ts) < BS_VARSOLD_TTL_MS && c.items) {
+        _bsCuffCatalog = c.items; return;
+      }
+    }
+  } catch (e) { /* unreadable cache — refetch */ }
+
+  var out = [], cursor = null, pages = 0;
+  try {
+    do {
+      var body = { category_ids: catIds, limit: 100, archived_state: 'ARCHIVED_STATE_ALL' };
+      if (cursor) body.cursor = cursor;
+      var res = await _bsSq('/v2/catalog/search-catalog-items', body);
+      (res.items || []).forEach(function(o) {
+        if (o.is_deleted) return;
+        var d = o.item_data || {};
+        out.push({
+          id: o.id, name: d.name || '', archived: !!d.is_archived,
+          varCount: (d.variations || []).length,
+        });
+      });
+      cursor = res.cursor || null;
+    } while (cursor && ++pages < 20);
+    _bsCuffCatalog = out;
+    try {
+      localStorage.setItem(BS_CUFF_CAT_CACHE_KEY, JSON.stringify({ ts: Date.now(), items: out }));
+    } catch (e) { /* quota — refetched next visit */ }
+  } catch (e) {
+    _bsCuffCatalog = null;
+  }
+}
+
+// Units per ear cuff ITEM id over the focus window, straight from the weekend
+// store — item-grain on purpose, since the question here is which listing
+// holds the history, not which variation.
+function _bsCuffSoldByItem() {
+  var weekends = (_bsSales && _bsSales.weekends) || {};
+  var now = Date.now(), DAY = 86400000;
+  var by = {};
+  Object.keys(weekends).forEach(function(k) {
+    var e = weekends[k];
+    if (!e || e.final !== true) return;
+    var age = (now - new Date(k + 'T00:00:00').getTime()) / DAY;
+    if (age < 0 || age > BS_FOCUS_WINDOW_DAYS) return;
+    Object.keys(e.items || {}).forEach(function(id) {
+      var qty = e.items[id].qty || 0;
+      if (!(qty > 0)) return;
+      if (!_bsRestockSkuValid(id)) return;
+      if (_bsFocusFamilyOf(id) !== 'earcuffs') return;
+      by[id] = (by[id] || 0) + qty;
+    });
+  });
+  return by;
+}
+
+// Copy markers Square listings actually carry, plus punctuation, so
+// "Chevron Ear Cuffs (Variations)" and "Chevron Ear Cuff" reduce alike.
+function _bsCuffNameBase(name) {
+  return String(name || '').toLowerCase()
+    .replace(/\(\s*(?:variations?|copy|new|v2|updated|revised)\s*\)/g, ' ')
+    .replace(/\b(?:copy of|duplicate of)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// "ear" and "cuff" are on every listing in the line, so scoring on them would
+// call any two ear cuffs a 50% match. Distinctive tokens only.
+var BS_CUFF_STOPWORDS = { ear: 1, cuff: 1, the: 1, a: 1, and: 1 };
+
+function _bsCuffTokens(name) {
+  var seen = {}, out = [];
+  _bsCuffNameBase(name).split(' ').forEach(function(t) {
+    if (!t) return;
+    t = t.replace(/s$/, '');              // cuffs → cuff, chevrons → chevron
+    if (!t || seen[t] || BS_CUFF_STOPWORDS[t]) return;
+    seen[t] = true; out.push(t);
+  });
+  return out;
+}
+
+function _bsCuffSimilarity(a, b) {
+  var A = _bsCuffTokens(a), B = _bsCuffTokens(b);
+  if (!A.length || !B.length) return 0;
+  var inB = {};
+  B.forEach(function(t){ inB[t] = true; });
+  var hit = A.filter(function(t){ return inB[t]; }).length;
+  return hit / (A.length + B.length - hit);   // Jaccard
+}
+
+// → { pairs:[{copy, match, units, score, confidence, status}], orphans:[copy] }
+// or null when the catalog didn't load.
+function _bsCuffPairSuggestions() {
+  if (!_bsCuffCatalog) return null;
+  var sold = _bsCuffSoldByItem();
+
+  // Sources, keyed by the merged name the rest of the page already uses — a
+  // design whose history is split over three renamed listings is one source.
+  var live = {};
+  _bsCuffCatalog.forEach(function(c){ live[c.id] = c; });
+  var sources = {};
+  Object.keys(sold).forEach(function(id) {
+    var name = _bsRestockName(id);
+    var s = sources[name] || (sources[name] = { name: name, units: 0, live: 0, archived: 0, gone: 0 });
+    s.units += sold[id];
+    if (!live[id]) s.gone += 1;
+    else if (live[id].archived) s.archived += 1;
+    else s.live += 1;
+  });
+  var sourceNames = Object.keys(sources);
+
+  var pairs = [], orphans = [];
+  _bsCuffCatalog.forEach(function(c) {
+    if (sold[c.id]) return;                       // this listing has its own history
+    var merged = BS_ALIAS_NAMES[String(c.name).trim().toLowerCase()] || String(c.name).trim();
+    if (sources[merged]) return;                  // already merged onto a source by alias
+    var best = null;
+    sourceNames.forEach(function(n) {
+      var score = _bsCuffNameBase(n) === _bsCuffNameBase(c.name) ? 1 : _bsCuffSimilarity(n, c.name);
+      if (!best || score > best.score) best = { name: n, score: score };
+    });
+    if (!best || best.score < 0.34) { orphans.push(c); return; }
+    var s = sources[best.name];
+    pairs.push({
+      copy: c, match: best.name, units: s.units, score: best.score,
+      confidence: best.score === 1 ? 'exact' : best.score >= 0.5 ? 'likely' : 'possible',
+      status: s.gone ? 'deleted' : s.archived && !s.live ? 'archived' : 'live',
+    });
+  });
+  pairs.sort(function(a, b){ return (b.score - a.score) || (b.units - a.units); });
+  return { pairs: pairs, orphans: orphans };
+}
+
+function _bsRenderCuffPairs(sug) {
+  if (!sug || (!sug.pairs.length && !sug.orphans.length)) return '';
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">🔗 Listings with no sales — likely the copy of an older listing'
+    + ' <span class="bs-cat-tot">' + sug.pairs.length + ' to confirm</span></div>';
+  html += '<div class="sales-card-body sales-flush">';
+
+  if (sug.pairs.length) {
+    html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+    ['Listing with no sales','Variations','Likely original','Its units','Original now','Confidence'].forEach(function(h) {
+      html += '<th>' + h + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+    sug.pairs.forEach(function(p) {
+      var pill = p.confidence === 'exact' ? '<span class="trend-pill up">exact</span>'
+               : p.confidence === 'likely' ? '<span class="trend-pill flat">likely</span>'
+               : '<span class="trend-pill down">possible</span>';
+      html += '<tr>'
+        + '<td class="sales-td-label">' + _bsEsc(p.copy.name) + (p.copy.archived ? ' <span class="sales-td-muted">(archived)</span>' : '') + '</td>'
+        + '<td>' + p.copy.varCount + '</td>'
+        + '<td class="sales-td-label">' + _bsEsc(p.match) + '</td>'
+        + '<td>' + Math.round(p.units).toLocaleString() + '</td>'
+        + '<td class="sales-td-muted">' + p.status + '</td>'
+        + '<td>' + pill + ' <span class="sales-td-muted">' + Math.round(p.score * 100) + '%</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    // The whole point of the card: something to paste, not a number to admire.
+    var lines = sug.pairs.map(function(p) {
+      return "  '" + String(p.copy.name).trim().toLowerCase().replace(/'/g, "\\'")
+           + "': '" + String(p.match).replace(/'/g, "\\'") + "',";
+    }).join('\n');
+    html += '<div class="bs-footnote">Confirm each row, then add the matching lines to <code>BS_ALIAS_NAMES</code>'
+      + ' in <code>js/bestsellers.js</code> — that merges the copy onto the original everywhere on this page,'
+      + ' the same way the renamed stacker listings are handled. Nothing is merged automatically:'
+      + ' a wrong pair would quietly hand one design another\'s history.</div>';
+    html += '<pre class="bs-alias-block">' + _bsEsc(lines) + '</pre>';
+  }
+
+  if (sug.orphans.length) {
+    html += '<div class="bs-footnote">No plausible original for '
+      + sug.orphans.map(function(c){ return _bsEsc(c.name); }).join(', ')
+      + ' — either genuinely new, or the old listing\'s name shares no words with it.</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
 function _bsRenderCuffBoard() {
   var el = document.getElementById('bsCuffs');
   if (!el) return;
@@ -1866,13 +2077,25 @@ function _bsRenderCuffBoard() {
     });
     return;
   }
+  if (!_bsCuffCatalogDone) {
+    el.innerHTML = '<div class="sales-empty">Loading the ear cuff catalog…</div>';
+    _bsEnsureCuffCatalog().then(function() {
+      if (_bsView().tab === 'earcuffs') _bsRenderCuffBoard();
+    });
+    return;
+  }
   if (!_bsOnHandReady) {
     el.innerHTML = '<div class="sales-empty">Checking Square stock levels…</div>';
     return;
   }
+  // The pairing card is independent of the Reporting API — it reads the
+  // catalog and the weekend store — so it still renders when the mix can't.
+  var pairsHtml = _bsRenderCuffPairs(_bsCuffPairSuggestions());
+
   if (!_bsVarSold) {
-    el.innerHTML = '<div class="sales-empty">Square\'s Reporting API didn\'t answer, so per-variation units aren\'t'
-      + ' available. The Focus tab still has the design-level ear cuff card.</div>';
+    el.innerHTML = pairsHtml
+      + '<div class="sales-empty">Square\'s Reporting API didn\'t answer, so the per-variation mix isn\'t'
+      + ' available this visit. The Focus tab still has the design-level ear cuff card.</div>';
     return;
   }
 
@@ -1888,7 +2111,8 @@ function _bsRenderCuffBoard() {
   designs.sort(function(a, b){ return (b.sold - a.sold) || (b.have - a.have); });
 
   if (!designs.length) {
-    el.innerHTML = '<div class="sales-empty">No ear cuff designs with catalog variations in the last two years.</div>';
+    el.innerHTML = pairsHtml
+      + '<div class="sales-empty">No ear cuff designs with catalog variations in the last two years.</div>';
     return;
   }
 
@@ -1912,6 +2136,8 @@ function _bsRenderCuffBoard() {
     designs.reduce(function(s, d){ return s + d.have; }, 0).toLocaleString(),
     'pooled across every variation');
   html += '</div>';
+
+  html += pairsHtml;
 
   html += '<div class="bs-cat-grid">';
   html += _bsRenderCuffRollup('Metal mix', _bsCuffRollup(designs, 'metal'),
