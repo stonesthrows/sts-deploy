@@ -89,6 +89,22 @@
   font-size: 13px;
   color: var(--text);
 }
+/* Subheading inside a card (left ear / right ear). Deliberately quieter than
+   .inv-card-head — the card still has to read as one product. */
+.inv-group-head {
+  padding: 5px 14px;
+  background: var(--card-head-bg);
+  border-top: 1px solid var(--bdr-light);
+  border-bottom: 1px solid var(--bdr-light);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* No double rule where a subheading leads the card */
+.inv-card-head + .inv-group-head { border-top: none; }
+
 .inv-row {
   display: flex;
   align-items: center;
@@ -655,11 +671,69 @@
 .dsn-attach-del { flex:none; width:20px; height:20px; border-radius:50%; background:rgba(192,57,43,.9); color:var(--accent-ink); border:none; cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
 .dsn-form-actions { display:flex; gap:8px; padding-top:4px; flex-wrap:wrap; }
 @media (max-width:720px) { .dsn-form-layout { grid-template-columns:1fr; } .dsn-form-right { position:static; } }
-/* Lightbox */
-#dsn-img-overlay { position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:9999; display:none; align-items:center; justify-content:center; animation:dsnFade var(--dur-med) var(--ease-smooth); }
+/* Lightbox carousel — a design's reference images, paged.
+   The --dsn-lb-* tokens live in tokens.css and are deliberately the same
+   in both themes; see the comment there for why a photo viewer keeps dark
+   chrome even in light mode. */
+#dsn-img-overlay {
+  position:fixed; inset:0; z-index:9999; display:none; flex-direction:column;
+  background:var(--dsn-lb-scrim);
+  animation:dsnFade var(--dur-med) var(--ease-smooth);
+}
 @keyframes dsnFade { from { opacity:0; } }
-#dsn-img-overlay img { max-width:92vw; max-height:88vh; border-radius:var(--rad-md); object-fit:contain; }
-#dsn-img-overlay-close { position:absolute; top:16px; right:20px; font-size:28px; color:var(--accent-ink); cursor:pointer; line-height:1; }
+
+.dsn-lb-top { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; flex:none; }
+.dsn-lb-title { font-size:13px; font-weight:600; color:var(--dsn-lb-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsn-lb-top-right { display:flex; align-items:center; gap:14px; flex:none; }
+.dsn-lb-count { font-size:11.5px; color:var(--dsn-lb-dim); font-variant-numeric:tabular-nums; }
+.dsn-lb-btn {
+  background:none; border:none; padding:0; cursor:pointer; line-height:1;
+  font:inherit; font-size:26px; color:var(--dsn-lb-ink);
+}
+.dsn-lb-btn:hover { color:#fff; }
+
+.dsn-lb-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:18px; padding:0 24px; position:relative; }
+#dsn-img-overlay-img { max-width:100%; max-height:100%; min-height:0; border-radius:var(--rad-md); object-fit:contain; }
+/* The viewer holds no image bytes until one is paged to, so the stage can be
+   empty for a moment on a slow connection — say so rather than showing a
+   blank rectangle. Centred over the stage so the arrows stay put. */
+#dsn-img-overlay-img:not([src]) { display:none; }
+.dsn-lb-loading {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-size:12.5px; color:var(--dsn-lb-dim); letter-spacing:.3px;
+}
+.dsn-lb-thumb:not([src]) { background:var(--dsn-lb-ctl); }
+.dsn-lb-thumb.failed { opacity:.4; }
+.dsn-lb-arrow {
+  flex:none; width:38px; height:38px; border-radius:50%; cursor:pointer;
+  display:grid; place-items:center; font:inherit; font-size:17px;
+  background:var(--dsn-lb-ctl); color:var(--dsn-lb-ink);
+  border:1px solid var(--dsn-lb-line);
+  transition:background var(--dur-fast) var(--ease-smooth);
+}
+.dsn-lb-arrow:hover { background:var(--dsn-lb-ctl-hi); }
+.dsn-lb-btn:focus-visible, .dsn-lb-arrow:focus-visible { outline:2px solid var(--accent-mid); outline-offset:2px; }
+
+.dsn-lb-film { flex:none; display:flex; gap:8px; padding:14px 20px; overflow-x:auto; border-top:1px solid var(--dsn-lb-line); }
+.dsn-lb-thumb {
+  width:52px; height:52px; flex:none; border-radius:var(--rad-sm); object-fit:cover;
+  cursor:pointer; opacity:.5; border:2px solid transparent;
+  transition:opacity var(--dur-fast) var(--ease-smooth);
+}
+.dsn-lb-thumb:hover { opacity:.85; }
+.dsn-lb-thumb.on { opacity:1; border-color:var(--accent-mid); }
+.dsn-lb-thumb:focus-visible { outline:2px solid var(--accent-mid); outline-offset:2px; }
+
+/* Touch: swipe carries navigation, so the arrows shrink out of the way */
+@media (max-width:600px) {
+  .dsn-lb-stage { gap:8px; padding:0 10px; }
+  .dsn-lb-arrow { width:32px; height:32px; font-size:15px; }
+  .dsn-lb-thumb { width:44px; height:44px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  #dsn-img-overlay { animation:none; }
+  .dsn-lb-arrow, .dsn-lb-thumb { transition:none; }
+}
 @media (max-width:600px) {
   .dsn-grid { grid-template-columns:1fr 1fr; }
   .dsn-card-thumb-wrap { height:90px; }
@@ -681,6 +755,13 @@
 }
 .dsn-gd-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .dsn-gd-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bdr); cursor: zoom-in; }
+/* Reference images are fetched one at a time as they come into view
+   (_dsnGuideLoadImages), so a tile can be in the layout before it has a src.
+   Its width/height already hold the box; this keeps the empty box reading as
+   a placeholder instead of flashing the alt text at the reader. */
+.dsn-gd-img:not([src]) { background: var(--paper); border-color: var(--paper-bdr); color: transparent; }
+.dsn-gd-img.loading { animation: dsnGdThumbPulse 1.3s var(--ease-smooth) infinite; }
+.dsn-gd-img.failed { opacity: .5; }
 /* pdf/ai attachments in the reference-image gallery — a first-page thumbnail
    fills in as a background-image once rendered; until then, an icon + ext badge. */
 .dsn-gd-tile-doc {
@@ -741,6 +822,12 @@
   .dsn-guide-page { padding: 22px 18px; }
   .dsn-gd-head { flex-direction: column-reverse; }
   .dsn-gd-hero { width: 100%; max-width: 280px; }
+  /* One scrolling row rather than three wrapped ones. Two reasons: a
+     ten-image design otherwise buries the specs under a wall of thumbnails
+     on a phone, and since each tile only fetches once it scrolls into view,
+     the ones parked off-screen cost nothing until they're looked at. */
+  .dsn-gd-thumbs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .dsn-gd-thumb { flex: none; }
 }
 
 /* ── Designs: guide print (8.5×11 letter) ──
@@ -772,6 +859,9 @@
   body.dsn-printing .dsn-gd-stepnum { border-color: var(--text) !important; }
   body.dsn-printing .dsn-gd-hero { width: 3in; cursor: default; }
   body.dsn-printing .dsn-gd-thumb { width: 0.9in; height: 0.9in; cursor: default; }
+  /* Printing from a phone would otherwise inherit the narrow screen's
+     scrolling filmstrip and put a single row of thumbnails on paper. */
+  body.dsn-printing .dsn-gd-thumbs { flex-wrap: wrap; overflow: visible; }
   /* clean breaks */
   body.dsn-printing .dsn-gd-step,
   body.dsn-printing .dsn-gd-matlist li,

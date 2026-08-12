@@ -29,8 +29,42 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
+// ── Reference images ──────────────────────────
+// A design's images live inside its own record as base64 data URLs, so the
+// plain ?id= read hands back every image before the client can render a
+// single line of the guide — minutes on a phone for a design carrying ten
+// of them. Two extra read modes break that up:
+//
+//   ?slim=1  the record with the image payloads left out — everything the
+//            Design Guide actually renders, in a few KB
+//   ?img=N   one image, as raw bytes rather than base64 (a third smaller
+//            over the wire) and cacheable on its own
+//
+// The plain ?id= read is untouched: the edit form re-POSTs the whole record
+// and still needs the data URLs.
+
+// Splits "data:image/jpeg;base64,AAAA…" without a regex — these strings run
+// to hundreds of KB and only the short head matters.
+function _parseDataUrl(s) {
+  if (typeof s !== 'string' || !s.startsWith('data:')) return null;
+  const comma = s.indexOf(',');
+  if (comma === -1) return null;
+  const head = s.slice(5, comma);
+  if (!head.endsWith(';base64')) return null;
+  return { type: head.slice(0, -7) || 'application/octet-stream', b64: s.slice(comma + 1) };
+}
+
+function _b64Bytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 // GET /api/designs           → index array [{id, name, category, thumb, imgCount, preview, createdAt, updatedAt}]
 // GET /api/designs?id=xxx    → full design object (includes images)
+// GET /api/designs?id=xxx&slim=1 → same record with images/thumb stripped, plus imgCount
+// GET /api/designs?id=xxx&img=N  → reference image N as raw bytes
 // GET /api/designs?folders=1 → array of manually-created empty folder names
 export async function onRequestGet(context) {
   const kv = context.env.STS_DESIGNS;
@@ -45,13 +79,63 @@ export async function onRequestGet(context) {
   }
 
   if (id) {
+    const img  = searchParams.get('img');
+    const slim = searchParams.get('slim');
+    if (img !== null) return _serveImage(context, kv, id, img);
+
     const val = await kv.get(`designs:item:${id}`);
     if (!val) return json({ error: 'Not found' }, 404);
-    return new Response(val, { headers: { 'Content-Type': 'application/json', ...CORS } });
+    if (!slim) return new Response(val, { headers: { 'Content-Type': 'application/json', ...CORS } });
+
+    let design;
+    try { design = JSON.parse(val); } catch { return json({ error: 'Corrupt design record' }, 500); }
+    const { images, thumb, ...rest } = design;
+    // No `images` key at all (rather than an empty array) so the client can
+    // tell a slim record from a full one with no design left to load.
+    return json({ ...rest, imgCount: Array.isArray(images) ? images.length : 0 });
   }
 
   const index = await kv.get('designs:index');
   return new Response(index || '[]', { headers: { 'Content-Type': 'application/json', ...CORS } });
+}
+
+// One reference image, decoded out of the record. Cached hard by the browser:
+// the client stamps the design's updatedAt into the URL, so an edited design
+// asks for a new URL instead of ever being served a stale image.
+async function _serveImage(context, kv, id, nRaw) {
+  const n = Number(nRaw);
+  if (!Number.isInteger(n) || n < 0) return json({ error: 'Invalid image index' }, 400);
+
+  const val = await kv.get(`designs:item:${id}`);
+  if (!val) return json({ error: 'Not found' }, 404);
+
+  let design;
+  try { design = JSON.parse(val); } catch { return json({ error: 'Corrupt design record' }, 500); }
+
+  const src = (design.images || [])[n];
+  if (!src) return json({ error: 'No such image' }, 404);
+
+  const parsed = _parseDataUrl(src);
+  // Nothing in the app stores a bare URL, but a hand-edited record could —
+  // hand it straight back rather than 404ing on something that does resolve.
+  if (!parsed) {
+    if (/^https?:\/\//i.test(src)) return Response.redirect(src, 302);
+    return json({ error: 'Image is not stored inline' }, 415);
+  }
+
+  const etag = `"${id}-${n}-${design.updatedAt || '0'}-${parsed.b64.length}"`;
+  if (context.request.headers.get('If-None-Match') === etag) {
+    return new Response(null, { status: 304, headers: { ETag: etag, ...CORS } });
+  }
+
+  return new Response(_b64Bytes(parsed.b64), {
+    headers: {
+      'Content-Type':  parsed.type,
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'ETag':          etag,
+      ...CORS,
+    },
+  });
 }
 
 // POST /api/designs  body: { folder: "Name" or "Parent/Child/Grandchild" }

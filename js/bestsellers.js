@@ -83,19 +83,80 @@ var BS_SKIP_NAME_ANY_RE = /\b(shipping|postage|re-?siz(e|ed|ing)|gift ?card|depo
 // the handful that actually move. Raise toward 0.5 for a tighter list.
 var BS_MIN_VELOCITY = 0.25;
 
-// Square carries some pieces under two separate catalog items (an older
-// name and the current one). Restock focus merges those into one row so
-// the velocity and on-hand counts aren't split. Key = lowercased Square
-// item name, value = the name the merged row should display under.
-// Only used by restock focus — the per-category bestseller cards still
-// show Square's own names.
+// Square carries some pieces under several separate catalog items (older
+// names and the current one). Restock focus and the design focus cards
+// merge those into one row so velocity, sales and on-hand aren't split
+// across half-designs. Key = lowercased Square item name, value = the name
+// the merged row should display under. The per-category bestseller cards
+// are the exception — they still show Square's own names.
+// The stacker block below is the full listing map from
+// docs/stacker-sales-history.md — 49 names across the six current designs.
+// It is long because the line has been restructured more than any other:
+// renamed, split by metal and width, merged back, older listings deleted.
+// Without every name here the card fragments one design into a dozen rows
+// (GF Stacker (Skinny) and Silv Stacker (Skinny) are the same product) and
+// the chevron/square/hexagon ranges never reach it at all, because their
+// old names contain neither "stacker" nor "ring" and their catalog entries
+// are gone, so there is no category id left to match on. See
+// _bsFamilyClaims: routing reads the merged name for exactly that reason.
 var BS_ALIAS_NAMES = {
-  'chevron stacker':          'Stacker (Single Chevron)',
-  'stacker (single chevron)': 'Stacker (Single Chevron)',
-  'stacker':                  'Stacker (Regular)',
-  'stacker (regular)':        'Stacker (Regular)',
-  'square stacker':           'Stacker (Square)',
-  'stacker (square)':         'Stacker (Square)',
+  // → Stacker (Regular)
+  'gf stacker (skinny)':          'Stacker (Regular)',
+  'stackable ring':               'Stacker (Regular)',
+  'stacker':                      'Stacker (Regular)',
+  'silver stacker (skinny)':      'Stacker (Regular)',
+  'silver stacker (reg)':         'Stacker (Regular)',
+  'gf stacker (regular)':         'Stacker (Regular)',
+  'silv stacker (skinny)':        'Stacker (Regular)',
+  'stacker (skinny silver)':      'Stacker (Regular)',
+  'stacker (skinny gold fill)':   'Stacker (Regular)',
+  'stacker (regular silver)':     'Stacker (Regular)',
+  'stacker (regular gold fill)':  'Stacker (Regular)',
+  'stacker (regular)':            'Stacker (Regular)',
+  'stacker (reg silver)':         'Stacker (Regular)',
+  'stacker (skinny gf)':          'Stacker (Regular)',
+  'stacker (skinny silv)':        'Stacker (Regular)',
+  'stacker (regular gf)':         'Stacker (Regular)',
+  // → Stacker (Single Chevron)
+  'gf chevron (skinny)':          'Stacker (Single Chevron)',
+  'silv chevron (skinny)':        'Stacker (Single Chevron)',
+  'chevron stacker':              'Stacker (Single Chevron)',
+  'chevron':                      'Stacker (Single Chevron)',
+  'chevron (skinny silver)':      'Stacker (Single Chevron)',
+  'chevron (skinny gold fill)':   'Stacker (Single Chevron)',
+  'stacker (single chevron)':     'Stacker (Single Chevron)',
+  'chevron (regular silver)':     'Stacker (Single Chevron)',
+  'chevron (skinny gf)':          'Stacker (Single Chevron)',
+  'silver chevron (reg)':         'Stacker (Single Chevron)',
+  'chevron (skinny silv)':        'Stacker (Single Chevron)',
+  'chevron (regular gold fill)':  'Stacker (Single Chevron)',
+  'gf chevron (reg)':             'Stacker (Single Chevron)',
+  'silv chevron (reg)':           'Stacker (Single Chevron)',
+  // → Stacker (Double Chevron)
+  'double silver chevron':        'Stacker (Double Chevron)',
+  'double gf chevron':            'Stacker (Double Chevron)',
+  'stacker (double chevron)':     'Stacker (Double Chevron)',
+  // → Stacker (Hexagon). NOT "Hexagon Ring" — that is a separate open-style
+  // ring design with its own 168 units, and it keeps its own row.
+  'gold fill hexagon stacker':    'Stacker (Hexagon)',
+  'hexagon stacker':              'Stacker (Hexagon)',
+  'silver hexagon stacker':       'Stacker (Hexagon)',
+  'silver hexagon stackwr':       'Stacker (Hexagon)',   // typo listing, real sales
+  'hexagon':                      'Stacker (Hexagon)',
+  'stacker (hexagon)':            'Stacker (Hexagon)',
+  // → Stacker (Square)
+  'square stacker':               'Stacker (Square)',
+  'square':                       'Stacker (Square)',
+  'square skinny silver':         'Stacker (Square)',
+  'square (skinny gold fill)':    'Stacker (Square)',
+  'square (regular silver )':     'Stacker (Square)',     // trailing space is in Square
+  'square skinny':                'Stacker (Square)',
+  'square (regular gold fill)':   'Stacker (Square)',
+  'stacker (square)':             'Stacker (Square)',
+  // → Stacker (Beaded)
+  'beaded/twisted stacker':       'Stacker (Beaded)',
+  'stacker (beaded)':             'Stacker (Beaded)',
+
   'chevron ear cuff':         'Chevron Ear Cuff',
   'chevron ear cuffs':        'Chevron Ear Cuff',
   // "~ Tapered" is a genuinely different hoop and stays its own row.
@@ -109,6 +170,200 @@ function _bsRestockName(itemId) {
   var raw = String(_bsNameOf(itemId)).trim();
   return BS_ALIAS_NAMES[raw.toLowerCase()] || raw;
 }
+
+// ── Design focus cards ─────────────────────────
+// The restock board only ever lists designs clearing BS_MIN_VELOCITY, and it
+// says nothing about year over year. These cards give a product family its
+// own cut on a far longer window than the 12-weekend velocity: units over
+// the trailing 12 months against the 12 before, recent-half momentum, live
+// on-hand, and a make-count for a short run.
+//   · Pendants need it most — the whole family sells under the floor, so not
+//     one pendant has ever reached the board.
+//   · Earrings are the opposite shape: the top dozen designs are all on the
+//     board already, so the card earns its place on the year-over-year
+//     column and the long tail sitting below the floor.
+var BS_FOCUS_N            = 5;   // designs called out as the focus set
+var BS_FOCUS_RECENT_DAYS  = 182; // "still selling" window (~6 months)
+var BS_FOCUS_COVER_MONTHS = 3;   // a design's make-count covers this much demand
+var BS_FOCUS_WINDOW_DAYS  = 730; // total history the cards read
+
+// Parts, add-ons and bench services ring up beside the designs they attach
+// to and share their categories ("Chain Only", "Titanium Ball for Seamless
+// Hoop", "Ring Repair-Texas"). They aren't designs and would pad the tail of
+// every card. Note this is deliberately broader than restock focus's
+// BS_SKIP_NAME_RE, which keeps "repair" whole-name-only so a hypothetical
+// "Repair Cuff" product survives — these cards are an advisory design list,
+// where wrongly omitting a piece costs far less than listing a repair
+// ticket as a design to go and make.
+var BS_FOCUS_SKIP_RE = /\b(add-?on|chain only|ball for|repairs?)\b/i;
+
+// Product lines that belong on NO card, checked against name and category
+// before any family is offered the item. Nose rings are the case: they're
+// their own Inventory tab, INV_NOSERING_CAT_IDS is still empty so they
+// arrive only as a Square category name, and their names collide with two
+// families at once — "Nose Rings" reads as a ring, "Double Hoop Faux Nose
+// Ring" reads as a hoop. A per-family veto can't fix that, because whichever
+// family is tested first claims it before the vetoing one is reached.
+var BS_FOCUS_EXCLUDE_RE = /\bnose\b/i;
+
+// The one exception to the permanent-jewelry exclusion below. The premade
+// chain bracelets live in the PJ category but aren't welds — they're
+// ordinary stocked product with real counts, so a design row and a make
+// count do mean something for them. Matched on "premade" because that is
+// the only thing separating them from the weld lines in the same category:
+// "Premade Silver Bracelet" is stock, "Silver Bracelet" is a weld sold by
+// the inch, and nothing else distinguishes the two.
+var BS_FOCUS_PERM_KEEP_RE = /\bpre-?made\b/i;
+
+// ── Stacker size curve ─────────────────────────
+// Units sold per ring size, recovered from 4,771 sales across the listings
+// that recorded a real size — see docs/stacker-sales-history.md for the full
+// derivation and for the 3,467 units that could not be broken down.
+//
+// A design-level card cannot answer the question a size run actually poses.
+// "Make 20 Regular stackers" is not an instruction until it says which
+// sizes, and pooled on-hand hides the shape completely: 266 units spread
+// almost flat reads as well stocked while size 6.5 sits at zero.
+//
+// Raw counts rather than percentages, so this stays checkable against the
+// file and the shares recompute if it is ever extended.
+var BS_STACKER_CURVE = {
+  2: 103, 2.5: 113, 3: 191, 3.5: 200, 4: 188, 4.5: 188, 5: 251, 5.5: 259,
+  6: 348, 6.5: 326, 7: 433, 7.5: 356, 8: 416, 8.5: 320, 9: 320, 9.5: 232,
+  10: 255, 10.5: 116, 11: 151, 11.5: 5,
+};
+
+// Ring size out of a variation name. Square has recorded these several ways
+// over the years — "Size 7.5, Silver, Thin", "Gold Fill, Size 9.5",
+// "Silver - 5", or a bare "7" — so try the labelled form first, then a
+// standalone number. Anything else (a metal, a finish, "Thin GF") has no
+// size and is counted separately rather than guessed at.
+function _bsSizeOf(name) {
+  if (!name) return null;
+  var m = /\bsize\s*([0-9]{1,2}(?:\.5)?)\b/i.exec(name)
+       || /(?:^|[\s,\-])([0-9]{1,2}(?:\.5)?)(?=$|[\s,])/.exec(name);
+  if (!m) return null;
+  var size = parseFloat(m[1]);
+  return (size >= 1 && size <= 16) ? size : null;   // outside ring range: not a size
+}
+
+// A family claims an item by app family label, by Square category name, or
+// by the item's own name — in that order of preference but any one is
+// enough. Name matters because category alone misses real sellers: the
+// best-selling pendant sits in Square's "Seedpod Designs" category and the
+// Haloed Pendant has no category at all. Families are tested IN ORDER and an
+// item joins the first that claims it, so nothing lands on two cards.
+var BS_FOCUS_FAMILIES = [
+  { key: 'pendants', icon: '📿', title: 'Pendant focus',
+    family: 'Pendants',
+    re: /\b(pendant|necklace)s?\b/i,
+    note: 'Every pendant sells below the ' + BS_MIN_VELOCITY
+        + '/weekend floor the board above uses, so none of them appear there — this card is their cut.' },
+  // Ear cuffs come BEFORE earrings and deliberately carry no `family`.
+  // inventory.js files ear cuffs under the same 'Earrings' family as studs,
+  // hoops and dangles, so a family label here would claim the whole lot and
+  // leave the earring card empty. Matching on name/category instead splits
+  // them, and first-claim-wins keeps "Hoop Ear Cuffs" out of the hoops card.
+  { key: 'earcuffs', icon: '🌀', title: 'Ear cuff focus',
+    re: /\b(ear ?cuffs?|earcuffs?)\b/i,
+    // Two ear cuff categories aren't named "ear cuff" at all. "Cuff
+    // Bracelets" is a bracelet and must not match, so no bare \bcuff\b.
+    catRe: /\b(ear ?cuffs?|earcuffs?|stackable cuffs?|wide cuffs?)\b/i,
+    note: 'Ear cuffs are your deepest line — the top dozen designs already appear on the board above, so this card is for the year-over-year column and the tail selling under the '
+        + BS_MIN_VELOCITY + '/weekend floor.' },
+  // Everything else worn on the ear. Keeps the 'Earrings' family label as a
+  // catch-all so a new stud or dangle lands here without a regex change.
+  { key: 'earrings', icon: '🌿', title: 'Earring focus',
+    family: 'Earrings',
+    re: /\b(earrings?|studs?|hoops?|ear ?climbers?|flatbacks?|threaders?)\b/i,
+    note: 'Apart from Seamless Hoops this is a long tail — nearly every stud, dangle and climber sells under the '
+        + BS_MIN_VELOCITY + '/weekend floor, so the board never shows them.' },
+  // The three ring defs below are ordered narrowest-first, because the
+  // catch-all ring def's \brings?\b would otherwise swallow both of its
+  // siblings. Each of the two specific ones pins itself to inventory.js
+  // category ids rather than trusting names — see each comment for why.
+
+  // Meditation rings: the names don't all say "meditation" (INV_RING_INCLUDE
+  // lists "tri-color" as one of the four), so category ids are the only
+  // reliable handle. The regex is a fallback for one filed elsewhere.
+  { key: 'meditation', icon: '🧘', title: 'Meditation ring focus',
+    catIds: typeof INV_MEDITATION_CAT_IDS !== 'undefined' ? INV_MEDITATION_CAT_IDS : null,
+    re: /\bmeditation\b/i,
+    note: 'Meditation rings have their own Inventory tab and the highest average price of any market line, so they get their own card instead of being averaged in behind the stackers.' },
+
+  // Stackers: same problem, worse. They are named "Stacker (Regular)",
+  // "Chevron Stacker" and so on — no "ring" in the name at all — so only the
+  // Stackable Rings category ids identify them. Matching \bstackers?\b by
+  // name would also be wrong on its own: "Stackable Ear Cuff" and the
+  // "Stackable Cuffs" category are ear cuffs, kept out only because the ear
+  // cuff def is listed further up and claims them first.
+  { key: 'stackers', icon: '📚', title: 'Stacker focus',
+    catIds: typeof INV_RING_CAT_IDS !== 'undefined' ? { stackable: INV_RING_CAT_IDS.stackable } : null,
+    re: /\bstackers?\b/i,
+    curve: BS_STACKER_CURVE,   // adds the size-mix table below the designs
+    note: 'Stackers are the single biggest line in the shop at roughly 1,470 units a year — an order of magnitude past any other ring — so they get their own card instead of flattening every design on the ring card.' },
+
+  // Everything else worn on a finger. Keeps the 'Rings' family label as the
+  // catch-all. Nose rings would match \bring\b here; they're kept off every
+  // card by BS_FOCUS_EXCLUDE_RE rather than by a veto on this def.
+  { key: 'rings', icon: '💍', title: 'Ring focus',
+    family: 'Rings',
+    re: /\b(rings?|bands?)\b/i,
+    note: 'Spirit animal, geometric and symbolic ring designs, minus the stackers and meditation rings that have their own cards. Most sit near the '
+        + BS_MIN_VELOCITY + '/weekend floor, which is where the year-over-year column earns its keep.' },
+
+  // Bracelets. Matched by name and category rather than ids — bracelets
+  // aren't an Inventory tab, so there's no INV_ constant to pin to. The
+  // "Cuff Bracelets" category is safe to match on \bbracelet\b: it's the ear
+  // cuff defs above that have to avoid a bare \bcuff\b, not this one.
+  //
+  // The whole card depends on permanent jewelry being excluded — see
+  // _bsIsPermJewelry in _bsFocusFamilyOf. PJ welds ring up as "Silver
+  // Bracelet" and "Gold Fill Bracelet" and outsell the cuffs roughly ten to
+  // one, so on name alone they would take every focus slot.
+  { key: 'bracelets', icon: '🔗', title: 'Bracelet focus',
+    re: /\b(bracelets?|bangles?)\b/i,
+    note: 'Cuff bracelets, bangles and the premade chain bracelets. Welded permanent jewelry is deliberately absent — it is fitted to the customer rather than stocked, so a make-count for it would be meaningless, and it has its own tab.' },
+];
+
+// Real per-variation sold counts, from Square's Reporting API (SellThrough).
+// The dead flag used to infer this from varMap membership — "has this
+// variation ever turned up in a synced order" — which silently breaks
+// whenever an item's variations are recreated, because the sales stay
+// attached to the retired ids. Roughly 3,900 units across the catalogue are
+// attributed to variations that no longer exist, so the inference was wrong
+// far more often than it was right.
+//
+// Fetching real counts does NOT recover those sales; nothing can, they
+// happened on catalog objects that are gone. What it buys is the ability to
+// DETECT the condition: sum the counts across a design's live variations and
+// compare against what the design actually sold. If the two don't reconcile,
+// the per-variation history is severed and the flag has nothing to say.
+// Dead-stock flagging is OFF for now. The counts were arithmetically correct
+// — verified variation by variation against Square — but they are not a
+// trustworthy signal, because nearly every sized ring has its sales piled
+// onto one size: Circle Ring 37 of 38 on Size 5, Spiral Rings 82 of 100 on
+// Silver-5, Hexagon Ring 18 of 20 on Size 5. As a real size distribution
+// that isn't credible; it looks like what gets tapped at checkout. Until
+// that's settled the flag would be condemning sizes that may well be
+// selling, and a confident wrong answer is worse than no answer.
+//
+// Set to true to bring it back. Everything underneath stays intact and
+// tested, including the reconciliation test that keeps it quiet for designs
+// whose variations were rebuilt. Turning it on also re-enables the daily
+// Reporting API query, which is skipped entirely while this is false.
+var BS_DEAD_FLAG = false;
+
+var BS_VARSOLD_CACHE_KEY = 'sts-bs-varsold-v1';
+var BS_VARSOLD_TTL_MS    = 24 * 60 * 60 * 1000; // a day
+// Attribution must account for at least this share of a design's own units
+// before the flag is trusted. Generous on purpose: the counts cover every
+// channel while the design total is market weekends only, so an intact
+// design should comfortably exceed 1.0 and only a severed one falls near 0.
+var BS_DEAD_ATTRIB_MIN   = 0.5;
+
+var _bsVarSold         = null;  // { variationId: unitsSold }, null = unavailable
+var _bsVarSoldReady    = false;
 
 var _bsSales           = null;  // /api/weekend-sales blob { weekends, varMap }
 var _bsCatMap          = null;  // { items: {itemId:{cats:[],name,vars:[]}}, catNames: {catId:name} }
@@ -256,7 +511,7 @@ function _bsView() {
   if (!v || typeof v !== 'object') v = {};
   if (['month','quarter','year'].indexOf(v.type) < 0) v.type = 'month';
   if (['qty','revenue'].indexOf(v.sort) < 0) v.sort = 'revenue';
-  if (['restock','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
+  if (['restock','focus','trends','items'].indexOf(v.tab) < 0) v.tab = 'restock';
   return v;
 }
 
@@ -296,7 +551,12 @@ function bsToggleSort() {
 // v4 entries also carry a deleted flag for items gone from Square
 // entirely; the bump forces one refetch so those drop out of the
 // Bestseller list and restock focus alongside archived designs.
-var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v4';
+// v5 adds varNames (variation id -> its display name). v4 stored only ids,
+// so a size-aware view had nothing to parse; the bump forces one refetch.
+// It also refreshes every entry's `vars` list, which fixes designs whose
+// sizes were expanded after the cache was written — those were pooling
+// on-hand over a stale, shorter variation list and under-reporting stock.
+var BS_CAT_CACHE_KEY = 'sts-bs-catmap-v5';
 var BS_CAT_TTL_MS    = 7 * 24 * 60 * 60 * 1000;
 
 // The app's product families, in display order. Each entry unions every
@@ -365,10 +625,15 @@ async function _bsEnsureCatMap(itemIds) {
         var cats = (d.categories || []).map(function(c){ return c.id; });
         if (d.reporting_category && d.reporting_category.id && cats.indexOf(d.reporting_category.id) < 0) cats.push(d.reporting_category.id);
         if (d.category_id && cats.indexOf(d.category_id) < 0) cats.push(d.category_id);
+        var varNames = {};
+        (d.variations || []).forEach(function(v) {
+          varNames[v.id] = (v.item_variation_data && v.item_variation_data.name) || '';
+        });
         return {
           cats: cats, name: d.name || '', ptype: d.product_type || 'REGULAR',
           archived: !!d.is_archived,
           vars: (d.variations || []).map(function(v){ return v.id; }),
+          varNames: varNames,
         };
       };
       Object.keys(items).forEach(function(id){ _bsCatMap.items[id] = entryFromItem(items[id]); });
@@ -466,9 +731,23 @@ function _bsIsPermJewelry(itemId) {
 // in bsRestockFocus, it just isn't eligible on its own (see below). Items
 // with no catalog entry stay eligible — an unresolved lookup shouldn't
 // silently drop a real seller.
+// Square product types that genuinely aren't stock. Everything else counts,
+// including types nobody expected: this used to require product_type ===
+// 'REGULAR', which is an allowlist of one, and a real physical product can
+// carry a wrong type from however it was created. Both premade chain
+// bracelet items are FOOD_AND_BEV, which made them invisible to restock
+// focus AND to the design cards — and invisible to the on-hand fetch, so
+// they showed "—" stock — while still listing in the Items table, which
+// never calls this. Excluding by known service types instead of demanding
+// one blessed type stops a data-entry slip from silently hiding real stock.
+var BS_NON_STOCK_PTYPES = {
+  APPOINTMENTS_SERVICE: 1, GIFT_CARD: 1, DONATION: 1,
+  LEGACY_SQUARE_ONLINE_SERVICE: 1, LEGACY_SQUARE_ONLINE_MEMBERSHIP: 1,
+};
+
 function _bsRestockSkuValid(itemId) {
   var entry = _bsCatMap && _bsCatMap.items[itemId];
-  if (entry && entry.ptype && entry.ptype !== 'REGULAR') return false;
+  if (entry && entry.ptype && BS_NON_STOCK_PTYPES[entry.ptype]) return false;
   var nm = String(_bsNameOf(itemId)).trim();
   if (BS_SKIP_NAME_RE.test(nm)) return false;
   if (BS_SKIP_NAME_ANY_RE.test(nm)) return false;
@@ -636,6 +915,12 @@ function _bsLoadOnHand(vel) {
     if (!_bsRestockEligible(itemId)) return;
     Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
   });
+  // The focus cards read a two-year window, not the velocity window, so many
+  // of their designs sold nothing recent enough to be picked up above.
+  _bsFocusItemIds().forEach(function(itemId) {
+    if (!_bsRestockEligible(itemId)) return;
+    Object.keys(varsByItem[itemId] || {}).forEach(function(v){ idSet[v] = true; });
+  });
   var ids = Object.keys(idSet);
   if (!ids.length) return Promise.resolve();
   // Square caps batch-retrieve at 100 ids per call
@@ -719,6 +1004,257 @@ function bsRestockFocus(vel, includeCovered) {
   return rows;
 }
 
+// ── Design focus (aggregation) ─────────────────
+// Square category id union for a def pinned to an inventory.js category map
+// ({subTab: [ids]}), unioned once and cached on the def.
+function _bsDefCatIdSet(def) {
+  if (def._catIdSet) return def._catIdSet;
+  var set = {};
+  Object.keys(def.catIds || {}).forEach(function(sub) {
+    (def.catIds[sub] || []).forEach(function(id){ set[id] = true; });
+  });
+  return (def._catIdSet = set);
+}
+
+function _bsFamilyClaims(def, itemId) {
+  // The MERGED name, not the raw one. A deleted listing has no catalog
+  // entry, so category ids and the app family label are both unavailable
+  // and its own name is all that is left — and the old stacker names are
+  // exactly the ones that say nothing useful. "Chevron", "Square" and
+  // "Hexagon" match no family at all and fell off every card; "Stackable
+  // Ring" matched \bring\b and landed on the ring card, taking 1,265 units
+  // of stacker history with it. Routing on the alias-merged name fixes both
+  // without a second regex to keep in step: whatever a listing was called,
+  // it routes as the design it is today. Names with no alias are unchanged.
+  var name = _bsRestockName(itemId);
+  var cats = _bsCatNamesOf(itemId);
+  // Category IDS beat every other test — the only handle that survives a
+  // category rename, and the only one that catches a design whose name says
+  // nothing about its family (a "Tri-Color" meditation ring).
+  if (def.catIds) {
+    var idSet = _bsDefCatIdSet(def);
+    var entry = _bsCatMap && _bsCatMap.items[itemId];
+    var ids = (entry && entry.cats) || [];
+    for (var i = 0; i < ids.length; i++) if (idSet[ids[i]]) return true;
+  }
+  // `family` is optional: a def that shares an inventory.js family with a
+  // sibling def (ear cuffs vs the rest of the earrings) matches on name and
+  // category only, and relies on being listed first.
+  if (def.family && _bsAppCategory(itemId) === def.family) return true;
+  var catRe = def.catRe || def.re;
+  if (cats.some(function(n){ return n && catRe.test(n); })) return true;
+  return def.re.test(name);
+}
+
+// The family an item belongs to, or null. First claim wins.
+function _bsFocusFamilyOf(itemId) {
+  if (BS_FOCUS_EXCLUDE_RE.test(String(_bsNameOf(itemId)))) return null;
+  if (_bsCatNamesOf(itemId).some(function(n){ return n && BS_FOCUS_EXCLUDE_RE.test(n); })) return null;
+  // Permanent jewelry is welded to the customer by the inch, so a design
+  // list and a make-count mean nothing for it — and it has its own tab. It
+  // would only ever surface here through the bracelet def, where its two
+  // weld lines outsell every stocked cuff bracelet about ten to one. The
+  // premade chain bracelets in the same category are the exception.
+  if (_bsIsPermJewelry(itemId) && !BS_FOCUS_PERM_KEEP_RE.test(String(_bsNameOf(itemId)))) return null;
+  for (var i = 0; i < BS_FOCUS_FAMILIES.length; i++) {
+    if (_bsFamilyClaims(BS_FOCUS_FAMILIES[i], itemId)) return BS_FOCUS_FAMILIES[i].key;
+  }
+  return null;
+}
+
+// One family's designs with sales in the window, merged by name the same way
+// restock focus merges them (BS_ALIAS_NAMES, then lowercased name) so a
+// renamed listing and its successor count as one design rather than two half
+// designs. Note this is for genuinely separate catalog items only. A plain
+// RENAME needs no merging here: weekend entries are keyed by Square item id
+// and _bsNameOf prefers the live catalog name, so an item's whole history
+// groups under whatever it is called today. (Square's own reports do NOT do
+// this — they keep the name as it was at the time of each sale, so one
+// renamed item shows up there as two rows. Don't read those as duplicates.)
+//   → [{ ids, name, cat, y1, y0, recent, rev1, rev0, anyLive }]
+function _bsFamilyGroups(def) {
+  var weekends = (_bsSales && _bsSales.weekends) || {};
+  var now = Date.now(), DAY = 86400000;
+  var groups = {};
+  Object.keys(weekends).forEach(function(k) {
+    var e = weekends[k];
+    if (!e || e.final !== true) return;
+    var age = (now - new Date(k + 'T00:00:00').getTime()) / DAY;
+    if (age < 0 || age > BS_FOCUS_WINDOW_DAYS) return;
+    var its = e.items || {};
+    Object.keys(its).forEach(function(id) {
+      var qty = its[id].qty || 0;
+      if (!(qty > 0)) return;
+      if (!_bsRestockSkuValid(id)) return; // drops chain upgrades, shipping, retired categories
+      if (_bsFocusFamilyOf(id) !== def.key) return;
+      var name = _bsRestockName(id);
+      if (BS_FOCUS_SKIP_RE.test(name)) return;
+      var g = groups[name.toLowerCase()];
+      if (!g) {
+        g = groups[name.toLowerCase()] = {
+          ids: [], name: name, cat: _bsAppCategory(id), anyLive: false,
+          y1: 0, y0: 0, recent: 0, rev1: 0, rev0: 0,
+        };
+      }
+      if (g.ids.indexOf(id) < 0) g.ids.push(id);
+      g.anyLive = g.anyLive || !_bsIsDiscontinued(id);
+      if (g.cat === 'Uncategorized') g.cat = _bsAppCategory(id);
+      var rev = its[id].revenue || 0;
+      if (age <= BS_FOCUS_WINDOW_DAYS / 2) {
+        g.y1 += qty; g.rev1 += rev;
+        if (age <= BS_FOCUS_RECENT_DAYS) g.recent += qty;
+      } else {
+        g.y0 += qty; g.rev0 += rev;
+      }
+    });
+  });
+  // Every listing under this name archived or deleted — genuinely retired,
+  // not a rename with a live successor.
+  return Object.keys(groups).map(function(k){ return groups[k]; })
+    .filter(function(g){ return g.anyLive; });
+}
+
+// Item ids the focus cards need stock counts for. The slow-moving ones are
+// exactly what the velocity-driven on-hand fetch skips, so _bsLoadOnHand
+// asks for these explicitly — otherwise their On hand column is all '—'.
+function _bsFocusItemIds() {
+  var ids = [];
+  BS_FOCUS_FAMILIES.forEach(function(def) {
+    _bsFamilyGroups(def).forEach(function(g){ ids = ids.concat(g.ids); });
+  });
+  return ids;
+}
+
+// One Reporting API query for every variation with a sale in the window,
+// cached a day. Failure is deliberately silent and total: if reporting is
+// unavailable (the server token needs REPORTING_READ), _bsVarSold stays null
+// and the dead flag shows nothing at all rather than falling back to the
+// varMap inference we now know to be unreliable.
+async function _bsLoadVarSold() {
+  if (_bsVarSoldReady) return;
+  // Flag is off — don't spend a Square request on data nothing will read.
+  if (!BS_DEAD_FLAG) { _bsVarSold = null; _bsVarSoldReady = true; return; }
+  try {
+    var raw = localStorage.getItem(BS_VARSOLD_CACHE_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.ts && (Date.now() - c.ts) < BS_VARSOLD_TTL_MS && c.sold) {
+        _bsVarSold = c.sold; _bsVarSoldReady = true; return;
+      }
+    }
+  } catch (e) { /* unreadable cache — refetch */ }
+
+  var end = new Date();
+  var start = new Date(end.getTime() - BS_FOCUS_WINDOW_DAYS * 86400000);
+  try {
+    var res = await _bsSq('/reporting/v1/load', {
+      query: {
+        measures: ['SellThrough.units_sold'],
+        dimensions: ['SellThrough.item_variation_id'],
+        timeDimensions: [{
+          dimension: 'SellThrough.reporting_period',
+          dateRange: [_bsDateKey(start), _bsDateKey(end)],
+        }],
+        segments: ['SellThrough.has_sales'], // only variations that actually sold
+        limit: 5000,
+      },
+    });
+    var rows = (res && res.data) || [];
+    if (!rows.length) throw new Error('reporting returned no rows');
+    var sold = {};
+    rows.forEach(function(r) {
+      var id = r['SellThrough.item_variation_id'];
+      // The id-less row is Square's own bucket for sales whose variation no
+      // longer exists — the thing this whole mechanism exists to notice.
+      if (!id) return;
+      sold[id] = (sold[id] || 0) + (r['SellThrough.units_sold'] || 0);
+    });
+    _bsVarSold = sold;
+    try {
+      localStorage.setItem(BS_VARSOLD_CACHE_KEY, JSON.stringify({ ts: Date.now(), sold: sold }));
+    } catch (e) { /* quota — refetched next visit */ }
+  } catch (e) {
+    _bsVarSold = null;
+  }
+  _bsVarSoldReady = true;
+}
+
+// Variations carrying stock that have never sold, pooled over a design's
+// merged item ids. → { count, units }
+//
+// Per-variation sales are NOT in the weekend store: both sync paths roll
+// every variation up to its parent item before writing, so items[] is
+// item-keyed and a variation's own history is gone. varMap is the way in —
+// it only ever gains a variation when one turns up in an order, so "listed
+// in the catalog, carrying stock, absent from varMap" is precisely a
+// variation that has never sold across the synced history.
+//
+// This is a MARKET claim, not an all-channels one. The store holds Sat/Sun
+// orders at INV_LOCATION_ID only, so a variation that sells online and never
+// at a booth reads as dead here — which is why the UI says "no market
+// sales" rather than "never sold". For the question these cards answer (what
+// is worth carrying to a market) that is the right denominator.
+function _bsDeadVariations(itemIds) {
+  var out = { count: 0, units: 0, attributed: 0, ok: BS_DEAD_FLAG && !!_bsVarSold };
+  if (!out.ok) return out;
+  itemIds.forEach(function(id) {
+    var entry = _bsCatMap && _bsCatMap.items[id];
+    ((entry && entry.vars) || []).forEach(function(v) {
+      var sold = _bsVarSold[v] || 0;
+      out.attributed += sold;
+      if (sold > 0) return;                     // sold at least once
+      var have = _bsOnHand[v];
+      if (have == null || have <= 0) return;    // untracked or empty — not dead STOCK
+      out.count += 1;
+      out.units += have;
+    });
+  });
+  return out;
+}
+
+// Rank and classify one family. focus = the BS_FOCUS_N biggest two-year
+// earners still selling in the recent half; watch = still selling, outside
+// the top; fading = sold inside the window but nothing lately.
+function bsFamilyFocus(def) {
+  var varsByItem = _bsVarsByItem();
+  var rows = _bsFamilyGroups(def);
+  rows.forEach(function(g) {
+    g.rev = g.rev1 + g.rev0;
+    g.have = null;
+    g.dead = null;
+    if (_bsOnHandReady) {
+      g.ids.forEach(function(id) {
+        var h = _bsItemOnHand(id, varsByItem);
+        if (h != null) g.have = (g.have || 0) + h;
+      });
+      g.dead = _bsDeadVariations(g.ids);
+      // Reconcile: do the design's live variations account for what the
+      // design actually sold? When an item's variations are recreated the
+      // sales stay on the retired ids, so attribution collapses toward zero
+      // while the design plainly sells — Antler Ring sold 38 with 2
+      // attributable, Simple Bands 83 with none. Left alone the flag would
+      // condemn nearly all their stock. Whole ranges of rings are in this
+      // state, so this is the common case, not an edge case.
+      //
+      // Suppress rather than guess. The units genuinely can't be judged:
+      // their sales history belongs to catalog objects that no longer exist.
+      if (g.dead.attributed < (g.y1 + g.y0) * BS_DEAD_ATTRIB_MIN) {
+        g.dead = { count: 0, units: 0, attributed: g.dead.attributed, ok: g.dead.ok };
+      }
+    }
+    // A BS_FOCUS_COVER_MONTHS run at the last 12 months' rate, less what's on
+    // the shelf. Square reports negatives for stock sold but never received
+    // — floor at 0, it means "none on hand", not "owes 11".
+    g.make = Math.max(0, Math.ceil(g.y1 * (BS_FOCUS_COVER_MONTHS / 12)) - Math.max(0, g.have || 0));
+    g.status = g.recent > 0 ? 'watch' : 'fading';
+  });
+  rows.sort(function(a, b){ return (b.rev - a.rev) || (b.y1 - a.y1); });
+  rows.filter(function(r){ return r.status === 'watch'; })
+      .slice(0, BS_FOCUS_N)
+      .forEach(function(r){ r.status = 'focus'; });
+  return rows;
+}
+
 // ── Init & render ──────────────────────────────
 async function bestsellersInit() {
   var el = document.getElementById('bsContent');
@@ -738,9 +1274,12 @@ async function bestsellersInit() {
   bsRender();
   if (!_bsOnHandReady) {
     var vel = bsVelocity((_bsSales && _bsSales.weekends) || {});
-    _bsLoadOnHand(vel).then(function() {
+    Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
-      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      var tab = _bsView().tab;
+      // Restock and Focus repaint in place; the other tabs need a full
+      // re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
       else bsRender();
     });
   }
@@ -825,9 +1364,12 @@ async function _bsAutoSyncWeekend() {
     _bsOnHandReady = false; // this weekend may have sold something not counted yet
     bsRender();
     var vel = bsVelocity(_bsSales.weekends);
-    _bsLoadOnHand(vel).then(function() {
+    Promise.all([_bsLoadOnHand(vel), _bsLoadVarSold()]).then(function() {
       _bsOnHandReady = true;
-      if (_bsView().tab === 'restock') _bsRenderRestockBoard(vel);
+      var tab = _bsView().tab;
+      // Restock and Focus repaint in place; the other tabs need a full
+      // re-render to pick the counts up.
+      if (tab === 'restock' || tab === 'focus') _bsRenderStockTab(vel);
       else bsRender();
     });
   } catch (e) { /* silent — throttle window or next tab open retries */ }
@@ -864,12 +1406,15 @@ function bsRender() {
   // ── Toolbar ──────────────────────────────
   html += '<div class="bs-toolbar">';
   html += '<div class="bs-seg" role="tablist" aria-label="View">';
-  [['restock','🔧 Restock'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
+  [['restock','🔧 Restock'],['focus','🎯 Focus'],['trends','📈 Trends'],['items','📋 Items']].forEach(function(t) {
     html += '<button class="bs-seg-btn' + (view.tab === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
       + (view.tab === t[0]) + '" onclick="bsSetTab(\'' + t[0] + '\')">' + t[1] + '</button>';
   });
   html += '</div>';
-  if (view.tab !== 'restock') {
+  // Restock and Focus both read their own fixed windows (the velocity
+  // lookback / the two-year design history), not the selected period, so the
+  // period picker would be a dead control on either.
+  if (view.tab !== 'restock' && view.tab !== 'focus') {
     html += '<div class="bs-seg" role="tablist" aria-label="Period type">';
     [['month','Month'],['quarter','Quarter'],['year','Year']].forEach(function(t) {
       html += '<button class="bs-seg-btn' + (view.type === t[0] ? ' active' : '') + '" role="tab" aria-selected="'
@@ -906,6 +1451,8 @@ function bsRender() {
 
   if (view.tab === 'restock') {
     html += '<div id="bsRestock"></div>';
+  } else if (view.tab === 'focus') {
+    html += '<div id="bsFocus"></div>';
   } else if (view.tab === 'trends') {
     html += bsRenderTrendsTab(buckets, view);
   } else {
@@ -913,7 +1460,16 @@ function bsRender() {
   }
 
   el.innerHTML = html;
-  if (view.tab === 'restock') _bsRenderRestockBoard(vel);
+  _bsRenderStockTab(vel);
+}
+
+// Both stock-backed tabs paint after the shell is in the DOM, and both have
+// to repaint on their own once the Square on-hand fetch lands. One entry
+// point so a caller never has to know which tab is showing.
+function _bsRenderStockTab(vel) {
+  var tab = _bsView().tab;
+  if (tab === 'restock') _bsRenderRestockBoard(vel);
+  else if (tab === 'focus') _bsRenderFocusBoard();
 }
 
 // ── Items tab: flat sortable table of every item in the selected period ──
@@ -1046,6 +1602,175 @@ function bsSparkCard(name, cat, hist, metric) {
     + '<div class="spark-foot"><span class="sales-td-muted">' + (metric === 'qty' ? Math.round(total) + ' pcs' : _bsMoney(total)) + '</span>'
     + '<span class="trend-pill ' + cls + '">' + (pct > 0 ? '+' : '') + pct + '%</span></div>'
   + '</div>';
+}
+
+// ── Size mix (families sold as a size run) ─────
+// Pools every variation of every design in the family by ring size, then
+// reshapes the CURRENT total to the demand curve. Deliberately not a growth
+// plan: it distributes the stock already owned, so `make` answers "what
+// would square up the shape at today's level" rather than proposing a bigger
+// pile. Sizes over target need nothing made and are shown as over.
+//   → { rows:[{size,have,share,ideal,make,over}], total, unsized, missing }
+function bsFamilySizeMix(def, rows) {
+  if (!def.curve || !_bsOnHandReady) return null;
+  var have = {}, unsized = 0, total = 0;
+  rows.forEach(function(r) {
+    r.ids.forEach(function(id) {
+      var entry = _bsCatMap && _bsCatMap.items[id];
+      if (!entry) return;
+      var names = entry.varNames || {};
+      (entry.vars || []).forEach(function(v) {
+        var qty = _bsOnHand[v];
+        if (qty == null || qty <= 0) return;   // untracked, empty, or negative
+        total += qty;
+        var size = _bsSizeOf(names[v]);
+        if (size == null) { unsized += qty; return; }
+        have[size] = (have[size] || 0) + qty;
+      });
+    });
+  });
+  // Nothing to place: either no stock, or not one variation names a size —
+  // a table of zeros says less than no table at all.
+  var sizedTotal = total - unsized;
+  if (!total || !sizedTotal) return null;
+
+  var curveTotal = 0;
+  Object.keys(def.curve).forEach(function(s){ curveTotal += def.curve[s]; });
+  // Distribute only the stock that could be placed on a size — the unsized
+  // remainder can't be assigned to one, so folding it in would inflate every
+  // target by the same unattributable amount.
+  var sized = sizedTotal;
+  var sizes = {};
+  Object.keys(def.curve).forEach(function(s){ sizes[s] = true; });
+  Object.keys(have).forEach(function(s){ sizes[s] = true; });
+
+  var out = [], missing = 0;
+  Object.keys(sizes).map(parseFloat).sort(function(a, b){ return a - b; }).forEach(function(size) {
+    var units = have[size] || 0;
+    var share = (def.curve[size] || 0) / curveTotal;
+    var ideal = Math.round(share * sized);
+    var make  = Math.max(0, ideal - units);
+    if (make > 0) missing += make;
+    out.push({ size: size, have: units, share: share, ideal: ideal,
+               make: make, over: Math.max(0, units - ideal) });
+  });
+  return { rows: out, total: total, sized: sized, unsized: unsized, missing: missing };
+}
+
+function bsRenderSizeMix(mix) {
+  if (!mix) return '';
+  var pct = function(n){ return (n * 100).toFixed(1) + '%'; };
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">📏 Size mix — stock against the demand curve</div>';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+  ['Size','On hand','Share','Demand','Target','Make','Over'].forEach(function(h) {
+    html += '<th>' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  mix.rows.forEach(function(r) {
+    // Flag the two states worth acting on: a size the curve wants that is
+    // empty, and stock in a size the curve barely asks for.
+    var pill = r.have === 0 && r.ideal > 0 ? '<span class="trend-pill down">out</span>'
+             : r.over > 0 && r.share < 0.02 ? '<span class="trend-pill flat">excess</span>' : '';
+    html += '<tr>'
+      + '<td class="sales-td-label">' + r.size + (pill ? ' ' + pill : '') + '</td>'
+      + '<td>' + r.have + '</td>'
+      + '<td class="sales-td-muted">' + pct(mix.sized ? r.have / mix.sized : 0) + '</td>'
+      + '<td>' + pct(r.share) + '</td>'
+      + '<td class="sales-td-muted">' + r.ideal + '</td>'
+      + '<td>' + (r.make > 0 ? r.make : '<span class="sales-td-muted">✓</span>') + '</td>'
+      + '<td>' + (r.over > 0 ? '<span class="sales-td-muted">+' + r.over + '</span>' : '') + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '</div></div>';
+  html += '<div class="bs-footnote">Pooled across every design on this card — you make a batch of'
+    + ' a size, not of a design. ' + mix.sized + ' of ' + mix.total + ' units on hand carry a ring size'
+    + (mix.unsized ? ' (' + mix.unsized + ' do not and are left out of the split)' : '')
+    + '. Target reshapes that stock to the demand curve recovered in docs/stacker-sales-history.md'
+    + ' — 4,771 real sales — rather than proposing a bigger pile, so Make totals '
+    + mix.missing + ' and is funded by the sizes marked over.</div>';
+  return html;
+}
+
+// ── Focus tab: one design card per product family ──
+function _bsRenderFocusBoard() {
+  var el = document.getElementById('bsFocus');
+  if (!el) return;
+  if (!_bsOnHandReady) {
+    el.innerHTML = '<div class="sales-empty">Checking Square stock levels…</div>';
+    return;
+  }
+  var html = '<div class="bs-urgency-note">Units over the last 12 months against the 12 before, per design. '
+    + 'Names are merged across renamed and duplicate listings; parts, add-ons and bench services are left out.</div>';
+  html += bsRenderFocusCards();
+  el.innerHTML = html;
+}
+
+function bsRenderFocusCards() {
+  return BS_FOCUS_FAMILIES.map(bsRenderFocusCard).join('');
+}
+
+// On hand is pooled across every variation of a design, which is the right
+// grain for "is this design worth bench time" but hides where the depth
+// actually sits: a 12-variation matrix can read as well stocked while a
+// third of it is sizes nobody buys. Flag that inline, on the number itself.
+function _bsOnHandCell(r) {
+  if (r.have == null) return '<span class="sales-td-muted">—</span>';
+  if (!r.dead || !r.dead.count) return String(r.have);
+  var plural = function(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); };
+  return r.have + ' <span class="sales-td-muted" title="'
+    + plural(r.dead.units, 'unit') + ' across ' + plural(r.dead.count, 'variation')
+    + ' with no sales on record">· ' + r.dead.units + ' dead</span>';
+}
+
+function bsRenderFocusCard(def) {
+  var rows = bsFamilyFocus(def);
+  if (!rows.length) return '';
+  var rank = { focus: 0, watch: 1, fading: 2 };
+  rows.sort(function(a, b){ return (rank[a.status] - rank[b.status]) || (b.rev - a.rev); });
+
+  var html = '<div class="sales-card sales-block">';
+  html += '<div class="sales-card-head">' + def.icon + ' ' + _bsEsc(def.title)
+       + ' — last 12 months vs the 12 before</div>';
+  html += '<div class="sales-card-body sales-flush">';
+  html += '<div class="sales-table-wrap"><table class="sales-table"><thead><tr>';
+  ['Design','12 mo','Prior 12','Last 6 mo','2-yr net','On hand','Make'].forEach(function(h) {
+    html += '<th>' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach(function(r) {
+    var pill  = r.status === 'focus' ? 'up' : r.status === 'fading' ? 'down' : 'flat';
+    var label = r.status === 'focus' ? 'Focus' : r.status === 'fading' ? 'Fading' : 'Watch';
+    var make  = r.status === 'fading' ? '<span class="sales-td-muted">—</span>'
+              : r.make > 0 ? r.make
+              : '<span class="sales-td-muted">✓</span>';
+    html += '<tr>'
+      + '<td class="sales-td-label">' + _bsEsc(r.name) + ' <span class="trend-pill ' + pill + '">' + label + '</span></td>'
+      + '<td>' + Math.round(r.y1) + '</td>'
+      + '<td class="sales-td-muted">' + Math.round(r.y0) + '</td>'
+      + '<td>' + Math.round(r.recent) + '</td>'
+      + '<td>' + _bsMoney(r.rev) + '</td>'
+      + '<td>' + _bsOnHandCell(r) + '</td>'
+      + '<td>' + make + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '</div></div>';
+  html += '<div class="bs-footnote">Make covers ' + BS_FOCUS_COVER_MONTHS
+    + ' months at the last 12 months’ rate, less what Square has on hand. ' + def.note;
+  if (rows.some(function(r){ return r.dead && r.dead.count; })) {
+    html += ' “Dead” counts stock in variations Square records no sales against, already'
+         + ' included in the On hand figure beside it. It is left off entirely for a'
+         + ' design whose variations were rebuilt, since its per-variation history'
+         + ' belongs to catalog entries that no longer exist.';
+  }
+  html += '</div>';
+  // Families sold as a size run get the size breakdown the design rows
+  // structurally cannot give — which sizes to actually make.
+  html += bsRenderSizeMix(bsFamilySizeMix(def, rows));
+  return html;
 }
 
 // ── Restock tab: urgency board (make now / make soon / covered) ──

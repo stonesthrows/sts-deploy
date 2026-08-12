@@ -71,6 +71,22 @@ const INV_CAT_IDS = {
 
 const INV_LOCATION_ID = 'D7EZ98V48F79A';
 
+// ── Retired duplicate listings ───────────────────────────────────────────────
+// Square carries the chevron ear cuffs twice over, and both halves still hold
+// stock, so neither can just be deleted. This is the retired half: it stays in
+// Square untouched — counts, sales history and the online listing all intact —
+// but off the Adjust Inventory page, so there is one obvious card to count
+// against instead of two that look alike.
+//
+// Nothing here writes to Square. Drop the id to bring the card back, or pin the
+// item explicitly in ⚙ Manage Items, which still overrides this list.
+const INV_RETIRED_ITEM_IDS = new Set([
+  // "Chevron Ear Cuff" (Single/Double Silver/GF, Sm/Lg, Left/Right) —
+  // superseded by "Chevron Ear Cuffs" (CFQQC742DSTLZVPHVLNCRKSH), which carries
+  // the same product with mm sizes and the Silver & GF option.
+  'ADBLTHDPWIS54X6RFVB6CNFB',
+]);
+
 // Category name substrings for fallback lookup when hardcoded IDs return 0 items
 const INV_CAT_NAME_HINTS = {
   'hoops': 'seamless hoop',
@@ -158,7 +174,7 @@ async function _invFallbackCatSearch(sub) {
       method: 'POST',
       body: JSON.stringify({ category_ids: matchedIds }),
     });
-    return (searchRes.items || []).filter(o => !o.is_deleted);
+    return (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
   } catch (e) {
     console.warn(`[inv] fallback search failed for ${sub}:`, e.message);
     return [];
@@ -371,7 +387,7 @@ async function _invLoadSub(sub) {
           category_ids: catIds,
         }),
       });
-      items = (searchRes.items || []).filter(o => !o.is_deleted);
+      items = (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
       console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
     }
 
@@ -433,28 +449,6 @@ async function _invLoadSub(sub) {
   }
 }
 
-// ── Variant row tint (by material/style keywords) ────────────────────────────
-
-function _invVarTint(varName) {
-  const n = varName.toLowerCase();
-  const orbMatch = n.match(/(\d+)\s+orbs?/);
-  if (orbMatch) {
-    const orbs = parseInt(orbMatch[1]);
-    if (orbs === 1) return '#EEF4FD';
-    if (orbs === 2) return '#EEF7F1';
-    if (orbs === 3) return '#FDF5EE';
-  }
-  const isSingle = n.includes('single');
-  const isDouble = n.includes('double');
-  const isGF     = n.includes(' gf') || n.includes('gold fill');
-  const isSilver = n.includes('silver');
-  if (isSingle && isSilver) return '#EFF4FB';
-  if (isSingle && isGF)     return '#FDF8EC';
-  if (isDouble && isSilver) return '#E6EDF7';
-  if (isDouble && isGF)     return '#FBF0DC';
-  return '';
-}
-
 // ── Render ───────────────────────────────────
 
 const _INV_SIZE_RANK = { 'xs':0,'x-small':0,'xsmall':0,'extra small':0,'s':1,'sm':1,'small':1,'m':2,'md':2,'med':2,'medium':2,'l':3,'lg':3,'large':3,'xl':4,'x-large':4,'xlarge':4,'extra large':4,'xxl':5,'2xl':5 };
@@ -497,6 +491,84 @@ function _invSortVars(vars) {
   ).map(x => x.v);
 }
 
+// ── Card splits & row subheadings ────────────────────────────────────────────
+// A couple of Square items carry more than one product's worth of variations:
+// the chevron ear cuffs hold the regular and the double chevron side by side,
+// and every one of those exists twice over, once per ear. Both splits are
+// presentation-only — Square still sees one item and every write still lands on
+// the real variation id.
+//
+// Keyed on the lowercased Square item name. Each rule renders as its own card,
+// in the order listed; a variation matching no rule falls through to a trailing
+// card under the item's own name, so a rename in Square can never silently drop
+// a row.
+const INV_CARD_SPLITS = {
+  'chevron ear cuffs': [
+    { label: 'Chevron Ear Cuffs',        test: n => !/\bdouble\b/.test(n) },
+    { label: 'Double Chevron Ear Cuffs', test: n =>  /\bdouble\b/.test(n) },
+  ],
+  // Same product on the retired duplicate listing (see INV_RETIRED_ITEM_IDS),
+  // which names the halves "Single"/"Double" instead of by chevron count. Kept
+  // so restoring that listing — or renaming the live one to the singular —
+  // still splits correctly.
+  'chevron ear cuff': [
+    { label: 'Chevron Ear Cuff',         test: n => !/\bdouble\b/.test(n) },
+    { label: 'Double Chevron Ear Cuff',  test: n =>  /\bdouble\b/.test(n) },
+  ],
+};
+
+// Rows inside a matching card sit under a subheading. First match wins, and
+// anything matching nothing stays above the first subheading.
+const _INV_EAR_SIDES = [
+  { label: 'Left Ear',  test: n => /\bleft\b/.test(n) },
+  { label: 'Right Ear', test: n => /\bright\b/.test(n) },
+];
+const INV_ROW_GROUPS = {
+  'chevron ear cuffs': _INV_EAR_SIDES,
+  'chevron ear cuff':  _INV_EAR_SIDES,
+};
+
+// One item's variations → the cards it renders as.
+// [{ key, label, vars }] — a single whole-item card when no split rule applies.
+function _invSplitCards(item, itemName, vars) {
+  const rules = INV_CARD_SPLITS[itemName.toLowerCase()];
+  if (!rules) return [{ key: item.id, label: itemName, vars }];
+
+  const cards    = rules.map(r => ({ label: r.label, vars: [] }));
+  const leftover = [];
+  vars.forEach(v => {
+    const n   = (v.item_variation_data?.name || '').toLowerCase();
+    const idx = rules.findIndex(r => r.test(n));
+    if (idx >= 0) cards[idx].vars.push(v); else leftover.push(v);
+  });
+  if (leftover.length) cards.push({ label: itemName, vars: leftover });
+
+  // Key off the label, not the position — an empty card dropping out must not
+  // renumber the keys the Queue All buttons were rendered with.
+  return cards.filter(c => c.vars.length).map(c => ({
+    ...c,
+    key: item.id + '::' + c.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  }));
+}
+
+// A card's rows → subheaded groups. [{ label, vars }], label '' for the
+// ungrouped rows that lead the card.
+function _invGroupRows(itemName, vars) {
+  const rules = INV_ROW_GROUPS[itemName.toLowerCase()];
+  if (!rules) return [{ label: '', vars }];
+
+  const groups    = rules.map(r => ({ label: r.label, vars: [] }));
+  const ungrouped = [];
+  vars.forEach(v => {
+    const n   = (v.item_variation_data?.name || '').toLowerCase();
+    const idx = rules.findIndex(r => r.test(n));
+    if (idx >= 0) groups[idx].vars.push(v); else ungrouped.push(v);
+  });
+
+  return (ungrouped.length ? [{ label: '', vars: ungrouped }] : [])
+    .concat(groups.filter(g => g.vars.length));
+}
+
 function _invRenderSub(sub) {
   const data = _invData[sub];
   if (!data) return;
@@ -529,7 +601,6 @@ function _invRenderSub(sub) {
     const name = item.item_data?.name || 'Unnamed';
     const nameLower = name.toLowerCase();
     if (hidden.has(item.id)) return;
-    if (q && !nameLower.includes(q)) return;
     if (excludes.some(ex => nameLower.includes(ex))) return;
     if (includes.length && !includes.some(inc => nameLower.includes(inc))) return;
 
@@ -537,82 +608,94 @@ function _invRenderSub(sub) {
     const vars = _invSortVars((item.item_data?.variations || []).filter(v => !v.is_deleted && !hiddenVars.has(v.id)));
     if (!vars.length) return; // all variations hidden — skip card entirely
 
-    // Pre-pass: collect low-stock variations for this item
-    const lowVarsForItem = [];
-    vars.forEach(v => {
-      const sqQty = counts[v.id] ?? null;
-      const curQty = sqQty ?? 0;
-      const threshold = _invGetThreshold(v.id);
-      if (sqQty !== null && sqQty < threshold) {
-        lowVarsForItem.push({ varId: v.id, varName: v.item_variation_data?.name || '', curQty, threshold });
+    _invSplitCards(item, name, vars).forEach(card => {
+      // A split card answers to its own name in the filter box as well as to the
+      // Square item's, so "double" turns up the double chevron card on its own.
+      if (q && !nameLower.includes(q) && !card.label.toLowerCase().includes(q)) return;
+
+      // Pre-pass: collect low-stock variations for this card
+      const lowVarsForItem = [];
+      card.vars.forEach(v => {
+        const sqQty = counts[v.id] ?? null;
+        const curQty = sqQty ?? 0;
+        const threshold = _invGetThreshold(v.id);
+        if (sqQty !== null && sqQty < threshold) {
+          lowVarsForItem.push({ varId: v.id, varName: v.item_variation_data?.name || '', curQty, threshold });
+        }
+      });
+      if (lowVarsForItem.length >= 2) {
+        _invQueueAllData[card.key] = { itemName: name, lowVars: lowVarsForItem };
       }
+
+      html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
+        <div class="inv-card-head" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>${_esc(card.label)}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${lowVarsForItem.length >= 2 ? `<button class="inv-qal-btn" onclick="invOpenQueueAllLowModal('${card.key}')" title="Queue all low sizes">⚑ Queue All Low</button>` : ''}
+            <button onclick="invResetItem('${item.id}','${nameSafe}','${sub}')"
+              title="Reset this item to match Square (clears local overrides for it)"
+              style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
+              onmouseenter="this.style.opacity='1';this.style.color='var(--accent,#C9983A)'"
+              onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">↻</button>
+            <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
+              title="Remove entire item from webapp (won't affect Square)"
+              style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
+              onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
+              onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
+          </div>
+        </div>`;
+
+      _invGroupRows(name, card.vars).forEach(group => {
+        if (group.label) html += `<div class="inv-group-head">${_esc(group.label)}</div>`;
+
+        group.vars.forEach((v, rowIdx) => {
+          const varName   = v.item_variation_data?.name || '';
+          const varId     = v.id;
+          const lastAdded = lastAddedCache[varId];
+          const lastDateHtml = lastAdded
+            ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
+            : '';
+          const sqQty     = counts[varId] ?? null;
+          const curQty    = sqQty ?? 0;
+          const pendingAdd = _invDirty[varId] !== undefined ? _invDirty[varId] : 0;
+          const badge     = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
+          const badgeTxt  = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
+          const dot       = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
+          const dirty     = _invDirty[varId] !== undefined;
+          const varSafe   = _esc(varName).replace(/'/g, '&#39;');
+          const threshold = _invGetThreshold(varId);
+          const isLow     = sqQty !== null && sqQty < threshold;
+          // Zebra only. The old per-material tints were raw light hex, so every
+          // silver/GF row went unreadable in dark mode.
+          const rowTint   = rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '';
+
+          html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
+            <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
+            ${lastDateHtml}
+            <span class="inv-badge ${badge}">${badgeTxt}</span>
+            <div class="inv-dot ${dot}"></div>
+            <div class="inv-stepper">
+              <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
+              <input class="inv-step-input" type="number" id="inv-inp-${varId}"
+                value="${pendingAdd}"
+                onchange="invMarkDirty('${varId}',this.value)"
+                style="${dirty ? 'background:var(--accent-bg);' : ''}"
+                title="Positive adds stock, negative removes stock">
+              <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
+            </div>
+            <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
+            <button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue" style="${isLow ? '' : 'visibility:hidden'}">⚑ Queue</button>
+            <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
+              title="Remove this variation from webapp (won't affect Square)"
+              style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"
+              onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
+              onmouseleave="this.style.opacity='0.35';this.style.color='var(--text-dim)'">✕</button>
+          </div>`;
+        });
+      });
+
+      html += '</div>';
     });
-    if (lowVarsForItem.length >= 2) {
-      _invQueueAllData[item.id] = { itemName: name, lowVars: lowVarsForItem };
-    }
-
-    html += `<div class="inv-card" data-item-name="${_esc(name.toLowerCase())}">
-      <div class="inv-card-head" style="display:flex;align-items:center;justify-content:space-between;">
-        <span>${_esc(name)}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          ${lowVarsForItem.length >= 2 ? `<button class="inv-qal-btn" onclick="invOpenQueueAllLowModal('${item.id}')" title="Queue all low sizes">⚑ Queue All Low</button>` : ''}
-          <button onclick="invResetItem('${item.id}','${nameSafe}','${sub}')"
-            title="Reset this item to match Square (clears local overrides for it)"
-            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
-            onmouseenter="this.style.opacity='1';this.style.color='var(--accent,#C9983A)'"
-            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">↻</button>
-          <button onclick="invHideItem('${item.id}','${nameSafe}','${sub}')"
-            title="Remove entire item from webapp (won't affect Square)"
-            style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;opacity:0.45;transition:opacity 0.15s,color 0.15s;"
-            onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
-            onmouseleave="this.style.opacity='0.45';this.style.color='var(--text-dim)'">✕</button>
-        </div>
-      </div>`;
-
-    vars.forEach((v, rowIdx) => {
-      const varName   = v.item_variation_data?.name || '';
-      const varId     = v.id;
-      const lastAdded = lastAddedCache[varId];
-      const lastDateHtml = lastAdded
-        ? `<span class="inv-last-date">${_esc(_invFmtDelta(lastAdded.delta))} · ${_esc(_invFmtDate(lastAdded.isoDate))}</span>`
-        : '';
-      const sqQty     = counts[varId] ?? null;
-      const curQty    = sqQty ?? 0;
-      const pendingAdd = _invDirty[varId] !== undefined ? _invDirty[varId] : 0;
-      const badge     = sqQty === null ? 'unset' : sqQty === 0 ? 'no-stock' : sqQty <= 2 ? 'low-stock' : 'in-stock';
-      const badgeTxt  = sqQty === null ? 'not tracked' : sqQty === 0 ? 'out of stock' : sqQty + ' in stock';
-      const dot       = sqQty === null ? '' : sqQty > 0 ? 'ok' : 'err';
-      const dirty     = _invDirty[varId] !== undefined;
-      const varSafe   = _esc(varName).replace(/'/g, '&#39;');
-      const threshold = _invGetThreshold(varId);
-      const isLow     = sqQty !== null && sqQty < threshold;
-      const rowTint   = _invVarTint(varName) || (rowIdx % 2 === 1 ? 'var(--card-head-bg)' : '');
-
-      html += `<div class="inv-row" data-var-id="${varId}"${rowTint ? ` style="background:${rowTint}"` : ''}>
-        <div class="inv-var-name">${_esc(varName) || '(Default)'}</div>
-        ${lastDateHtml}
-        <span class="inv-badge ${badge}">${badgeTxt}</span>
-        <div class="inv-dot ${dot}"></div>
-        <div class="inv-stepper">
-          <button class="inv-step-btn" onclick="invStep('${varId}',-1)">−</button>
-          <input class="inv-step-input" type="number" id="inv-inp-${varId}"
-            value="${pendingAdd}"
-            onchange="invMarkDirty('${varId}',this.value)"
-            style="${dirty ? 'background:var(--accent-bg);' : ''}"
-            title="Positive adds stock, negative removes stock">
-          <button class="inv-step-btn" onclick="invStep('${varId}',1)">＋</button>
-        </div>
-        <button class="inv-set-btn" onclick="invSaveOne('${varId}','${sub}')">Set</button>
-        <button class="inv-queue-btn" onclick="invOpenLowStockModal('${varId}','${nameSafe}','${varSafe}',${curQty},'${sub}')" title="Add to Restock Queue" style="${isLow ? '' : 'visibility:hidden'}">⚑ Queue</button>
-        <button onclick="invHideVar('${varId}','${varSafe}','${nameSafe}','${sub}')"
-          title="Remove this variation from webapp (won't affect Square)"
-          style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;line-height:1;opacity:0.35;transition:opacity 0.15s,color 0.15s;margin-left:2px;"
-          onmouseenter="this.style.opacity='1';this.style.color='#dc2626'"
-          onmouseleave="this.style.opacity='0.35';this.style.color='var(--text-dim)'">✕</button>
-      </div>`;
-    });
-
-    html += '</div>';
   });
 
   if (!html) {

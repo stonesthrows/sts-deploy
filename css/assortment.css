@@ -1,0 +1,222 @@
+/* ── Assortment tab (scoped to #tab-replenish only) ──
+   The tab id stayed 'replenish' when the label became Assortment — see the
+   header of js/replenish.js for why. Everything here is scoped under that
+   id so the .as- prefix can never leak into another tab.
+
+   Tokens only. A raw hex in a component rule is invisible to dark mode and
+   tests/theme-audit.js fails the build over it. State colours come from the
+   semantic families (--ok / --warn / --danger / --info), never from
+   --accent: accent means "interactive", these mean "this is the situation".
+   tools/lint-semantics.js checks that pairing. */
+
+/* ── Scorecard ── */
+#tab-replenish .as-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+#tab-replenish .as-kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 11px 13px;
+  background: var(--card-bg);
+  border: 1px solid var(--bdr-light);
+  border-radius: var(--rad-md);
+  box-shadow: var(--shadow-sm);
+}
+/* Severity stripe: the tile reads as urgent before the number is parsed */
+#tab-replenish .as-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--bdr);
+}
+#tab-replenish .as-kpi-crit::before { background: var(--danger); }
+#tab-replenish .as-kpi-warn::before { background: var(--warn); }
+#tab-replenish .as-kpi-good::before { background: var(--ok); }
+#tab-replenish .as-kpi-info::before { background: var(--accent); }
+#tab-replenish .as-kpi-v {
+  font-size: 21px; font-weight: 800; line-height: 1.2;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+#tab-replenish .as-kpi-l { font-size: 11px; color: var(--text3); margin-top: 1px; }
+#tab-replenish .as-kpi-d { font-size: 10.5px; color: var(--text-dim); margin-top: 3px; }
+
+/* ── State chips + category select ── */
+#tab-replenish .as-filters {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--sp-1); margin-bottom: var(--sp-2);
+}
+#tab-replenish .as-chip {
+  font: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--bdr); border-radius: 999px;
+  background: var(--card-bg); color: var(--text2);
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+              background var(--dur-fast) var(--ease-smooth),
+              color var(--dur-fast) var(--ease-smooth);
+}
+#tab-replenish .as-chip:hover { border-color: var(--accent-border); color: var(--text); }
+#tab-replenish .as-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#tab-replenish .as-chip-on {
+  background: var(--accent-bg); border-color: var(--accent-border);
+  color: var(--accent-fg); font-weight: 700;
+}
+#tab-replenish .as-catsel {
+  font: inherit; font-size: 12px; margin-left: auto;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--bdr); background: var(--input-bg); color: var(--text2);
+}
+#tab-replenish .as-catsel:focus { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+
+/* ── Table + chat ── */
+#tab-replenish .as-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: var(--sp-3);
+  align-items: start;
+}
+#tab-replenish .as-tablecard {
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: var(--rad-md); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+/* Wide table scrolls inside its own card — the page never scrolls sideways */
+#tab-replenish .as-tscroll { overflow: auto; max-height: 560px; }
+#tab-replenish .as-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 780px; }
+#tab-replenish .as-table th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; padding: 8px 9px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text3); background: var(--card-head-bg);
+  border-bottom: 1px solid var(--bdr);
+}
+#tab-replenish .as-table td {
+  padding: 8px 9px; color: var(--text2);
+  border-bottom: 1px solid var(--bdr-light);
+}
+#tab-replenish .as-table tr:hover td { background: var(--hover-bg); }
+#tab-replenish .as-name { color: var(--text); font-weight: 600; }
+#tab-replenish .as-num { text-align: right; font-variant-numeric: tabular-nums; }
+#tab-replenish th.as-sortable { cursor: pointer; user-select: none; }
+#tab-replenish th.as-sortable:hover { color: var(--text); }
+#tab-replenish th.as-sortable:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#tab-replenish th.as-sorted { color: var(--accent-fg); }
+#tab-replenish .as-caret { margin-left: 3px; font-size: 9px; }
+#tab-replenish .as-spark { display: inline-block; vertical-align: middle; }
+
+#tab-replenish .as-good { color: var(--ok); font-weight: 700; }
+#tab-replenish .as-bad  { color: var(--danger); font-weight: 700; }
+#tab-replenish .as-wrn  { color: var(--warn); font-weight: 700; }
+#tab-replenish .as-dim  { color: var(--text-dim); }
+#tab-replenish .as-unlinked { color: var(--warn); cursor: help; }
+#tab-replenish .as-rowact { white-space: nowrap; }
+
+/* State pills — one family each, fill + ink + line together */
+#tab-replenish .as-pill {
+  display: inline-block; white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+}
+#tab-replenish .as-pill-danger { background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-line); }
+#tab-replenish .as-pill-ok     { background: var(--ok-bg);     color: var(--ok-fg);     border: 1px solid var(--ok-line); }
+#tab-replenish .as-pill-warn   { background: var(--warn-bg);   color: var(--warn-fg);   border: 1px solid var(--warn-line); }
+#tab-replenish .as-pill-info   { background: var(--info-bg);   color: var(--info-fg);   border: 1px solid var(--info-line); }
+#tab-replenish .as-pill-mute   { background: var(--surface);   color: var(--text3);     border: 1px solid var(--bdr); }
+
+/* ── Chat panel ── */
+#tab-replenish .as-chat {
+  display: flex; flex-direction: column; overflow: hidden;
+  height: 560px;
+  background: var(--card-bg); border: 1px solid var(--bdr);
+  border-radius: var(--rad-md); box-shadow: var(--shadow-sm);
+}
+#tab-replenish .as-chat-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  padding: 9px 12px;
+  background: var(--card-head-bg); border-bottom: 1px solid var(--bdr-light);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text3);
+}
+#tab-replenish .as-chat-clear {
+  font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  padding: 2px 8px; cursor: pointer;
+  background: none; border: 1px solid var(--bdr); border-radius: 999px; color: var(--text-dim);
+}
+#tab-replenish .as-chat-clear:hover { color: var(--text2); border-color: var(--text-dim); }
+#tab-replenish .as-chat-clear:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#tab-replenish .as-chat-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+#tab-replenish .as-chat-empty {
+  font-size: 12px; color: var(--text-dim); line-height: 1.5; padding: var(--sp-2) 0;
+}
+#tab-replenish .as-bub { font-size: 12.5px; line-height: 1.5; max-width: 94%; }
+#tab-replenish .as-bub p  { margin: 0 0 6px; }
+#tab-replenish .as-bub p:last-child { margin-bottom: 0; }
+#tab-replenish .as-bub ul { margin: 6px 0 0; padding-left: 16px; }
+#tab-replenish .as-bub li { margin: 2px 0; }
+#tab-replenish .as-thinking { color: var(--text-dim); font-style: italic; }
+
+#tab-replenish .as-acts {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--bdr);
+}
+#tab-replenish .as-act {
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  padding: 4px 10px; cursor: pointer; border-radius: 999px;
+  background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-fg);
+}
+#tab-replenish .as-act:hover { background: var(--accent); color: var(--accent-ink); }
+#tab-replenish .as-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#tab-replenish .as-act:disabled { opacity: 0.55; cursor: default; }
+/* Retiring a piece is the one destructive suggestion — it wears warn, not accent */
+#tab-replenish .as-act-warn {
+  background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-fg);
+}
+#tab-replenish .as-act-warn:hover { background: var(--warn); color: var(--card-bg); }
+
+#tab-replenish .as-chat-foot {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: 10px 12px; border-top: 1px solid var(--bdr-light);
+}
+#tab-replenish .as-sugg-row { display: flex; flex-wrap: wrap; gap: 5px; }
+#tab-replenish .as-sugg {
+  font: inherit; font-size: 11px; padding: 3px 9px; cursor: pointer;
+  border: 1px solid var(--bdr); border-radius: 999px;
+  background: var(--card-bg); color: var(--text3);
+}
+#tab-replenish .as-sugg:hover { color: var(--text); border-color: var(--accent-border); }
+#tab-replenish .as-sugg:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#tab-replenish .as-inp {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 6px 6px 6px 13px;
+  border: 1px solid var(--bdr); border-radius: 999px; background: var(--input-bg);
+}
+#tab-replenish .as-inp:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+#tab-replenish .as-inp input {
+  flex: 1; min-width: 0; font: inherit; font-size: 12.5px;
+  border: none; outline: none; background: none; color: var(--text);
+}
+#tab-replenish .as-send {
+  flex: none; width: 26px; height: 26px; cursor: pointer;
+  display: grid; place-items: center; font-size: 13px;
+  border: none; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+}
+#tab-replenish .as-send:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Below the two-column breakpoint the chat drops under the table */
+@media (max-width: 900px) {
+  #tab-replenish .as-main { grid-template-columns: 1fr; }
+  #tab-replenish .as-chat { height: 420px; }
+  #tab-replenish .as-tscroll { max-height: 420px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-replenish .as-chip { transition: none; }
+}

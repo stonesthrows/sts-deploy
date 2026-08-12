@@ -3,23 +3,45 @@
   X-Frame-Options: SAMEORIGIN
   X-Robots-Tag: noindex, nofollow
 
-# Never cache the service worker or main HTML — must always be fresh
+# Never cache the service worker or main HTML — must always be fresh.
+#
+# Each page is listed TWICE, with and without .html. Cloudflare Pages
+# matches these rules against the REQUEST path, not the file it ends up
+# serving, and it serves /jewelry-workflow for jewelry-workflow.html. So
+# the .html rule alone leaves the pretty URL — the one actually used, and
+# the one in CLAUDE.md — on default caching, which is how a deploy can
+# land and still not reach a browser that has the old HTML cached.
 /sw.js
   Cache-Control: no-store, no-cache, must-revalidate
 
 /jewelry-workflow.html
   Cache-Control: no-store, no-cache, must-revalidate
 
+/jewelry-workflow
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /intake.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/intake
   Cache-Control: no-store, no-cache, must-revalidate
 
 /time-tracker.html
   Cache-Control: no-store, no-cache, must-revalidate
 
+/time-tracker
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /phone.html
   Cache-Control: no-store, no-cache, must-revalidate
 
+/phone
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /phone-upload.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/phone-upload
   Cache-Control: no-store, no-cache, must-revalidate
 
 # JS files — revalidate on every load
