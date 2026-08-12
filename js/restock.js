@@ -1170,6 +1170,31 @@ function _rqFmtTime(ms) {
   return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+// ── Break rule ──────────────────────────────────────────────────────────────
+// A job whose actual worked time runs past an hour carries a 15-minute break.
+// It is a FLOOR on the deduction, not an addition to it: a bench worker who
+// paused for a real 25-minute break loses 25, not 40. Stacking it on top of a
+// logged pause is the double-deduction this timer used to have.
+//
+// The threshold reads worked time (wall clock minus pauses), not the
+// clock-to-clock span, so a 75-minute session with a 20-minute pause counts as
+// 55 minutes of work and stays under the bar.
+//
+// Note the cliff this puts at the hour mark: a 61-minute job records 46 minutes
+// and a 59-minute job records 59. That is inherent to a threshold rule.
+//
+// Mirrored in functions/api/square-sync.js (the reconcile Worker) and
+// time-tracker.html — all three have to agree or the number moves on its own
+// after the nightly sweep.
+var _RQ_BREAK_MS       = 15 * 60 * 1000;
+var _RQ_BREAK_AFTER_MS = 60 * 60 * 1000;
+
+function _rqApplyBreak(wallMs, offBenchMs) {
+  var workedMs = Math.max(0, wallMs - offBenchMs);
+  if (workedMs <= _RQ_BREAK_AFTER_MS) return offBenchMs;
+  return Math.min(wallMs, Math.max(offBenchMs, _RQ_BREAK_MS));
+}
+
 // A timer still running from a previous day — or for more than half a day — is
 // far more likely to be one somebody forgot to stop than real bench time. Say
 // so on the card instead of quietly folding those hours into the session.
@@ -2071,9 +2096,10 @@ function rqStopTimer(pid, stopAtMs, auto) {
   // /api/square-sync. The off-bench time rides separately in dedMin rather than
   // being silently baked into the total: baking it in is what let the reconcile
   // Worker (which recomputes total from the Notion start/stop stamps) re-add
-  // every pause on its next sweep. There is no flat break deduction any more —
-  // net is what the timer actually measured, so a 20-minute restock records 20
-  // minutes instead of 5, and a session under 15 minutes stops recording zero.
+  // every pause on its next sweep. The deduction is real pause time, floored at
+  // a 15-minute break once the job runs past an hour (see _rqApplyBreak) — the
+  // old flat 15 came off every session regardless of length, so a 20-minute
+  // restock recorded 5 minutes and anything shorter recorded zero.
   var stopMs   = stopAtMs || Date.now();
   var stopTime = new Date(stopMs).toISOString();
   var wallMs   = Math.max(0, stopMs - t.startTime);
@@ -2082,10 +2108,11 @@ function rqStopTimer(pid, stopAtMs, auto) {
   // total is reframed as wall clock.
   var pausedMs = (t.pausedMs || 0) + (t.pausedAt ? Math.max(0, stopMs - t.pausedAt) : 0);
   pausedMs     = Math.min(pausedMs, wallMs);
-  var netMs    = Math.max(0, wallMs - pausedMs);
-  var totalMin = parseFloat((wallMs   / 60000).toFixed(2));
-  var dedMin   = parseFloat((pausedMs / 60000).toFixed(2));
-  var netMin   = parseFloat((netMs    / 60000).toFixed(2));
+  var dedMs    = _rqApplyBreak(wallMs, pausedMs);
+  var netMs    = Math.max(0, wallMs - dedMs);
+  var totalMin = parseFloat((wallMs / 60000).toFixed(2));
+  var dedMin   = parseFloat((dedMs  / 60000).toFixed(2));
+  var netMin   = parseFloat((netMs  / 60000).toFixed(2));
   // Capture notes from the live DOM before clearing state; piece counts
   // come from the matched sizes table (_rqLiveTimerRows), reading whatever
   // was last edited — not a snapshot taken when the timer started.
@@ -2117,7 +2144,7 @@ function rqStopTimer(pid, stopAtMs, auto) {
     // dedMs carried explicitly so the session log and the edit form's
     // prevDedMs (restock-sessions.js) read a recorded deduction instead of
     // reconstructing one from total - net.
-    dedMs: pausedMs,
+    dedMs: dedMs,
     netMs: netMs,
     notes: notes,
     saved: false,

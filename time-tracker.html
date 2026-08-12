@@ -1108,9 +1108,15 @@ async function stopTimer(tid, stopAtMs) {
       }
     } catch(e) { console.warn('Timecard reconcile failed:', e); }
   }
-  // No flat 15-minute break. /api/square-sync stopped applying one, and a
-  // deduction added here would only survive until that Worker's next sweep
-  // overwrote it — the two writers have to agree or the number moves on its own.
+  // A 15-minute break once the job's worked time passes an hour, as a floor on
+  // the clocked-out deduction rather than an addition to it. Was a flat 15 on
+  // every session regardless of length. Mirrors _rqApplyBreak in js/restock.js
+  // and the same rule in /api/square-sync — the three writers have to agree or
+  // the number moves on its own after that Worker's next sweep.
+  const BREAK_MS = 15 * 60000, BREAK_AFTER_MS = 60 * 60000;
+  if (totalWall - clockedOutMs > BREAK_AFTER_MS) {
+    clockedOutMs = Math.min(totalWall, Math.max(clockedOutMs, BREAK_MS));
+  }
   const netMs = Math.max(0, totalWall - clockedOutMs);
   const shiftLog = _formatShiftLog(shifts, T[tid].startTime, new Date(stopTime).getTime());
   const notes = $t(tid,'notes-input')?.value.trim() || '';

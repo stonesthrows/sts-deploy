@@ -19,6 +19,14 @@ const DB_ID        = 'e59ae574e5ee4d569395e15bd56450e9';
 const SQUARE_API   = 'https://connect.squareup.com';
 const SQUARE_VER   = '2025-01-23';
 const SQ_LOCATION  = 'D7EZ98V48F79A';
+// A job whose worked time runs past an hour carries a 15-minute break, as a
+// FLOOR on the deduction rather than an addition to it — a bench worker who
+// paused for a real 25-minute break loses 25, not 40. Mirrored in
+// js/restock.js (_rqApplyBreak) and time-tracker.html; all three must agree or
+// the number moves on its own after this Worker's next sweep.
+const BREAK_MS       = 15 * 60 * 1000;
+const BREAK_AFTER_MS = 60 * 60 * 1000;
+
 const FAIL_AFTER_MS  = 48 * 60 * 60 * 1000; // give up matching a shift after 48h
 const RECHECK_MS     = 7  * 24 * 60 * 60 * 1000; // re-verify synced sessions for 7 days (catch corrections)
 
@@ -291,11 +299,16 @@ function reconcile(startTime, stopTime, shifts, recordedDedMs) {
   // different minutes; an exact union needs per-pause timestamps, which the
   // session record doesn't carry.
   //
-  // There is no flat 15-minute break here any more. It was applied to every
-  // session regardless of length, so a 20-minute restock reconciled to 5
-  // minutes of bench time and anything shorter reconciled to zero.
+  // The break is then floored onto that, but only once the job's worked time
+  // runs past an hour — the flat 15 this replaces came off every session
+  // regardless of length, so a 20-minute restock reconciled to 5 minutes of
+  // bench time and anything shorter reconciled to zero.
   const clockedOutMs = Math.max(0, totalMs - workedMs);
-  const dedMs = Math.max(clockedOutMs, recordedDedMs || 0);
+  const offBenchMs = Math.max(clockedOutMs, recordedDedMs || 0);
+  const benchMs = Math.max(0, totalMs - offBenchMs);
+  const dedMs = benchMs > BREAK_AFTER_MS
+    ? Math.min(totalMs, Math.max(offBenchMs, BREAK_MS))
+    : offBenchMs;
   const netMs = Math.max(0, totalMs - dedMs);
 
   return { matched: overlapping.length > 0, notionBlock, timeline, totalMs, dedMs, netMs };
