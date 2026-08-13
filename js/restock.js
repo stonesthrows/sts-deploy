@@ -1271,7 +1271,61 @@ function _rqUnpersistTimer(pid) {
   }).catch(function() {});
 }
 
+// ── Stopped-timer tombstones ────────────────────────────────────────────────
+// A stopped timer used to be able to come straight back to life: rqStopTimer
+// deletes it locally and fires a remove PUT, but that PUT swallows failures,
+// and _rqReconcileTimers adopts ANY pid present on the server and not tracked
+// locally. So an orphaned server copy — from a failed PUT, or merely from a
+// reconcile GET that was already in flight when the stop landed — was re-adopted
+// within 25s, carrying our own deviceId. The shift poll then owned it again,
+// found the assignee still clocked out, and stopped it a second time: another
+// session in the log, another "add to inventory?" prompt. Every 3 minutes,
+// forever, and invisibly, because the stop had already deleted the queue card.
+//
+// The tombstone records the START TIME as well as the pid, so it suppresses one
+// specific timer instance rather than the item. A genuinely new timer for the
+// same item — restarted later, or started on the other device — has a different
+// startTime and is adopted normally. A pid-only tombstone would make a
+// two-device bench go blind to restarts of anything it had stopped.
+var _RQ_STOPPED_KEY    = 'sts_rqStopped';
+var _RQ_STOPPED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+var _rqStopped = {};
+
+function _rqLoadStopped() {
+  try { _rqStopped = JSON.parse(localStorage.getItem(_RQ_STOPPED_KEY) || '{}') || {}; }
+  catch (e) { _rqStopped = {}; }
+}
+
+function _rqSaveStopped() {
+  var cutoff = Date.now() - _RQ_STOPPED_TTL_MS;
+  Object.keys(_rqStopped).forEach(function(pid) {
+    if (!_rqStopped[pid] || _rqStopped[pid].at < cutoff) delete _rqStopped[pid];
+  });
+  try { localStorage.setItem(_RQ_STOPPED_KEY, JSON.stringify(_rqStopped)); } catch (e) {}
+}
+
+// Persisted, because the resurrection also happens across a reload: localStorage
+// is clean by then (_rqWriteLocal dropped the pid), but the first reconcile
+// after boot pulls the orphan back out of KV.
+function _rqMarkStopped(pid, startTime) {
+  _rqStopped[pid] = { at: Date.now(), startTime: startTime };
+  _rqSaveStopped();
+}
+
+function _rqClearStopped(pid) {
+  if (!_rqStopped[pid]) return;
+  delete _rqStopped[pid];
+  _rqSaveStopped();
+}
+
+// True when this exact timer instance was already stopped here.
+function _rqWasStopped(pid, startTime) {
+  var tomb = _rqStopped[pid];
+  return !!(tomb && tomb.startTime === startTime);
+}
+
 function _rqRestoreTimers() {
+  _rqLoadStopped();
   try {
     var saved = JSON.parse(localStorage.getItem('sts_rqTimers') || '{}');
     Object.keys(saved).forEach(function(pid) {
@@ -1344,10 +1398,16 @@ function _rqReconcileTimers() {
         if (_rqTimers[pid].deviceId === myId && !serverState[pid]) _rqPersistTimer(pid);
       });
 
-      // New timer from another device → adopt.
+      // New timer from another device → adopt. But never re-adopt a timer this
+      // device already stopped: that resurrects a session the queue has already
+      // finished and re-fires the inventory prompt on a loop (see the tombstone
+      // block above). Re-issuing the removal is the load-bearing half — a
+      // remove PUT that failed leaves an orphan that would otherwise sit in KV
+      // for its full 30-day TTL, re-adopted and re-suppressed on every poll.
       Object.keys(serverState).forEach(function(pid) {
         if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
         var s = serverState[pid];
+        if (_rqWasStopped(pid, s.startTime)) { _rqUnpersistTimer(pid); return; }
         _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, notes: '', tickInterval: null };
         _rqStartTick(pid);
         changed = true;
@@ -2073,6 +2133,15 @@ function rqTogglePauseTimer(pid) {
 function rqStopTimer(pid, stopAtMs, auto) {
   var t = _rqTimers[pid];
   if (!t) return;
+  // Stopping the same timer instance twice is never correct — it duplicates the
+  // session and re-opens the inventory prompt. The tombstone guard above stops
+  // a resurrected timer reaching here at all; this is the backstop for any route
+  // that isn't anticipated, since the cost of getting it wrong is silent.
+  if (_rqWasStopped(pid, t.startTime)) {
+    delete _rqTimers[pid];
+    _rqUnpersistTimer(pid);
+    return;
+  }
   // Require every item/variant to have a piece count before the session can
   // be saved — otherwise "Pieces Made" silently stays blank in Notion forever.
   // An auto-stop can't satisfy that (nobody is at the bench to type it), and
@@ -2150,6 +2219,7 @@ function rqStopTimer(pid, stopAtMs, auto) {
     saved: false,
     error: null,
   };
+  _rqMarkStopped(pid, t.startTime);
   delete _rqTimers[pid];
   _rqUnpersistTimer(pid);
   _rqSessions.unshift(session);
@@ -2668,6 +2738,9 @@ function rqStartTimerConfirm(pid) {
     delete matchItem.pieces;
     _rqAmSet(pid, matchItem, true);
   }
+  // Deliberately starting this item again retires any tombstone for it, so a
+  // stop-then-restart behaves normally on every device.
+  _rqClearStopped(pid);
   _rqTimers[pid] = {
     startTime: startTimeMs,
     employee: { name: assigneeName, id: '' },
