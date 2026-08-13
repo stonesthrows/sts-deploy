@@ -1271,6 +1271,10 @@ function _rqTimerPayload(pid) {
     // A held auto-save has to cross devices, or the other iPad's poll retries
     // the save this one already refused.
     autoSaveHeld: !!t.autoSaveHeld,
+    // Which pauses are the shift poll's to lift, and which clock-out a person
+    // chose to work through — both have to cross devices or a second device
+    // would re-pause a timer the owner deliberately resumed.
+    pauseSrc: t.pauseSrc || null, sqOverrideEnd: t.sqOverrideEnd || null,
   };
 }
 
@@ -1364,7 +1368,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return;
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, pauseSrc: s.pauseSrc || null, sqOverrideEnd: s.sqOverrideEnd || null, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch (e) {}
@@ -1441,7 +1445,7 @@ function _rqReconcileTimers() {
         if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
         var s = serverState[pid];
         if (_rqWasStopped(pid, s.startTime)) { _rqUnpersistTimer(pid); return; }
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, pauseSrc: s.pauseSrc || null, sqOverrideEnd: s.sqOverrideEnd || null, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
         _rqStartTick(pid);
         changed = true;
       });
@@ -1458,6 +1462,8 @@ function _rqReconcileTimers() {
             || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText
             || s.startTime !== t.startTime
             || (s.pausedAt || null) !== (t.pausedAt || null) || (s.pausedMs || 0) !== (t.pausedMs || 0)
+            || (s.pauseSrc || null) !== (t.pauseSrc || null)
+            || (s.sqOverrideEnd || null) !== (t.sqOverrideEnd || null)
             || !!s.autoSaveHeld !== !!t.autoSaveHeld) {
           t.items = s.items || null;
           t.richMatch = s.richMatch || null;
@@ -1468,6 +1474,8 @@ function _rqReconcileTimers() {
           t.pausedAt = s.pausedAt || null;
           t.pausedMs = s.pausedMs || 0;
           t.autoSaveHeld = !!s.autoSaveHeld;
+          t.pauseSrc = s.pauseSrc || null;
+          t.sqOverrideEnd = s.sqOverrideEnd || null;
           changed = true;
         }
       });
@@ -1488,16 +1496,29 @@ function _rqStartReconcilePoll() {
   _rqStartShiftPoll();
 }
 
-// ── Auto-stop at the Square clock-out ───────────────────────────────────────
+// ── Follow the Square clock ─────────────────────────────────────────────────
 // A timer left running past the end of a shift banks hours nobody worked —
 // 70-hour sessions, in the case this was written for. time-tracker.html got
-// this guard when the timer still lived there; the timer now lives inline in
+// that guard when the timer still lived there; the timer now lives inline in
 // this queue (see js/ui-shell.js), so it has to live here too.
+//
+// A clock-out PAUSES rather than stops, because at the moment of the punch
+// lunch and going-home look identical. Only hindsight tells them apart: a pause
+// nobody resolves within _RQ_SQ_CONVERT_MS was going home, and converts to a
+// stop backdated to the punch. Lunch just resumes at the clock-in.
+//
+// Every edge here is backdated to the Square punch, never to Date.now(). The
+// poll runs every 3 minutes, so pausing at "now" would bank up to 3 minutes of
+// lunch as bench time on every cycle, and resuming at "now" would lose up to 3
+// minutes of real work. _rqElapsedMs already reads a backdated pausedAt
+// correctly, so this is discipline at the call sites, not new math.
 //
 // 3 minutes, not the 25s device-reconcile cadence: a Square punch is not a
 // fast-moving fact, and each tick is a Square API round trip per running timer.
+// The lag only delays the visual pause, never the accounting.
 var _rqShiftPoll  = null;
 var _rqShiftBusy  = false;
+var _RQ_SQ_CONVERT_MS = 90 * 60 * 1000;
 
 function _rqStartShiftPoll() {
   if (_rqShiftPoll) return;
@@ -1519,13 +1540,61 @@ function _rqShiftStatus(employeeName, sinceIso) {
   });
 }
 
+// Decide what the clock state means for one running timer. Split out from the
+// polling loop so the state machine can be exercised on its own — every branch
+// here fails silently in production if it's wrong.
+//
+// Returns an action rather than performing one: {kind:'stop', at} | {kind:
+// 'resume', foldTo} | {kind:'pause', at} | null.
+function _rqShiftAction(t, d, nowMs) {
+  // A held auto-save is waiting on a person: its hours are implausible and
+  // rqStopTimer will refuse them again. This poll doesn't skip paused timers
+  // (it has to resume them), so without this the conversion below re-fires
+  // every three minutes and is refused every time — a toast storm that reads
+  // as a new bug. Stays held until someone fixes the start time and stops it.
+  if (t.autoSaveHeld) return null;
+
+  var autoPaused = t.pauseSrc === 'square' && t.pausedAt;
+
+  // Ordered first, and deliberately before any look at current clock state: a
+  // timer auto-paused Friday at 17:00 must not resume just because its owner is
+  // clocked in again on Monday. Whatever the punch history, an auto-pause left
+  // open this long was going home, and the session ends at the punch.
+  if (autoPaused && nowMs - t.pausedAt > _RQ_SQ_CONVERT_MS) {
+    return { kind: 'stop', at: t.pausedAt };
+  }
+
+  if (d.clockedIn) {
+    if (!autoPaused) return t.sqOverrideEnd ? { kind: 'clear-override' } : null;
+    // Fold exactly the clocked-out span, not the span up to this poll. Falls
+    // back to now only if Square gave no usable clock-in.
+    var openMs = d.openStartAt ? new Date(d.openStartAt).getTime() : 0;
+    var foldTo = (openMs && openMs > t.pausedAt && openMs <= nowMs) ? openMs : nowMs;
+    return { kind: 'resume', foldTo: foldTo };
+  }
+
+  // Off the clock. A hand-made pause is not ours to touch, and one we already
+  // made needs nothing until it either resolves or ages out above.
+  if (t.pausedAt) return null;
+  // Without a real end_at the only pause point available is "now", which banks
+  // every minute since the punch. Defer to the next poll instead. This is also
+  // what keeps non-punching people (Kyle) out of the mechanism entirely — they
+  // never produce a clock-out after their timer started.
+  if (!d.lastEndAt) return null;
+  var endMs = new Date(d.lastEndAt).getTime();
+  if (!endMs || endMs <= t.startTime) return null;
+  // They chose to work through this exact punch. A later one is a new decision.
+  if (t.sqOverrideEnd === endMs) return null;
+  return { kind: 'pause', at: endMs };
+}
+
 function _rqPollShifts() {
   if (_rqShiftBusy) return;
   var pids = Object.keys(_rqTimers).filter(function(pid) {
     var t = _rqTimers[pid];
-    // Only the device that started a timer may auto-stop it; a relay device
-    // acting too would race the owner and double-save the session.
-    return t && !t.pausedAt && t.employee && t.employee.name && t.deviceId === _rqDeviceId();
+    // Only the device that started a timer may drive it from the clock; a relay
+    // device acting too would race the owner and double-save the session.
+    return t && t.employee && t.employee.name && t.deviceId === _rqDeviceId();
   });
   if (!pids.length) return;
   _rqShiftBusy = true;
@@ -1538,16 +1607,34 @@ function _rqPollShifts() {
     if (!t) { next(); return; }
     var startIso = new Date(t.startTime).toISOString();
     _rqShiftStatus(t.employee.name, startIso).then(function(d) {
-      if (!_rqTimers[pid]) return;               // stopped while we were asking
-      if (d.clockedIn) return;                   // still on the clock
-      // Clocked out — but without a real end_at the only stop time available is
-      // "now", which banks every hour since the punch: the exact bug this
-      // prevents. Defer to the next poll instead.
-      if (!d.lastEndAt) { console.warn('rq: no clock-out time for ' + pid + '; deferring auto-stop'); return; }
-      var endMs = new Date(d.lastEndAt).getTime();
-      if (!endMs || endMs <= t.startTime) return;
-      toast((t.employee.name || 'Employee') + ' clocked out — timer stopped', '⏹');
-      rqStopTimer(pid, endMs, true);
+      t = _rqTimers[pid];
+      if (!t) return;                            // stopped while we were asking
+      var act = _rqShiftAction(t, d, Date.now());
+      if (!act) return;
+      var who = t.employee.name || 'Employee';
+
+      if (act.kind === 'stop') {
+        toast(who + ' clocked out — timer stopped', '⏹');
+        rqStopTimer(pid, act.at, true);
+        return;                                  // rqStopTimer persists + renders
+      }
+      if (act.kind === 'resume') {
+        t.pausedMs = (t.pausedMs || 0) + Math.max(0, act.foldTo - t.pausedAt);
+        t.pausedAt = null;
+        t.pauseSrc = null;
+        t.sqOverrideEnd = null;
+        toast(who + ' clocked back in — timer resumed', '▶');
+      } else if (act.kind === 'pause') {
+        t.pausedAt = act.at;
+        t.pauseSrc = 'square';
+        toast(who + ' clocked out — timer paused', '⏸');
+      } else if (act.kind === 'clear-override') {
+        t.sqOverrideEnd = null;                  // fresh punch, override spent
+      }
+      _rqPersistTimer(pid);
+      // Direct DOM update, not a render — a full render rebuilds the notes
+      // textarea and loses anything typed but not yet saved.
+      _rqPaintPauseState(pid);
     }).catch(function(e) {
       console.warn('rq shift poll:', e && e.message);
     }).then(next, next);
@@ -1786,6 +1873,12 @@ function restockQueueRender() {
         + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
         + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
+        // Why it's paused, so Resume reads as a deliberate override of the
+        // Square clock rather than a stuck button. Always emitted so
+        // _rqPaintPauseState can toggle it without a re-render.
+        + '<span class="rq-timer-autopause" id="rq-autopause-' + safePid + '"'
+        + (timer.pauseSrc === 'square' && isPaused ? '' : ' style="display:none"')
+        + '>⏸ clocked out of Square</span>'
         + '<button class="rq-pause-btn" onclick="rqTogglePauseTimer(\'' + safePid + '\')" id="rq-pause-' + safePid + '">' + (isPaused ? 'Resume' : 'Pause') + '</button>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
@@ -2141,26 +2234,43 @@ function _rqItemsForJson(items) {
   });
 }
 
-// Pause freezes the elapsed clock (open span recorded in pausedAt); resume
-// folds that span into pausedMs. Updates the DOM directly instead of
-// re-rendering — a full render would rebuild the notes textarea and lose
-// anything typed but not yet saved (render never restores its value).
-function rqTogglePauseTimer(pid) {
+// Repaint one card's pause state in place. Deliberately NOT a render: a full
+// render rebuilds the notes textarea and loses anything typed but not yet saved
+// (render never restores its value). Shared by the manual toggle and the shift
+// poll, which both change pause state without touching anything else.
+function _rqPaintPauseState(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
-  if (t.pausedAt) {
-    t.pausedMs = (t.pausedMs || 0) + (Date.now() - t.pausedAt);
-    t.pausedAt = null;
-  } else {
-    t.pausedAt = Date.now();
-  }
-  _rqPersistTimer(pid);
   var btn = document.getElementById('rq-pause-' + pid);
   if (btn) btn.textContent = t.pausedAt ? 'Resume' : 'Pause';
   var dot = document.getElementById('rq-dot-' + pid);
   if (dot) dot.classList.toggle('rq-dot-paused', !!t.pausedAt);
   var el = document.getElementById('rq-elapsed-' + pid);
   if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
+  var chip = document.getElementById('rq-autopause-' + pid);
+  if (chip) chip.style.display = (t.pauseSrc === 'square' && t.pausedAt) ? '' : 'none';
+}
+
+// Pause freezes the elapsed clock (open span recorded in pausedAt); resume
+// folds that span into pausedMs.
+function rqTogglePauseTimer(pid) {
+  var t = _rqTimers[pid];
+  if (!t) return;
+  if (t.pausedAt) {
+    // Resuming an auto-pause is a deliberate override: they are working through
+    // this clock-out. Remember which punch, so the poll leaves this one alone
+    // but still acts on the next — pausedAt IS the clock-out, since that's what
+    // the poll backdated it to.
+    if (t.pauseSrc === 'square') t.sqOverrideEnd = t.pausedAt;
+    t.pausedMs = (t.pausedMs || 0) + (Date.now() - t.pausedAt);
+    t.pausedAt = null;
+    t.pauseSrc = null;
+  } else {
+    t.pausedAt = Date.now();
+    t.pauseSrc = null;              // a hand pause is never the poll's to lift
+  }
+  _rqPersistTimer(pid);
+  _rqPaintPauseState(pid);
 }
 
 // stopAtMs / auto are set only by the Square clock-out auto-stop (_rqPollShifts),
@@ -2802,6 +2912,8 @@ function rqStartTimerConfirm(pid) {
     pausedAt: null,
     pausedMs: 0,
     autoSaveHeld: false,
+    pauseSrc: null,
+    sqOverrideEnd: null,
     notes: '',
     tickInterval: null,
   };

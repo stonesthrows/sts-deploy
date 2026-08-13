@@ -167,13 +167,16 @@ async function fetchTeamMembers(deps) {
   return (data.team_members || []).filter(m => m.status === 'ACTIVE');
 }
 
-// Clock state for one employee, for the Restock Queue's auto-stop.
-//   { clockedIn, lastEndAt }
+// Clock state for one employee, for the Restock Queue's auto-pause.
+//   { clockedIn, lastEndAt, openStartAt }
 // lastEndAt is the most recent clock-out AFTER sinceIso (the timer's start).
 // Filtering by sinceIso matters: an earlier shift's end_at would rewind a
 // session's stop time behind its own start. Null means "no recoverable punch"
-// — the caller must then leave the timer alone rather than stopping at "now",
-// which would bank every hour since the punch it couldn't see.
+// — the caller must then leave the timer alone rather than acting at "now",
+// which would bank every minute since the punch it couldn't see.
+//
+// openStartAt is when the currently-open shift began, so a resume can be
+// backdated to the punch rather than to whenever the 3-minute poll noticed it.
 async function shiftStatus(deps, teamMembers, empName, sinceIso) {
   const empId = resolveTeamMemberId(empName, teamMembers);
   if (!empId) throw new Error('employee not matched in Square: ' + (empName || '(none)'));
@@ -207,9 +210,14 @@ async function shiftStatus(deps, teamMembers, empName, sinceIso) {
 
   const shifts = data.shifts || [];
   const ends = shifts.map(s => (s.end_at ? new Date(s.end_at).getTime() : 0)).filter(ms => ms > sinceMs);
+  // Newest open shift, if they're on the clock right now. Shifts come back
+  // sorted START_AT DESC, but sort defensively rather than trusting the order.
+  const open = shifts.filter(s => !s.end_at)
+    .sort((a, b) => new Date(b.start_at) - new Date(a.start_at))[0] || null;
   return {
-    clockedIn: shifts.some(s => !s.end_at),
+    clockedIn: !!open,
     lastEndAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+    openStartAt: open && open.start_at ? open.start_at : null,
   };
 }
 
