@@ -1195,11 +1195,32 @@ function _rqApplyBreak(wallMs, offBenchMs) {
   return Math.min(wallMs, Math.max(offBenchMs, _RQ_BREAK_MS));
 }
 
+// What a session would record if it were stopped at stopMs. Pulled out of
+// rqStopTimer so the implausible-duration guard can read the same figures the
+// save will write — a guard computing the duration even slightly differently
+// from the save is worse than no guard, because it still looks like protection.
+// Needs nothing but the timer's own clock fields, so it can run at entry,
+// before rqStopTimer starts mutating anything.
+function _rqSessionSpan(t, stopMs) {
+  var wallMs = Math.max(0, stopMs - t.startTime);
+  // Bank an open pause span. _rqElapsedMs only freezes the readout at pausedAt,
+  // so stopping while paused would otherwise lose the pause entirely once the
+  // total is reframed as wall clock.
+  var pausedMs = (t.pausedMs || 0) + (t.pausedAt ? Math.max(0, stopMs - t.pausedAt) : 0);
+  pausedMs = Math.min(pausedMs, wallMs);
+  var dedMs = _rqApplyBreak(wallMs, pausedMs);
+  return { wallMs: wallMs, pausedMs: pausedMs, dedMs: dedMs, netMs: Math.max(0, wallMs - dedMs) };
+}
+
 // A timer still running from a previous day — or for more than half a day — is
 // far more likely to be one somebody forgot to stop than real bench time. Say
 // so on the card instead of quietly folding those hours into the session.
 // Computed at render time from startTime, so it covers every way a timer comes
 // back: reload, cross-device adopt, or a PWA tab waking after days asleep.
+//
+// Serves two jobs, on purpose — one notion of "too long" in this file. Against
+// WALL CLOCK it decides whether to warn on the card; against NET bench time it
+// is the ceiling an unattended auto-save refuses to cross (see rqStopTimer).
 var _RQ_STALE_MS = 12 * 60 * 60 * 1000;
 
 function _rqTimerIsStale(t) {
@@ -1209,10 +1230,19 @@ function _rqTimerIsStale(t) {
 }
 
 function _rqStaleBannerHtml(t) {
-  if (!_rqTimerIsStale(t)) return '';
+  if (!t || !t.startTime) return '';
   var d = new Date(t.startTime);
   var lbl = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           + ' at ' + _rqFmtTime(t.startTime);
+  // A held card needs to say what was refused and how far off it was — the
+  // figure is what distinguishes "this timer was forgotten" from "the app is
+  // stuck". "adjust start" further down the card is the tool for fixing it.
+  if (t.autoSaveHeld) {
+    return '<div class="rq-timer-stale">⛔ Auto-save held — running since ' + lbl
+         + ' would have recorded <strong>' + _rqFmtElapsed(_rqSessionSpan(t, t.pausedAt || Date.now()).netMs)
+         + '</strong> of bench time. Fix the start time below, then Stop &amp; Save.</div>';
+  }
+  if (!_rqTimerIsStale(t)) return '';
   return '<div class="rq-timer-stale">⚠ Running since ' + lbl
        + ' — check the time before saving</div>';
 }
@@ -1238,6 +1268,9 @@ function _rqTimerPayload(pid) {
     itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null,
     deviceId: t.deviceId || null,
     pausedAt: t.pausedAt || null, pausedMs: t.pausedMs || 0,
+    // A held auto-save has to cross devices, or the other iPad's poll retries
+    // the save this one already refused.
+    autoSaveHeld: !!t.autoSaveHeld,
   };
 }
 
@@ -1331,7 +1364,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return;
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch (e) {}
@@ -1408,7 +1441,7 @@ function _rqReconcileTimers() {
         if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
         var s = serverState[pid];
         if (_rqWasStopped(pid, s.startTime)) { _rqUnpersistTimer(pid); return; }
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, notes: '', tickInterval: null };
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
         _rqStartTick(pid);
         changed = true;
       });
@@ -1424,7 +1457,8 @@ function _rqReconcileTimers() {
         if (nextItems !== JSON.stringify(t.items || null) || nextRich !== JSON.stringify(t.richMatch || null)
             || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText
             || s.startTime !== t.startTime
-            || (s.pausedAt || null) !== (t.pausedAt || null) || (s.pausedMs || 0) !== (t.pausedMs || 0)) {
+            || (s.pausedAt || null) !== (t.pausedAt || null) || (s.pausedMs || 0) !== (t.pausedMs || 0)
+            || !!s.autoSaveHeld !== !!t.autoSaveHeld) {
           t.items = s.items || null;
           t.richMatch = s.richMatch || null;
           t.sessionNotionPageId = s.sessionNotionPageId;
@@ -1433,6 +1467,7 @@ function _rqReconcileTimers() {
           t.startTime = s.startTime;
           t.pausedAt = s.pausedAt || null;
           t.pausedMs = s.pausedMs || 0;
+          t.autoSaveHeld = !!s.autoSaveHeld;
           changed = true;
         }
       });
@@ -2142,6 +2177,25 @@ function rqStopTimer(pid, stopAtMs, auto) {
     _rqUnpersistTimer(pid);
     return;
   }
+  // An auto-save is unattended, so it is the one path that can write payroll
+  // data nobody looked at. A session carrying more than _RQ_STALE_MS of NET
+  // bench time is a forgotten timer, not a day's work — two of them reached
+  // Notion as 51h and 334h before this existed. Hold it instead: freeze the
+  // clock, flag the card, write nothing.
+  //
+  // Net, not wall clock: rq-timer-state.js keeps a 30-day TTL precisely because
+  // a real restock job can span days, and one whose overnight gaps are properly
+  // paused is legitimate. It is the bench hours that can't be real.
+  //
+  // Gated on `auto` deliberately — Stop & Save from the card is how a person
+  // resolves a held timer once they've corrected the start time.
+  if (auto && _rqSessionSpan(t, stopAtMs || Date.now()).netMs > _RQ_STALE_MS) {
+    if (!t.pausedAt) t.pausedAt = stopAtMs || Date.now();   // stop it accruing
+    t.autoSaveHeld = true;
+    _rqPersistTimer(pid);
+    restockQueueRender();
+    return;
+  }
   // Require every item/variant to have a piece count before the session can
   // be saved — otherwise "Pieces Made" silently stays blank in Notion forever.
   // An auto-stop can't satisfy that (nobody is at the bench to type it), and
@@ -2171,14 +2225,10 @@ function rqStopTimer(pid, stopAtMs, auto) {
   // restock recorded 5 minutes and anything shorter recorded zero.
   var stopMs   = stopAtMs || Date.now();
   var stopTime = new Date(stopMs).toISOString();
-  var wallMs   = Math.max(0, stopMs - t.startTime);
-  // Bank an open pause span. _rqElapsedMs only freezes the readout at pausedAt,
-  // so stopping while paused would otherwise lose the pause entirely once the
-  // total is reframed as wall clock.
-  var pausedMs = (t.pausedMs || 0) + (t.pausedAt ? Math.max(0, stopMs - t.pausedAt) : 0);
-  pausedMs     = Math.min(pausedMs, wallMs);
-  var dedMs    = _rqApplyBreak(wallMs, pausedMs);
-  var netMs    = Math.max(0, wallMs - dedMs);
+  var span     = _rqSessionSpan(t, stopMs);
+  var wallMs   = span.wallMs;
+  var dedMs    = span.dedMs;
+  var netMs    = span.netMs;
   var totalMin = parseFloat((wallMs / 60000).toFixed(2));
   var dedMin   = parseFloat((dedMs  / 60000).toFixed(2));
   var netMin   = parseFloat((netMs  / 60000).toFixed(2));
@@ -2751,6 +2801,7 @@ function rqStartTimerConfirm(pid) {
     deviceId: _rqDeviceId(),
     pausedAt: null,
     pausedMs: 0,
+    autoSaveHeld: false,
     notes: '',
     tickInterval: null,
   };
