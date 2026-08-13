@@ -1429,6 +1429,30 @@ function _rqReconcileTimers() {
         }
       });
 
+      // Closed by the server sweep (/api/square-sync finalized a timer nobody
+      // stopped — see its open-timer section). The sweep can't simply delete
+      // the KV key: the self-heal below reads a missing key as "re-push mine",
+      // which would resurrect the timer from the other side. So it leaves a
+      // marker, and we finish the job locally — the Notion write is already
+      // done, and there's no push prompt because nobody was at the bench to
+      // enter piece counts.
+      // Deliberately does NOT delete the marker. If the first device to see it
+      // cleared the key, a device that hadn't polled yet would find its own
+      // timer missing from KV and self-heal by re-pushing it — resurrecting the
+      // session the sweep just closed. The marker expires on its own TTL
+      // instead; the tombstone and the adopt guard below keep it inert until
+      // then.
+      Object.keys(serverState).forEach(function(pid) {
+        if (!serverState[pid] || !serverState[pid].closed) return;
+        var t = _rqTimers[pid];
+        _rqMarkStopped(pid, t ? t.startTime : serverState[pid].startTime);
+        if (!t) return;
+        clearInterval(t.tickInterval);
+        delete _rqTimers[pid];
+        _rqDeleteItemByPid(pid);
+        changed = true;
+      });
+
       // Our own timer missing remotely → self-heal (re-assert), never resurrect
       // a timer we merely received from another device (handled above instead).
       Object.keys(_rqTimers).forEach(function(pid) {
@@ -1444,6 +1468,7 @@ function _rqReconcileTimers() {
       Object.keys(serverState).forEach(function(pid) {
         if (_rqTimers[pid]) return; // already tracked (ours or already-adopted)
         var s = serverState[pid];
+        if (s.closed) return;       // finished by the server sweep, handled above
         if (_rqWasStopped(pid, s.startTime)) { _rqUnpersistTimer(pid); return; }
         _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, pauseSrc: s.pauseSrc || null, sqOverrideEnd: s.sqOverrideEnd || null, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
         _rqStartTick(pid);
