@@ -1454,6 +1454,8 @@ async function intakeSubmit() {
     saveToStorage();
   }
   _lastSavedOrderId = order.id;
+  // Upsert the Client Profile as a side effect — no separate data-entry chore
+  if (typeof stsCustUpsertFromOrder === 'function') stsCustUpsertFromOrder(order);
 
   const doneSub = document.getElementById('intake-done-sub');
   const doneTitle = document.getElementById('intake-done-title');
@@ -1515,6 +1517,7 @@ function intakeReset() {
   intakeRenderRingBlocks();
   intakeApplyPieceType('');
   document.getElementById('est-preset-strip')?.classList.remove('open');
+  if (typeof intakeProfileReset === 'function') intakeProfileReset();
   if (typeof psReset === 'function') psReset();
   if (typeof intakeEstReset === 'function') intakeEstReset();
   if (typeof ulReset === 'function') ulReset();
@@ -2555,6 +2558,13 @@ eoUpdateBalanceDue = function () {
     if (params.get('name'))  setNameFields(params.get('name'));
     if (params.get('email')) { const el = document.getElementById('f-email'); if (el) el.value = params.get('email'); }
     if (params.get('type')  && _TYPE_BLOCKS[params.get('type')]) intakeApplyTypeLayout(params.get('type'));
+  }
+
+  // Client Profile store: fold local orders in (idempotent), then enrich
+  // from Notion when online — read-only, never touches ORDERS.
+  if (typeof stsCustRebuildFromOrders === 'function') {
+    stsCustRebuildFromOrders(ORDERS);
+    if (typeof stsCustEnrichFromNotion === 'function') stsCustEnrichFromNotion();
   }
 
   // Push any orders that never made it to Notion (offline intake at a market)
