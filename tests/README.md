@@ -32,23 +32,6 @@ the browser).
   *differ*. An earlier version of this suite passed all 40 tab/theme checks
   while dark mode was completely dead: the attribute was set, but a stray
   comment had deleted the block that consumed it.
-- **`intake-ai-notes.js`** — drives the intake app's AI note taker
-  (`js/intake-ai-notes.js`) against `intake.html`. The manual flow
-  (capture → summarize → fill the intake form → ask the transcript →
-  library search → survive a reload) and then **auto mode**, which is how
-  it actually gets used: arm → start on the first touch of the form →
-  restart through a lull → stop and summarize inside `intakeSubmit()` →
-  gap check on the Saved overlay → re-arm for the next customer.
-  `/api/claude-proxy` is stubbed with a fixed recap, so it costs no tokens
-  and needs no API key; what's under test is the parsing, rendering and
-  field-mapping around the call. The Web Speech API is replaced with a
-  scriptable stand-in (headless Chromium has no speech engine, and there'd
-  be no audio to feed it anyway), which drives the real
-  onresult/onend/onerror wiring. Also covers crash safety: that a running
-  consult is checkpointed to its own IndexedDB key, and that a checkpoint
-  left behind by a reload mid-consult is adopted into the library on the
-  next boot.
-
 - **`intake-phone.js`** — drives the customer phone handoff
   (`js/intake-phone.js` + `phone-upload.html`) from both ends: the studio
   mints a session and renders the QR, photos landing server-side are
@@ -73,7 +56,6 @@ cd tests
 node run.js              # all suites, combined pass/fail
 node fingerprint.js      # just the fingerprint diff
 node offline-storage.js  # just the offline/storage suite
-node intake-ai-notes.js  # just the intake AI note taker suite
 node intake-phone.js     # just the customer phone handoff suite
 ```
 
@@ -115,7 +97,7 @@ services.
 Before pushing a change that touches shared infrastructure — `js/app.js`,
 `js/storage.js`, `js/notion.js`, `sw.js`, the `css/`/`js/` extraction
 boundaries in `jewelry-workflow.html`, or anything else more than one tab
-depends on — or that touches the intake app's AI note taker. A change
+depends on. A change
 scoped to a single tab's own file doesn't need it;
 the project's `CLAUDE.md` isolation rule already keeps that safe by
 construction.

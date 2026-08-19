@@ -1,13 +1,12 @@
 // ════════════════════════════════════════════
 //  BOTTOM PARAMETER SHEET  —  js/intake-sheet.js
-//  Loaded ONLY by intake.html (after intake-profiles.js, before
-//  intake.js). Brief 2.1 (sheet) + 2.2 (structured stones) + 2.5
-//  (smart defaults from the loaded client profile).
+//  Loaded ONLY by intake.html (before intake.js). Brief 2.1 (sheet)
+//  + 2.2 (structured stones).
 //
 //  The sheet is the Custom Design parameter surface on Step 2 — it
 //  writes into the hidden Step-1 fields (f-sizing / f-ringsize2 /
 //  f-stamping / f-stamping2) so intakeSubmit() and the Notion pipeline
-//  never change. Repair/Resize/Square layouts are untouched (they never
+//  never change. Repair/Resize layouts are untouched (they never
 //  reach Step 2). Metal/Stone entry is handwritten now (Paper mode's
 //  Screen 1, js/intake-paper.js) or typed directly into Step 1's plain
 //  f-materials/f-gemstones fields — no chip UI for them anymore.

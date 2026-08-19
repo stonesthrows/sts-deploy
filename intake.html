@@ -313,17 +313,6 @@
     .est-mult-input { padding-left: 4px; padding-right: 4px; text-align: center; }
     .est-col-labels { display: grid; grid-template-columns: 1fr 130px 82px 44px; gap: 6px; margin-bottom: 6px; }
     .est-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
-    .mult-toggle {
-      display: flex; gap: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
-      overflow: hidden; width: fit-content; box-shadow: var(--shadow-sm);
-    }
-    .mult-btn {
-      padding: 10px 32px; font-size: 15px; font-weight: 700; cursor: pointer;
-      user-select: none; color: var(--text2); background: var(--input-bg); border: none;
-      font-family: inherit; min-height: 44px;
-    }
-    .mult-btn:not(:last-child) { border-right: 1px solid var(--bdr); }
-    .mult-btn.selected { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); color: var(--accent-ink); }
     /* Markup multiplier slider (1× … 3× in 0.5 steps) */
     .mult-slider-wrap { width: 100%; max-width: 340px; }
     .mult-slider-head { display: flex; align-items: baseline; margin-bottom: 6px; }
@@ -408,20 +397,10 @@
     .est-preset-chip.pinned::before { content: '★'; color: var(--accent); font-size: 12px; }
     .est-preset-chip.blank { border-style: dashed; color: var(--warn); background: transparent; }
 
-    /* ═══ Deposit presets + due-today/balance split bar ═══ */
-    .dep-presets { display: flex; gap: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm); overflow: hidden; margin-top: 6px; }
-    .dep-preset-btn {
-      flex: 1; border: none; background: var(--input-bg); color: var(--text2); font-family: inherit;
-      font-size: 12.5px; font-weight: 700; padding: 9px 2px; min-height: 40px; cursor: pointer;
-      white-space: nowrap;
-    }
-    .dep-preset-btn:not(:last-child) { border-right: 1px solid var(--bdr); }
-    .dep-preset-btn.selected { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); color: var(--accent-ink); }
     .dep-split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid var(--surface3); background: var(--warn-bg); }
     .dep-split-today { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); transition: width .25s var(--ease-smooth); }
     .dep-split-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); font-weight: 600; margin-top: 4px; }
     @keyframes depFlash { 0% { box-shadow: 0 0 0 3px rgba(201,152,58,0.55); } 100% { box-shadow: none; } }
-    .dep-flash { animation: depFlash .8s ease; }
 
     /* ═══ Metal / skin sensitivities — badge by the client name + inline conflict warning ═══ */
     .sens-badge {
@@ -453,98 +432,6 @@
     .sync-pop-row:last-of-type { border-bottom: none; }
     .sync-pop-row .sp-name { font-weight: 600; }
     .sync-pop-row .sp-meta { color: var(--text3); flex-shrink: 0; }
-
-    /* ═══ Returning-client banner (brief 1.6) ═══ */
-    .client-banner {
-      position: relative; display: flex; flex-direction: column; gap: 2px;
-      background: var(--info-bg); border: 1px solid var(--info); border-radius: 10px;
-      padding: 8px 40px 8px 12px;
-    }
-    .client-banner.loaded { background: var(--ok-bg); border-color: var(--ok); }
-    .client-banner-row, .client-banner.loaded { display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .client-banner-row { padding: 3px 0; }
-    .cb-text { flex: 1; font-size: 13.5px; color: var(--text2); min-width: 0; }
-    .cb-text strong { color: var(--text); }
-    .cb-load {
-      flex-shrink: 0; border: 1px solid var(--accent); background: var(--card-bg); color: var(--accent-fg);
-      border-radius: 8px; padding: 8px 14px; min-height: 40px; font-size: 13px;
-      font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .cb-dismiss {
-      position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
-      border: none; background: none; color: var(--text3); font-size: 13px;
-      cursor: pointer; line-height: 1;
-    }
-
-    /* ═══ Section-1 accordions — ring registry / occasion / style profile ═══ */
-    .acc-row { border: 1px solid var(--bdr-light); border-radius: 10px; overflow: hidden; background: var(--info-bg); }
-    .acc-head {
-      display: flex; align-items: center; gap: 8px; width: 100%;
-      border: none; background: none; padding: 11px 12px; min-height: 44px;
-      font-family: inherit; font-size: 14px; cursor: pointer; text-align: left;
-    }
-    .acc-title { font-weight: 700; color: var(--text); white-space: nowrap; }
-    .acc-summary {
-      flex: 1; text-align: right; font-size: 12.5px; color: var(--text3);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
-    }
-    .acc-summary.filled { color: var(--accent-fg); font-weight: 600; }
-    .acc-chev { color: var(--text3); font-size: 15px; transition: transform .18s var(--ease-smooth); }
-    .acc-row.open .acc-chev { transform: rotate(90deg); }
-    .acc-body { padding: 6px 12px 12px; border-top: 1px dashed var(--bdr-light); }
-
-    /* Selectable chips (occasion + style groups) */
-    .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 10px; }
-    .sel-chip {
-      border: 1px solid var(--bdr); background: var(--input-bg); color: var(--text2);
-      border-radius: 999px; padding: 8px 14px; min-height: 40px;
-      font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
-    }
-    .sel-chip.on { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); border-color: var(--accent); color: var(--accent-ink); }
-    .occ-mini-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
-    .occ-date-row { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 4px 0; }
-    .occ-surprise {
-      display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px;
-      font-weight: 500; color: var(--text); cursor: pointer; min-height: 44px;
-    }
-    .occ-surprise input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
-
-    /* Ring registry — two-hand diagram + size dial */
-    .reg-tabs { display: flex; gap: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm); overflow: hidden; width: fit-content; margin: 6px 0 2px; }
-    .reg-tab {
-      border: none; background: var(--input-bg); color: var(--text2); font-family: inherit;
-      font-size: 13px; font-weight: 700; padding: 9px 20px; min-height: 40px; cursor: pointer;
-    }
-    .reg-tab:not(:last-child) { border-right: 1px solid var(--bdr); }
-    .reg-tab.on { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); color: var(--accent-ink); }
-    .reg-hands { display: flex; gap: 22px; justify-content: center; padding: 8px 0 2px; }
-    .reg-hand-wrap { text-align: center; }
-    .reg-hand-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-top: 2px; }
-    .rf-finger { cursor: pointer; }
-    .reg-hint { text-align: center; font-size: 12px; color: var(--text3); padding-bottom: 6px; }
-    .reg-dial { border: 1px solid var(--bdr); border-radius: 10px; background: var(--card-bg); padding: 12px; margin: 8px 0; }
-    .reg-dial-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-    .reg-wheel {
-      display: flex; overflow-x: auto; gap: 6px; padding: 6px 2px;
-      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
-    }
-    .reg-size {
-      flex-shrink: 0; min-width: 58px; min-height: 44px; scroll-snap-align: center;
-      border: 1px solid var(--bdr); background: var(--input-bg); color: var(--text2);
-      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .reg-size.on { background: linear-gradient(135deg, var(--accent-mid), var(--accent)); border-color: var(--accent); color: var(--accent-ink); }
-    .reg-conf { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
-    .reg-conf-btn {
-      display: inline-flex; align-items: center; gap: 7px;
-      border: 1px solid var(--bdr); background: var(--input-bg); color: var(--text2);
-      border-radius: 999px; padding: 8px 14px; min-height: 40px;
-      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
-    }
-    .reg-conf-btn.on { border-color: var(--accent); background: var(--accent-bg); color: var(--text); }
-    .reg-conf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .reg-dial-actions { display: flex; gap: 8px; margin-top: 10px; }
-    .reg-extras { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
 
     /* ═══ Bottom parameter sheet (brief 2.1) — Metal/Stone/Sizing/Notes over
        the sketch canvas. Three detents: peek / half / full. touch-action:none
@@ -705,30 +592,6 @@
     }
     .ip-btn.ip-btn-plain { background: var(--card-bg); color: var(--text2); border: 1.5px solid var(--bdr-light); }
 
-    /* ═══ Client-facing review screen (brief 4.2) + signature (4.3) ═══ */
-    .rv-rows { border: 1px solid var(--bdr-light); border-radius: 12px; overflow: hidden; }
-    .rv-row {
-      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-      padding: 11px 14px; font-size: 14.5px; border-bottom: 1px solid var(--bdr-light);
-    }
-    .rv-row:last-child { border-bottom: none; }
-    .rv-row span:first-child { color: var(--text3); font-weight: 600; }
-    .rv-row span:last-child { color: var(--text); font-weight: 600; }
-    .rv-row.rv-strong { background: var(--surface); }
-    .rv-row.rv-strong span:last-child { font-size: 17px; font-weight: 800; }
-
-    /* ═══ Past-orders list rows ═══ */
-    .iol-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      padding: 12px 4px; border-bottom: 1px solid var(--bdr-light); cursor: pointer;
-    }
-    .iol-row:last-child { border-bottom: none; }
-    .iol-row:active { background: var(--surface); }
-    .iol-name { font-weight: 700; }
-    .iol-meta { color: var(--text3); font-size: 12.5px; margin-top: 2px; }
-    .iol-price { font-weight: 700; white-space: nowrap; }
-    .iol-empty { padding: 24px 4px; text-align: center; color: var(--text3); font-size: 14px; }
-
     /* ═══ Estimate adjustment controls (3.2) + variant strip (3.4) ═══ */
     .est-adj-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .est-adj-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
@@ -779,7 +642,6 @@
     }
     .qa-addon:active { background: var(--hover); }
     .qa-addon .qa-price { color: var(--accent-fg); font-weight: 800; flex-shrink: 0; }
-    .qa-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin: 14px 0 8px; }
 
     /* ═══ Step-tab completion glyphs + long-press peek (brief 4.4) ═══ */
     .tab-glyph { margin-right: 5px; font-size: 11px; }
@@ -812,10 +674,6 @@
     .ps-voice-chip .pv-x {
       margin-left: auto; border: none; background: none; color: var(--danger);
       font-size: 15px; cursor: pointer; padding: 4px 6px; line-height: 1;
-    }
-    #sig-canvas {
-      width: 100%; height: auto; display: block; touch-action: none;
-      border: 1px solid var(--bdr); border-radius: 10px; background: var(--card-bg); cursor: crosshair;
     }
 
     /* ═══ Paper mode (js/intake-paper.js) — Goodnotes-style handwritten
@@ -884,186 +742,9 @@
     }
     .paper-toggle.on { background: rgba(201,152,58,0.16); border-color: var(--accent); color: var(--warn); }
 
-    /* ═══ AI Note Taker (js/intake-ai-notes.js) ═══
-       Header chip lives on the dark top bar; everything below it renders
-       inside the white #ai-notes card, so it uses the form's light tokens. */
-    #ain-chip {
-      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
-      border-radius: 999px; border: 1px solid var(--text); background: transparent;
-      color: var(--info); font-family: inherit; font-size: 12.5px; font-weight: 700;
-      padding: 8px 12px; min-height: 40px; cursor: pointer;
-    }
-    #ain-chip.on {
-      background: rgba(220,38,38,0.18); border-color: var(--danger); color: var(--danger);
-      animation: ain-pulse 1.8s ease-in-out infinite;
-    }
-    @keyframes ain-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.62; } }
-    #ain-chip span { font-variant-numeric: tabular-nums; }
-    @media (max-width: 900px) { .ain-chip-lbl { display: none; } }
-
-    .ain-tabs { display: flex; gap: 6px; margin: 14px 0 16px; border-bottom: 1px solid var(--warn); }
-    .ain-tab {
-      border: none; background: transparent; font-family: inherit; font-size: 13px;
-      font-weight: 700; color: var(--text3); padding: 9px 14px; cursor: pointer;
-      border-bottom: 2px solid transparent; margin-bottom: -1px;
-    }
-    .ain-tab.on { color: var(--text); border-bottom-color: var(--accent); }
-
-    .ain-rec-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .ain-rec-btn {
-      width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
-      border: 2px solid var(--bdr); background: var(--input-bg); color: var(--danger);
-      font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center;
-      transition: transform var(--dur-fast) var(--ease-smooth);
-    }
-    .ain-rec-btn:active { transform: scale(0.94); }
-    .ain-rec-btn.live { background: var(--danger); border-color: var(--danger); color: var(--accent-ink); }
-    .ain-rec-meta { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }
-    .ain-timer { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
-    .ain-rec-state { font-size: 12px; color: var(--text3); }
-
-    .ain-speaker { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 10px; }
-    .ain-speaker-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
-    .ain-chip {
-      border-radius: 999px; border: 1px solid var(--bdr); background: var(--input-bg); color: var(--text2);
-      font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 7px 13px;
-      min-height: 36px; cursor: pointer;
-    }
-    .ain-chip.on { background: rgba(201,152,58,0.16); border-color: var(--accent); color: var(--warn-fg); }
-
-    .ain-transcript {
-      max-height: 40vh; overflow-y: auto; overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-      border: 1px solid var(--warn); border-radius: var(--rad-md); padding: 10px;
-      background: var(--card-bg); display: flex; flex-direction: column; gap: 8px;
-    }
-    .ain-seg { border-radius: var(--rad-sm); padding: 8px 10px; background: var(--card-bg); border: 1px solid var(--bdr-light); }
-    .ain-seg.studio { background: var(--info-bg); border-color: var(--info-bg); }
-    .ain-seg.interim { opacity: 0.55; font-style: italic; }
-    .ain-seg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
-    .ain-seg-who {
-      border: none; background: transparent; padding: 0; cursor: pointer; font-family: inherit;
-      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent);
-    }
-    .ain-seg.studio .ain-seg-who { color: var(--info); }
-    .ain-seg-t { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
-    .ain-seg-edit { margin-left: auto; border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 13px; padding: 0 2px; }
-    .ain-seg-text { font-size: 14.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
-
-    .ain-manual-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
-    .ain-manual {
-      flex: 1; border: 1px solid var(--bdr); border-radius: var(--rad-sm); padding: 10px 12px;
-      font-size: 16px; font-family: inherit; color: var(--text); background: var(--input-bg);
-      outline: none; resize: none; line-height: 1.5;
-    }
-    .ain-manual:focus { border-color: var(--accent); background: var(--card-bg); box-shadow: var(--focus-ring); }
-
-    .ain-empty { padding: 22px 12px; text-align: center; font-size: 13.5px; line-height: 1.6; color: var(--text3); }
-    .ain-note {
-      margin: 10px 0; padding: 10px 12px; border-radius: var(--rad-sm);
-      background: var(--warn-bg); border: 1px solid var(--warn); font-size: 12.5px; line-height: 1.55; color: var(--accent-fg);
-    }
-
-    .ain-title { font-size: 19px; font-weight: 700; line-height: 1.3; }
-    .ain-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
-    .ain-audio { margin-top: 12px; }
-    .ain-sec {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-      color: var(--text3); margin: 18px 0 7px;
-    }
-    .ain-mini {
-      border: 1px solid var(--bdr); background: var(--input-bg); border-radius: 999px; cursor: pointer;
-      font-family: inherit; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.4px; color: var(--text2); padding: 3px 9px;
-    }
-    .ain-prose { font-size: 14.5px; line-height: 1.6; color: var(--text); }
-    /* list-style is explicit: Tailwind's preflight strips markers from every ul */
-    .ain-list { margin: 0; padding-left: 20px; list-style: disc; font-size: 14.5px; line-height: 1.65; color: var(--text); }
-    .ain-list li { margin-bottom: 3px; }
-    .ain-list-warn { color: var(--warn-fg); }
-
     /* Gap check on the Saved overlay — the card is inside a centered
        text-align:center panel, so it resets alignment for its own content. */
-    #ain-missed-card {
-      margin-top: 14px; padding: 12px 14px; text-align: left;
-      border-radius: var(--rad-md); background: var(--warn-bg); border: 1px solid var(--warn);
-    }
-    .ain-missed-head { font-size: 13px; font-weight: 700; color: var(--accent-fg); line-height: 1.4; }
-    .ain-missed-list {
-      margin: 7px 0 0; padding-left: 18px; list-style: disc;
-      font-size: 13px; line-height: 1.55; color: var(--accent-fg);
-    }
-    .ain-missed-btn {
-      margin-top: 10px; width: 100%; border-radius: var(--rad-sm); cursor: pointer;
-      border: 1px solid var(--warn); background: var(--card-bg); font-family: inherit;
-      font-size: 13px; font-weight: 700; color: var(--accent-fg); padding: 9px 12px; min-height: 40px;
-    }
 
-    .ain-actions { display: flex; flex-direction: column; gap: 6px; }
-    .ain-action {
-      display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
-      border: 1px solid var(--bdr-light); border-radius: var(--rad-sm); padding: 9px 11px;
-      font-size: 14px; line-height: 1.5; color: var(--text); background: var(--card-bg);
-    }
-    .ain-action.done { opacity: 0.5; text-decoration: line-through; }
-    .ain-action input { margin-top: 2px; width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
-    .ain-owner {
-      flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
-      color: var(--text3); background: var(--bdr-light); border-radius: 999px; padding: 2px 8px; margin-top: 1px;
-    }
-
-    .ain-fields { display: flex; flex-direction: column; gap: 6px; }
-    .ain-fld {
-      display: flex; align-items: center; gap: 9px; cursor: pointer;
-      border: 1px solid var(--bdr-light); border-radius: var(--rad-sm); padding: 9px 11px; background: var(--card-bg);
-    }
-    .ain-fld.applied { background: var(--ok-bg); border-color: var(--ok); }
-    .ain-fld input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
-    .ain-fld-lbl {
-      flex-shrink: 0; min-width: 108px; font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3);
-    }
-    .ain-fld-val { flex: 1; min-width: 0; font-size: 14px; color: var(--text); word-break: break-word; }
-    .ain-fld-done { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ok-fg); }
-    .ain-wide { width: 100%; margin-top: 12px; }
-
-    .ain-asks { display: flex; flex-direction: column; gap: 10px; }
-    .ain-ask { border-left: 2px solid var(--accent); padding-left: 10px; }
-    .ain-ask-q { font-size: 13px; font-weight: 700; color: var(--text); }
-    .ain-ask-a { font-size: 14px; line-height: 1.55; color: var(--text2); margin-top: 2px; white-space: pre-wrap; }
-    .ain-ask-row { display: flex; gap: 8px; margin-top: 10px; }
-    .ain-ask-input {
-      flex: 1; min-width: 0; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
-      padding: 10px 12px; font-size: 16px; font-family: inherit; color: var(--text);
-      background: var(--input-bg); outline: none; min-height: 44px;
-    }
-    .ain-ask-input:focus { border-color: var(--accent); background: var(--card-bg); box-shadow: var(--focus-ring); }
-    .ain-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
-    .ain-foot .btn { flex: 1; min-width: 190px; }
-
-    .ain-search-wrap { position: relative; margin-bottom: 12px; }
-    .ain-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.6; }
-    .ain-search {
-      width: 100%; box-sizing: border-box; border: 1px solid var(--bdr); border-radius: var(--rad-sm);
-      padding: 11px 12px 11px 34px; font-size: 16px; font-family: inherit; color: var(--text);
-      background: var(--input-bg); outline: none; min-height: 44px;
-    }
-    .ain-search:focus { border-color: var(--accent); background: var(--card-bg); box-shadow: var(--focus-ring); }
-    .ain-lib-row {
-      display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
-      border: 1px solid var(--bdr-light); border-radius: var(--rad-md); padding: 11px 12px;
-      background: var(--card-bg); margin-bottom: 8px;
-    }
-    .ain-lib-row:active { background: var(--hover); }
-    .ain-lib-main { flex: 1; min-width: 0; }
-    .ain-lib-title { font-size: 15px; font-weight: 700; color: var(--text); }
-    .ain-lib-sub { font-size: 11.5px; color: var(--text3); margin-top: 1px; }
-    .ain-lib-blurb {
-      font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.45;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    }
-    .ain-lib-del { border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 15px; padding: 2px 4px; }
   </style>
 </head>
 <body class="bg-[#16202A] text-slate-100">
@@ -1090,10 +771,6 @@
       </div>
     </div>
     <div class="flex-1"></div>
-    <button type="button" id="intake-orders-btn" onclick="intakeOrdersListOpen()" title="View past orders"
-            class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">📋</button>
-    <!-- AI note taker (js/intake-ai-notes.js) — turns red and counts up while a consult is recording -->
-    <button type="button" id="ain-chip" onclick="ainOpen()" title="AI consult notes — record, transcribe, summarize">🎙 AI Notes</button>
     <button type="button" id="intake-addon-btn" onclick="qaOpen()" title="Quick add-ons"
             class="rounded-lg border border-[#35576D] px-3.5 py-2 text-base font-bold text-[#B7C9D6] active:bg-[#1C3B50]">＋</button>
     <button type="button" id="intake-key-btn" onclick="intakeSetKey()" title="Set Anthropic API key (handwriting convert)"
@@ -1106,7 +783,7 @@
         <button type="button" class="btn btn-gold" id="sync-retry-btn" style="width:100%;margin-top:10px;" onclick="intakeSyncRetry()">↻ Retry now</button>
       </div>
     </div>
-    <button type="button" id="intake-save-btn" onclick="intakeReviewOpen()"
+    <button type="button" id="intake-save-btn" onclick="intakeSubmit()"
             class="rounded-lg bg-gradient-to-br from-[#6E79F0] to-[#4F5AD8] px-5 py-2.5 text-sm font-bold text-[#201A0A] shadow-lg shadow-amber-900/30 active:scale-95 disabled:opacity-50">
       Save &amp; Close
     </button>
@@ -1172,15 +849,6 @@
             </select>
           </div>
           <div class="fg">
-            <label>Assigned To</label>
-            <select id="f-assignee">
-              <option value="">— Unassigned —</option>
-              <option value="Kyle">Kyle</option>
-              <option value="Vanessa">Vanessa</option>
-              <option value="Stevie">Stevie</option>
-            </select>
-          </div>
-          <div class="fg">
             <label>Deadline</label>
             <input type="date" id="f-deadline">
           </div>
@@ -1213,112 +881,6 @@
             <input type="text" id="f-addr-country" placeholder="United States" value="United States">
           </div>
 
-          <!-- ── Client profile accordions: ring registry (1.2) · occasion (1.4) · style (1.5) ── -->
-          <div class="fg full" style="gap:8px;">
-            <div class="acc-row" id="acc-sizes">
-              <button type="button" class="acc-head" onclick="accToggle('sizes')">
-                <span>💍</span><span class="acc-title">Ring Sizes</span>
-                <span class="acc-summary" id="reg-summary">none on file</span>
-                <span class="acc-chev">›</span>
-              </button>
-              <div class="acc-body" id="acc-sizes-body" style="display:none;">
-                <div class="reg-tabs" id="reg-tabs" style="display:none;">
-                  <button type="button" class="reg-tab on" id="reg-tab-client" onclick="regSetPerson('client')">Client</button>
-                  <button type="button" class="reg-tab" id="reg-tab-recipient" onclick="regSetPerson('recipient')">Recipient</button>
-                </div>
-                <div class="reg-hands" id="reg-hands"></div>
-                <div class="reg-hint">Tap a finger to dial in its size</div>
-                <div class="reg-dial" id="reg-dial" style="display:none;"></div>
-                <div class="reg-extras">
-                  <div class="fg"><label>Wrist (in)</label><input type="text" id="f-wrist" placeholder="6.5" inputmode="decimal"></div>
-                  <div class="fg"><label>Neck (in)</label><input type="text" id="f-neck" placeholder="16" inputmode="decimal"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="acc-row" id="acc-occasion">
-              <button type="button" class="acc-head" onclick="accToggle('occasion')">
-                <span>🎁</span><span class="acc-title">Occasion</span>
-                <span class="acc-summary" id="occ-summary">for self</span>
-                <span class="acc-chev">›</span>
-              </button>
-              <div class="acc-body" id="acc-occasion-body" style="display:none;">
-                <div class="mult-toggle" style="margin:6px 0 10px;">
-                  <button type="button" class="mult-btn selected" id="occ-self-btn" onclick="occSetGift(false)">For Self</button>
-                  <button type="button" class="mult-btn" id="occ-gift-btn" onclick="occSetGift(true)">Gift</button>
-                </div>
-                <div id="occ-gift-block" style="display:none;">
-                  <div class="fg" style="margin-bottom:8px;">
-                    <label>Recipient Name</label>
-                    <input type="text" id="f-gift-recipient" placeholder="Emma" oninput="occChanged()">
-                  </div>
-                  <div class="occ-mini-label">Relationship</div>
-                  <div class="sel-chips" id="occ-relationship">
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Partner</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Parent</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Child</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Friend</button>
-                  </div>
-                  <div class="occ-mini-label">Occasion</div>
-                  <div class="sel-chips" id="occ-occasion">
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Anniversary</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Engagement</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birthday</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Birth</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Memorial</button>
-                    <button type="button" class="sel-chip" onclick="selChip(this,'occ')">Just Because</button>
-                  </div>
-                  <div class="occ-date-row">
-                    <div class="fg">
-                      <label>Occasion Date</label>
-                      <input type="date" id="f-gift-date" onchange="occChanged()">
-                    </div>
-                    <label class="occ-surprise"><input type="checkbox" id="f-gift-surprise" onchange="occChanged()"> 🤫 Surprise — discretion at pickup</label>
-                  </div>
-                  <div class="sens-warn" id="occ-date-warn"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="acc-row" id="acc-style">
-              <button type="button" class="acc-head" onclick="accToggle('style')">
-                <span>✨</span><span class="acc-title">Style Profile</span>
-                <span class="acc-summary" id="style-summary">not set</span>
-                <span class="acc-chev">›</span>
-              </button>
-              <div class="acc-body" id="acc-style-body" style="display:none;">
-                <div class="occ-mini-label">Aesthetic <span style="font-weight:400;text-transform:none;letter-spacing:0;">— pick any</span></div>
-                <div class="sel-chips" id="style-aesthetic" data-multi="1">
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Minimal</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Vintage</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Organic</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Geometric</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Statement</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Delicate</button>
-                </div>
-                <div class="occ-mini-label">Metal Tone</div>
-                <div class="sel-chips" id="style-tone">
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Yellow</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">White</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Rose</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Mixed</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Silver-only</button>
-                </div>
-                <div class="occ-mini-label">Wear Pattern <span style="font-weight:400;text-transform:none;letter-spacing:0;">— drives durability recs</span></div>
-                <div class="sel-chips" id="style-wear">
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Everyday</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">Occasion</button>
-                </div>
-                <div class="occ-mini-label">Budget Comfort <span style="font-weight:400;text-transform:none;letter-spacing:0;">— studio-only, never client-facing</span></div>
-                <div class="sel-chips" id="style-budget">
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">&lt;$250</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$250–750</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$750–1.5k</button>
-                  <button type="button" class="sel-chip" onclick="selChip(this,'style')">$1.5k+</button>
-                </div>
-              </div>
-            </div>
-          </div>
           <div class="fg full hw-toggle-row">
             <button type="button" class="sketch-btn" id="hw-toggle-btn" style="width:fit-content;" onclick="hwToggle()">✍ Handwrite instead</button>
           </div>
@@ -1352,7 +914,6 @@
               <option value="order">💍 Custom Design</option>
               <option value="repair">🔧 Repair</option>
               <option value="resize">💎 Resize</option>
-              <option value="square-item">🟦 Square Item</option>
             </select>
             <div class="fg-hint" id="ot-hint">Will be placed in <strong>Custom Intake</strong>.</div>
           </div>
@@ -1439,12 +1000,6 @@
           </div>
         </div>
 
-        <!-- ── Square Item layout — pick from the Square catalog ── -->
-        <div id="type-square" class="mt-3" style="display:none;">
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-2">Square Catalog Items</label>
-          <div id="jobdesc-square-picker" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
-          <button type="button" class="btn btn-outline" onclick="jdAddSquareItem()">+ Add Item</button>
-        </div>
       </div>
 
       <!-- Items & Price — lives here (below Design Details) for Repair/Resize/Square Item.
@@ -1609,12 +1164,7 @@
           </div>
           <div class="fg" id="deposit-fg">
             <label>Deposit ($)</label>
-            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="intakeDepositManual();eoUpdateBalanceDue()">
-            <div class="dep-presets" id="dep-presets">
-              <button type="button" class="dep-preset-btn" id="dep-50" onclick="intakeDepositPreset(0.5)">50%</button>
-              <button type="button" class="dep-preset-btn" id="dep-100" onclick="intakeDepositPreset(1)">100%</button>
-              <button type="button" class="dep-preset-btn" id="dep-custom" onclick="intakeDepositPreset('custom')">Custom</button>
-            </div>
+            <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0" oninput="eoUpdateBalanceDue()">
           </div>
           <div class="fg" id="shipping-fg">
             <label>Shipping ($)</label>
@@ -1913,48 +1463,10 @@
     <button type="button" class="qa-close" onclick="qaClose()" aria-label="Close">✕</button>
   </div>
   <div id="qa-addon-list"></div>
-  <div class="qa-section">Square catalog</div>
-  <div class="rq-setup-search-wrap">
-    <span class="rq-setup-search-icon">🔍</span>
-    <input type="text" class="rq-setup-search-input" id="qa-search" placeholder="Search the Square catalog…" oninput="oiSearchInput('qa', this.value)" autocomplete="off">
-    <div class="rq-setup-spinner" id="oi-spinner-qa"></div>
-  </div>
-  <div class="rq-setup-results" id="oi-results-qa" style="margin-top:8px;"></div>
 </div>
 
 <!-- Long-press step-tab peek (brief 4.4) -->
 <div id="tab-peek"></div>
-
-<!-- ═══ Review with client (brief 4.2) — pure presentation over the fields
-     intakeSubmit() collects; deliberately NOT editable, studio-only data
-     (markup, internal notes, margin) absent. Signature (4.3) at the foot. ═══ -->
-<div id="intake-review" class="fixed inset-0 z-[190] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
-  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
-    <div class="flex items-center justify-between">
-      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">Review with client</div>
-      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeReviewSkip()">Skip review · save now</button>
-    </div>
-    <div id="rv-name" class="mt-1 text-xl font-bold"></div>
-    <div id="rv-piece" class="mt-1 text-[15px] text-slate-600"></div>
-    <img id="rv-sketch" alt="Design sketch" class="mt-3 w-full rounded-xl border border-slate-200" style="display:none;max-height:220px;object-fit:contain;background:var(--card-bg);">
-    <div class="rv-rows mt-4">
-      <div class="rv-row"><span>Deadline</span><span id="rv-deadline">—</span></div>
-      <div class="rv-row"><span>Pickup</span><span id="rv-pickup">—</span></div>
-      <div class="rv-row"><span>Total</span><span id="rv-total">—</span></div>
-      <div class="rv-row" id="rv-deposit-row"><span>Deposit due today</span><span id="rv-deposit">—</span></div>
-      <div class="rv-row rv-strong"><span>Balance at pickup</span><span id="rv-balance">—</span></div>
-    </div>
-    <div class="mt-5">
-      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Signature <span style="font-weight:400;text-transform:none;letter-spacing:0;">— finger is fine</span></div>
-      <canvas id="sig-canvas" width="880" height="180"></canvas>
-      <button type="button" class="btn btn-ghost" style="margin-top:2px;min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeSigClear()">Clear signature</button>
-    </div>
-    <div class="mt-4 flex gap-2">
-      <button type="button" class="btn btn-outline" onclick="intakeReviewClose()">‹ Back</button>
-      <button type="button" class="btn btn-outline" id="rv-confirm" style="flex:1;" onclick="intakeReviewConfirm()">Confirm &amp; Save (not signed)</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══ Saved overlay — shown after Save & Close ═══ -->
 <div id="intake-done" class="fixed inset-0 z-[200] hidden items-center justify-center bg-[#16202A]/95 backdrop-blur-sm">
@@ -1962,71 +1474,10 @@
     <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
     <div id="intake-done-title" class="text-lg font-bold">Order saved</div>
     <div id="intake-done-sub" class="mt-1 text-sm text-slate-500"></div>
-    <!-- Consult gap check (js/intake-ai-notes.js ainRenderMissedCard) — only
-         appears when the auto-recorded consult mentions something the order
-         doesn't carry. Advisory: the order is already saved and synced. -->
-    <div id="ain-missed-card" style="display:none;"></div>
     <div class="mt-6 flex flex-col gap-2">
-      <button type="button" onclick="intakeViewOrder(_lastSavedOrderId)" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">👁 View Order</button>
       <button type="button" onclick="intakeNew()" class="rounded-xl bg-gradient-to-br from-[#6E79F0] to-[#4F5AD8] px-5 py-3.5 text-[15px] font-bold text-white active:scale-95">＋ New Intake</button>
       <button type="button" onclick="location.href='jewelry-workflow.html'" class="rounded-xl border border-slate-300 px-5 py-3.5 text-[15px] font-bold text-slate-600 active:bg-slate-100">↩ Return to App</button>
     </div>
-  </div>
-</div>
-
-<!-- ═══ Order history list (read-only) — reachable any time via the 📋 header
-     button, independent of the current form state ═══ -->
-<div id="intake-orders-list" class="fixed inset-0 z-[195] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
-  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
-    <div class="flex items-center justify-between mb-4">
-      <div class="text-lg font-bold">Past Orders</div>
-      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeOrdersListClose()">Close ✕</button>
-    </div>
-    <div id="iol-list"></div>
-  </div>
-</div>
-
-<!-- ═══ Read-only order view — opened from the list above or the "Saved"
-     overlay's View Order button. Never editable from here (brief: editing
-     stays in the main app's Edit Order modal) ═══ -->
-<div id="intake-view-order" class="fixed inset-0 z-[196] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
-  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:540px;">
-    <div class="flex items-center justify-between">
-      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]" id="vo-type">Order</div>
-      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="intakeViewOrderClose()">Close ✕</button>
-    </div>
-    <div id="vo-name" class="mt-1 text-xl font-bold"></div>
-    <div id="vo-piece" class="mt-1 text-[15px] text-slate-600"></div>
-    <img id="vo-sketch" alt="Design sketch" class="mt-3 w-full rounded-xl border border-slate-200" style="display:none;max-height:220px;object-fit:contain;background:var(--card-bg);">
-    <div id="vo-photos" class="mt-2" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-    <div class="rv-rows mt-4" id="vo-rows"></div>
-    <div class="mt-4" id="vo-notes-wrap" style="display:none;">
-      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898] mb-1">Notes</div>
-      <div id="vo-notes" class="text-sm text-slate-700" style="white-space:pre-wrap;"></div>
-    </div>
-    <div class="mt-5 flex gap-2">
-      <button type="button" class="btn btn-outline" style="flex:1;" id="vo-back-btn" onclick="intakeViewOrderClose()">‹ Back</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ AI Note Taker — records the consult, transcribes it live, then hands
-     the transcript to Claude for a recap plus one-tap fills for this form.
-     Shell only; every view is rendered into #ain-body by js/intake-ai-notes.js ═══ -->
-<!-- z-201 puts this ABOVE the Saved overlay (z-200): the gap check links here,
-     and closing it must land back on Saved, not on a dead end. -->
-<div id="ai-notes" class="fixed inset-0 z-[201] hidden bg-[#16202A]/95 backdrop-blur-sm" style="overflow-y:auto;">
-  <div class="mx-auto my-6 w-full rounded-2xl bg-white p-6 text-slate-900 shadow-2xl" style="max-width:620px;">
-    <div class="flex items-center justify-between">
-      <div class="text-[11px] font-bold uppercase tracking-wider text-[#6A8898]">AI Consult Notes</div>
-      <button type="button" class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12.5px;" onclick="ainClose()">Close ✕</button>
-    </div>
-    <div class="ain-tabs">
-      <button type="button" class="ain-tab on" data-view="record"  onclick="ainSetView('record')">Record</button>
-      <button type="button" class="ain-tab"    data-view="summary" onclick="ainSetView('summary')">Summary</button>
-      <button type="button" class="ain-tab"    data-view="library" onclick="ainSetView('library')">Library</button>
-    </div>
-    <div id="ain-body"></div>
   </div>
 </div>
 
@@ -2039,13 +1490,11 @@
 <script src="js/sketchpad.js?v=8"></script>
 <script src="js/notion.js?v=20260722d"></script>
 <script src="js/order-widgets.js?v=20260724a"></script>
-<script src="js/intake-profiles.js?v=2"></script>
 <script src="js/ring-fields.js?v=8"></script>
 <script src="js/qrcode-lib.js?v=1"></script>
-<script src="js/intake-sheet.js?v=6"></script>
+<script src="js/intake-sheet.js?v=7"></script>
 <script src="js/intake-phone.js?v=1"></script>
-<script src="js/intake.js?v=43"></script>
-<script src="js/intake-paper.js?v=5"></script>
-<script src="js/intake-ai-notes.js?v=3"></script>
+<script src="js/intake.js?v=44"></script>
+<script src="js/intake-paper.js?v=6"></script>
 </body>
 </html>

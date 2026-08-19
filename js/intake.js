@@ -6,8 +6,10 @@
 //  button — see intakeLoadOrderForEdit/intakePopulateFromOrder below).
 //  The full-featured alternative is still the main app's Edit Order
 //  modal (jewelry-workflow.html + js/orders.js), which covers fields
-//  this page's edit mode intentionally leaves untouched (sketch/
-//  signature/ref photos, sensitivities, gift & style registry, stones).
+//  this page has no UI for (sketch/signature/ref photos, sensitivities,
+//  ring-size registry, occasion/gift, style profile, stones). Editing an
+//  order here never erases them — intakeSubmit()'s preserve list carries
+//  the originals through the save untouched.
 //  Depends on: js/storage.js, js/sketchpad.js, js/notion.js, js/order-widgets.js.
 //  New orders are saved to localStorage ('sts-orders') first, then pushed
 //  to Notion via /api/notion-pipeline; anything that fails to push is
@@ -105,9 +107,7 @@ function intakeStep(n) {
 
 // ── Order-type layout switch (step 1 Design Details) ──────────
 // One dropdown drives both the fields shown AND Notion categorization.
-// square-item reuses the shared square item-entry mode (_jdMode); every
-// other type is plain-text custom mode.
-const _TYPE_BLOCKS = { order: 'type-custom', repair: 'type-repair', resize: 'type-resize', 'square-item': 'type-square' };
+const _TYPE_BLOCKS = { order: 'type-custom', repair: 'type-repair', resize: 'type-resize' };
 
 // Tracks the previously-active order type so a genuine change (not a
 // re-application of the same type on init/reset) can reset Items & Price.
@@ -125,7 +125,7 @@ function intakeApplyTypeLayout(type) {
   if (_intakeCurrentOrderType !== type) _oiItems = [];
   _intakeCurrentOrderType = type;
 
-  _jdMode = (type === 'square-item') ? 'square' : 'custom';
+  _jdMode = 'custom';
   Object.entries(_TYPE_BLOCKS).forEach(([t, id]) => {
     const el = document.getElementById(id);
     if (el) el.style.display = (t === type) ? '' : 'none';
@@ -170,11 +170,10 @@ function intakeApplyTypeLayout(type) {
     }
   }
 
-  // Order Items sub-section: manual entry for Repair/Resize; Square Item
-  // picks items via the step-1 catalog picker instead; Custom Design shows
-  // only the Estimate Builder (no manual Order Items at all).
+  // Order Items sub-section: manual entry for Repair/Resize; Custom Design
+  // shows only the Estimate Builder (no manual Order Items at all).
   const oiSection = document.getElementById('oi-section');
-  if (oiSection) oiSection.style.display = (isSingle && type !== 'square-item') ? '' : 'none';
+  if (oiSection) oiSection.style.display = isSingle ? '' : 'none';
 
   // Repair has no Order Description — the Repair Instructions field covers it.
   const descFg = document.getElementById('orderdesc-fg');
@@ -377,24 +376,12 @@ function _intakeDirty() {
   return fields
     || ringsDirty
     || (typeof _oiItems !== 'undefined' && _oiItems.some(it => it.name || it.price))
-    || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
     || (typeof SK !== 'undefined' && SK && SK.hasInk)
     || (typeof HW !== 'undefined' && HW && HW.hasInk);
 }
 
-async function intakeExit() {
-  // A running consult (js/intake-ai-notes.js) is its own record — discarding
-  // the order doesn't discard the conversation, so say so rather than
-  // letting "nothing will be saved" read as a promise to bin the recording.
-  const recording = (typeof ainIsRecording === 'function') && ainIsRecording();
-  const msg = 'Discard this order? Nothing will be saved.'
-    + (recording ? '\n\nThe consult recording is kept — find it under 🎙 AI Notes.' : '');
-  if ((_intakeDirty() || recording) && !confirm(msg)) return;
-  // Awaited so the consult reaches IndexedDB before we navigate away. Also
-  // drops the module's own beforeunload guard, so leaving never double-prompts.
-  if (typeof ainStopForExit === 'function') {
-    try { await ainStopForExit(); } catch (e) { console.warn('AI notes exit stop failed', e); }
-  }
+function intakeExit() {
+  if (_intakeDirty() && !confirm('Discard this order? Nothing will be saved.')) return;
   window.removeEventListener('beforeunload', _intakeBeforeUnload);
   location.href = 'jewelry-workflow.html';
 }
@@ -1028,7 +1015,6 @@ function _intakeValidate() {
   const g = id => document.getElementById(id);
   const typeVal = (g('f-order-type') || {}).value || 'order';
   let desc = g('f-description').value.trim();
-  if (typeVal === 'square-item' && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
   const flag = (id) => {
     const el = g(id);
     if (el) { el.style.borderColor = '#E05050'; el.addEventListener('input', () => el.style.borderColor = '', { once: true }); }
@@ -1124,8 +1110,6 @@ function intakePopulateFromOrder(o) {
   set('f-paid-by',      o.paidBy);
   set('f-notes',        o.notes);
   set('f-customer-notes', o.customerNotes);
-  set('f-wrist',        o.wrist);
-  set('f-neck',         o.neck);
   set('f-repair-notes', o.repairNotes);
   set('f-resize-from',  o.resizeFrom);
   set('f-resize-to',    o.resizeTo);
@@ -1190,29 +1174,17 @@ async function intakeSubmit() {
 
   const g = id => document.getElementById(id);
   const typeVal = (g('f-order-type') || {}).value || 'order';
-  const isSquare = typeVal === 'square-item';
 
   const name = getFullName();
   // Order Name / Order Description are plain fields now (no _jdMode switch).
   const orderName = g('f-job-desc').value.trim();
   let   desc      = g('f-description').value.trim();
-  // Square Item: fall back to the picked catalog item names if no description typed.
-  if (isSquare && !desc && typeof _jdSquareItemNames === 'function') desc = _jdSquareItemNames();
   // Repair hides the Order Description field — drop any value typed before
   // the type was switched so it doesn't submit invisibly.
   if (typeVal === 'repair') desc = '';
 
   if (!_intakeValidate()) return;
   if (btn) btn.disabled = true;
-
-  // Auto-recorded consult (js/intake-ai-notes.js) ends here, not at Exit —
-  // "Save & Close" is what marks the order finished. Stopping BEFORE the
-  // order object is built lets the recap ride along in `notes` below and
-  // lets the gap check compare the transcript against what was typed.
-  // Hard-capped internally, so a slow API can't hold the save open.
-  if (typeof ainFinalizeForSave === 'function') {
-    try { await ainFinalizeForSave(); } catch (e) { console.warn('AI notes finalize failed', e); }
-  }
 
   const items       = _oiItems.map(it => ({ ...it }));
   const addrStreet  = g('f-addr-street').value.trim();
@@ -1250,10 +1222,6 @@ async function intakeSubmit() {
   // Sensitivities: structured on the order AND joined into notes so Notion +
   // the printed bag see plain text with no pipeline changes (brief 1.3).
   const sens        = intakeSensList();
-  // Ring registry / occasion / style (brief 1.2, 1.4, 1.5) — same pattern:
-  // structured keys + a readable gift line for notes.
-  const s1          = (typeof intakeSection1Collect === 'function') ? intakeSection1Collect() : null;
-  const giftLine    = (typeof intakeSection1NotesLine === 'function') ? intakeSection1NotesLine(s1) : '';
 
   // Stable order id, computed up front so Compare option images can be keyed
   // by it in R2 before the order object is built (edits reuse the existing id).
@@ -1300,7 +1268,9 @@ async function intakeSubmit() {
     shippingAddress: { street: addrStreet, street2: addrStreet2, city: addrCity, state: addrState, zip: addrZip, country: addrCountry },
     addrStreet, addrStreet2, addrCity, addrState, addrZip, addrCountry,
     contactSource: g('f-source').value   || null,
-    assignee:      g('f-assignee').value || null,
+    // Assigned To was removed from the form; an edit keeps whatever the
+    // order already had (see the preserve list below).
+    assignee:      null,
     orderType:     typeVal,
     paidBy:        g('f-paid-by')?.value || '',
     contactMethod: '',
@@ -1334,7 +1304,9 @@ async function intakeSubmit() {
     // On-glass signature (4.3) — stored locally on the order like the
     // sketch; absent signature never blocks a save. Pushing it to Notion
     // as an attachment is deferred until the pipeline grows a slot for it.
-    signatureImg:  (typeof SIG !== 'undefined' && SIG && SIG.hasInk) ? SIG.canvas.toDataURL('image/png') : null,
+    // The on-glass signature pad went with the review screen; an edit keeps
+    // any signature already captured (see the preserve list below).
+    signatureImg:  null,
     // Paper mode's handwritten page (js/intake-paper.js) — the full-fidelity
     // human record, kept alongside the structured fields OCR'd out of it.
     paperPageImg:  (typeof paperExportPage === 'function') ? paperExportPage() : null,
@@ -1345,25 +1317,21 @@ async function intakeSubmit() {
       ? ((_estVariants[_estCrowned] && _estVariants[_estCrowned].notes) || '').trim()
       : (g('f-customer-notes').value.trim() || ''),
     notes:         [(typeof psVoiceNotesText === 'function') ? psVoiceNotesText() : '',
-                    // AI consult recap (js/intake-ai-notes.js) — folded into
-                    // notes rather than carried as its own field so it reaches
-                    // Notion and the printed bag with no pipeline changes.
-                    // Skipped when the user already tapped "Add to Internal
-                    // Notes", which put the same text in `notes` by hand.
-                    (typeof ainNotesTextForOrder === 'function' && !notes.includes('🎙 AI consult notes')) ? ainNotesTextForOrder() : '',
                     notes,
                     sens.length ? '⚠ Sensitivities: ' + sens.join(', ') : '',
-                    giftLine,
                     (_estVariants && _estVariants.length > 1)
                       ? 'Declined options: ' + _estVariants.filter((v, i) => i !== _estCrowned)
                           .map(v => v.label + ' $' + Math.round(_estStateTotal(v)).toLocaleString('en-US')).join(' · ')
                       : ''].filter(Boolean).join('\n'),
     sensitivities: sens,
-    ringSizes:     s1 ? s1.ringSizes : [],
-    wrist:         s1 ? s1.wrist : '',
-    neck:          s1 ? s1.neck : '',
-    styleProfile:  s1 ? s1.styleProfile : null,
-    gift:          s1 ? s1.gift : null,
+    // Ring registry, wrist/neck measurements, occasion and style were removed
+    // from the form. The keys stay on the order so the Notion pipeline is
+    // unchanged; on an edit the preserve list below restores the real values.
+    ringSizes:     [],
+    wrist:         '',
+    neck:          '',
+    styleProfile:  null,
+    gift:          null,
     stones:        (typeof _psStones !== 'undefined') ? _psStones.map(st => ({ ...st })) : [],
     // Declined tier alternatives — upsell memory (3.4). Notes + line-item
     // breakdown ride along (small text, safe for the Notion "App Data" JSON
@@ -1427,6 +1395,7 @@ async function intakeSubmit() {
     // remaining image keys (sketch/signature/paper) have no reload path
     // yet, so they stay here to avoid a blank canvas wiping stored data.
     ['sensitivities', 'ringSizes', 'styleProfile', 'gift', 'stones',
+     'wrist', 'neck', 'assignee',
      'sketchImg', 'sketchInkImg', 'signatureImg',
      'paperPageImg', 'trackingNumber', 'trackingCarrier',
      'contactMethod'].forEach(k => { merged[k] = _editingOrder[k]; });
@@ -1485,19 +1454,11 @@ async function intakeSubmit() {
     saveToStorage();
   }
   _lastSavedOrderId = order.id;
-  // Link the consult to the order it belongs to, so the AI Notes library
-  // can point back at it later ("what did she actually say about the size?").
-  if (typeof ainAttachToOrder === 'function') order.aiNoteId = ainAttachToOrder(order.id, name);
-  // Upsert the Client Profile as a side effect — no separate data-entry chore
-  if (typeof stsCustUpsertFromOrder === 'function') stsCustUpsertFromOrder(order);
 
   const doneSub = document.getElementById('intake-done-sub');
   const doneTitle = document.getElementById('intake-done-title');
   if (doneTitle) doneTitle.textContent = name + ' — ' + (isEdit ? 'Updated' : typeMap.label);
   if (doneSub) doneSub.textContent = isEdit ? 'Saving changes…' : 'Syncing to Notion…';
-  // Gap check from the consult — advisory, on the Saved overlay rather than
-  // blocking the save, since the transcript isn't authoritative.
-  if (typeof ainRenderMissedCard === 'function') ainRenderMissedCard();
   const done = document.getElementById('intake-done');
   if (done) { done.classList.remove('hidden'); done.classList.add('flex'); }
 
@@ -1553,20 +1514,12 @@ function intakeReset() {
   if (ringCountEl) ringCountEl.value = 1;
   intakeRenderRingBlocks();
   intakeApplyPieceType('');
-  _depMode = null;
   document.getElementById('est-preset-strip')?.classList.remove('open');
-  if (typeof intakeProfileReset === 'function') intakeProfileReset();
-  if (typeof intakeSection1Reset === 'function') intakeSection1Reset();
   if (typeof psReset === 'function') psReset();
-  if (typeof intakeSigClear === 'function' && SIG) intakeSigClear();
-  if (typeof intakeReviewClose === 'function') intakeReviewClose();
   if (typeof intakeEstReset === 'function') intakeEstReset();
   if (typeof ulReset === 'function') ulReset();
   if (typeof psVoiceReset === 'function') psVoiceReset();
-  // Clears the finished consult so the next customer starts blank; a
-  // recording still in progress is left running (js/intake-ai-notes.js).
-  if (typeof ainReset === 'function') ainReset();
-  ['f-pickup', 'f-source', 'f-assignee', 'f-paid-by'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['f-pickup', 'f-source', 'f-paid-by'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const country = document.getElementById('f-addr-country');
   if (country) country.value = 'United States';
   const takein = document.getElementById('f-takein');
@@ -1588,106 +1541,6 @@ function intakeNew() {
   const done = document.getElementById('intake-done');
   if (done) { done.classList.add('hidden'); done.classList.remove('flex'); }
   intakeReset();
-}
-
-// ── Order history (read-only view) ───────────────────────────
-//    Lets a saved custom order be reopened and reviewed on this iPad
-//    without leaving the intake PWA. Editing still only lives in the
-//    main app's Edit Order modal — this is presentation-only.
-let _voFromList = false;
-const _voEsc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const _voMoney = n => '$' + (parseFloat(n) || 0).toFixed(2);
-
-function intakeOrdersListOpen() {
-  const list = document.getElementById('iol-list');
-  if (list) {
-    const rows = [...ORDERS].sort((a, b) => {
-      const ta = parseInt(String(a.id).replace(/\D/g, ''), 10) || 0;
-      const tb = parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
-      return tb - ta;
-    });
-    list.innerHTML = rows.length
-      ? rows.map(o => {
-          const label = (ORDER_TYPE_STAGES[o.orderType] || ORDER_TYPE_STAGES.order).label;
-          const ts = parseInt(String(o.id).replace(/\D/g, ''), 10);
-          const when = ts ? new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-          return '<div class="iol-row" onclick="intakeViewOrder(\'' + _voEsc(o.id) + '\', true)">'
-               + '<div><div class="iol-name">' + (_voEsc(o.name) || '(no name)') + '</div>'
-               + '<div class="iol-meta">' + _voEsc(label) + (when ? ' · ' + when : '') + (!o.notionId ? ' · ⚠ not synced' : '') + '</div></div>'
-               + '<div class="iol-price">' + _voMoney(o.price) + '</div>'
-               + '</div>';
-        }).join('')
-      : '<div class="iol-empty">No orders saved on this device yet.</div>';
-  }
-  document.getElementById('intake-orders-list')?.classList.remove('hidden');
-}
-
-function intakeOrdersListClose() {
-  document.getElementById('intake-orders-list')?.classList.add('hidden');
-}
-
-function intakeViewOrder(id, fromList) {
-  const order = ORDERS.find(o => o.id === id);
-  if (!order) { toast('Order not found', '⚠'); return; }
-  _voFromList = !!fromList;
-
-  const label = (ORDER_TYPE_STAGES[order.orderType] || ORDER_TYPE_STAGES.order).label;
-  document.getElementById('vo-type').textContent = label;
-  document.getElementById('vo-name').textContent = order.name || '(no name)';
-
-  const pieceBits = [order.jobDesc, order.pieceType, order.desc].filter(Boolean);
-  document.getElementById('vo-piece').textContent = pieceBits.join(' — ');
-
-  const sketchEl = document.getElementById('vo-sketch');
-  if (sketchEl) {
-    if (order.sketchImg) { sketchEl.src = order.sketchImg; sketchEl.style.display = ''; }
-    else sketchEl.style.display = 'none';
-  }
-
-  const photosEl = document.getElementById('vo-photos');
-  if (photosEl) {
-    const photos = Array.isArray(order.refPhotos) ? order.refPhotos : [];
-    photosEl.innerHTML = photos.map(src =>
-      '<img src="' + src + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--surface3);">'
-    ).join('');
-  }
-
-  const balance = Math.max((parseFloat(order.price) || 0) + (parseFloat(order.shipping) || 0) - (parseFloat(order.deposit) || 0), 0);
-  const rows = [
-    ['Take-in', order.takeIn || '—'],
-    ['Deadline', order.deadline || '—'],
-    ['Pickup', order.pickup || '—'],
-    ['Materials', order.materials || '—'],
-    ['Sizing', order.sizing || '—'],
-    ['Price', _voMoney(order.price)],
-    ['Deposit', _voMoney(order.deposit)],
-    ['Balance due', _voMoney(balance)],
-    ['Contact', [order.email, order.phone].filter(Boolean).join(' · ') || '—'],
-    ['Synced to Notion', order.notionId ? '✓ Yes' : '⚠ Not yet'],
-  ];
-  document.getElementById('vo-rows').innerHTML = rows.map(([k, v], i) =>
-    '<div class="rv-row' + (i === rows.length - 3 ? ' rv-strong' : '') + '"><span>' + _voEsc(k) + '</span><span>' + _voEsc(v) + '</span></div>'
-  ).join('');
-
-  const notesWrap = document.getElementById('vo-notes-wrap');
-  const notesEl = document.getElementById('vo-notes');
-  const noteText = [order.notes, order.customerNotes].filter(Boolean).join('\n\n');
-  if (notesWrap && notesEl) {
-    notesEl.textContent = noteText;
-    notesWrap.style.display = noteText ? '' : 'none';
-  }
-
-  const backBtn = document.getElementById('vo-back-btn');
-  if (backBtn) backBtn.textContent = _voFromList ? '‹ Back to list' : 'Close';
-
-  document.getElementById('intake-done')?.classList.add('hidden');
-  document.getElementById('intake-done')?.classList.remove('flex');
-  document.getElementById('intake-view-order')?.classList.remove('hidden');
-}
-
-function intakeViewOrderClose() {
-  document.getElementById('intake-view-order')?.classList.add('hidden');
-  if (_voFromList) document.getElementById('intake-orders-list')?.classList.remove('hidden');
 }
 
 // ── Anthropic key for the handwriting converter — the standalone PWA has
@@ -1872,58 +1725,17 @@ function intakePresetRenderStrip() {
   });
 })();
 
-// ── 3.5 Deposit presets + due-today/balance split bar ─────────
-let _depMode = null;       // 0.5 | 1 | 'custom' | null
-let _depApplying = false;  // true while a preset writes f-deposit
-
+// ── 3.5 Due-today / balance split bar ─────────────────────────
 function _depBase() {
   const price    = parseFloat(document.getElementById('f-price')?.value) || 0;
   const shipping = parseFloat(document.getElementById('f-shipping')?.value) || 0;
   return price + shipping;
 }
 
-function intakeDepositManual() { if (!_depApplying) _depMode = 'custom'; }
-
-function intakeDepositPreset(mode) {
-  _depMode = mode;
-  if (mode === 'custom') {
-    document.getElementById('f-deposit')?.focus();
-    intakeDepositRefresh();
-    return;
-  }
-  _depApply(false);
-}
-
-function _depApply(flash) {
-  const f = document.getElementById('f-deposit');
-  if (!f || typeof _depMode !== 'number') return;
-  const val = Math.round(_depBase() * _depMode * 100) / 100;
-  _depApplying = true;
-  f.value = val ? val.toFixed(2) : '';
-  _depApplying = false;
-  eoUpdateBalanceDue();
-  if (flash) {
-    [f, document.querySelector('.dep-split-bar')].forEach(el => {
-      if (!el) return;
-      el.classList.remove('dep-flash'); void el.offsetWidth; el.classList.add('dep-flash');
-    });
-  }
-}
-
 function intakeDepositRefresh() {
   const base = _depBase();
   const deposit = parseFloat(document.getElementById('f-deposit')?.value) || 0;
   const fmt = n => '$' + (Math.round(n) === n ? n.toFixed(0) : n.toFixed(2));
-  const b50 = document.getElementById('dep-50'), b100 = document.getElementById('dep-100'), bc = document.getElementById('dep-custom');
-  if (b50)  { b50.textContent  = base > 0 ? '50% · ' + fmt(base * 0.5) : '50%'; b50.classList.toggle('selected', _depMode === 0.5); }
-  if (b100) { b100.textContent = base > 0 ? '100% · ' + fmt(base) : '100%';     b100.classList.toggle('selected', _depMode === 1); }
-  if (bc)   bc.classList.toggle('selected', _depMode === 'custom');
-  // A stale 50% silently becoming 43% erodes trust — if the total moved
-  // after a percent preset was chosen, recompute and flash once.
-  if (typeof _depMode === 'number' && Math.abs(deposit - Math.round(base * _depMode * 100) / 100) > 0.005) {
-    _depApply(true); // re-enters this function via eoUpdateBalanceDue with matching values
-    return;
-  }
   const wrap = document.getElementById('deposit-split-fg');
   if (!wrap) return;
   const show = base > 0;
@@ -2567,10 +2379,7 @@ function sketchExportInkOnly() {
 }
 
 // ── 4.1 Quick add-on slide-over ───────────────────────────────
-// Standing add-ons are hardcoded v1 per the brief; the Square search
-// reuses the row plumbing with a reserved 'qa' index — the inline
-// oiSelectSquareResult('qa', i) in rendered rows no-ops safely
-// (_oiItems['qa'] is undefined), our delegated handler does the work.
+// Standing add-ons are hardcoded v1 per the brief.
 const _QA_ADDONS = [
   { name: 'Engraving',     price: 45 },
   { name: 'Rush fee',      price: 50 },
@@ -2586,10 +2395,6 @@ function qaOpen() {
 function qaClose() {
   document.getElementById('qa-scrim')?.classList.remove('open');
   document.getElementById('qa-panel')?.classList.remove('open');
-  const search = document.getElementById('qa-search');
-  if (search) search.value = '';
-  const box = document.getElementById('oi-results-qa');
-  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
 }
 
 function qaAddManual(name, price) {
@@ -2607,23 +2412,6 @@ function qaAddManual(name, price) {
       + '<span>' + a.name + '</span><span class="qa-price">+$' + a.price + '</span></button>'
     ).join('');
   }
-  // Square result tap: adopt the row plumbing's item shape by pushing a
-  // placeholder, aliasing the cached results to that index, and letting
-  // oiSelectSquareResult() build the item (modifier defaults included).
-  document.getElementById('oi-results-qa')?.addEventListener('click', e => {
-    const row = e.target.closest('.rq-result-item');
-    if (!row) return;
-    const i = [...row.parentElement.querySelectorAll('.rq-result-item')].indexOf(row);
-    const results = _oiLastResults['qa'] || [];
-    if (!results[i]) return;
-    const idx = _oiItems.length;
-    _oiItems.push({ type: 'square' });
-    _oiLastResults[idx] = results;
-    oiSelectSquareResult(idx, i);
-    delete _oiLastResults[idx];
-    toast(results[i].name + ' added', '✓', 2200);
-    qaClose();
-  });
   // Swipe-right dismissal — can't be confused with drawing (right edge)
   const panel = document.getElementById('qa-panel');
   if (panel) {
@@ -2641,7 +2429,6 @@ function _intakeTabStates() {
   const v = id => (document.getElementById(id)?.value || '').trim();
   const s1done = !!(getFullName() && v('f-description'));
   const s1any = ['f-firstname', 'f-lastname', 'f-email', 'f-phone', 'f-description', 'f-job-desc'].some(id => v(id))
-    || (typeof intakeSection1Dirty === 'function' && intakeSection1Dirty())
     || intakeSensList().length > 0;
   const sketch = typeof SK !== 'undefined' && SK && SK.hasInk;
   const hasPhotos = typeof _refPhotos !== 'undefined' && _refPhotos.length > 0;
@@ -2723,107 +2510,6 @@ function _intakeTabPeekShow(step) {
   document.addEventListener('change', queue);
 })();
 
-// ── 4.2 Client-facing review screen + 4.3 on-glass signature ──
-// Save & Close is two-beat: intakeReviewOpen() → ✓ Confirm runs the
-// unchanged intakeSubmit(). Front-of-house only — no markup, no
-// internal notes, no margin.
-let SIG = null; // third _padCreate instance — penOnly:false, clients sign with fingers
-
-function _sigBackground(ctx, w, h) {
-  ctx.strokeStyle = '#C8BFB4';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(24, h - 40);
-  ctx.lineTo(w - 24, h - 40);
-  ctx.stroke();
-  ctx.fillStyle = '#B0A89E';
-  ctx.font = '600 22px system-ui, sans-serif';
-  ctx.fillText('✕', 24, h - 50);
-}
-
-function _sigInit() {
-  if (SIG || typeof _padCreate !== 'function') return;
-  SIG = _padCreate('sig-canvas', { background: _sigBackground });
-  if (SIG) {
-    SIG.widths.pen = 4;
-    // Signature presence drives the Confirm button's weight
-    SIG.canvas.addEventListener('pointerup', () => setTimeout(_rvConfirmState, 0));
-  }
-}
-
-function _rvConfirmState() {
-  const btn = document.getElementById('rv-confirm');
-  if (!btn) return;
-  const signed = SIG && SIG.hasInk;
-  btn.classList.toggle('btn-gold', signed);
-  btn.classList.toggle('btn-outline', !signed);
-  btn.innerHTML = signed ? '✓ Confirm &amp; Save' : 'Confirm &amp; Save (not signed)';
-}
-
-function intakeSigClear() {
-  if (!SIG) return;
-  _padBlank(SIG);
-  SIG.hasInk = false;
-  SIG.undo.length = 0;
-  SIG.redo.length = 0;
-  _rvConfirmState();
-}
-
-function intakeReviewOpen() {
-  if (!_intakeValidate()) return;
-  _sigInit();
-  const g = id => document.getElementById(id);
-  const money = v => '$' + (parseFloat(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const nameEl = g('rv-name');
-  if (nameEl) nameEl.textContent = getFullName();
-  // Piece summary: the sheet's peek line for Custom Design, else the description
-  const typeVal = (g('f-order-type') || {}).value || 'order';
-  const peek = g('ps-summary')?.textContent || '';
-  const piece = (typeVal === 'order' && peek && !peek.startsWith('tap a tab'))
-    ? peek : g('f-description').value.trim();
-  const pieceEl = g('rv-piece');
-  if (pieceEl) pieceEl.textContent = piece;
-  // Sketch thumbnail
-  const img = g('rv-sketch');
-  if (img) {
-    const hasSketch = typeof SK !== 'undefined' && SK && SK.hasInk;
-    img.style.display = hasSketch ? '' : 'none';
-    if (hasSketch) img.src = SK.canvas.toDataURL('image/png');
-  }
-  // Money + logistics rows
-  const deadline = g('f-deadline')?.value;
-  if (g('rv-deadline')) g('rv-deadline').textContent = deadline
-    ? new Date(deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-  if (g('rv-pickup')) g('rv-pickup').textContent = g('f-pickup')?.value || '—';
-  const price    = parseFloat(g('f-price')?.value) || 0;
-  const deposit  = parseFloat(g('f-deposit')?.value) || 0;
-  const shipping = parseFloat(g('f-shipping')?.value) || 0;
-  if (g('rv-total')) g('rv-total').textContent = price ? money(price + shipping) : '—';
-  const depRow = g('rv-deposit-row');
-  if (depRow) depRow.style.display = deposit > 0 ? '' : 'none';
-  if (g('rv-deposit')) g('rv-deposit').textContent = money(deposit);
-  if (g('rv-balance')) g('rv-balance').textContent = price ? money(Math.max(price + shipping - deposit, 0)) : '—';
-
-  _rvConfirmState();
-  const overlay = g('intake-review');
-  if (overlay) overlay.classList.remove('hidden');
-}
-
-function intakeReviewClose() {
-  document.getElementById('intake-review')?.classList.add('hidden');
-}
-
-function intakeReviewSkip() {
-  intakeReviewClose();
-  intakeSubmit();
-}
-
-function intakeReviewConfirm() {
-  intakeReviewClose();
-  intakeSubmit();
-}
-
 // ── Wrap the shared order-widgets.js entry points (loaded before this
 //    file) so every recalc also refreshes the intake-only UI. The desktop
 //    Edit Order modal never loads intake.js, so it is untouched. ──
@@ -2869,13 +2555,6 @@ eoUpdateBalanceDue = function () {
     if (params.get('name'))  setNameFields(params.get('name'));
     if (params.get('email')) { const el = document.getElementById('f-email'); if (el) el.value = params.get('email'); }
     if (params.get('type')  && _TYPE_BLOCKS[params.get('type')]) intakeApplyTypeLayout(params.get('type'));
-  }
-
-  // Client Profile store: fold local orders in (idempotent), then enrich
-  // from Notion when online — read-only, never touches ORDERS.
-  if (typeof stsCustRebuildFromOrders === 'function') {
-    stsCustRebuildFromOrders(ORDERS);
-    if (typeof stsCustEnrichFromNotion === 'function') stsCustEnrichFromNotion();
   }
 
   // Push any orders that never made it to Notion (offline intake at a market)

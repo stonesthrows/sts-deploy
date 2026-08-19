@@ -853,12 +853,11 @@ intakeReset = function () {
 };
 
 // Save & Close from Paper mode: finish reading the ink (pending zones →
-// whole-page pass), then the normal review screen. The chips + filled
-// fields ARE the field-level review; the review overlay stays the
-// client-facing confirmation it already is. The Sketch screen (when used)
-// draws straight onto SK via #step-2 — nothing to hand off here anymore.
-const _ppReviewOpen = intakeReviewOpen;
-intakeReviewOpen = async function () {
+// whole-page pass), then the normal save. The chips + filled fields ARE
+// the review. The Sketch screen (when used) draws straight onto SK via
+// #step-2 — nothing to hand off here anymore.
+const _ppSubmit = intakeSubmit;
+intakeSubmit = async function () {
   if (_paperOn && PAPER && PAPER.hasInk) {
     await _paperFlush();
     await _paperPagePass();
@@ -882,7 +881,7 @@ intakeReviewOpen = async function () {
       }
     }
   }
-  _ppReviewOpen();
+  await _ppSubmit();
 };
 
 // Restore the last-used mode — staff preference persists across customers.
