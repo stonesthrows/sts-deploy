@@ -7,9 +7,10 @@
 //  decremented from the Materials Library on confirm. Items whose design
 //  has no BOM are flagged "not weighed".
 //  The pieces themselves are added to Square inventory automatically when
-//  the timer is stopped (rqAutoPushInventory in restock-sessions.js) — this
-//  prompt opens afterwards and only ever touches material stock, so
-//  skipping it can never cost the inventory add.
+//  the timer is stopped (rqAutoPushInventory in restock-sessions.js), which
+//  then shows a confirmation popup (rqShowPushedPopup). This file mounts
+//  the materials review into that popup — it never gates the inventory
+//  add, so skipping it can never cost the inventory add.
 //  Loaded ONLY by jewelry-workflow.html, after restock-sessions.js.
 // ════════════════════════════════════════════
 
@@ -50,47 +51,44 @@ function _coWastePct(m, overridePct) {
   return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
 }
 
-// Hook: called by rqAutoPushInventory / rqConfirmPush once the pieces are in
-// Square inventory. Opens the materials review for the finished session —
-// but ONLY when there is stock to subtract. A session whose designs carry no
-// BOM has nothing to confirm, and popping a modal just to say so would put
-// back the dismiss-this-box step that stopping a timer is meant to be free
-// of; the "not weighed" note rides inside the prompt when one does open.
-function coShowMaterialsPrompt(session) {
-  coCloseMaterialsPrompt();
+// Hook: called by rqShowPushedPopup right after it renders the "Added to
+// inventory" popup. Mounts the materials review into that popup's
+// #co-section — but only swaps its OK button for Subtract Materials / Not
+// Now when a design BOM actually matched something. A session whose
+// designs carry no BOM has nothing to confirm, so the popup stays exactly
+// as rqShowPushedPopup rendered it.
+function coAttachMaterialsSection(session) {
   _coRows = null;
   _coUnweighed = null;
+  var host = document.getElementById('co-section');
+  if (!host) return;
   _coLoadData().then(function() {
+    // The popup may have been dismissed (or reopened for another session)
+    // while data loaded — only touch it if our host is still there.
+    if (!document.getElementById('co-section')) return;
     _coCompute(session);
     if (!(_coRows && _coRows.length)) { _coRows = null; _coUnweighed = null; return; }
-    var overlay = document.createElement('div');
-    overlay.id = 'co-prompt';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
-    overlay.innerHTML =
-        '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
-      + '<div style="font-weight:700;margin-bottom:8px;">Pieces added to inventory ✓</div>'
-      + '<div id="co-section"></div>'
-      + '<div style="display:flex;gap:8px;margin-top:10px;">'
-      + '<button class="rq-start-confirm-btn" onclick="coConfirmMaterials()">Subtract Materials</button>'
-      + '<button class="rq-setup-cancel-btn" onclick="coCloseMaterialsPrompt()">Not Now</button>'
-      + '</div></div>';
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) coCloseMaterialsPrompt(); });
-    document.body.appendChild(overlay);
     _coRender();
+    var actions = document.getElementById('rq-pushed-actions');
+    if (actions) {
+      actions.innerHTML = '<button class="rq-start-confirm-btn" onclick="coConfirmMaterials()">Subtract Materials</button>'
+        + '<button class="rq-setup-cancel-btn" onclick="rqClosePushedPopup()">Not Now</button>';
+    }
   }).catch(function() { _coRows = null; _coUnweighed = null; });
-}
-
-function coCloseMaterialsPrompt() {
-  var el = document.getElementById('co-prompt');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
-  _coRows = null;
-  _coUnweighed = null;
 }
 
 function coConfirmMaterials() {
   coApplyStaged();
-  var el = document.getElementById('co-prompt');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  rqClosePushedPopup();
+}
+
+// Called by rqClosePushedPopup when the popup is dismissed without hitting
+// "Subtract Materials" — drops any staged rows so they can't bleed into the
+// next session's popup. A no-op after coApplyStaged, which already clears
+// them itself.
+function coDiscardStaged() {
+  _coRows = null;
+  _coUnweighed = null;
 }
 
 function _coCompute(session) {

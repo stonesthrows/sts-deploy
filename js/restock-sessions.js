@@ -167,10 +167,7 @@ function rqAutoPushInventory(session) {
   if (!session || session.pushed || !_rqPushableItems(session).length) return;
   _rqPushSessionInventory(session).then(function(pcs) {
     rqRenderSessions();
-    toast('Added ' + pcs + ' pc' + (pcs !== 1 ? 's' : '') + ' to inventory ✓', '✓');
-    // Phase 5 close-out: review + subtract the material consumption the
-    // finished pieces used up.
-    if (typeof coShowMaterialsPrompt === 'function') coShowMaterialsPrompt(session);
+    rqShowPushedPopup(session, pcs);
   }).catch(function() {
     // Leave session.pushed false so the Session Log keeps offering ↑ Square.
     rqRenderSessions();
@@ -193,12 +190,53 @@ function rqConfirmPush(store, i) {
   _rqPushSessionInventory(s).then(function(pcs) {
     _rqPushingSession[store] = null;
     _rqStoreRender(store);
-    toast('Added ' + pcs + ' pc' + (pcs !== 1 ? 's' : '') + ' to inventory ✓', '✓');
-    if (typeof coShowMaterialsPrompt === 'function') coShowMaterialsPrompt(s);
+    rqShowPushedPopup(s, pcs);
   }).catch(function() {
     toast('Square push failed', '⚠');
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = confirmLabel; }
   });
+}
+
+// ── Post-push confirmation popup ────────────────────────────────────────────
+// A toast alone is easy to miss — it's a corner notification that clears
+// itself in 3.2s regardless of whether anyone saw it, and an inventory add
+// is exactly the kind of thing that shouldn't be easy to miss. This modal
+// stays until dismissed and lists what actually got added. It also hosts the
+// Phase 5 close-out "Materials used" section (see coAttachMaterialsSection in
+// closeout.js) when the pushed session's designs have a BOM to decrement.
+
+function rqShowPushedPopup(session, pcs) {
+  rqClosePushedPopup();
+  var rows = _rqPushableItems(session).map(function(it) {
+    var safeLabel = (it.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return '<div class="rq-push-item">'
+      + '<span class="rq-push-item-name">' + safeLabel + '</span>'
+      + '<span class="rq-push-item-qty">' + it.pieces + ' pc' + (it.pieces !== 1 ? 's' : '') + '</span>'
+      + '<span class="rq-push-item-ok">✓</span>'
+      + '</div>';
+  }).join('');
+  var overlay = document.createElement('div');
+  overlay.id = 'rq-pushed-popup';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML =
+      '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
+    + '<div style="font-weight:700;margin-bottom:8px;">Added ' + pcs + ' pc' + (pcs !== 1 ? 's' : '') + ' to inventory ✓</div>'
+    + rows
+    + '<div id="co-section"></div>'
+    + '<div id="rq-pushed-actions" style="display:flex;gap:8px;margin-top:10px;">'
+    + '<button class="rq-start-confirm-btn" onclick="rqClosePushedPopup()">OK</button>'
+    + '</div></div>';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) rqClosePushedPopup(); });
+  document.body.appendChild(overlay);
+  if (typeof coAttachMaterialsSection === 'function') coAttachMaterialsSection(session);
+}
+
+function rqClosePushedPopup() {
+  var el = document.getElementById('rq-pushed-popup');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  // Dismissing without hitting "Subtract Materials" abandons any staged
+  // close-out rows rather than leaving them to bleed into the next popup.
+  if (typeof coDiscardStaged === 'function') coDiscardStaged();
 }
 
 // ── Session edit: add missing item(s) ──────────────────────────────────────────
