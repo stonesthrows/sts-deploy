@@ -89,77 +89,53 @@ function rqCancelEditSession(store) {
 function rqOpenPushPanel(store, i)  { _rqPushingSession[store] = i; _rqEditingSession[store] = null; _rqStoreRender(store); }
 function rqClosePushPanel(store)    { _rqPushingSession[store] = null; _rqStoreRender(store); }
 
-// ── Post-timer inventory prompt ─────────────────────────────────────────────
-// The Session Log section (the old home of the ↑ Square push button) was
-// removed from jewelry-workflow.html on 2026-06-23 (8df2c5c), which left no
-// surface offering the inventory push after a timer stopped. This modal fills
-// that gap: rqStopTimer opens it whenever the finished session has
-// Square-linked pieces, and Confirm drives the existing rqConfirmPush flow
-// against the session's live index in _rqSessions.
+// ── Inventory push ──────────────────────────────────────────────────────────
+// Stopping a timer means the pieces are finished, so the restocked quantities
+// go straight into Square inventory — no confirmation step. rqStopTimer calls
+// rqAutoPushInventory as soon as the session is logged; the Session Log's
+// "↑ Square" button (rqOpenPushPanel → rqConfirmPush) stays as the manual
+// retry for a session whose automatic push failed, or one restored from
+// Notion that was never pushed. Both routes funnel through
+// _rqPushSessionInventory so the adjustment, the idempotency key and the
+// Notion pushedToSquare flag can only be written one way.
 
-var _rqPushPromptSession = null;
-
-function rqShowPushPrompt(session) {
-  rqClosePushPrompt();
-  var rows = (session.items || []).map(function(it) {
-    var safeLabel = (it.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    var pushable  = it.squareId && !it.isCustom && it.pieces > 0;
-    return '<div class="rq-push-item">'
-      + '<span class="rq-push-item-name">' + safeLabel + '</span>'
-      + (it.pieces != null ? '<span class="rq-push-item-qty">' + it.pieces + ' pc' + (it.pieces !== 1 ? 's' : '') + '</span>' : '')
-      + (pushable ? '<span class="rq-push-item-ok">✓</span>' : '<span class="rq-no-sq">no Square match</span>')
-      + '</div>';
-  }).join('');
-  var overlay = document.createElement('div');
-  overlay.id = 'rq-push-prompt';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
-  overlay.innerHTML =
-      '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
-    + '<div style="font-weight:700;margin-bottom:8px;">Add restocked pieces to inventory?</div>'
-    + rows
-    + '<div style="display:flex;gap:8px;margin-top:10px;">'
-    + '<button class="rq-start-confirm-btn" onclick="rqConfirmPromptPush()">↑ Add to Square</button>'
-    + '<button class="rq-setup-cancel-btn" onclick="rqClosePushPrompt()">Not Now</button>'
-    + '</div></div>';
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) rqClosePushPrompt(); });
-  document.body.appendChild(overlay);
-  _rqPushPromptSession = session;
-  // Phase 5 close-out: append the BOM-computed "Materials used" section
-  if (typeof coAttachToPushPrompt === 'function') coAttachToPushPrompt(session);
+function _rqPushableItems(session) {
+  return ((session && session.items) || []).filter(function(it) {
+    return it.squareId && !it.isCustom && it.pieces > 0;
+  });
 }
 
-function rqClosePushPrompt() {
-  var el = document.getElementById('rq-push-prompt');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
-  _rqPushPromptSession = null;
+// Stable per-session key so the same session can never be added twice: the
+// automatic push fires before the Notion page id is known on a session whose
+// page had to be created at stop time, and a manual retry after a reload runs
+// with that id in hand. Keying off startTime (present on both the live
+// session and the one rebuilt by rqLoadSessions) keeps the two identical, so
+// Square collapses a retry of a push that actually landed.
+function _rqPushKey(session) {
+  return 'rq-push-' + (session.startTime || session.notionPageId || Date.now());
 }
 
-function rqConfirmPromptPush() {
-  // Resolve the index at click time — another stopped timer may have
-  // unshifted more sessions in front since this prompt opened.
-  var session = _rqPushPromptSession;
-  var i = session ? _rqSessions.indexOf(session) : -1;
-  if (i === -1) { rqClosePushPrompt(); return; }
-  rqConfirmPush('log', i);
+function _rqMarkPushedInNotion(session) {
+  if (!session.notionPageId) return;
+  fetch('/api/notion-timesession', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pageId: session.notionPageId, pushedToSquare: true }),
+  }).catch(function() {});
 }
 
-function rqConfirmPush(store, i) {
-  var s = _rqStoreList(store)[i]; if (!s) return;
-  var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
-  var confirmLabel = confirmBtn ? confirmBtn.textContent : 'Confirm Push';
-  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
+// Posts the session's restocked pieces as Square inventory adjustments.
+// Resolves with the number of pieces added; rejects on a Square error or a
+// session with nothing linked to push.
+function _rqPushSessionInventory(session) {
+  var pushItems = _rqPushableItems(session);
+  if (!pushItems.length) return Promise.reject(new Error('no-square-items'));
   // Single source of truth for the Square location — same constant used by
-  // the inventory-count fetch below and by js/inventory.js. This used to be
-  // a per-browser override (localStorage['sts-square-location']) that
-  // defaulted to the same value today but could silently diverge per device.
+  // the inventory-count fetch and by js/inventory.js. This used to be a
+  // per-browser override (localStorage['sts-square-location']) that defaulted
+  // to the same value today but could silently diverge per device.
   var loc = INV_LOCATION_ID;
-  var pushItems = (s.items || []).filter(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; });
-  if (!pushItems.length) {
-    toast('No Square items to push', '⚠');
-    _rqPushingSession[store] = null;
-    _rqStoreRender(store);
-    return;
-  }
+  var occurredAt = new Date().toISOString();
   var changes = pushItems.map(function(it) {
     return {
       type: 'ADJUSTMENT',
@@ -169,34 +145,98 @@ function rqConfirmPush(store, i) {
         quantity:          String(it.pieces),
         from_state:        'NONE',
         to_state:          'IN_STOCK',
-        occurred_at:       new Date().toISOString(),
+        occurred_at:       occurredAt,
       },
     };
   });
-  _rqSqCall('/inventory/changes/batch-create', {
+  return _rqSqCall('/inventory/changes/batch-create', {
     method: 'POST',
-    body: { changes: changes, idempotency_key: 'rq-push-' + (s.notionPageId || Date.now()) },
+    body: { changes: changes, idempotency_key: _rqPushKey(session) },
   }).then(function(data) {
     if (data.errors && data.errors.length) throw new Error(data.errors[0].detail || 'Square error');
-    s.pushed = true;
+    session.pushed = true;
+    _rqMarkPushedInNotion(session);
+    return pushItems.reduce(function(n, it) { return n + it.pieces; }, 0);
+  });
+}
+
+// Called by rqStopTimer once the finished session is in the log. Silent when
+// nothing in the session is Square-linked — a custom-only session has no
+// inventory to move.
+function rqAutoPushInventory(session) {
+  if (!session || session.pushed || !_rqPushableItems(session).length) return;
+  _rqPushSessionInventory(session).then(function(pcs) {
+    rqRenderSessions();
+    rqShowPushedPopup(session, pcs);
+  }).catch(function() {
+    // Leave session.pushed false so the Session Log keeps offering ↑ Square.
+    rqRenderSessions();
+    toast('Inventory update failed — retry with ↑ Square in the Session Log', '⚠');
+  });
+}
+
+// Manual push from the Session Log panel (retry / older unpushed session).
+function rqConfirmPush(store, i) {
+  var s = _rqStoreList(store)[i]; if (!s) return;
+  var confirmBtn = document.querySelector('.rq-push-panel .rq-start-confirm-btn');
+  var confirmLabel = confirmBtn ? confirmBtn.textContent : 'Confirm Push';
+  if (!_rqPushableItems(s).length) {
+    toast('No Square items to push', '⚠');
     _rqPushingSession[store] = null;
     _rqStoreRender(store);
-    // Phase 5 close-out: after a successful push from the post-timer prompt,
-    // decrement the staged material consumption (no-op from other panels)
-    if (typeof coApplyFromPrompt === 'function' && document.getElementById('co-section')) coApplyFromPrompt();
-    rqClosePushPrompt();
-    toast('Pushed to Square ✓', '✓');
-    if (s.notionPageId) {
-      fetch('/api/notion-timesession', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageId: s.notionPageId, pushedToSquare: true }),
-      }).catch(function() {});
-    }
+    return;
+  }
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Pushing…'; }
+  _rqPushSessionInventory(s).then(function(pcs) {
+    _rqPushingSession[store] = null;
+    _rqStoreRender(store);
+    rqShowPushedPopup(s, pcs);
   }).catch(function() {
     toast('Square push failed', '⚠');
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = confirmLabel; }
   });
+}
+
+// ── Post-push confirmation popup ────────────────────────────────────────────
+// A toast alone is easy to miss — it's a corner notification that clears
+// itself in 3.2s regardless of whether anyone saw it, and an inventory add
+// is exactly the kind of thing that shouldn't be easy to miss. This modal
+// stays until dismissed and lists what actually got added. It also hosts the
+// Phase 5 close-out "Materials used" section (see coAttachMaterialsSection in
+// closeout.js) when the pushed session's designs have a BOM to decrement.
+
+function rqShowPushedPopup(session, pcs) {
+  rqClosePushedPopup();
+  var rows = _rqPushableItems(session).map(function(it) {
+    var safeLabel = (it.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return '<div class="rq-push-item">'
+      + '<span class="rq-push-item-name">' + safeLabel + '</span>'
+      + '<span class="rq-push-item-qty">' + it.pieces + ' pc' + (it.pieces !== 1 ? 's' : '') + '</span>'
+      + '<span class="rq-push-item-ok">✓</span>'
+      + '</div>';
+  }).join('');
+  var overlay = document.createElement('div');
+  overlay.id = 'rq-pushed-popup';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML =
+      '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
+    + '<div style="font-weight:700;margin-bottom:8px;">Added ' + pcs + ' pc' + (pcs !== 1 ? 's' : '') + ' to inventory ✓</div>'
+    + rows
+    + '<div id="co-section"></div>'
+    + '<div id="rq-pushed-actions" style="display:flex;gap:8px;margin-top:10px;">'
+    + '<button class="rq-start-confirm-btn" onclick="rqClosePushedPopup()">OK</button>'
+    + '</div></div>';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) rqClosePushedPopup(); });
+  document.body.appendChild(overlay);
+  if (typeof coAttachMaterialsSection === 'function') coAttachMaterialsSection(session);
+}
+
+function rqClosePushedPopup() {
+  var el = document.getElementById('rq-pushed-popup');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  // Dismissing without hitting "Subtract Materials" abandons any staged
+  // close-out rows rather than leaving them to bleed into the next popup.
+  if (typeof coDiscardStaged === 'function') coDiscardStaged();
 }
 
 // ── Session edit: add missing item(s) ──────────────────────────────────────────

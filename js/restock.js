@@ -2216,11 +2216,11 @@ function rqStopTimer(pid) {
   // Stopping the timer means the work is done — clear the card from the
   // queue instead of leaving it for a manual × removal.
   _rqDeleteItemByPid(pid);
-  // Prompt right away to add the restocked pieces to Square inventory —
-  // skipped when nothing in the session is Square-linked.
-  if (expandedItems.some(function(it) { return it.squareId && !it.isCustom && it.pieces > 0; })) {
-    rqShowPushPrompt(session);
-  }
+  // Stopping the timer means the pieces exist — add them to Square inventory
+  // straight away rather than waiting on a confirmation the user could miss.
+  // No-op when nothing in the session is Square-linked; a failed push leaves
+  // the Session Log's ↑ Square button as the retry.
+  rqAutoPushInventory(session);
   if (!session.notionPageId) {
     // The Notion page create at timer start failed (offline, Notion hiccup) —
     // create the page now instead of silently marking the session "Saved"
@@ -2250,6 +2250,10 @@ function rqStopTimer(pid) {
       .then(function(res) {
         session.notionPageId = (res.data && res.data.notionPageId) || null;
         session.saved = !!session.notionPageId;
+        // The automatic inventory push runs before this page exists, so its
+        // own pushedToSquare PATCH had no page to write to — record it now,
+        // or a reload would offer ↑ Square on an already-pushed session.
+        if (session.pushed) _rqMarkPushedInNotion(session);
         session.error = session.saved ? null : 'Notion error';
         rqRenderSessions();
         toast(session.saved ? 'Session saved ✓' : 'Notion save failed', session.saved ? '✓' : '⚠');
