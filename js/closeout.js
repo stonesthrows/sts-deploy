@@ -1,13 +1,15 @@
 // ════════════════════════════════════════════
 //  BATCH CLOSE-OUT  —  js/closeout.js
 //  Phase 5 of the costing/inventory build.
-//  Extends the post-timer "Add restocked pieces to inventory?" prompt
-//  (rqShowPushPrompt / rqConfirmPush in restock-sessions.js) with a
-//  "Materials used" section: consumption computed from each finished
-//  item's design BOM (metals include waste), editable for reality
-//  (broken stone, extra scrap), decremented from the Materials Library
-//  after the Square push succeeds. Items whose design has no BOM are
-//  flagged "not weighed" and never block the push.
+//  The "Materials used" review that follows a restock inventory push:
+//  consumption computed from each finished item's design BOM (metals
+//  include waste), editable for reality (broken stone, extra scrap),
+//  decremented from the Materials Library on confirm. Items whose design
+//  has no BOM are flagged "not weighed".
+//  The pieces themselves are added to Square inventory automatically when
+//  the timer is stopped (rqAutoPushInventory in restock-sessions.js) — this
+//  prompt opens afterwards and only ever touches material stock, so
+//  skipping it can never cost the inventory add.
 //  Loaded ONLY by jewelry-workflow.html, after restock-sessions.js.
 // ════════════════════════════════════════════
 
@@ -48,23 +50,47 @@ function _coWastePct(m, overridePct) {
   return typeof s.wasteDefaultPct === 'number' ? s.wasteDefaultPct : 0;
 }
 
-// Hook: called by rqShowPushPrompt right after the prompt overlay opens.
-function coAttachToPushPrompt(session) {
+// Hook: called by rqAutoPushInventory / rqConfirmPush once the pieces are in
+// Square inventory. Opens the materials review for the finished session —
+// but ONLY when there is stock to subtract. A session whose designs carry no
+// BOM has nothing to confirm, and popping a modal just to say so would put
+// back the dismiss-this-box step that stopping a timer is meant to be free
+// of; the "not weighed" note rides inside the prompt when one does open.
+function coShowMaterialsPrompt(session) {
+  coCloseMaterialsPrompt();
   _coRows = null;
   _coUnweighed = null;
-  var panel = document.querySelector('#rq-push-prompt .rq-push-panel');
-  if (!panel) return;
-  var host = document.createElement('div');
-  host.id = 'co-section';
-  host.innerHTML = '<div class="co-note">Loading material recipes…</div>';
-  panel.insertBefore(host, panel.lastElementChild); // above the button row
   _coLoadData().then(function() {
-    // The prompt may have been closed (or reopened for another session)
-    // while data loaded — only render into the host we created.
-    if (!document.getElementById('co-section')) return;
     _coCompute(session);
+    if (!(_coRows && _coRows.length)) { _coRows = null; _coUnweighed = null; return; }
+    var overlay = document.createElement('div');
+    overlay.id = 'co-prompt';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML =
+        '<div class="rq-push-panel" style="max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
+      + '<div style="font-weight:700;margin-bottom:8px;">Pieces added to inventory ✓</div>'
+      + '<div id="co-section"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:10px;">'
+      + '<button class="rq-start-confirm-btn" onclick="coConfirmMaterials()">Subtract Materials</button>'
+      + '<button class="rq-setup-cancel-btn" onclick="coCloseMaterialsPrompt()">Not Now</button>'
+      + '</div></div>';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) coCloseMaterialsPrompt(); });
+    document.body.appendChild(overlay);
     _coRender();
-  });
+  }).catch(function() { _coRows = null; _coUnweighed = null; });
+}
+
+function coCloseMaterialsPrompt() {
+  var el = document.getElementById('co-prompt');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  _coRows = null;
+  _coUnweighed = null;
+}
+
+function coConfirmMaterials() {
+  coApplyStaged();
+  var el = document.getElementById('co-prompt');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
 function _coCompute(session) {
@@ -132,9 +158,9 @@ function coQtyInput(el) {
   if (_coRows && _coRows[i]) _coRows[i].qty = isNaN(v) ? 0 : v;
 }
 
-// Hook: called by rqConfirmPush after a successful Square push while the
-// post-timer prompt is open. Decrements staged material quantities.
-function coApplyFromPrompt() {
+// Decrements the staged material quantities from the Materials Library.
+// Clears the staged rows first so a second confirm can't double-subtract.
+function coApplyStaged() {
   var rows = (_coRows || []).filter(function(r) { return r.qty > 0; });
   _coRows = null;
   _coUnweighed = null;
