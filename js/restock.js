@@ -1208,8 +1208,21 @@ function _rqSessionSpan(t, stopMs) {
   // total is reframed as wall clock.
   var pausedMs = (t.pausedMs || 0) + (t.pausedAt ? Math.max(0, stopMs - t.pausedAt) : 0);
   pausedMs = Math.min(pausedMs, wallMs);
-  var dedMs = _rqApplyBreak(wallMs, pausedMs);
-  return { wallMs: wallMs, pausedMs: pausedMs, dedMs: dedMs, netMs: Math.max(0, wallMs - dedMs) };
+  // Off-bench time is everything the segments don't cover — clock-outs and
+  // hand-pauses unioned exactly, since segmentsFor cut them against each other
+  // rather than totalling them separately. Falls back to the pause aggregate
+  // alone when there are no segments (non-punching assignee, or Square
+  // unreachable), which is what this recorded before.
+  //
+  // Written into 'Clocked-Out Deducted (min)', which /api/square-sync treats as
+  // a floor on its own recomputation. That is what keeps the union: the sweep
+  // sees only Square's clock-outs, never a pause taken while clocked in, so
+  // without the floor its next pass would hand those minutes back.
+  var offBenchMs = pausedMs;
+  if (_rqHasSegs(t)) offBenchMs = Math.max(offBenchMs, Math.max(0, wallMs - _rqSegBenchMsAt(t, stopMs)));
+  offBenchMs = Math.min(offBenchMs, wallMs);
+  var dedMs = _rqApplyBreak(wallMs, offBenchMs);
+  return { wallMs: wallMs, pausedMs: offBenchMs, dedMs: dedMs, netMs: Math.max(0, wallMs - dedMs) };
 }
 
 // A timer still running from a previous day — or for more than half a day — is
@@ -1247,6 +1260,164 @@ function _rqStaleBannerHtml(t) {
        + ' — check the time before saving</div>';
 }
 
+// ── Bench segments on the running bar ───────────────────────────────────────
+//
+// The bar used to read "started 9:14 AM — 27h 12m", which is wall clock: a job
+// carried across a lunch and a night showed every off-bench hour in the pill,
+// while the save recorded seven. The number on screen and the number in the
+// Production Report disagreed by a factor of four and neither was wrong.
+//
+// It now shows the spans that actually count — clocked in, not hand-paused —
+// and totals those. Those spans come from Square's shift HISTORY, re-read on
+// each repaint, not from a poll watching for punches as they happen. That
+// distinction is the whole reason this can exist: a poll only runs in an open,
+// awake tab, so an iPad asleep through lunch misses the clock-out and the
+// clock-in both, and the earlier automation built on one had to be removed.
+// Re-reading history has no such hole — waking the tab redraws the full span
+// correctly however long it was asleep.
+//
+// Nothing here can end a session. The bar is a readout; only Stop & Save
+// finalises, which is what makes a wrong or stale segment list a cosmetic
+// problem that the next fetch fixes.
+
+var _RQ_SEG_REFETCH_MS = 60000;   // don't re-hit Square more than once a minute per timer
+var _rqSegExpanded = {};          // pid -> true when the operator opened a long history
+
+// Fetch (and cache on the timer) the bench segments for one running timer.
+// Failure is deliberately silent and leaves t.segs untouched: with no segments
+// the bar falls back to the plain elapsed readout, which is exactly what a
+// non-punching assignee gets, so an outage degrades to the old display rather
+// than an error state on a card somebody is trying to work from.
+function _rqFetchSegments(pid, force) {
+  var t = _rqTimers[pid];
+  if (!t || !t.employee || !t.employee.name) return;
+  var now = Date.now();
+  if (t.segsInFlight) return;
+  if (!force && t.segsAt && (now - t.segsAt) < _RQ_SEG_REFETCH_MS) return;
+  t.segsInFlight = true;
+  fetch('/api/square-sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'segments',
+      employee: t.employee.name,
+      startTime: new Date(t.startTime).toISOString(),
+      // Send the pause spans rather than letting the server guess: it has no
+      // view of a pause somebody took while still clocked in.
+      pauses: (t.pauses || []).map(function(p) { return { from: p.from, to: p.to }; })
+    })
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) {
+      t.segsInFlight = false;
+      // Stamp the attempt, not just the success. The tick calls this every
+      // second, so leaving segsAt unset on a failure would turn a Square
+      // outage into one request per second per running timer — the rate limit
+      // has to cover the failing case or it only works when nothing is wrong.
+      t.segsAt = Date.now();
+      if (!d || d.error) return;
+      var was = JSON.stringify(t.segs || null);
+      t.segs = d;
+      // Repaint only on a real change. The fetch runs on a poll, and an
+      // unconditional render would rebuild the notes textarea underneath
+      // anyone typing in it (the same reason _rqPaintPauseState exists).
+      if (JSON.stringify(d) !== was) restockQueueRender();
+    })
+    .catch(function() { t.segsInFlight = false; t.segsAt = Date.now(); });
+}
+
+// True when we have a usable segment view for this timer — i.e. the assignee
+// punches in Square and the fetch has landed. Kyle and anyone Square doesn't
+// know return punches:false, and every caller falls back from here.
+function _rqHasSegs(t) {
+  return !!(t && t.segs && t.segs.punches && Array.isArray(t.segs.segments));
+}
+
+// Bench milliseconds as of atMs, from the cached segments.
+//
+// The cache was built at segs.asOf, so a still-open tail has to be carried
+// forward to atMs by hand — otherwise the total would freeze between the
+// once-a-minute fetches and tick backwards relative to the clock. Only the tail
+// is extrapolated, and only while Square says the shift is still open and no
+// pause is currently running; every closed segment is used exactly as returned.
+function _rqSegBenchMsAt(t, atMs) {
+  var d = t.segs, total = 0;
+  d.segments.forEach(function(s) { total += Math.max(0, s.to - s.from); });
+  var last = d.segments[d.segments.length - 1];
+  if (d.openEnd && !t.pausedAt && last && last.to >= (d.asOf - 1000) && atMs > last.to) {
+    total += (atMs - last.to);
+  }
+  // A timer already running when spans shipped has pause MINUTES but no
+  // timestamps, so the segments above could not be cut around them. Take the
+  // aggregate off the total instead: the list can't show those gaps in the
+  // right place, but the number stays honest, and it matches what the save
+  // records for the same timer. Timers with spans skip this — subtracting
+  // there would deduct the same pause twice.
+  if (!Array.isArray(t.pauses) && (t.pausedMs || 0) > 0) total -= t.pausedMs;
+  return Math.max(0, total);
+}
+
+function _rqSegDayLbl(ms) {
+  return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// Is this segment the one still accruing right now?
+function _rqSegIsLive(t, s, i) {
+  return t.segs.openEnd && !t.pausedAt && i === t.segs.segments.length - 1
+      && s.to >= (t.segs.asOf - 1000);
+}
+
+// Long histories collapse to the last few with a toggle — a job carried across
+// a week is a dozen rows, which buries the Stop button below the fold on the
+// iPad this is mostly used from.
+var _RQ_SEG_COLLAPSE_TO = 3;
+
+function _rqSegmentsHtml(pid, t) {
+  var segs = t.segs.segments;
+  if (!segs.length) {
+    // Punches in Square, but wasn't clocked in for any of this timer's span —
+    // a timer started before the shift, or one left running while off the clock.
+    return '<div class="rq-seg-list"><div class="rq-seg-none">Not clocked in for any of this span — no bench time counted yet</div></div>';
+  }
+
+  var expanded = !!_rqSegExpanded[pid];
+  var hidden = expanded ? 0 : Math.max(0, segs.length - _RQ_SEG_COLLAPSE_TO);
+  var shown = hidden ? segs.slice(hidden) : segs;
+
+  var rows = '', prevDay = null;
+  // When rows are hidden the first visible day label can't be inferred from
+  // what came before it, so seed the comparison from the last hidden segment.
+  if (hidden) prevDay = _rqSegDayLbl(segs[hidden - 1].from);
+
+  shown.forEach(function(s, i) {
+    var idx = hidden + i;
+    var day = _rqSegDayLbl(s.from);
+    var live = _rqSegIsLive(t, s, idx);
+    var endLbl = live ? '<span class="rq-seg-live">running</span>' : _rqFmtTime(s.to);
+    var dur = _rqFmtElapsed(Math.max(0, (live ? Date.now() : s.to) - s.from));
+    rows += '<div class="rq-seg-row' + (live ? ' rq-seg-row-live' : '') + '">'
+          + '<span class="rq-seg-day">' + (day === prevDay ? '' : day) + '</span>'
+          + '<span class="rq-seg-span">' + _rqFmtTime(s.from) + ' &ndash; ' + endLbl + '</span>'
+          + '<span class="rq-seg-dur"' + (live ? ' id="rq-segdur-' + pid + '"' : '') + '>' + dur + '</span>'
+          + '</div>';
+    prevDay = day;
+  });
+
+  var toggle = '';
+  if (hidden) {
+    toggle = '<button class="rq-seg-more" onclick="rqToggleSegments(&quot;' + pid + '&quot;)">'
+           + '+ ' + hidden + ' earlier ' + (hidden === 1 ? 'stretch' : 'stretches') + '</button>';
+  } else if (expanded && segs.length > _RQ_SEG_COLLAPSE_TO) {
+    toggle = '<button class="rq-seg-more" onclick="rqToggleSegments(&quot;' + pid + '&quot;)">&ndash; show less</button>';
+  }
+
+  return '<div class="rq-seg-list">' + toggle + rows + '</div>';
+}
+
+function rqToggleSegments(pid) {
+  _rqSegExpanded[pid] = !_rqSegExpanded[pid];
+  restockQueueRender();
+}
+
 // Stable per-browser id, so a device can tell which shared timers are ITS OWN
 // (safe to re-assert) versus ones it merely received from another device
 // (must never be re-pushed, or a stale zombie gets resurrected).
@@ -1268,6 +1439,11 @@ function _rqTimerPayload(pid) {
     itemText: t.itemText, items: t.items || null, richMatch: t.richMatch || null,
     deviceId: t.deviceId || null,
     pausedAt: t.pausedAt || null, pausedMs: t.pausedMs || 0,
+    // Exact pause spans, not just the total. The bar draws them as gaps, and
+    // the save unions them with the Square clock-outs instead of comparing two
+    // aggregates (see segmentsFor in functions/api/square-sync.js). null on
+    // timers started before this shipped, which falls back to pausedMs alone.
+    pauses: t.pauses || null,
     // Carried, not set: only entries written before the Square automation was
     // removed have it, and they must keep round-tripping so the card explains
     // itself on every device rather than silently resuming.
@@ -1365,7 +1541,7 @@ function _rqRestoreTimers() {
     Object.keys(saved).forEach(function(pid) {
       var s = saved[pid];
       if (_rqTimers[pid]) return;
-      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
+      _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, pauses: Array.isArray(s.pauses) ? s.pauses : null, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
       _rqStartTick(pid);
     });
   } catch (e) {}
@@ -1467,7 +1643,7 @@ function _rqReconcileTimers() {
         var s = serverState[pid];
         if (s.closed) return;       // finished by the server sweep, handled above
         if (_rqWasStopped(pid, s.startTime)) { _rqUnpersistTimer(pid); return; }
-        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
+        _rqTimers[pid] = { startTime: s.startTime, employee: s.employee, sessionNotionPageId: s.sessionNotionPageId, itemText: s.itemText, items: s.items || null, richMatch: s.richMatch || null, deviceId: s.deviceId || null, pausedAt: s.pausedAt || null, pausedMs: s.pausedMs || 0, pauses: Array.isArray(s.pauses) ? s.pauses : null, autoSaveHeld: !!s.autoSaveHeld, notes: '', tickInterval: null };
         _rqStartTick(pid);
         changed = true;
       });
@@ -1484,6 +1660,7 @@ function _rqReconcileTimers() {
             || s.sessionNotionPageId !== t.sessionNotionPageId || s.itemText !== t.itemText
             || s.startTime !== t.startTime
             || (s.pausedAt || null) !== (t.pausedAt || null) || (s.pausedMs || 0) !== (t.pausedMs || 0)
+            || JSON.stringify(s.pauses || null) !== JSON.stringify(t.pauses || null)
             || !!s.autoSaveHeld !== !!t.autoSaveHeld) {
           t.items = s.items || null;
           t.richMatch = s.richMatch || null;
@@ -1491,8 +1668,10 @@ function _rqReconcileTimers() {
           t.itemText = s.itemText;
           t.employee = s.employee;
           t.startTime = s.startTime;
+          t.segs = null; t.segsAt = 0;
           t.pausedAt = s.pausedAt || null;
           t.pausedMs = s.pausedMs || 0;
+          t.pauses = Array.isArray(s.pauses) ? s.pauses : null;
           t.autoSaveHeld = !!s.autoSaveHeld;
           changed = true;
         }
@@ -1511,6 +1690,14 @@ var _rqReconcilePoll = null;
 function _rqStartReconcilePoll() {
   if (_rqReconcilePoll) return;
   _rqReconcilePoll = setInterval(_rqReconcileTimers, 25000);
+  // A tab coming back from sleep is exactly when the cached punch history is
+  // most likely to be stale — and a whole shift may have been missed, not a
+  // beat. Force past the rate limit, since the wake is the signal.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') return;
+    _rqReconcileTimers();
+    Object.keys(_rqTimers).forEach(function(pid) { _rqFetchSegments(pid, true); });
+  });
 
 }
 
@@ -1519,6 +1706,15 @@ function _rqStartReconcilePoll() {
 // pushed past the pause moment can't render a negative elapsed.
 function _rqElapsedMs(t) {
   return Math.max(0, (t.pausedAt || Date.now()) - t.startTime - (t.pausedMs || 0));
+}
+
+// The number in the pill. Bench time once Square can tell us which stretches
+// the assignee was actually clocked in for, and plain elapsed otherwise — a
+// non-punching assignee, a fetch that hasn't landed, or Square being down.
+// Those fall back to exactly what the bar showed before segments existed.
+function _rqTimerShownMs(t) {
+  if (_rqHasSegs(t)) return _rqSegBenchMsAt(t, t.pausedAt || Date.now());
+  return _rqElapsedMs(t);
 }
 
 // One tick per running timer, repainting the elapsed pill every second. The
@@ -1531,7 +1727,19 @@ function _rqStartTick(pid) {
   clearInterval(t.tickInterval);
   var paint = function() {
     var el = document.getElementById('rq-elapsed-' + pid);
-    if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
+    if (el) el.textContent = _rqFmtElapsed(_rqTimerShownMs(t));
+    // The open stretch's own duration, repainted in place for the same reason
+    // the pill is: a full render would rebuild the notes textarea under anyone
+    // typing in it.
+    var sd = document.getElementById('rq-segdur-' + pid);
+    if (sd && _rqHasSegs(t)) {
+      var lastSeg = t.segs.segments[t.segs.segments.length - 1];
+      if (lastSeg) sd.textContent = _rqFmtElapsed(Math.max(0, Date.now() - lastSeg.from));
+    }
+    // Re-read the punch history on the same beat. Rate-limited inside to one
+    // Square call a minute per timer, and it is what makes an iPad that slept
+    // through lunch redraw correctly the moment it wakes.
+    _rqFetchSegments(pid);
   };
   paint();
   t.tickInterval = setInterval(paint, 1000);
@@ -1734,7 +1942,11 @@ function restockQueueRender() {
     var timerPanel = '';
     if (isRunning) {
       var isPaused = !!timer.pausedAt;
-      var elapsed = _rqFmtElapsed(_rqElapsedMs(timer));
+      var hasSegs = _rqHasSegs(timer);
+      // Keep the cached segments warm while the card is on screen. Cheap: the
+      // fetch rate-limits itself to once a minute per timer.
+      _rqFetchSegments(safePid);
+      var elapsed = _rqFmtElapsed(_rqTimerShownMs(timer));
       var startLbl = _rqFmtTime(timer.startTime);
       var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
       timerPanel = '<div class="rq-timer-panel">'
@@ -1743,11 +1955,13 @@ function restockQueueRender() {
         + '<span class="rq-timer-dot' + (isPaused ? ' rq-dot-paused' : '') + '" id="rq-dot-' + safePid + '"></span>'
         + '<span class="rq-timer-emp">' + (timer.employee.name || '') + '</span>'
         + (itemLbl ? '<span class="rq-timer-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemLbl.replace(/</g,'&lt;') + '</span>' : '')
-        + '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>'
+        + (hasSegs ? '<span class="rq-timer-meta">bench</span>'
+                   : '<span class="rq-timer-meta">started <span id="rq-startlbl-' + safePid + '">' + startLbl + '</span></span>')
         + '<span class="rq-timer-elapsed" id="rq-elapsed-' + safePid + '">' + elapsed + '</span>'
         + '<button class="rq-pause-btn" onclick="rqTogglePauseTimer(\'' + safePid + '\')" id="rq-pause-' + safePid + '">' + (isPaused ? 'Resume' : 'Pause') + '</button>'
         + '<button class="rq-stop-btn" onclick="rqStopTimer(\'' + safePid + '\')" id="rq-stop-' + safePid + '">Stop &amp; Save</button>'
         + '</div>'
+        + (hasSegs ? _rqSegmentsHtml(safePid, timer) : '')
         + _rqTimerSizesHtml(safePid, timer.richMatch || match)
         + _rqTimerPiecesInputsHtml(safePid, timer)
         + _rqChainLineHtml(safePid, timer)
@@ -2112,19 +2326,39 @@ function _rqPaintPauseState(pid) {
   var dot = document.getElementById('rq-dot-' + pid);
   if (dot) dot.classList.toggle('rq-dot-paused', !!t.pausedAt);
   var el = document.getElementById('rq-elapsed-' + pid);
-  if (el) el.textContent = _rqFmtElapsed(_rqElapsedMs(t));
+  if (el) el.textContent = _rqFmtElapsed(_rqTimerShownMs(t));
+  // A pause boundary re-cuts the stretches, and the server owns that split (it
+  // holds the shift history they are cut against), so re-ask rather than trying
+  // to patch the cached list here.
+  _rqFetchSegments(pid, true);
 }
 
 // Pause freezes the elapsed clock (open span recorded in pausedAt); resume
 // folds that span into pausedMs.
+//
+// The span is ALSO appended to t.pauses with both endpoints. pausedMs is an
+// aggregate and can only ever be compared against the clocked-out total, which
+// double-billed a lunch that was both paused and punched out and missed a pause
+// taken while still clocked in. Keeping the endpoints lets the save union the
+// two exactly, and lets the bar draw the pause as a gap where it actually fell.
+// pausedMs stays maintained alongside: it is what _rqElapsedMs reads, what
+// crosses to devices running the old code, and the fallback for timers whose
+// spans predate this.
 function rqTogglePauseTimer(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
+  var now = Date.now();
   if (t.pausedAt) {
-    t.pausedMs = (t.pausedMs || 0) + (Date.now() - t.pausedAt);
+    t.pausedMs = (t.pausedMs || 0) + (now - t.pausedAt);
+    // Close the open span. Guarded rather than assumed: a timer adopted from a
+    // device on the old code arrives with pausedAt set and no span to close,
+    // and inventing one backdated to the adopt would deduct time twice.
+    var open = (t.pauses || []).filter(function(p) { return p.to == null; }).pop();
+    if (open) open.to = now;
     t.pausedAt = null;
   } else {
-    t.pausedAt = Date.now();
+    t.pausedAt = now;
+    t.pauses = (t.pauses || []).concat([{ from: now, to: null }]);
   }
   _rqPersistTimer(pid);
   _rqPaintPauseState(pid);
@@ -2344,6 +2578,8 @@ function rqApplyAdjustStart(pid) {
   var t = _rqTimers[pid];
   if (!t) return;
   t.startTime = d.getTime();
+  t.segs = null; t.segsAt = 0;
+  _rqFetchSegments(pid, true);
   _rqPersistTimer(pid);
   if (t.sessionNotionPageId) {
     fetch('/api/notion-timesession', {
