@@ -2908,6 +2908,12 @@ function _rqModifierSuffix(item) {
 // renamed. That is deliberate: an empty label groups exactly the way the report
 // grouped before labels existed, so this cannot quietly re-shape anyone's
 // history - only listings that were deliberately named apart split apart.
+// The Restock Queue listing's current title, by page id.
+function _rqListingTitleFor(pid) {
+  var item = NOTES_DATA.filter(function(n) { return n.notionPageId === pid; })[0];
+  return item ? _rqShortName(item.text || '') : '';
+}
+
 function _rqListingLabel(t) {
   if (!t) return '';
   var label = (t.itemText || '').trim();
@@ -3026,7 +3032,13 @@ function rqStartTimerConfirm(pid) {
     startTime: startTimeMs,
     employee: { name: assigneeName, id: '' },
     sessionNotionPageId: null,
-    itemText: primaryItem.name || '',
+    // The LISTING's title, not the Square item's name. Stamping the Square name
+    // here meant a rename only ever reached a session if the timer was already
+    // running when it happened - rename first, then start, which is the order
+    // anyone would actually use, produced a label identical to the Square name
+    // and therefore no label at all. Falls back to the Square name for a listing
+    // whose title cannot be read, which is what this always used.
+    itemText: _rqListingTitleFor(pid) || primaryItem.name || '',
     items: items,
     richMatch: richMatch,
     deviceId: _rqDeviceId(),
