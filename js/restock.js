@@ -2333,8 +2333,13 @@ function _rqUpdateChainLine(pid) {
 // "Items JSON" snapshot stays small and canonical.
 function _rqItemsForJson(items) {
   return (items || []).map(function(it) {
-    return { name: it.name || '', squareId: it.squareId || '', pieces: it.pieces != null ? it.pieces : null,
-             isCustom: !!it.isCustom, unitPrice: it.unitPrice != null ? it.unitPrice : null };
+    var out = { name: it.name || '', squareId: it.squareId || '', pieces: it.pieces != null ? it.pieces : null,
+                isCustom: !!it.isCustom, unitPrice: it.unitPrice != null ? it.unitPrice : null };
+    // Only written when there is one. Items JSON is a free-form blob in a Notion
+    // rich_text property, so an absent key costs nothing and every session saved
+    // before labels existed keeps parsing exactly as it did.
+    if (it.label) out.label = it.label;
+    return out;
   });
 }
 
@@ -2443,8 +2448,12 @@ function rqStopTimer(pid) {
   var chainInfo = _rqChainInfoFor(t);
   if (chainInfo) notes = notes ? notes + '\n' + _rqChainNoteText(chainInfo) : _rqChainNoteText(chainInfo);
   var rows     = _rqLiveTimerRows(t);
+  var listingLabel = _rqListingLabel(t);
   var expandedItems = rows.map(function(row) {
-    return { name: row.label, squareId: row.squareId, pieces: row.pieces, isCustom: row.isCustom };
+    // row.label is the expanded variant name; listingLabel is what the human
+    // called the listing. Different things, unfortunate collision of words.
+    return { name: row.label, squareId: row.squareId, pieces: row.pieces, isCustom: row.isCustom,
+             label: listingLabel };
   });
   var totalPcs = null;
   expandedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
@@ -2888,6 +2897,25 @@ function _rqModifierSuffix(item) {
     if (opt) names.push(opt.name);
   });
   return names.join(', ');
+}
+
+// The listing's own name, but ONLY when somebody renamed it to something the
+// Square item is not already called. Three listings can share one Square parent
+// - Silver, Gold Fill, and both - and the label is the only thing that tells
+// their sessions apart afterwards, since the variants overlap.
+//
+// Empty when the two agree, which is the case for every listing nobody has
+// renamed. That is deliberate: an empty label groups exactly the way the report
+// grouped before labels existed, so this cannot quietly re-shape anyone's
+// history - only listings that were deliberately named apart split apart.
+function _rqListingLabel(t) {
+  if (!t) return '';
+  var label = (t.itemText || '').trim();
+  if (!label) return '';
+  var squareName = (t.richMatch && t.richMatch.name)
+    || (t.items && t.items[0] && t.items[0].name)
+    || '';
+  return label === (squareName || '').trim() ? '' : label;
 }
 
 function _rqTimerRows(items) {

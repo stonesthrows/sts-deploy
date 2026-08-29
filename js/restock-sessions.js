@@ -887,6 +887,7 @@ function _rqRenderReportBody(sessions) {
     case 'makers': _prRenderMakers(sessions, idxs, body, summaryEl); return;
     case 'trends': _prRenderTrends(sessions, idxs, body, summaryEl); return;
     case 'decide': _prRenderDecisions(sessions, idxs, body, summaryEl); return;
+    case 'listing': _prRenderListing(sessions, idxs, body, summaryEl); return;
     case 'category':
       _rqRenderReportSummary(sessions, idxs, summaryEl);
       _rqRenderAggView(sessions, idxs);
@@ -978,6 +979,7 @@ function _rqRenderReportControls() {
     ['makers',   'By Maker',  'Throughput and pace per person'],
     ['trends',   'Trends',    'The same figures over time, against the prior period'],
     ['decide',   'What to do','Threshold rules ranked by dollars at stake'],
+    ['listing',  'By Listing','Time per Restock Queue listing, so versions named apart are timed apart'],
     ['category', 'By Category','Per-category rollup'],
   ];
   el.innerHTML = '<div class="rq-report-controls">'

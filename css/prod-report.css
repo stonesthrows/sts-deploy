@@ -423,3 +423,28 @@
 #tab-prod-report .pr-finding-evid li::before { content: "—"; position: absolute; left: 0; color: var(--bdr); }
 #tab-prod-report .pr-finding-acts { display: flex; gap: 6px; margin-top: 9px; }
 #tab-prod-report .pr-board-table th { cursor: default; }
+
+/* By Listing: marks the rows that exist because somebody named a listing apart
+   from its Square item, so it reads as an annotation on the name rather than a
+   status. Accent family, since it points at a deliberate choice the operator
+   made, not at anything good or bad. */
+#tab-prod-report .pr-listing-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+/* How many Square variations were made under this listing */
+#tab-prod-report .pr-listing-n {
+  margin-left: 5px;
+  color: var(--text3);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}

@@ -840,6 +840,135 @@ function _prRenderMakers(sessions, idxs, body, summaryEl) {
     + 'left out of the comparison, since their minutes-per-piece belongs to the whole batch</div>';
 }
 
+// ── By Listing ────────────────────────────────────────────────────────────
+//
+// Every other view groups by Square VARIATION, which already separates Silver
+// from Gold Fill - those are different variations. What it cannot separate is
+// one variation made under two differently-named listings: a dedicated "Gold
+// Fill Chevron Ear Cuffs" run and a mixed "Silver/Gold Fill Chevron Ear Cuffs"
+// run put their pieces into the same rows, so the mixed run's pace disappears
+// into the dedicated one's.
+//
+// This view groups by the listing's name instead, which is the only record of
+// how the bench actually batched the work.
+//
+// It carries no money columns, and that is the point rather than an omission.
+// The design table joins Square sales by variation id; splitting those rows by
+// label would leave two rows claiming the same id and therefore the same sold
+// units and revenue in full - double-counted revenue, wrong margin and
+// sell-through, and sunset flags firing on figures that were never real. Square
+// cannot say which listing a sale came from, so any split of revenue here would
+// be invented. Time and pieces are measured, so those are what this shows.
+
+// Sessions saved before labels existed have none, and neither does any listing
+// nobody renamed. Those fall back to the item's base name - everything before
+// the ' - ' that separates the parent from its variation - so an unrenamed
+// listing appears once as "Chevron Ear Cuffs" rather than fragmenting into a
+// row per size.
+function _prListingKeyFor(it) {
+  if (it.label) return it.label;
+  var name = it.name || '';
+  var cut = name.indexOf(' – ');
+  return (cut === -1 ? name : name.slice(0, cut)).trim() || '—';
+}
+
+function _prListings(sessions, idxs) {
+  var groups = {};
+  idxs.forEach(function(i) {
+    var s = sessions[i];
+    var m = _rqSessionMetrics(s);
+    var items = (s.items || []).filter(function(it) { return it.pieces != null && it.pieces > 0; });
+    if (!items.length) return;
+    var totalPcs = 0;
+    items.forEach(function(it) { totalPcs += it.pieces; });
+
+    items.forEach(function(it) {
+      var key = _prListingKeyFor(it);
+      var g = groups[key] || (groups[key] = {
+        key: key, name: key, labelled: !!it.label,
+        pcs: 0, hrs: 0, labor: 0, sessions: 0, _seen: {}, makers: {}, variants: {},
+      });
+      if (it.label) g.labelled = true;
+      if (!g._seen[i]) { g._seen[i] = true; g.sessions++; }
+      // Labor and hours are split across a session's items by piece count, the
+      // same allocation the design table uses - a session that made two
+      // listings at once belongs partly to each.
+      var share = totalPcs ? it.pieces / totalPcs : 0;
+      g.pcs   += it.pieces;
+      g.hrs   += m.hrs * share;
+      g.labor += m.laborCost * share;
+      var who = _prMaker(s);
+      if (who) g.makers[who] = (g.makers[who] || 0) + it.pieces;
+      if (it.squareId) g.variants[it.squareId] = true;
+    });
+  });
+
+  return Object.keys(groups).map(function(k) {
+    var g = groups[k];
+    delete g._seen;
+    g.minPerPc  = g.pcs > 0 ? (g.hrs * 60) / g.pcs : null;
+    g.pcsPerHr  = g.hrs > 0 ? g.pcs / g.hrs : null;
+    g.costPerPc = g.pcs > 0 ? g.labor / g.pcs : null;
+    g.variantCount = Object.keys(g.variants).length;
+    g.makerList = Object.keys(g.makers).sort(function(a, b) { return g.makers[b] - g.makers[a]; });
+    return g;
+  }).sort(function(a, b) { return b.hrs - a.hrs; });
+}
+
+function _prRenderListing(sessions, idxs, body, summaryEl) {
+  if (summaryEl) summaryEl.innerHTML = '';
+  var rows = _prListings(sessions, idxs);
+  if (!rows.length) {
+    body.innerHTML = _prEmpty('No sessions in this range have counted pieces');
+    return;
+  }
+
+  var anyLabelled = rows.some(function(g) { return g.labelled; });
+  var totals = { pcs: 0, hrs: 0, labor: 0, sessions: 0 };
+  rows.forEach(function(g) { totals.pcs += g.pcs; totals.hrs += g.hrs; totals.labor += g.labor; totals.sessions += g.sessions; });
+  totals.minPerPc = totals.pcs > 0 ? (totals.hrs * 60) / totals.pcs : null;
+
+  var thead = '<tr><th>Listing</th><th>Sessions</th><th>Pcs</th><th>Hrs</th>'
+            + '<th>Min/pc</th><th>Pcs/hr</th><th>Labor</th><th>Labor/pc</th><th>Made by</th></tr>';
+
+  var trs = rows.map(function(g) {
+    // Mark the rows that exist BECAUSE somebody named a listing apart, so it is
+    // obvious which lines this view adds and which it would have shown anyway.
+    var nameCell = _rqEsc2(g.name)
+      + (g.labelled ? ' <span class="pr-listing-tag" title="Named apart from the Square item, so this listing is tracked separately">label</span>' : '')
+      + (g.variantCount > 1 ? ' <span class="pr-listing-n" title="' + g.variantCount + ' Square variations made under this listing">×' + g.variantCount + '</span>' : '');
+    return '<tr>'
+      + '<td title="' + _rqEsc2(g.name) + '">' + nameCell + '</td>'
+      + '<td>' + g.sessions + '</td>'
+      + '<td>' + g.pcs + '</td>'
+      + '<td>' + g.hrs.toFixed(1) + '</td>'
+      + '<td>' + (g.minPerPc != null ? g.minPerPc.toFixed(1) : '—') + '</td>'
+      + '<td>' + (g.pcsPerHr != null ? g.pcsPerHr.toFixed(1) : '—') + '</td>'
+      + '<td>' + _rqFmtMoney(g.labor) + '</td>'
+      + '<td>' + (g.costPerPc != null ? _rqFmtMoney(g.costPerPc) : '—') + '</td>'
+      + '<td title="' + _rqEsc2(g.makerList.join(', ')) + '">' + _rqEsc2(g.makerList.join(', ') || '—') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var totalRow = '<tr class="rq-agg-total">'
+    + '<td>Total</td><td>' + totals.sessions + '</td><td>' + totals.pcs + '</td>'
+    + '<td>' + totals.hrs.toFixed(1) + '</td>'
+    + '<td>' + (totals.minPerPc != null ? totals.minPerPc.toFixed(1) : '—') + '</td>'
+    + '<td></td><td>' + _rqFmtMoney(totals.labor) + '</td><td></td><td></td>'
+    + '</tr>';
+
+  body.innerHTML = '<div class="rq-agg-wrap"><table class="rq-agg-table"><thead>' + thead + '</thead><tbody>'
+      + trs + totalRow + '</tbody></table></div>'
+    + '<div class="rq-agg-note">Grouped by the Restock Queue listing’s name, so versions of one design that were '
+    + 'named apart — Silver, Gold Fill, both — are timed separately even where they share Square variations · '
+    + 'Hours and labor are split across a session’s listings by piece count'
+    + (anyLabelled ? '' : ' · No listing in this range was renamed, so every row here is a plain design name')
+    + '</div>'
+    + '<div class="rq-agg-note">No value, margin or sell-through here on purpose — Square reports sales per '
+    + 'variation, not per listing, so two listings sharing a variation cannot be given a share of its revenue '
+    + 'without inventing one. Use <strong>By Category</strong> or the Ledger for money.</div>';
+}
+
 function _prWeeklyStack(d) {
   var weeks = d.weeks;
   if (!weeks.length) return _prEmpty('No dated sessions in this range');
