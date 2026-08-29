@@ -887,6 +887,20 @@ function rqExitEditMode(pid) {
   restockQueueRender();
 }
 
+// Renaming a listing is a LABEL change, not a change of product.
+//
+// It used to throw the Square match away and re-run auto-match against the new
+// title, which is why renaming appeared to break the item: the whole point of a
+// rename here is to tell three listings of the same product apart — "Silver
+// Chevron Ear Cuffs" vs "Gold Fill Chevron Ear Cuffs" — and every one of those
+// names matches the parent item worse than the name it replaced. The carefully
+// picked variants and quantities went with it.
+//
+// Nothing was gained by dropping it either: the match is keyed by notionPageId,
+// which a rename does not touch, and "✎ change item" already exists for the case
+// where the product really did change. So the only rename that still re-matches
+// is one that cannot lose anything — an item with no match yet, or one whose
+// last search came back empty, where a better title is genuinely new information.
 function rqSaveTitleInput(el, idx) {
   var newText = el.value.trim();
   var item = _rqSortedItems()[idx];
@@ -894,12 +908,18 @@ function rqSaveTitleInput(el, idx) {
   if (!newText) { el.value = item.text; return; }
   if (newText === _rqShortName(item.text) || newText === item.text) return;
   var pid = item.notionPageId;
-  delete _rqAutoMatches[pid];
-  _rqAmSave();
+  var match = _rqAutoMatches[pid];
+  var worthRematching = !match || match === '_none_';
   item.text = newText;
+  // A running timer takes the new label immediately — differentiating the
+  // listings is the reason to rename, and a bar still showing the old name
+  // would defeat it on the one card being worked from.
+  var t = _rqTimers[pid];
+  if (t) { t.itemText = newText; _rqPersistTimer(pid); }
   renderNotesList('restock', itemsFor('restock'));
   _rqPatch(pid, { text: newText });
-  setTimeout(function() { _rqAutoMatchSingle(pid, newText); }, 150);
+  if (worthRematching) setTimeout(function() { _rqAutoMatchSingle(pid, newText); }, 150);
+  else restockQueueRender();
 }
 
 // Clean, no-buttons breakdown for the collapsed-but-expanded read view —
@@ -1948,7 +1968,11 @@ function restockQueueRender() {
       _rqFetchSegments(safePid);
       var elapsed = _rqFmtElapsed(_rqTimerShownMs(timer));
       var startLbl = _rqFmtTime(timer.startTime);
-      var itemLbl = (timer.items && timer.items[0]) ? timer.items[0].name : (timer.itemText || '');
+      // The listing's own title, not the Square item's name. Three listings can
+      // share one Square parent — Silver, Gold Fill, and both — and the whole
+      // point of naming them apart is to tell their timers apart. The Square
+      // item is still named on the ✓ match line just below.
+      var itemLbl = shortText || (timer.items && timer.items[0] ? timer.items[0].name : (timer.itemText || ''));
       timerPanel = '<div class="rq-timer-panel">'
         + _rqStaleBannerHtml(timer)
         + '<div class="rq-timer-running-row">'
