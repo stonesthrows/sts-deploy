@@ -76,6 +76,10 @@ function rqStartEditSession(store, i) {
   if (s) s._itemsBackup = JSON.parse(JSON.stringify(s.items || []));
   _rqEditingSession[store] = i; _rqPushingSession[store] = null;
   _rqStoreRender(store);
+  // The break readout is computed, not rendered with the panel — paint it once
+  // the inputs exist so an untouched panel already shows where the session
+  // stands rather than a blank until the first keystroke.
+  rqEditRecalcBench(store, i);
 }
 
 function rqCancelEditSession(store) {
@@ -452,15 +456,341 @@ function _rqEditAddPanelHTML(store, i, e) {
     + '<button class="rq-setup-cancel-btn" style="margin-top:4px;" onclick="rqEditCloseAdd(\'' + store + '\',' + i + ')">Cancel</button>';
 }
 
+// ── Manual break spans — the session timeline editor ────────────────────────
+//
+// A session whose pause button never registered comes back as one unbroken
+// wall-clock span — nine hours on the card for two hours of bench work. The
+// edit panel lets those off-bench stretches be entered after the fact as
+// spans rather than as a lump of minutes, so the record says *when* the bench
+// was empty and not merely for how long.
+//
+// The spans live in the session's Notes, in a block of their own placed above
+// the Square-written "— Session Timeline —". That order is load-bearing:
+// /api/square-sync rewrites the note on every sweep as everything-before-its-
+// own-block plus a fresh copy of it, so a manual block written underneath
+// would be erased within the week. Notes is also the only field on the Notion
+// row that can carry this — giving the database a property for it would be a
+// schema change every other writer of that row would have to learn.
+//
+// Each line carries the full date on both endpoints, so a break that runs
+// across midnight round-trips, and is read back field-by-field rather than
+// through Date's string parser: the format is ours, and only ours has to
+// understand it.
+var RQ_BREAKS_HDR = '— Manual Breaks —';
+var RQ_SQ_TIMELINE_HDR = '— Session Timeline —';
+var _RQ_BREAK_LINE_RE = /⏸\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*→\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/g;
+
+// Written by hand rather than through toLocaleTimeString: the parser above has
+// to read back exactly what this writes, and the locale formatter is free to
+// change its separators between browser versions (current ICU already puts a
+// narrow no-break space before the AM).
+function _rqBreakStamp(ms) {
+  var d = new Date(ms);
+  var h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear()
+    + ' ' + h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
+}
+
+function _rqBreakStampMs(mo, da, yr, hh, mm, ap) {
+  var h = parseInt(hh, 10) % 12;
+  if (ap.toUpperCase() === 'PM') h += 12;
+  return new Date(parseInt(yr, 10), parseInt(mo, 10) - 1, parseInt(da, 10), h, parseInt(mm, 10)).getTime();
+}
+
+function _rqParseBreaks(notes) {
+  var out = [];
+  if (!notes) return out;
+  var m;
+  _RQ_BREAK_LINE_RE.lastIndex = 0;
+  while ((m = _RQ_BREAK_LINE_RE.exec(notes))) {
+    out.push({ from: _rqBreakStampMs(m[1], m[2], m[3], m[4], m[5], m[6]),
+               to:   _rqBreakStampMs(m[7], m[8], m[9], m[10], m[11], m[12]) });
+  }
+  return out;
+}
+
+// Clamp each span to the session window and union the overlaps — the same
+// shape segmentsFor uses server-side. Without it a break typed twice, or one
+// left stretching past a stop time that was just pulled in, would deduct time
+// the session never contained.
+function _rqNormalizeBreaks(breaks, startMs, stopMs) {
+  return (breaks || []).map(function(b) {
+      return { from: Math.max(b.from, startMs), to: Math.min(b.to, stopMs) };
+    })
+    .filter(function(b) { return b.to > b.from; })
+    .sort(function(a, b) { return a.from - b.from; })
+    .reduce(function(acc, b) {
+      var last = acc[acc.length - 1];
+      if (last && b.from <= last.to) { last.to = Math.max(last.to, b.to); return acc; }
+      acc.push({ from: b.from, to: b.to });
+      return acc;
+    }, []);
+}
+
+function _rqSpansMs(spans) {
+  return spans.reduce(function(n, b) { return n + (b.to - b.from); }, 0);
+}
+
+// Punch a set of spans out of another set, splitting a span in two where a cut
+// lands in its middle. The client-side twin of the pause loop in segmentsFor
+// (functions/api/square-sync.js) — a break taken while clocked in has to cut
+// the shift, not be compared against it.
+function _rqSubtractSpans(spans, cuts) {
+  return (cuts || []).reduce(function(acc, c) {
+    return acc.reduce(function(out, s) {
+      if (c.to <= s.from || c.from >= s.to) { out.push(s); return out; }  // no overlap
+      if (c.from > s.from) out.push({ from: s.from, to: c.from });        // head survives
+      if (c.to   < s.to)   out.push({ from: c.to,   to: s.to  });         // tail survives
+      return out;
+    }, []);
+  }, spans.map(function(s) { return { from: s.from, to: s.to }; }));
+}
+
+// ── Reading the Square timeline back out of the note ────────────────────────
+//
+// A hand-entered break cannot simply replace the session's recorded deduction,
+// because on a multi-day session that deduction is mostly *nights*: the Snake
+// Pendant ran 48h55m wall clock for 10h35m of bench time, all of the difference
+// being hours Vanessa was clocked out. Replacing 38h20m of that with one typed
+// lunch break would hand back a day and a half of paid time.
+//
+// So the breaks have to be unioned with the clocked-out spans instead, which is
+// exactly what reconcile() does server-side. The clock events are already in
+// the note, written by the same Worker, so the shifts can be recovered from
+// there rather than by asking Square again — a manual correction should not
+// need the network, and this surface is edited offline often enough to matter.
+//
+// Returns null on anything it does not fully understand, and the caller falls
+// back to treating the recorded deduction as one opaque lump. Guessing at a
+// half-parsed timeline would silently mis-state somebody's hours.
+var _RQ_TL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var _RQ_TL_EVENT_RE = /^\s*[▶⏸⏹]\s*(Timer Start|Clock In|Clock Out|Timer Stop):\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/;
+var _RQ_TL_DAY_RE   = /^\s*[A-Za-z]+,\s*([A-Za-z]{3,})\s+(\d{1,2})\s*$/;
+
+// The day headers carry no year ("Tuesday, Aug 25"), so each one is resolved
+// against the session's own window — the only span it could possibly name.
+function _rqTlResolveDay(monIdx, dayNum, startMs, stopMs) {
+  var d = new Date(startMs); d.setHours(0, 0, 0, 0);
+  var last = new Date(stopMs); last.setHours(0, 0, 0, 0);
+  while (d.getTime() <= last.getTime()) {
+    if (d.getMonth() === monIdx && d.getDate() === dayNum) return new Date(d.getTime());
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
+function _rqParseTimelineSegments(s) {
+  if (!s || !s.startTime || !s.stopTime) return null;
+  var notes = String(s.notes || '');
+  var at = notes.indexOf(RQ_SQ_TIMELINE_HDR);
+  if (at === -1) return null;
+  var startMs = new Date(s.startTime).getTime(), stopMs = new Date(s.stopTime).getTime();
+  if (isNaN(startMs) || isNaN(stopMs) || stopMs <= startMs) return null;
+
+  var lines = notes.slice(at + RQ_SQ_TIMELINE_HDR.length).split('\n');
+  var day = null, events = [];
+  for (var n = 0; n < lines.length; n++) {
+    if (!lines[n].trim()) continue;
+    var ev = lines[n].match(_RQ_TL_EVENT_RE);
+    if (ev) {
+      if (!day) return null;                              // an event before any day header
+      var h = parseInt(ev[2], 10) % 12;
+      if (ev[4].toUpperCase() === 'PM') h += 12;
+      events.push({ type: ev[1],
+                    time: new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, parseInt(ev[3], 10)).getTime() });
+      continue;
+    }
+    var dm = lines[n].match(_RQ_TL_DAY_RE);
+    if (!dm) return null;                                 // a line this does not understand
+    var mi = _RQ_TL_MONTHS.indexOf(dm[1].slice(0, 3));
+    if (mi === -1) return null;
+    day = _rqTlResolveDay(mi, parseInt(dm[2], 10), startMs, stopMs);
+    if (!day) return null;
+  }
+  if (!events.length) return null;
+
+  // Self-check. The Worker stamps these in America/Chicago; read anywhere else
+  // and the events land outside the window or out of order, which is the signal
+  // to stop trusting the parse rather than to quietly shift somebody's hours.
+  for (var k = 1; k < events.length; k++) if (events[k].time < events[k - 1].time) return null;
+  var slack = 60000;
+  if (events[0].time < startMs - slack) return null;
+  if (events[events.length - 1].time > stopMs + slack) return null;
+
+  var punches = events.filter(function(e) { return e.type === 'Clock In' || e.type === 'Clock Out'; });
+  // Whether the timer started on or off the clock is readable from the first
+  // punch: a Clock Out means she was already on it, a Clock In means she wasn't.
+  var openedAt = (punches.length && punches[0].type === 'Clock In') ? null : startMs;
+  var segs = [];
+  punches.forEach(function(e) {
+    if (e.type === 'Clock Out') {
+      if (openedAt != null) { segs.push({ from: openedAt, to: e.time }); openedAt = null; }
+    } else if (openedAt == null) {
+      openedAt = e.time;
+    }
+  });
+  if (openedAt != null) segs.push({ from: openedAt, to: stopMs });
+  return _rqNormalizeBreaks(segs, startMs, stopMs);
+}
+
+// The one place an edited session's figures are computed, so the live readout
+// in the panel and the numbers the Save writes can never drift apart — the
+// same reason _rqSessionSpan exists for the running timer.
+//
+// Three ways the off-bench total is arrived at, in descending order of how much
+// is actually known about the session:
+//
+//   segments  the Square timeline parsed — breaks are cut out of the clocked-in
+//             stretches and off-bench falls out as the remainder, which is the
+//             union reconcile() computes and therefore survives the next sweep
+//   floor     no readable timeline — the breaks can only be floored against the
+//             recorded deduction. Under-deducts on a session that has both, and
+//             that is the safe direction: it never bills time twice
+//   recorded  nothing hand-entered and nothing to un-enter — the session keeps
+//             the deduction it already carries, untouched, break floor and all
+//
+// The 15-minute break floor is applied to the first two: /api/square-sync
+// applies it on its next sweep whatever we write, and a figure that moves on
+// its own afterwards is worse than one floored in front of the person who
+// entered it. The third is left exactly as found, so editing an item name on a
+// session nobody is re-timing cannot nudge its hours.
+function _rqEditedFigures(s, startMs, stopMs, breaks, hadBreaks) {
+  var spans   = _rqNormalizeBreaks(breaks || [], startMs, stopMs);
+  var totalMs = Math.max(0, stopMs - startMs);
+  var prevDedMs = Math.min(
+    s.dedMs != null ? s.dedMs : Math.max(0, (s.totalMs || 0) - (s.netMs || 0)),
+    totalMs);
+
+  if (!spans.length && !hadBreaks) {
+    return { spans: [], totalMs: totalMs, offMs: prevDedMs, dedMs: prevDedMs,
+             netMs: Math.max(0, totalMs - prevDedMs), touched: false, basis: 'recorded' };
+  }
+
+  var segs = _rqParseTimelineSegments(s), offMs, basis;
+  if (segs) {
+    segs  = _rqNormalizeBreaks(segs, startMs, stopMs);   // an edited window re-trims the shifts
+    offMs = Math.max(0, totalMs - _rqSpansMs(_rqSubtractSpans(segs, spans)));
+    basis = 'segments';
+  } else {
+    offMs = Math.max(prevDedMs, _rqSpansMs(spans));
+    basis = 'floor';
+  }
+  var dedMs = _rqApplyBreak(totalMs, offMs);
+  return { spans: spans, totalMs: totalMs, offMs: offMs, dedMs: dedMs,
+           netMs: Math.max(0, totalMs - dedMs), touched: true, basis: basis };
+}
+
+function _rqBreaksBlock(spans) {
+  if (!spans.length) return '';
+  return RQ_BREAKS_HDR + '\n' + spans.map(function(b) {
+    return '  ⏸ ' + _rqBreakStamp(b.from) + ' → ' + _rqBreakStamp(b.to)
+         + '  (' + _rqFmtDur(b.to - b.from) + ')';
+  }).join('\n');
+}
+
+// Rebuild the note as [what the maker typed][manual breaks][Square timeline],
+// dropping whichever of the last two the new spans replace.
+function _rqNotesWithBreaks(notes, spans) {
+  var rest = String(notes || ''), sqBlock = '';
+  var sqAt = rest.indexOf(RQ_SQ_TIMELINE_HDR);
+  if (sqAt !== -1) { sqBlock = rest.slice(sqAt).trim(); rest = rest.slice(0, sqAt); }
+  var brAt = rest.indexOf(RQ_BREAKS_HDR);
+  if (brAt !== -1) rest = rest.slice(0, brAt);
+  return [rest.trim(), _rqBreaksBlock(spans), sqBlock].filter(Boolean).join('\n\n');
+}
+
+function _rqBreakRowHTML(store, i, fromVal, toVal) {
+  return '<div class="rq-brk-row">'
+    + '<input class="rq-edit-input rq-brk-from" type="datetime-local" value="' + fromVal + '">'
+    + '<span class="rq-brk-arrow">→</span>'
+    + '<input class="rq-edit-input rq-brk-to" type="datetime-local" value="' + toVal + '">'
+    + '<button class="rq-item-remove" title="Remove this break" onclick="rqEditRemoveBreak(this,\'' + store + '\',' + i + ')">✕</button>'
+    + '</div>';
+}
+
+function _rqBreaksPanelHTML(store, i, s) {
+  return '<div class="rq-brk-panel">'
+    + '<div class="rq-brk-head"><label>Off bench</label>'
+    + '<span class="rq-brk-bench" id="rq-edit-bench-' + store + '-' + i + '"></span></div>'
+    + '<div class="rq-brk-list" id="rq-brk-list-' + store + '-' + i
+    + '" oninput="rqEditRecalcBench(\'' + store + '\',' + i + ')">'
+    + _rqParseBreaks(s.notes).map(function(b) {
+        return _rqBreakRowHTML(store, i, _rqToDateTimeLocal(b.from), _rqToDateTimeLocal(b.to));
+      }).join('')
+    + '</div>'
+    + '<button class="rq-adjust-link rq-brk-add" onclick="rqEditAddBreak(\'' + store + '\',' + i + ')">+ Add break</button>'
+    + '</div>';
+}
+
+// A new row starts where the previous break ended (or where the session did),
+// zero-length, so adding one never silently deducts anything before it has
+// been filled in.
+function rqEditAddBreak(store, i) {
+  var list = document.getElementById('rq-brk-list-' + store + '-' + i);
+  if (!list) return;
+  var ends = list.querySelectorAll('.rq-brk-to');
+  var startEl = document.getElementById('rq-edit-start-' + store + '-' + i);
+  var seed = (ends.length && ends[ends.length - 1].value) || (startEl ? startEl.value : '') || '';
+  list.insertAdjacentHTML('beforeend', _rqBreakRowHTML(store, i, seed, seed));
+  rqEditRecalcBench(store, i);
+}
+
+function rqEditRemoveBreak(btn, store, i) {
+  var row = btn.closest('.rq-brk-row');
+  if (row) row.parentNode.removeChild(row);
+  rqEditRecalcBench(store, i);
+}
+
+// Read the rows as they stand in the panel. Deliberately DOM-first rather than
+// held in a draft object: rows are added and removed without re-rendering the
+// panel, so the inputs are the state — and a start/stop the maker changed in
+// the same pass is still sitting unsaved beside them.
+function _rqReadBreakInputs(store, i) {
+  var list = document.getElementById('rq-brk-list-' + store + '-' + i);
+  if (!list) return null;
+  var rows = list.querySelectorAll('.rq-brk-row'), out = [];
+  for (var n = 0; n < rows.length; n++) {
+    var f = rows[n].querySelector('.rq-brk-from'), t = rows[n].querySelector('.rq-brk-to');
+    if (!f || !t || !f.value || !t.value) continue;
+    var fm = new Date(f.value).getTime(), tm = new Date(t.value).getTime();
+    if (isNaN(fm) || isNaN(tm) || tm <= fm) continue;
+    out.push({ from: fm, to: tm });
+  }
+  return out;
+}
+
+// Live readout: what this session will actually record if saved as it stands.
+// Without it the maker is doing the arithmetic in their head, against a stop
+// time they may have changed thirty seconds ago.
+function rqEditRecalcBench(store, i) {
+  var out = document.getElementById('rq-edit-bench-' + store + '-' + i);
+  if (!out) return;
+  var startEl = document.getElementById('rq-edit-start-' + store + '-' + i);
+  var stopEl  = document.getElementById('rq-edit-stop-'  + store + '-' + i);
+  var startMs = startEl && startEl.value ? new Date(startEl.value).getTime() : NaN;
+  var stopMs  = stopEl  && stopEl.value  ? new Date(stopEl.value).getTime()  : NaN;
+  if (isNaN(startMs) || isNaN(stopMs) || stopMs <= startMs) { out.textContent = ''; return; }
+  var s = _rqStoreList(store)[i];
+  if (!s) { out.textContent = ''; return; }
+  var f = _rqEditedFigures(s, startMs, stopMs, _rqReadBreakInputs(store, i) || [],
+                           _rqParseBreaks(s.notes).length > 0);
+  out.textContent = 'Bench ' + _rqFmtDur(f.netMs) + ' of ' + _rqFmtDur(f.totalMs)
+    + ' \u00b7 ' + _rqFmtDur(f.dedMs) + ' off bench'
+    + (f.dedMs > f.offMs ? ' (incl. the 15m break)' : '');
+}
+
 // Shared edit panel (start/stop time, per-item piece inputs + remove, add-item
 // search/variant picker, Save/Cancel) used by both the Session Log and the
 // Production Report — they edit the same underlying session record.
 function _rqSessionEditRowHTML(store, i, s) {
   if (_rqEditingSession[store] !== i) return '';
   var editAdd = _rqEditAdds[store][i];
+  var recalc = ' oninput="rqEditRecalcBench(\'' + store + '\',' + i + ')"';
   return '<div class="rq-edit-row">'
-    + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"></div>'
-    + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"></div>'
+    + '<div class="rq-edit-field"><label>Start</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-start-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.startTime) + '"' + recalc + '></div>'
+    + '<div class="rq-edit-field"><label>Stop</label><input class="rq-edit-input" type="datetime-local" id="rq-edit-stop-' + store + '-' + i + '" value="' + _rqToDateTimeLocal(s.stopTime) + '"' + recalc + '></div>'
+    + _rqBreaksPanelHTML(store, i, s)
     + '<div class="rq-edit-field"><label>Labor Rate</label><input class="rq-edit-input" type="number" min="0" step="0.5" placeholder="$/hr" id="rq-edit-rate-' + store + '-' + i + '" value="' + (s.laborRate != null ? s.laborRate : '') + '"></div>'
     + (s.items || []).map(function(it, ii) {
         var safeLabel = (it.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -488,20 +818,33 @@ function rqSaveEditSession(store, i) {
   if (newStart && newStop && new Date(newStop) <= new Date(newStart)) {
     toast('Stop time must be after start time', '⚠'); return;
   }
-  s.startTime = newStart; s.stopTime = newStop;
+  // Hand-entered off-bench spans, if the panel has any. Read before anything is
+  // mutated so a set that clamps away to nothing can abort the save with the
+  // session untouched.
+  //
+  // With no rows entered and none to clear, _rqEditedFigures hands back the
+  // deduction the session already carries, unchanged — which is what this did
+  // before the break editor existed, and still has to: editing times used to
+  // silently wipe the /api/square-sync reconciliation, and a session nobody is
+  // re-timing must come through an item-name fix with its hours untouched.
+  var breaks    = _rqReadBreakInputs(store, i);
+  var hadBreaks = _rqParseBreaks(s.notes).length > 0;
+  var edited    = null;
   if (newStart && newStop) {
-    // Preserve the session's existing deduction (recorded pause time, or the
-    // Square-reconciled clocked-out span) instead of recomputing one — editing
-    // times used to silently wipe the /api/square-sync reconciliation. Sessions
-    // saved before dedMs was recorded fall back to reconstructing it from
-    // total - net. No flat-15 fallback: a session with no pauses and no
-    // clocked-out gap has a genuinely zero deduction, and the old `|| 15min`
-    // turned that zero back into a quarter hour of unworked time.
-    var prevDedMs = s.dedMs != null ? s.dedMs : Math.max(0, (s.totalMs || 0) - (s.netMs || 0));
-    s.totalMs = new Date(newStop) - new Date(newStart);
-    // A shortened window can't carry a deduction bigger than itself.
-    s.dedMs   = Math.min(prevDedMs, s.totalMs);
-    s.netMs   = Math.max(0, s.totalMs - s.dedMs);
+    edited = _rqEditedFigures(s, new Date(newStart).getTime(), new Date(newStop).getTime(),
+                              breaks || [], hadBreaks);
+    if (breaks && breaks.length && !edited.spans.length) {
+      toast('Those breaks fall outside the session window', '⚠'); return;
+    }
+  }
+
+  s.startTime = newStart; s.stopTime = newStop;
+  var notesChanged = false;
+  if (edited) {
+    s.totalMs = edited.totalMs;
+    s.dedMs   = edited.dedMs;
+    s.netMs   = edited.netMs;
+    if (edited.touched) { s.notes = _rqNotesWithBreaks(s.notes, edited.spans); notesChanged = true; }
   }
   var rateEl = document.getElementById('rq-edit-rate-' + store + '-' + i);
   var newRate = null;
@@ -562,6 +905,9 @@ function rqSaveEditSession(store, i) {
       patch.dedMin   = parseFloat(((s.dedMs || 0)        / 60000).toFixed(2));
     }
     if (totalPcs != null) patch.pieces = totalPcs;
+    // The break block lives in the note, so a timeline edit only sticks if the
+    // note goes up with the minutes.
+    if (notesChanged) patch.notes = s.notes;
     // Send the rate even when cleared (null) — omitting it left the old rate
     // in Notion, so a cleared field reappeared on the next load.
     if (rateChanged) patch.laborRate = newRate;

@@ -4271,6 +4271,18 @@
     .rq-edit-field label { width:52px; font-weight:600; color:var(--text3); flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
     .rq-edit-input { background:var(--card-bg); border:1px solid var(--bdr); border-radius:6px; color:var(--text); font-size:12px; padding:4px 7px; outline:none; transition:border-color 0.2s; }
     .rq-edit-input:focus { border-color:var(--accent); }
+    /* Manual break spans in the session edit panel (Session Log + Production
+       Report share it) — see _rqBreaksPanelHTML in js/restock-sessions.js */
+    .rq-brk-panel { display:flex; flex-direction:column; gap:6px; }
+    .rq-brk-head { display:flex; align-items:baseline; gap:8px; font-size:12px; color:var(--text2); }
+    .rq-brk-head label { width:52px; font-weight:600; color:var(--text3); flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+    .rq-brk-bench { color:var(--text2); font-size:11px; font-variant-numeric:tabular-nums; }
+    .rq-brk-list { display:flex; flex-direction:column; gap:6px; }
+    .rq-brk-list:empty { display:none; }
+    .rq-brk-row { display:flex; align-items:center; gap:6px; }
+    .rq-brk-row .rq-edit-input { flex:1; min-width:0; }
+    .rq-brk-arrow { color:var(--text-dim); font-size:11px; flex-shrink:0; }
+    .rq-brk-add { align-self:flex-start; }
 
     /* ── Supplier Order Tracker ─────────────────── */
     #tab-supplier { padding: 0; }
