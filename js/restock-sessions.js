@@ -476,6 +476,7 @@ function _rqEditAddPanelHTML(store, i, e) {
 // across midnight round-trips, and is read back field-by-field rather than
 // through Date's string parser: the format is ours, and only ours has to
 // understand it.
+var RQ_BENCH_HDR  = '— Bench Time Set —';
 var RQ_BREAKS_HDR = '— Manual Breaks —';
 var RQ_SQ_TIMELINE_HDR = '— Session Timeline —';
 var _RQ_BREAK_LINE_RE = /⏸\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*→\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/g;
@@ -689,15 +690,112 @@ function _rqBreaksBlock(spans) {
   }).join('\n');
 }
 
-// Rebuild the note as [what the maker typed][manual breaks][Square timeline],
-// dropping whichever of the last two the new spans replace.
-function _rqNotesWithBreaks(notes, spans) {
+function _rqBenchBlock(benchMs, totalMs) {
+  if (benchMs == null) return '';
+  return RQ_BENCH_HDR + '\n  ' + _rqFmtDur(benchMs) + ' set by hand (timer ran ' + _rqFmtDur(totalMs) + ')';
+}
+
+// Rebuild the note as [what the maker typed][bench override][manual breaks]
+// [Square timeline]. The three trailing blocks are always rewritten together,
+// so the strip cuts from the first one it finds rather than removing them
+// individually — a partial strip would leave a stale twin claiming a different
+// number two lines above the new one.
+function _rqNotesWithBreaks(notes, spans, benchMs, totalMs) {
   var rest = String(notes || ''), sqBlock = '';
   var sqAt = rest.indexOf(RQ_SQ_TIMELINE_HDR);
   if (sqAt !== -1) { sqBlock = rest.slice(sqAt).trim(); rest = rest.slice(0, sqAt); }
-  var brAt = rest.indexOf(RQ_BREAKS_HDR);
-  if (brAt !== -1) rest = rest.slice(0, brAt);
-  return [rest.trim(), _rqBreaksBlock(spans), sqBlock].filter(Boolean).join('\n\n');
+  [RQ_BENCH_HDR, RQ_BREAKS_HDR].forEach(function(hdr) {
+    var at = rest.indexOf(hdr);
+    if (at !== -1) rest = rest.slice(0, at);
+  });
+  return [rest.trim(), _rqBenchBlock(benchMs, totalMs), _rqBreaksBlock(spans), sqBlock]
+    .filter(Boolean).join('\n\n');
+}
+
+// ── The hard override ───────────────────────────────────────────────────────
+//
+// Carving a long session into spans is the wrong amount of work when the bench
+// already knows the answer — a pendant that took four and a half hours is four
+// and a half hours, whatever the timer did around it. Typing the figure in
+// replaces everything: the breaks, the Square timeline, the lot.
+//
+// It survives the nightly sweep in the direction that matters. reconcile()
+// treats the recorded deduction as a FLOOR, so setting the bench time DOWN
+// writes a deduction larger than Square's own and the sweep keeps it. Setting
+// it UP past the hours she was actually clocked in writes a smaller one, the
+// floor loses, and the next sweep pulls it back — which is why the panel says
+// so on screen rather than letting the number quietly revert overnight.
+//
+// Two whole-number fields rather than one parsed string: this sets a figure
+// that lands in somebody's labour cost, and "4.5" meaning four hours thirty is
+// exactly the guess not worth making.
+function _rqBenchParts(ms) {
+  var m = Math.max(0, Math.round(ms / 60000));
+  return { h: Math.floor(m / 60), m: m % 60 };
+}
+
+function _rqHasBenchSet(notes) {
+  return String(notes || '').indexOf(RQ_BENCH_HDR) !== -1;
+}
+
+// Whether the bench fields hold a deliberate figure or are just mirroring the
+// last recalc. This has to be recorded rather than inferred: the fields hold
+// the previous computed value right up until the moment a break row changes
+// what that value is, so "differs from computed" reads every break edit as an
+// override and the mirror freezes. The flag rides on the hours input, which is
+// re-rendered with the panel, and is seeded from the note so a session saved
+// with a hand-set time reopens still holding it.
+function _rqBenchIsSet(store, i) {
+  var hEl = document.getElementById('rq-edit-bh-' + store + '-' + i);
+  return !!hEl && hEl.getAttribute('data-set') === '1';
+}
+
+function _rqSetBenchFlag(store, i, on) {
+  var hEl = document.getElementById('rq-edit-bh-' + store + '-' + i);
+  if (hEl) hEl.setAttribute('data-set', on ? '1' : '');
+}
+
+function _rqReadBenchInput(store, i) {
+  if (!_rqBenchIsSet(store, i)) return null;
+  var hEl = document.getElementById('rq-edit-bh-' + store + '-' + i);
+  var mEl = document.getElementById('rq-edit-bm-' + store + '-' + i);
+  if (!hEl || !mEl) return null;
+  var hs = hEl.value.trim(), ms = mEl.value.trim();
+  if (hs === '' && ms === '') return null;
+  var h = hs === '' ? 0 : parseInt(hs, 10), m = ms === '' ? 0 : parseInt(ms, 10);
+  if (isNaN(h) || isNaN(m) || h < 0 || m < 0) return null;
+  return (h * 60 + m) * 60000;
+}
+
+function _rqWriteBenchInput(store, i, ms) {
+  var p = _rqBenchParts(ms);
+  var hEl = document.getElementById('rq-edit-bh-' + store + '-' + i);
+  var mEl = document.getElementById('rq-edit-bm-' + store + '-' + i);
+  if (hEl) hEl.value = p.h;
+  if (mEl) mEl.value = p.m;
+}
+
+// Matching the computed figure is not an override — that is the field sitting
+// where the last recalc left it. Only a real difference counts, so opening the
+// panel and saving cannot silently convert a Square-reconciled session into a
+// hand-set one.
+function _rqApplyBenchOverride(f, typedMs) {
+  if (typedMs == null || Math.abs(typedMs - f.netMs) < 60000) return f;
+  var netMs = Math.min(Math.max(0, typedMs), f.totalMs);
+  return { spans: [], totalMs: f.totalMs, offMs: f.totalMs - netMs, dedMs: f.totalMs - netMs,
+           netMs: netMs, touched: true, basis: 'set', benchSetMs: netMs };
+}
+
+// Everything the panel currently describes, read straight from its inputs.
+// Both the readout and the Save go through this, so the line under the fields
+// can never be a different number from the one that gets written.
+function _rqPanelFigures(store, i, startMs, stopMs, ignoreBench) {
+  var s = _rqStoreList(store)[i];
+  if (!s || isNaN(startMs) || isNaN(stopMs) || stopMs <= startMs) return null;
+  var breaks = _rqReadBreakInputs(store, i) || [];
+  var f = _rqEditedFigures(s, startMs, stopMs, breaks, _rqParseBreaks(s.notes).length > 0);
+  f.rawSpans = breaks;
+  return ignoreBench ? f : _rqApplyBenchOverride(f, _rqReadBenchInput(store, i));
 }
 
 function _rqBreakRowHTML(store, i, fromVal, toVal) {
@@ -710,9 +808,22 @@ function _rqBreakRowHTML(store, i, fromVal, toVal) {
 }
 
 function _rqBreaksPanelHTML(store, i, s) {
+  var p = _rqBenchParts(s.netMs || 0);
+  var typed = ' oninput="rqEditBenchTyped(\'' + store + '\',' + i + ')"';
   return '<div class="rq-brk-panel">'
-    + '<div class="rq-brk-head"><label>Off bench</label>'
-    + '<span class="rq-brk-bench" id="rq-edit-bench-' + store + '-' + i + '"></span></div>'
+    + '<div class="rq-edit-field"><label>Bench</label>'
+    + '<input class="rq-edit-input rq-bench-num" type="number" min="0" step="1" id="rq-edit-bh-'
+      + store + '-' + i + '" value="' + p.h + '" data-set="' + (_rqHasBenchSet(s.notes) ? '1' : '') + '"' + typed + '>'
+    + '<span class="rq-bench-unit">h</span>'
+    + '<input class="rq-edit-input rq-bench-num" type="number" min="0" max="59" step="1" id="rq-edit-bm-'
+      + store + '-' + i + '" value="' + p.m + '"' + typed + '>'
+    + '<span class="rq-bench-unit">m</span>'
+    + '<button class="rq-sbar-act-btn rq-bench-reset" title="Back to the computed time"'
+      + ' onclick="rqEditResetBench(\'' + store + '\',' + i + ')">↺</button>'
+    + '</div>'
+    + '<div class="rq-brk-bench" id="rq-edit-bench-' + store + '-' + i + '"></div>'
+    + '<div class="rq-bench-warn" id="rq-edit-benchwarn-' + store + '-' + i + '" style="display:none;"></div>'
+    + '<div class="rq-brk-head"><label>Breaks</label></div>'
     + '<div class="rq-brk-list" id="rq-brk-list-' + store + '-' + i
     + '" oninput="rqEditRecalcBench(\'' + store + '\',' + i + ')">'
     + _rqParseBreaks(s.notes).map(function(b) {
@@ -763,21 +874,61 @@ function _rqReadBreakInputs(store, i) {
 // Live readout: what this session will actually record if saved as it stands.
 // Without it the maker is doing the arithmetic in their head, against a stop
 // time they may have changed thirty seconds ago.
-function rqEditRecalcBench(store, i) {
+//
+// fromBench marks a keystroke in the bench fields, which must not be written
+// back over mid-edit. Every other route — the times, the break rows, the reset
+// button — refills them, so the fields keep mirroring the computed figure right
+// up until somebody types a different one.
+function rqEditRecalcBench(store, i, fromBench) {
   var out = document.getElementById('rq-edit-bench-' + store + '-' + i);
   if (!out) return;
   var startEl = document.getElementById('rq-edit-start-' + store + '-' + i);
   var stopEl  = document.getElementById('rq-edit-stop-'  + store + '-' + i);
   var startMs = startEl && startEl.value ? new Date(startEl.value).getTime() : NaN;
   var stopMs  = stopEl  && stopEl.value  ? new Date(stopEl.value).getTime()  : NaN;
-  if (isNaN(startMs) || isNaN(stopMs) || stopMs <= startMs) { out.textContent = ''; return; }
-  var s = _rqStoreList(store)[i];
-  if (!s) { out.textContent = ''; return; }
-  var f = _rqEditedFigures(s, startMs, stopMs, _rqReadBreakInputs(store, i) || [],
-                           _rqParseBreaks(s.notes).length > 0);
-  out.textContent = 'Bench ' + _rqFmtDur(f.netMs) + ' of ' + _rqFmtDur(f.totalMs)
+  // Mirror off the figures the times and break rows produce on their own — the
+  // override is applied after, so a break edit can move the fields instead of
+  // being mistaken for one.
+  var base = _rqPanelFigures(store, i, startMs, stopMs, true);
+  var warn = document.getElementById('rq-edit-benchwarn-' + store + '-' + i);
+  if (!base) {
+    out.textContent = '';
+    if (warn) { warn.textContent = ''; warn.style.display = 'none'; }
+    return;
+  }
+  if (!fromBench && !_rqBenchIsSet(store, i)) _rqWriteBenchInput(store, i, base.netMs);
+  var f = _rqApplyBenchOverride(base, _rqReadBenchInput(store, i));
+
+  out.textContent = _rqFmtDur(f.netMs) + ' bench of ' + _rqFmtDur(f.totalMs) + ' on the timer'
     + ' \u00b7 ' + _rqFmtDur(f.dedMs) + ' off bench'
-    + (f.dedMs > f.offMs ? ' (incl. the 15m break)' : '');
+    + (f.basis === 'set' ? ' \u00b7 set by hand'
+       : f.dedMs > f.offMs ? ' \u00b7 incl. the 15m break' : '');
+
+  // Square's clocked-in total is a ceiling the nightly sweep enforces, because
+  // reconcile() only ever floors the deduction upward. Say so here rather than
+  // letting the figure quietly revert two days later.
+  if (!warn) return;
+  var segs = _rqParseTimelineSegments(_rqStoreList(store)[i]);
+  var clocked = segs ? _rqSpansMs(_rqNormalizeBreaks(segs, startMs, stopMs)) : null;
+  var over = f.basis === 'set' && clocked != null && f.netMs > clocked + 60000;
+  warn.textContent = over
+    ? '⚠ Square has her clocked in for ' + _rqFmtDur(clocked)
+      + ' — the nightly sync will pull this back to that.' : '';
+  warn.style.display = over ? 'block' : 'none';
+}
+
+// A keystroke in either bench field is the whole gesture: from here the figure
+// is deliberate and stops following the break rows.
+function rqEditBenchTyped(store, i) {
+  _rqSetBenchFlag(store, i, true);
+  rqEditRecalcBench(store, i, true);
+}
+
+// Drop the hand-set figure and let the recalc refill from the times, the break
+// rows and the Square timeline — the way back out.
+function rqEditResetBench(store, i) {
+  _rqSetBenchFlag(store, i, false);
+  rqEditRecalcBench(store, i);
 }
 
 // Shared edit panel (start/stop time, per-item piece inputs + remove, add-item
@@ -827,13 +978,14 @@ function rqSaveEditSession(store, i) {
   // before the break editor existed, and still has to: editing times used to
   // silently wipe the /api/square-sync reconciliation, and a session nobody is
   // re-timing must come through an item-name fix with its hours untouched.
-  var breaks    = _rqReadBreakInputs(store, i);
-  var hadBreaks = _rqParseBreaks(s.notes).length > 0;
-  var edited    = null;
+  var breaks = _rqReadBreakInputs(store, i);
+  var edited = null;
   if (newStart && newStop) {
-    edited = _rqEditedFigures(s, new Date(newStart).getTime(), new Date(newStop).getTime(),
-                              breaks || [], hadBreaks);
-    if (breaks && breaks.length && !edited.spans.length) {
+    edited = _rqPanelFigures(store, i, new Date(newStart).getTime(), new Date(newStop).getTime());
+    // Break rows that all clamp away would save as "no breaks at all", which is
+    // not what was typed. A hand-set bench time discards them by design, so the
+    // complaint only applies when it is the breaks doing the work.
+    if (edited && edited.basis !== 'set' && breaks && breaks.length && !edited.spans.length) {
       toast('Those breaks fall outside the session window', '⚠'); return;
     }
   }
@@ -844,7 +996,11 @@ function rqSaveEditSession(store, i) {
     s.totalMs = edited.totalMs;
     s.dedMs   = edited.dedMs;
     s.netMs   = edited.netMs;
-    if (edited.touched) { s.notes = _rqNotesWithBreaks(s.notes, edited.spans); notesChanged = true; }
+    if (edited.touched) {
+      s.notes = _rqNotesWithBreaks(s.notes, edited.spans, edited.benchSetMs != null ? edited.benchSetMs : null,
+                                   edited.totalMs);
+      notesChanged = true;
+    }
   }
   var rateEl = document.getElementById('rq-edit-rate-' + store + '-' + i);
   var newRate = null;

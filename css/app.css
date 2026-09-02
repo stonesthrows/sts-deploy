@@ -4283,6 +4283,10 @@
     .rq-brk-row .rq-edit-input { flex:1; min-width:0; }
     .rq-brk-arrow { color:var(--text-dim); font-size:11px; flex-shrink:0; }
     .rq-brk-add { align-self:flex-start; }
+    .rq-bench-num { width:52px; text-align:right; font-variant-numeric:tabular-nums; }
+    .rq-bench-unit { color:var(--text-dim); font-size:11px; margin-right:4px; }
+    .rq-bench-reset { margin-left:2px; }
+    .rq-bench-warn { color:var(--warn); font-size:11px; line-height:1.4; }
 
     /* ── Supplier Order Tracker ─────────────────── */
     #tab-supplier { padding: 0; }
