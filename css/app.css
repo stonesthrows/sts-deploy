@@ -3761,6 +3761,53 @@
     .rq-read-name { color: var(--text); font-weight: 600; flex: 1; min-width: 0; }
     .rq-read-qty { color: var(--accent); font-weight: 700; flex-shrink: 0; }
     .rq-read-row .inv-badge { font-size: 11px; padding: 2px 6px; flex-shrink: 0; }
+
+    /* ── Split into batches ──
+       A big listing (50+ rings across 20 sizes) is one card but several
+       sittings of work. The picker below asks for a batch count and previews
+       exactly which sizes land where before anything is created. */
+    .rq-panel-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rq-panel-actions .rq-edit-btn, .rq-panel-actions .rq-edit-done-btn { margin-top: 6px; }
+    .rq-split-btn {
+      background: none; border: 1px solid var(--bdr); border-radius: 6px;
+      color: var(--text2); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 5px 11px; cursor: pointer; margin-top: 6px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .rq-split-btn:hover { border-color: var(--accent); color: var(--accent-fg); }
+    .rq-split-panel {
+      margin-top: 10px; padding: 10px 12px; border: 1px solid var(--accent-border);
+      border-radius: 8px; background: var(--card-bg);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .rq-split-title { font-size: 12px; color: var(--text2); font-weight: 600; }
+    .rq-split-counts { display: flex; gap: 6px; }
+    .rq-split-count {
+      min-width: 34px; padding: 5px 10px; border: 1px solid var(--bdr); border-radius: 6px;
+      background: var(--card-bg); color: var(--text); font-size: 13px; font-weight: 700;
+      font-variant-numeric: tabular-nums; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .rq-split-count:hover { border-color: var(--accent); }
+    .rq-split-count-active {
+      background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+    }
+    .rq-split-preview { display: flex; flex-direction: column; gap: 3px; }
+    .rq-split-batch {
+      display: flex; align-items: center; gap: 10px;
+      padding: 4px 8px; background: var(--card-head-bg); border: 1px solid var(--bdr-light);
+      border-radius: 6px; font-size: 12.5px;
+    }
+    .rq-split-batch-no { color: var(--text); font-weight: 700; flex-shrink: 0; }
+    .rq-split-batch-range { color: var(--text2); flex: 1; min-width: 0; }
+    .rq-split-batch-qty { color: var(--accent); font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .rq-split-actions { display: flex; align-items: center; gap: 8px; }
+    .rq-split-confirm-btn {
+      background: var(--accent); border: none; border-radius: 6px; color: var(--accent-ink);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 5px 13px; cursor: pointer; transition: background 0.15s; margin-left: auto;
+    }
+    .rq-split-confirm-btn:hover { background: var(--accent-fg); }
     .rq-item.rq-active {
       border-color: var(--accent);
       border-left: 4px solid var(--accent);

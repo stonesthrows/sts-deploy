@@ -847,6 +847,7 @@ function rqRowClick(event, pid) {
   _rqExpanded[pid] = !_rqExpanded[pid];
   if (!_rqExpanded[pid]) {
     delete _rqEditMode[pid];
+    delete _rqSplitOpen[pid];
   } else if (_rqMobileEditMode && window.innerWidth <= 640) {
     // Header edit toggle is on (mobile) — skip the read view, open straight to edit.
     _rqEditMode[pid] = true;
@@ -877,6 +878,7 @@ function _rqMigrateSizesIfNeeded(pid) {
 
 function rqEnterEditMode(pid) {
   _rqEditMode[pid] = true;
+  delete _rqSplitOpen[pid];
   _rqMigrateSizesIfNeeded(pid);
   restockQueueRender();
 }
@@ -948,6 +950,269 @@ function _rqReadSummaryHtml(match) {
     return '<div class="rq-read-row"><span class="rq-read-name">' + name + '</span><span class="rq-read-qty">' + (v.qty || 1) + '</span>' + _rqInvBadgeHtml(v.id) + '</div>';
   }).join('');
   return '<div class="rq-read-list">' + rows + '</div>';
+}
+
+// ── Split a big listing into smaller batches ─────────────────────────────────
+// One "Stacker (Double Chevron)" card can be 50+ rings across 20 sizes — a
+// week of bench work behind a single row, which makes it impossible to hand
+// half to someone else or to time a day's worth of it honestly. Splitting
+// turns it into N real queue cards, each with its own slice of the sizes, its
+// own assignee and its own timer.
+//
+// Sizes are kept in catalog order and cut into CONTIGUOUS chunks, balanced by
+// piece count rather than by number of sizes: a jeweler works up through the
+// sizes with one setup, so "sizes 2–5" is a batch someone can actually make;
+// "every third size" is not.
+
+var _rqSplitOpen = {};   // { [notionPageId]: batchCount } — split picker open on this card, showing this many batches
+
+// The variants (with quantities) a card is actually set to make. Cards
+// re-derive these from the shared sizes store, so fall back to that when the
+// cached match object hasn't been reconciled yet.
+function _rqSelectedVariantsFor(pid, match) {
+  if (!match || typeof match !== 'object' || !match.isParent) return [];
+  var sel = match.selectedVariants;
+  if (sel && sel.length) return sel;
+  return _rqResolveSelectedVariants(pid, match) || [];
+}
+
+function _rqUnitTotal(variants) {
+  return (variants || []).reduce(function(sum, v) { return sum + (v.qty || 1); }, 0);
+}
+
+// Splitting needs one size per batch at minimum, and the picker offers up to 4.
+function _rqMaxBatches(sel) {
+  return Math.min(4, (sel || []).length);
+}
+
+// Worth offering at all? Two sizes and a handful of pieces — below that the
+// card is already a single sitting and the button is just clutter.
+function _rqCanSplit(pid, match) {
+  if (!pid || !match || typeof match !== 'object' || !match.isParent) return false;
+  var sel = _rqSelectedVariantsFor(pid, match);
+  return sel.length >= 2 && _rqUnitTotal(sel) >= 4;
+}
+
+// Greedy contiguous partition: walk the sizes in order, closing a batch when
+// the next size would take it further from its target than stopping does.
+// The target is recomputed per batch from what's actually left, so rounding
+// never piles up on the last batch. Always leaves at least one size for each
+// batch still to come.
+function _rqSplitVariants(sel, n) {
+  var out = [];
+  var idx = 0;
+  for (var b = 0; b < n; b++) {
+    var batchesLeft = n - b;
+    var remaining = _rqUnitTotal(sel.slice(idx));
+    var target = remaining / batchesLeft;
+    var batch = [];
+    var acc = 0;
+    while (idx < sel.length) {
+      if (batch.length && (sel.length - idx) <= (batchesLeft - 1)) break;  // keep a size back for each remaining batch
+      var q = sel[idx].qty || 1;
+      if (batch.length && acc + q > target && (acc + q - target) > (target - acc)) break;
+      batch.push(sel[idx]);
+      acc += q;
+      idx++;
+    }
+    out.push(batch);
+  }
+  while (idx < sel.length) out[out.length - 1].push(sel[idx++]);  // safety net; the loop above should consume everything
+  return out;
+}
+
+// Pulls the size token out of a variant name like "Size 7.5, Silver & Gold Fill".
+function _rqSizeTokenFor(name) {
+  var tokens = (name || '').split(/[\/\-,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  for (var i = 0; i < tokens.length; i++) {
+    if (_rqClassifyToken(tokens[i]) === 'size') return tokens[i].replace(/^(size|sz)\s*/i, '');
+  }
+  return null;
+}
+
+// "Sizes 2–5" when the batch really is a size run, otherwise just how many
+// variants it covers (plenty of parent items aren't sized at all).
+function _rqBatchRangeLabel(batch) {
+  if (!batch || !batch.length) return 'empty';
+  var first = _rqSizeTokenFor(batch[0].name);
+  var last  = _rqSizeTokenFor(batch[batch.length - 1].name);
+  if (first && last) return first === last ? ('Size ' + first) : ('Sizes ' + first + '–' + last);
+  return batch.length + (batch.length === 1 ? ' variant' : ' variants');
+}
+
+function rqOpenSplit(pid) {
+  var sel = _rqSelectedVariantsFor(pid, _rqAutoMatches[pid]);
+  if (_rqMaxBatches(sel) < 2) { toast('Needs at least 2 sizes to split', '⚠'); return; }
+  _rqSplitOpen[pid] = 2;
+  delete _rqEditMode[pid];   // the picker replaces the edit panel; two open size tables at once is noise
+  restockQueueRender();
+}
+
+function rqCancelSplit(pid) {
+  delete _rqSplitOpen[pid];
+  restockQueueRender();
+}
+
+function rqSetSplitCount(pid, n) {
+  _rqSplitOpen[pid] = n;
+  restockQueueRender();
+}
+
+// The "two or three batches?" prompt: pick a count, see exactly which sizes
+// and how many pieces land in each batch, then commit.
+function _rqSplitPanelHtml(pid, match) {
+  var safePid = pid.replace(/'/g, '');
+  var sel = _rqSelectedVariantsFor(pid, match);
+  var max = _rqMaxBatches(sel);
+  var n = Math.min(_rqSplitOpen[pid] || 2, max);
+  var choices = [];
+  for (var c = 2; c <= max; c++) choices.push(c);
+
+  var buttons = choices.map(function(c) {
+    return '<button type="button" class="rq-split-count' + (c === n ? ' rq-split-count-active' : '') + '"'
+      + ' onclick="rqSetSplitCount(\'' + safePid + '\',' + c + ')">' + c + '</button>';
+  }).join('');
+
+  var preview = _rqSplitVariants(sel, n).map(function(batch, i) {
+    return '<div class="rq-split-batch">'
+      + '<span class="rq-split-batch-no">Batch ' + (i + 1) + '</span>'
+      + '<span class="rq-split-batch-range">' + _rqEsc(_rqBatchRangeLabel(batch)) + '</span>'
+      + '<span class="rq-split-batch-qty">' + _rqUnitTotal(batch) + ' pcs</span>'
+      + '</div>';
+  }).join('');
+
+  return '<div class="rq-split-panel">'
+    + '<div class="rq-split-title">' + _rqUnitTotal(sel) + ' pieces across ' + sel.length + ' sizes — how many batches?</div>'
+    + '<div class="rq-split-counts">' + buttons + '</div>'
+    + '<div class="rq-split-preview">' + preview + '</div>'
+    + '<div class="rq-split-actions">'
+    + '<button type="button" class="rq-setup-cancel-btn" onclick="rqCancelSplit(\'' + safePid + '\')">Cancel</button>'
+    + '<button type="button" class="rq-split-confirm-btn" onclick="rqConfirmSplit(\'' + safePid + '\',' + n + ')">Split into ' + n + '</button>'
+    + '</div>'
+    + '</div>';
+}
+
+// Batch 1 stays on the existing card (keeping its Notion page, its place in
+// the queue and any note/assignee); batches 2..N become new cards inserted
+// directly below it.
+//
+// The new Notion pages are all created BEFORE anything is moved off the
+// original card, so a half-finished split can never strand a batch's sizes on
+// a card that no longer exists: if any create fails, the pages that did get
+// made are deleted again and the original is left exactly as it was.
+function rqConfirmSplit(pid, n) {
+  var item = NOTES_DATA.filter(function(x) { return x.notionPageId === pid; })[0];
+  var match = _rqAutoMatches[pid];
+  var sel = _rqSelectedVariantsFor(pid, match);
+  n = Math.min(n, _rqMaxBatches(sel));
+  if (!item || n < 2) return;
+  var batches = _rqSplitVariants(sel, n);
+  delete _rqSplitOpen[pid];
+
+  // Batch tag goes before any " – …" suffix so it survives _rqShortName and
+  // shows on the bar — telling the batches apart at a glance is the point.
+  // A card that already carries a tag keeps it ("… (Batch 2/3) (Batch 1/2)"),
+  // which is clumsy but never collides with a sibling's name.
+  var base = item.text, suffix = '';
+  var dash = item.text.indexOf(' – ');
+  if (dash !== -1) { base = item.text.slice(0, dash).trim(); suffix = item.text.slice(dash); }
+  // A "– Sizes 2, 3, 4" suffix described the whole listing, so copying it
+  // onto every batch would have each card advertising sizes it isn't making.
+  // Re-derive it per batch; any other suffix is a general note and rides along
+  // unchanged.
+  var sizeSuffix = /^\s*–\s*Sizes?\s+/i.test(suffix);
+  var titleFor = function(i) {
+    var tail = sizeSuffix ? ' – ' + _rqBatchRangeLabel(batches[i]) : suffix;
+    return base + ' (Batch ' + (i + 1) + '/' + n + ')' + tail;
+  };
+
+  // The new cards inherit the assignee and note — a split is a division of
+  // the same job, not a re-plan. Reassigning is one dropdown away.
+  var assignee = _rqMeta.assignees[pid] || '';
+  var note     = _rqNotes[pid] || '';
+  var slim     = Object.assign({}, match);
+  delete slim.selectedVariants;
+
+  var temps = [];
+  var chain = Promise.resolve();
+  for (var i = 1; i < n; i++) {
+    (function(i) {
+      var text = titleFor(i);
+      var temp = { notionPageId: null, text: text, block: 'Inventory Restock', done: false, _saving: true, _batchIdx: i };
+      NOTES_DATA.push(temp);
+      temps.push(temp);
+      chain = chain.then(function() {
+        return fetch('/api/notion-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, block: 'Inventory Restock' }),
+        })
+          .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+          .then(function(res) {
+            if (!res.ok || !res.data.notionPageId) throw new Error('create failed');
+            temp.notionPageId = res.data.notionPageId;
+            temp._saving = false;
+          });
+      });
+    })(i);
+  }
+
+  restockQueueRender();
+
+  chain
+    .then(function() {
+      // Every page exists — now hand each batch its sizes and retitle the original.
+      item.text = titleFor(0);
+      _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: batches[0] });
+      _rqAmSave();
+      _rqSaveSizesFor(pid, batches[0]);
+      _rqPatch(pid, { text: item.text });
+
+      temps.forEach(function(t) {
+        var newPid = t.notionPageId;
+        var batch  = batches[t._batchIdx];
+        delete t._batchIdx;
+        _rqAmSet(newPid, Object.assign({}, slim, { selectedVariants: batch }));
+        _rqSaveSizesFor(newPid, batch);
+        if (assignee) _rqMeta.assignees[newPid] = assignee;
+        if (note) {
+          _rqNotes[newPid] = note;
+          var patch = {};
+          patch[newPid] = note;
+          _rqPatchStore('/api/restock-notes', patch, 'Failed to copy note to batch');
+        }
+      });
+      _rqPlaceBatchesAfter(pid, temps);
+      toast('Split into ' + n + ' batches', '✂');
+    })
+    .catch(function() {
+      // Nothing has been taken off the original card yet, so undoing the split
+      // is just dropping the cards that were created.
+      temps.forEach(function(t) {
+        var gi = NOTES_DATA.indexOf(t);
+        if (gi !== -1) NOTES_DATA.splice(gi, 1);
+        if (t.notionPageId) {
+          fetch('/api/notion-notes?pageId=' + encodeURIComponent(t.notionPageId), { method: 'DELETE' }).catch(function() {});
+        }
+      });
+      restockQueueRender();
+      toast('Could not split — the item is unchanged', '⚠');
+    });
+}
+
+// Puts the new batch cards immediately below the one they came from. Rebuilt
+// from the rendered order (same as rqMove) so the saved order matches what
+// the user is looking at.
+function _rqPlaceBatchesAfter(pid, temps) {
+  var newPids = temps.map(function(t) { return t.notionPageId; }).filter(Boolean);
+  var order = _rqSortedItems()
+    .map(function(i) { return i.notionPageId; })
+    .filter(function(id) { return id && newPids.indexOf(id) === -1; });
+  var at = order.indexOf(pid);
+  _rqMeta.order = at === -1 ? order.concat(newPids)
+                            : order.slice(0, at + 1).concat(newPids, order.slice(at + 1));
+  _rqSaveMeta();
+  restockQueueRender();
 }
 
 // Runs auto-match jobs with limited concurrency via promise chaining (not
@@ -1937,6 +2202,12 @@ function restockQueueRender() {
     var safeNoteAttr = note.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     var safeNoteHtml = _rqEsc(note);
 
+    var canSplit  = expanded && _rqCanSplit(pid, match);
+    var splitOpen = expanded && !!_rqSplitOpen[pid];
+    var splitBtn  = canSplit
+      ? '<button class="rq-split-btn" onclick="rqOpenSplit(\'' + safePid + '\')" title="Break this into smaller batches">✂ Split into batches</button>'
+      : '';
+
     var matchRow = '';
     if (expanded) {
       if (editing) {
@@ -1948,13 +2219,21 @@ function restockQueueRender() {
           + '<div class="rq-match-row" id="rq-match-row-' + safePid + '">' + _rqMatchRowInner(pid) + '</div>'
           + '<textarea class="rq-note-textarea" placeholder="Add a note… (handy for items not in Square)"'
           + ' onchange="rqSetNote(\'' + safePid + '\',this.value)">' + safeNoteAttr + '</textarea>'
+          + '<div class="rq-panel-actions">'
           + '<button class="rq-edit-done-btn" onclick="rqExitEditMode(\'' + safePid + '\')">✓ Done editing</button>'
+          + splitBtn
+          + '</div>'
+          + (splitOpen ? _rqSplitPanelHtml(pid, match) : '')
           + '</div>';
       } else {
         matchRow = '<div class="rq-expand-panel">'
           + _rqReadSummaryHtml(match)
           + (note ? '<div class="rq-note-display">📝 ' + safeNoteHtml + '</div>' : '')
+          + '<div class="rq-panel-actions">'
           + '<button class="rq-edit-btn" onclick="rqEnterEditMode(\'' + safePid + '\')">✎ Edit</button>'
+          + splitBtn
+          + '</div>'
+          + (splitOpen ? _rqSplitPanelHtml(pid, match) : '')
           + '</div>';
       }
     }
@@ -3353,6 +3632,7 @@ function _rqDeleteItemObj(item) {
     delete _rqMatchEdits[pid];
     delete _rqExpanded[pid];
     delete _rqEditMode[pid];
+    delete _rqSplitOpen[pid];
     var hadMatch = _rqAutoMatches[pid] && typeof _rqAutoMatches[pid] === 'object';
     delete _rqAutoMatches[pid];
     _rqAmSave();

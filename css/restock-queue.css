@@ -191,6 +191,7 @@
 #tab-to-restock .rq-variant-qty,
 #tab-to-restock .rq-variant-qty-inline,
 #tab-to-restock .rq-read-qty,
+#tab-to-restock .rq-split-batch-qty,
 #tab-to-restock .rq-adjust-input { font-variant-numeric: tabular-nums; }
 
 /* Setup panel (Square search) + expand-panel surfaces: tokenised so both
@@ -202,6 +203,7 @@
 #tab-to-restock .rq-variant-chip { background: var(--card-bg); }
 #tab-to-restock .rq-read-row { background: var(--card-bg); }
 #tab-to-restock .rq-expand-panel { border-radius: var(--rad-sm); }
+#tab-to-restock .rq-split-panel { border-radius: var(--rad-sm); }
 
 /* Text inputs: gold focus ring to match the rest of the redesign */
 #tab-to-restock .rq-edit-title-input:focus,
@@ -217,6 +219,9 @@
 #tab-to-restock .rq-arrow:focus-visible,
 #tab-to-restock .rq-stop-btn:focus-visible,
 #tab-to-restock .rq-pause-btn:focus-visible,
+#tab-to-restock .rq-split-btn:focus-visible,
+#tab-to-restock .rq-split-count:focus-visible,
+#tab-to-restock .rq-split-confirm-btn:focus-visible,
 #tab-to-restock .rq-edit-btn:focus-visible,
 #tab-to-restock .rq-edit-done-btn:focus-visible,
 #tab-to-restock .rq-setup-cancel-btn:focus-visible,
