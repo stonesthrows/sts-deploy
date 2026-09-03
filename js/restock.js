@@ -586,18 +586,104 @@ function _rqApplyServerMatches(d) {
     if (_rqTimers[pid] || _rqSetups[pid]) return;
     var v = _rqAutoMatches[pid];
     if (!v || typeof v !== 'object' || !v.id) return;
-    var slim = Object.assign({}, v);
-    delete slim.selectedVariants;
-    upload[pid] = slim;
+    upload[pid] = _rqStoreMatch(v);
     uploadCount++;
   });
   if (uploadCount) _rqPatchStore('/api/restock-matches', upload, 'Failed to sync Square matches');
 }
+
+// Trims a match down to what the shared store is FOR: which Square item this
+// row points at. A parent's variants/modifierLists are Square's own catalog
+// data, re-fetched by item id in _rqRehydrateMatches — storing them put ~88%
+// of the blob's bytes into a copy of Square, and at ~130 matched items that
+// hit the store's 200k ceiling ("Matches data too large — not saved"), after
+// which no new match could be saved at all. selectedVariants stay out for the
+// older reason: every device re-derives them from /api/restock-sizes, so the
+// store never carries another device's stale qty picks.
+function _rqStoreMatch(v) {
+  var slim = Object.assign({}, v);
+  delete slim.selectedVariants;
+  if (slim.isParent) { delete slim.variants; delete slim.modifierLists; }
+  return slim;
+}
+
+// Refills variants + modifierLists on parent matches that came from the
+// shared store (which keeps only the item id — see _rqStoreMatch). One
+// batch-retrieve covers the whole queue. Without it a device that hasn't
+// matched these rows locally would show a matched parent with no sizes to
+// pick. Resolves true when anything was filled in, so the caller can
+// re-reconcile and re-render.
+function _rqRehydrateMatches() {
+  var ids = [];
+  var pidsById = {};
+  Object.keys(_rqAutoMatches).forEach(function(pid) {
+    var m = _rqAutoMatches[pid];
+    if (!m || typeof m !== 'object' || !m.isParent || m.isCustom) return;
+    if (m.variants) return; // already hydrated (local cache or fresh match)
+    if (!m.id || m.id.indexOf('local-') === 0 || m.id.indexOf('custom-') === 0) return;
+    if (!pidsById[m.id]) { pidsById[m.id] = []; ids.push(m.id); }
+    pidsById[m.id].push(pid);
+  });
+  if (!ids.length) return Promise.resolve(false);
+
+  // Square caps batch-retrieve at 1000 object ids; chunk so a long queue
+  // can't silently drop the tail.
+  var chunks = [];
+  for (var i = 0; i < ids.length; i += 500) chunks.push(ids.slice(i, i + 500));
+  var changed = false;
+
+  return chunks.reduce(function(chain, chunk) {
+    return chain.then(function() {
+      return _rqSqCall('/catalog/batch-retrieve', {
+        method: 'POST',
+        body: { object_ids: chunk, include_related_objects: true },
+      }).then(function(data) {
+        var modifierListsById = {};
+        (data.related_objects || []).forEach(function(o) {
+          if (o.type === 'MODIFIER_LIST') modifierListsById[o.id] = o;
+        });
+        (data.objects || []).forEach(function(obj) {
+          if (obj.type !== 'ITEM' || !pidsById[obj.id]) return;
+          var variations = (obj.item_data || {}).variations || [];
+          var fill = {
+            variantCount:  variations.length,
+            modifierLists: _rqBuildModifierLists(obj, modifierListsById),
+            variants: variations.map(function(vv) {
+              var vd = vv.item_variation_data;
+              return { id: vv.id, name: vd ? (vd.name || '') : '', sku: vd ? (vd.sku || '') : '' };
+            }),
+          };
+          pidsById[obj.id].forEach(function(pid) {
+            var m = _rqAutoMatches[pid];
+            // The row may have been re-matched while this was in flight —
+            // don't staple one item's variants onto a different item.
+            if (!m || typeof m !== 'object' || m.id !== obj.id) return;
+            _rqAutoMatches[pid] = Object.assign({}, m, fill);
+            changed = true;
+          });
+        });
+      });
+    });
+  }, Promise.resolve())
+    .then(function() { if (changed) _rqAmSave(); return changed; })
+    .catch(function() { if (changed) _rqAmSave(); return changed; });
+}
+
 function _rqLoadMatches(cb) {
-  if (_rqPrefetch) { _rqApplyServerMatches(_rqPrefetch.matches); if (cb) cb(); return; }
+  // Hydration is a second round-trip to Square — don't hold the first render
+  // behind it; refresh the rows it fills in once it lands.
+  var hydrate = function() {
+    _rqRehydrateMatches().then(function(changed) {
+      if (!changed) return;
+      if (_rqSizesLoaded) _rqReconcileSizes();
+      restockQueueRender();
+      _rqFetchInvCounts();
+    });
+  };
+  if (_rqPrefetch) { _rqApplyServerMatches(_rqPrefetch.matches); hydrate(); if (cb) cb(); return; }
   fetch('/api/restock-matches')
     .then(function(r) { return r.json(); })
-    .then(function(d) { _rqApplyServerMatches(d); if (cb) cb(); })
+    .then(function(d) { _rqApplyServerMatches(d); hydrate(); if (cb) cb(); })
     .catch(function() { if (cb) cb(); });
 }
 
@@ -767,16 +853,12 @@ function _rqAmSet(pid, item, localOnly) {
 
 // Pushes one item's match to the shared cross-device store, so a Square item
 // picked on the desktop shows up on the phone/iPad too (localStorage alone
-// never leaves this browser). selectedVariants are stripped — every device
-// re-derives them from /api/restock-sizes, so the stored match stays small
-// and never carries another device's stale qty picks.
+// never leaves this browser). What gets stored is trimmed by _rqStoreMatch.
 function _rqAmServerSave(pid) {
   var v = _rqAutoMatches[pid];
   if (!v || typeof v !== 'object') return; // '_none_'/'_loading_' stay device-local
-  var slim = Object.assign({}, v);
-  delete slim.selectedVariants;
   var patch = {};
-  patch[pid] = slim;
+  patch[pid] = _rqStoreMatch(v);
   _rqPatchStore('/api/restock-matches', patch, 'Failed to sync Square match');
 }
 
@@ -1161,8 +1243,11 @@ function rqConfirmSplit(pid, n) {
   // the same job, not a re-plan. Reassigning is one dropdown away.
   var assignee = _rqMeta.assignees[pid] || '';
   var note     = _rqNotes[pid] || '';
+  // slim keeps variants — the new batch cards render their size rows from it
+  // locally. What goes to the shared store is trimmed again by _rqStoreMatch.
   var slim     = Object.assign({}, match);
   delete slim.selectedVariants;
+  var stored   = _rqStoreMatch(match);
 
   var temps = [];
   var chain = Promise.resolve();
@@ -1204,7 +1289,7 @@ function rqConfirmSplit(pid, n) {
       _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: batches[0] });
       _rqAmSave();
       sizesPatch[pid] = _rqSizesEntryFor(pid, batches[0]);
-      matchPatch[pid] = slim;   // unchanged item, but free here and repairs a card whose match never reached the store
+      matchPatch[pid] = stored;   // unchanged item, but free here and repairs a card whose match never reached the store
       _rqPatch(pid, { text: item.text });
 
       temps.forEach(function(t) {
@@ -1213,7 +1298,7 @@ function rqConfirmSplit(pid, n) {
         delete t._batchIdx;
         _rqAmSet(newPid, Object.assign({}, slim, { selectedVariants: batch }), true);  // localOnly — the server copy rides in matchPatch
         sizesPatch[newPid] = _rqSizesEntryFor(newPid, batch);
-        matchPatch[newPid] = slim;
+        matchPatch[newPid] = stored;
         if (assignee) _rqMeta.assignees[newPid] = assignee;
         if (note) { _rqNotes[newPid] = note; notesPatch[newPid] = note; }
       });

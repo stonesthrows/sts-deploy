@@ -18,9 +18,33 @@ const DB_ID         = 'fb115de8-4ac5-433d-84e6-1005f89ecdd2';
 const MATCHES_BLOCK = '__rq_matches__';
 // Notion title properties cap each rich_text segment at 2000 chars, but the
 // array itself can hold up to 100 segments — split into chunks instead of
-// capping at one segment's worth (matches carry variant lists, so they're
-// the largest of the rq blobs).
+// capping at one segment's worth. 100 x 2000 is Notion's own hard ceiling
+// for one title property, so there is no raising it: staying under it is
+// slimMatch's job, not a bigger number's.
 const MAX_LEN       = 100 * 2000;
+
+// The store is an INDEX (which Square item a row points at), not a copy of
+// the catalog. A parent's variants/modifierLists are Square's own data and
+// the client re-fetches them by item id on load, so strip them here too —
+// server-side, so no stale client build can refill the blob, and so the
+// existing oversized blob is compacted by the read-merge-write below on the
+// very first PATCH. Storing them was ~88% of the payload and pushed the
+// store past MAX_LEN at ~130 matched items, after which every save failed
+// with "Matches data too large". selectedVariants are per-device qty picks
+// that belong in /api/restock-sizes.
+function slimMatch(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return m;
+  const out = { ...m };
+  delete out.selectedVariants;
+  if (out.isParent) { delete out.variants; delete out.modifierLists; }
+  return out;
+}
+
+function slimAll(map) {
+  const out = {};
+  for (const pid of Object.keys(map)) out[pid] = slimMatch(map[pid]);
+  return out;
+}
 
 function toTitleChunks(str) {
   const chunks = [];
@@ -110,7 +134,10 @@ export async function onRequest({ request, env }) {
   // ── PUT — save the whole map ──────────────────
   if (request.method === 'PUT') {
     const body = await request.json();
-    const content = JSON.stringify(body);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ error: 'PUT body must be an object of { pid: match }' }, 400);
+    }
+    const content = JSON.stringify(slimAll(body));
     // Reject instead of silently truncating — a truncated JSON blob would
     // fail to parse on the next load and wipe everything in it, not just
     // whatever didn't fit.
@@ -132,10 +159,12 @@ export async function onRequest({ request, env }) {
       return json({ error: 'PATCH body must be an object of { pid: match | null }' }, 400);
     }
     const page = await findMatchesPage(h);
-    const current = page ? parsePage(page) : {};
+    // slimAll on the merge base, not just the patch — this is what compacts a
+    // blob written by an older build that still stored catalog data.
+    const current = page ? slimAll(parsePage(page)) : {};
     for (const pid of Object.keys(patch)) {
       if (patch[pid] === null) delete current[pid];
-      else current[pid] = patch[pid];
+      else current[pid] = slimMatch(patch[pid]);
     }
     const content = JSON.stringify(current);
     if (content.length > MAX_LEN) {
