@@ -642,17 +642,34 @@ function _rqLoadAll(cb) {
 // device holding a stale snapshot of the whole map can no longer wipe out
 // changes other devices saved since it last loaded — the old whole-map PUTs
 // were exactly how selections saved on the desktop kept vanishing.
+// The merge happens on the SERVER as read-modify-write against one shared
+// Notion page, which is only safe while a store has a single write in flight:
+// two overlapping PATCHes to the same store both read the same pre-state, so
+// whichever lands second silently drops the first one's items. Chaining them
+// per store costs a round-trip when several items change at once and is worth
+// it — batch-splitting a listing lost two batches' sizes to exactly this race.
+// (Prefer sending one PATCH with every changed item where you can; this is the
+// backstop for the paths that can't.)
+var _rqPatchQueues = {};   // { [url]: Promise } — tail of that store's write chain
+
 function _rqPatchStore(url, patch, failMsg) {
-  fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-    .then(function(res) {
-      if (!res.ok) toast(res.data.error || failMsg, '⚠');
+  var send = function() {
+    return fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
     })
-    .catch(function() { toast(failMsg, '⚠'); });
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+      .then(function(res) {
+        if (!res.ok) toast(res.data.error || failMsg, '⚠');
+      })
+      .catch(function() { toast(failMsg, '⚠'); });
+  };
+  // send() swallows its own failures, so one bad write can never stall the
+  // queue behind it.
+  var next = (_rqPatchQueues[url] || Promise.resolve()).then(send, send);
+  _rqPatchQueues[url] = next;
+  return next;
 }
 
 function _rqFlushNotes() {
@@ -674,9 +691,11 @@ function rqSetNote(pid, value) {
   _rqNotesSaveDebounce = setTimeout(_rqFlushNotes, 600);
 }
 
-// Writes the chosen variant quantities for one item into the shared
-// cross-device store (dropping zero-qty entries) and saves.
-function _rqSaveSizesFor(pid, selectedVariants) {
+// Updates one item's entry in the local sizes cache (dropping zero-qty
+// entries) and returns what should be sent for it — the stored map, or null
+// to delete. Separate from the save below so a caller changing several items
+// at once can collect them into ONE patch instead of racing itself.
+function _rqSizesEntryFor(pid, selectedVariants) {
   var map = {};
   (selectedVariants || []).forEach(function(v) {
     if (v.qty > 0) {
@@ -689,8 +708,14 @@ function _rqSaveSizesFor(pid, selectedVariants) {
   });
   if (Object.keys(map).length) _rqSizes[pid] = map;
   else delete _rqSizes[pid];
+  return _rqSizes[pid] || null;
+}
+
+// Writes the chosen variant quantities for one item into the shared
+// cross-device store and saves.
+function _rqSaveSizesFor(pid, selectedVariants) {
   var patch = {};
-  patch[pid] = _rqSizes[pid] || null;
+  patch[pid] = _rqSizesEntryFor(pid, selectedVariants);
   _rqPatchStore('/api/restock-sizes', patch, 'Failed to save sizes');
 }
 
@@ -848,10 +873,16 @@ function rqRowClick(event, pid) {
   if (!_rqExpanded[pid]) {
     delete _rqEditMode[pid];
     delete _rqSplitOpen[pid];
-  } else if (_rqMobileEditMode && window.innerWidth <= 640) {
-    // Header edit toggle is on (mobile) — skip the read view, open straight to edit.
-    _rqEditMode[pid] = true;
+  } else {
+    // Opening a card is the user looking at (and vouching for) its sizes, so
+    // it's also the moment to push any that only exist in this browser's cache
+    // up to the shared store — same migration edit mode does, one step earlier.
+    // It's what repairs a card whose sizes never reached the server.
     _rqMigrateSizesIfNeeded(pid);
+    if (_rqMobileEditMode && window.innerWidth <= 640) {
+      // Header edit toggle is on (mobile) — skip the read view, open straight to edit.
+      _rqEditMode[pid] = true;
+    }
   }
   restockQueueRender();
 }
@@ -1162,26 +1193,35 @@ function rqConfirmSplit(pid, n) {
   chain
     .then(function() {
       // Every page exists — now hand each batch its sizes and retitle the original.
+      //
+      // Each shared store is written ONCE, with every card's entry in the same
+      // patch. A patch per card would have the server merge them into the same
+      // Notion page concurrently, each request reading the state from before
+      // its siblings' writes — which is how batches 2 and 3 lost their sizes.
+      var sizesPatch = {}, matchPatch = {}, notesPatch = {};
+
       item.text = titleFor(0);
       _rqAutoMatches[pid] = Object.assign({}, match, { selectedVariants: batches[0] });
       _rqAmSave();
-      _rqSaveSizesFor(pid, batches[0]);
+      sizesPatch[pid] = _rqSizesEntryFor(pid, batches[0]);
+      matchPatch[pid] = slim;   // unchanged item, but free here and repairs a card whose match never reached the store
       _rqPatch(pid, { text: item.text });
 
       temps.forEach(function(t) {
         var newPid = t.notionPageId;
         var batch  = batches[t._batchIdx];
         delete t._batchIdx;
-        _rqAmSet(newPid, Object.assign({}, slim, { selectedVariants: batch }));
-        _rqSaveSizesFor(newPid, batch);
+        _rqAmSet(newPid, Object.assign({}, slim, { selectedVariants: batch }), true);  // localOnly — the server copy rides in matchPatch
+        sizesPatch[newPid] = _rqSizesEntryFor(newPid, batch);
+        matchPatch[newPid] = slim;
         if (assignee) _rqMeta.assignees[newPid] = assignee;
-        if (note) {
-          _rqNotes[newPid] = note;
-          var patch = {};
-          patch[newPid] = note;
-          _rqPatchStore('/api/restock-notes', patch, 'Failed to copy note to batch');
-        }
+        if (note) { _rqNotes[newPid] = note; notesPatch[newPid] = note; }
       });
+
+      _rqPatchStore('/api/restock-matches', matchPatch, 'Failed to sync batch items');
+      _rqPatchStore('/api/restock-sizes', sizesPatch, 'Failed to save batch sizes');
+      if (Object.keys(notesPatch).length) _rqPatchStore('/api/restock-notes', notesPatch, 'Failed to copy note to batches');
+
       _rqPlaceBatchesAfter(pid, temps);
       toast('Split into ' + n + ' batches', '✂');
     })
