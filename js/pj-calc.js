@@ -1,27 +1,35 @@
 (function () {
   const PJ_DATA = [
-    { style:'Paperclip',     metal:'SS', name:'Sterling Silver 1.9mm Oval Cable Chain',              item:'617936B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[75,80,85,95,100,105,110]    },
-    { style:'Paperclip',     metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                    item:'679289B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[100,105,115,120,125,135,140] },
-    { style:'Rolo',          metal:'SS', name:'Sterling Silver 1.3mm Drawn Oval Rolo Chain',          item:'616230B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[85,90,100,105,110,115,120]  },
-    { style:'Rolo',          metal:'GF', name:'14/20 YGF 1.3mm Drawn Oval Rolo Chain',               item:'679538B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[110,120,130,135,145,150,160] },
-    { style:'Long & Short',  metal:'SS', name:'Sterling Silver 1.6mm Oval Long & Short Chain',        item:'613081B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[55,60,65,70,70,75,80]       },
-    { style:'Long & Short',  metal:'GF', name:'14/20 YGF 1.7mm Flat Long & Short Chain',             item:'628672B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[90,100,105,110,120,125,130]  },
-    { style:'Dapped Oval',   metal:'SS', name:'Sterling Silver 2.5mm Dapped Flat Oval Cable Chain',   item:'683164B', bracelet:35, anklet:45, neck:[50,56,62,68],  belly:[90,100,105,110,115,125,130]  },
-    { style:'Dapped Oval',   metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                    item:'643012B', bracelet:60, anklet:70, neck:[75,81,87,93],  belly:[100,105,115,120,125,135,140] },
-    { style:'Heart',         metal:'SS', name:'Sterling Silver 3.4mm Flat Heart Link Chain',          item:'617837B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[145,155,165,175,185,195,205] },
-    { style:'Heart',         metal:'GF', name:'14/20 YGF 3.2mm Heart Link Cable Chain',              item:'643125B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[165,175,185,195,210,220,230] },
-    { style:'Tube Bead',     metal:'SS', name:'Sterling Silver 1.7mm Cable Chain with Tube Beads',    item:'615831B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[110,120,130,135,145,150,160] },
-    { style:'Tube Bead',     metal:'GF', name:'14/20 YGF 1.7mm Cable Chain with Tube Beads',         item:'678880B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[190,200,215,230,240,255,265] },
-    { style:'Figaro',        metal:'SS', name:'Sterling Silver 2.2mm Diamond-Cut Figaro Chain',       item:'632379B', bracelet:40, anklet:50, neck:[55,61,67,73],  belly:[140,150,155,165,175,185,195] },
-    { style:'Figaro',        metal:'GF', name:'14/20 YGF 2.2mm Figaro Chain',                        item:'643030B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[230,245,260,275,295,310,325] },
-    { style:'Dapped Bar',    metal:'SS', name:'Sterling Silver 1.3mm Dapped Bar & Link Chain',        item:'632370B', bracelet:45, anklet:55, neck:[60,66,72,78],  belly:[150,160,170,185,195,205,215] },
-    { style:'Dapped Bar',    metal:'GF', name:'14/20 YGF 1.4mm Dapped Bar & Link Chain',             item:'678682B', bracelet:70, anklet:80, neck:[85,91,97,103], belly:[235,255,270,290,305,320,340] },
-    { style:'Enameled Bead', metal:'GF', name:'14/20 YGF 1.65mm Cable Chain w/ Blue Enamel Beads',   item:'656431B', bracelet:65, anklet:75, neck:[80,86,92,98],  belly:[210,225,240,255,270,285,300] },
+    { style:'Paperclip',              metal:'SS', name:'Sterling Silver 1.9mm Oval Cable Chain',                item:'617936B', bracelet:35, anklet:45, neck:[50,56,62,68],     belly:[75,80,85,95,100,105,110] },
+    { style:'Paperclip',              metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                      item:'679289B', bracelet:60, anklet:70, neck:[75,81,87,93],     belly:[100,105,115,120,125,135,140] },
+    { style:'Rolo',                   metal:'SS', name:'Sterling Silver 1.3mm Drawn Oval Rolo Chain',           item:'616230B', bracelet:35, anklet:45, neck:[50,56,62,68],     belly:[85,90,100,105,110,115,120] },
+    { style:'Rolo',                   metal:'GF', name:'14/20 YGF 1.3mm Drawn Oval Rolo Chain',                 item:'679538B', bracelet:60, anklet:70, neck:[75,81,87,93],     belly:[110,120,130,135,145,150,160] },
+    { style:'Long & Short',           metal:'SS', name:'Sterling Silver 1.6mm Oval Long & Short Chain',         item:'613081B', bracelet:35, anklet:45, neck:[50,56,62,68],     belly:[55,60,65,70,70,75,80] },
+    { style:'Long & Short',           metal:'GF', name:'14/20 YGF 1.7mm Flat Long & Short Chain',               item:'628672B', bracelet:60, anklet:70, neck:[75,81,87,93],     belly:[90,100,105,110,120,125,130] },
+    { style:'Dapped Oval',            metal:'SS', name:'Sterling Silver 2.5mm Dapped Flat Oval Cable Chain',    item:'683164B', bracelet:35, anklet:45, neck:[50,56,62,68],     belly:[90,100,105,110,115,125,130] },
+    { style:'Dapped Oval',            metal:'GF', name:'14/20 YGF 1.9mm Oval Cable Chain',                      item:'643012B', bracelet:60, anklet:70, neck:[75,81,87,93],     belly:[100,105,115,120,125,135,140] },
+    { style:'Patterned Long & Short', metal:'GF', name:'14/20 YGF 2.1mm Patterned Long & Short Chain',          item:'',        bracelet:60, anklet:70, neck:[75,81,87,93],     belly:[100,110,115,120,130,135,145] },
+    { style:'Heart',                  metal:'SS', name:'Sterling Silver 3.4mm Flat Heart Link Chain',           item:'617837B', bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[145,155,165,175,185,195,205] },
+    { style:'Heart',                  metal:'GF', name:'14/20 YGF 3.2mm Heart Link Cable Chain',                item:'643125B', bracelet:70, anklet:80, neck:[85,91,97,103],    belly:[165,175,185,195,210,220,230] },
+    { style:'Tube Bead',              metal:'SS', name:'Sterling Silver 1.7mm Cable Chain with Tube Beads',     item:'615831B', bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[110,120,130,135,145,150,160] },
+    { style:'Tube Bead',              metal:'GF', name:'14/20 YGF 1.7mm Cable Chain with Tube Beads',           item:'678880B', bracelet:70, anklet:80, neck:[85,91,97,103],    belly:[190,200,215,230,240,255,265] },
+    { style:'Figaro',                 metal:'SS', name:'Sterling Silver 2.2mm Diamond-Cut Figaro Chain',        item:'632379B', bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[140,150,155,165,175,185,195] },
+    { style:'Figaro',                 metal:'GF', name:'14/20 YGF 2.2mm Figaro Chain',                          item:'643030B', bracelet:70, anklet:80, neck:[85,91,97,103],    belly:[230,245,260,275,295,310,325] },
+    { style:'Satellite',              metal:'SS', name:'Sterling Silver 1.5mm Satellite Cable Chain, 2mm Bead', item:'',        bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[100,110,115,125,130,135,145] },
+    { style:'Satellite',              metal:'GF', name:'14/20 YGF 1.5mm Satellite Cable Chain, 2mm Bead',       item:'',        bracelet:70, anklet:80, neck:[85,91,97,103],    belly:[140,150,165,175,185,195,200] },
+    { style:'Flower Clover',          metal:'SS', name:'Sterling Silver 4mm Flower Clover Quatrefoil Chain',    item:'',        bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[175,185,200,210,225,235,250] },
+    { style:'Flower Clover',          metal:'GF', name:'14/20 YGF 4mm Flower Clover Quatrefoil Chain',          item:'',        bracelet:70, anklet:80, neck:[85,91,97,103],    belly:[180,195,210,220,230,245,260] },
+    { style:'Dapped Bar',             metal:'SS', name:'Sterling Silver 1.3mm Dapped Bar & Link Chain',         item:'632370B', bracelet:45, anklet:55, neck:[60,66,72,78],     belly:[150,160,170,185,195,205,215] },
+    { style:'Dapped Bar',             metal:'GF', name:'14/20 YGF 1.4mm Dapped Bar & Link Chain',               item:'678682B', bracelet:75, anklet:85, neck:[90,96,102,108],   belly:[235,255,270,290,305,320,340] },
+    { style:'Enameled Bead',          metal:'SS', name:'Sterling Silver 1.65mm Cable Chain w/ Enamel Beads',    item:'',        bracelet:65, anklet:75, neck:[80,86,92,98],     belly:[255,275,295,315,330,350,365] },
+    { style:'Enameled Bead',          metal:'GF', name:'14/20 YGF 1.65mm Cable Chain w/ Enamel Beads',          item:'656431B', bracelet:75, anklet:85, neck:[90,96,102,108],   belly:[210,225,240,255,270,285,300] },
+    { style:'Circle Link',            metal:'SS', name:'Sterling Silver 4mm Circle Link Chain',                 item:'',        bracelet:80, anklet:90, neck:[95,101,107,113],  belly:[265,285,305,325,345,360,380] },
+    { style:'Circle Link',            metal:'GF', name:'14/20 YGF 4.1mm Flat Circle Link Chain',                item:'',        bracelet:85, anklet:95, neck:[100,106,112,118], belly:[425,460,490,520,550,580,610] },
   ];
 
   const PJ_STYLES = {
-    SS: ['Paperclip','Rolo','Long & Short','Dapped Oval','Heart','Tube Bead','Figaro','Dapped Bar'],
-    GF: ['Paperclip','Rolo','Long & Short','Dapped Oval','Heart','Tube Bead','Figaro','Dapped Bar','Enameled Bead']
+    SS: ['Paperclip','Rolo','Long & Short','Dapped Oval','Heart','Tube Bead','Figaro','Satellite','Flower Clover','Dapped Bar','Enameled Bead','Circle Link'],
+    GF: ['Paperclip','Rolo','Long & Short','Dapped Oval','Patterned Long & Short','Heart','Tube Bead','Figaro','Satellite','Flower Clover','Dapped Bar','Enameled Bead','Circle Link']
   };
   const PJ_NECK  = [14, 16, 18, 20];
   const PJ_BELLY = [28, 30, 32, 34, 36, 38, 40];
@@ -100,7 +108,7 @@
       else if (pjS.piece === 'belly')    pieceLabel = pjS.size + '″ Belly Chain';
       document.getElementById('pjPriceLine').textContent   = pjS.style + '  ·  ' + metalLabel + '  ·  ' + pieceLabel;
       document.getElementById('pjPriceAmount').textContent = '$' + price;
-      document.getElementById('pjPriceMeta').textContent   = chain ? chain.name + ' · #' + chain.item : '';
+      document.getElementById('pjPriceMeta').textContent   = chain ? chain.name + (chain.item ? ' · #' + chain.item : '') : '';
     }
   }
 
