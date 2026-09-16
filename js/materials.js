@@ -47,6 +47,15 @@ function matCostFmt(cost, unit) {
   return Number(cost).toFixed(unit === 'mm' ? 4 : 2);
 }
 
+// Suppliers (Rio Grande and the rest) quote and sell chain by the foot,
+// so every per-mm cost carries its per-foot equivalent alongside it —
+// that is the number to check a quote against.
+function matIsChainMm(m) { return !!m && m.category === 'chain' && m.unit === 'mm'; }
+
+function matCostPerFoot(cost) {
+  return '$' + (Number(cost) * MAT_MM_PER_FOOT).toFixed(2) + '/ft';
+}
+
 // Chain used to be stocked by the foot, so BOM lines written before the
 // switch hold feet. A saved line now carries the unit it was written in
 // (qtyUnit); one without it predates the switch, and on a chain material
@@ -246,7 +255,10 @@ function materialsRender() {
     const spec = (m.category === 'metal' || m.category === 'chain')
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
       : '—';
-    const cost = m.currentCostPerUnit != null ? `$${matCostFmt(m.currentCostPerUnit, m.unit)}` : '—';
+    const cost = m.currentCostPerUnit == null
+      ? '—'
+      : `$${matCostFmt(m.currentCostPerUnit, m.unit)}`
+        + (matIsChainMm(m) ? `<span class="mat-per-ft">${matCostPerFoot(m.currentCostPerUnit)}</span>` : '');
     const stock = m.stockLevel != null ? `${m.stockLevel} ${matUnitAbbr(m.unit)}` : '—';
     const confClass = m.stockConfidence ? `mat-conf mat-conf-${m.stockConfidence}` : 'mat-conf';
     return `
@@ -335,6 +347,19 @@ function materialsToggleMetalFields() {
   const isMetal = cat === 'metal';
   document.getElementById('matMetalTypeRow').style.display = (isMetal || cat === 'chain') ? '' : 'none';
   document.getElementById('matFormGaugeRow').style.display = isMetal ? '' : 'none';
+  materialsCostHintRender();
+}
+
+// Chain is priced per mm here but bought per foot, so the cost field
+// shows what the figure being typed comes to per foot — the number that
+// can be read straight off a Rio Grande quote.
+function materialsCostHintRender() {
+  const el = document.getElementById('matCostPerFt');
+  if (!el) return;
+  const isChain = document.getElementById('matCategory').value === 'chain'
+               && document.getElementById('matUnit').value === 'mm';
+  const v = parseFloat(document.getElementById('matCost').value);
+  el.textContent = (isChain && v > 0) ? '= ' + matCostPerFoot(v) : '';
 }
 
 // ── Save / Delete ───────────────────────────────

@@ -27,7 +27,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=20260807a">
-  <link rel="stylesheet" href="css/app.css?v=20260903a">
+  <link rel="stylesheet" href="css/app.css?v=20260916a">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -1900,7 +1900,7 @@
       </div>
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Unit</label>
-        <select id="matUnit" style="width:100%">
+        <select id="matUnit" style="width:100%" onchange="materialsCostHintRender()">
           <option value="gram">Gram</option>
           <option value="ozt">Troy Ounce (ozt)</option>
           <option value="mm">Millimeter (mm)</option>
@@ -1936,7 +1936,8 @@
     <div class="sot-modal-row">
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Current Cost / Unit ($)</label>
-        <input id="matCost" type="number" step="0.0001" min="0" style="width:100%">
+        <input id="matCost" type="number" step="0.0001" min="0" style="width:100%" oninput="materialsCostHintRender()">
+        <div id="matCostPerFt" class="mat-per-ft-hint"></div>
       </div>
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Stock Level</label>
@@ -3791,7 +3792,7 @@
 <script src="js/restock-sessions.js?v=20260902a"></script>
 <script src="js/prod-report.js?v=20260828a"></script>
 <script src="js/supplier-history.js?v=20260729a"></script>
-<script src="js/materials.js?v=9"></script>
+<script src="js/materials.js?v=10"></script>
 <script src="js/receiving.js?v=20260727a"></script>
 <script src="js/closeout.js?v=5"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->

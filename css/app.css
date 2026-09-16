@@ -5034,6 +5034,8 @@
     .mat-conf-seeded    { background: var(--warn-bg); color: var(--warn-fg); }
     .mat-conf-estimated { background: var(--danger-bg); color: var(--danger-fg); }
     .mat-conf-verified  { background: var(--ok-bg); color: var(--ok-fg); }    .mat-spark { display: block; }
+    .mat-per-ft      { display: block; color: var(--text-dim); font-size: 11px; }
+    .mat-per-ft-hint { margin-top: 3px; color: var(--text-dim); font-size: 11px; min-height: 14px; }
     .mat-spark polyline { stroke: var(--info); }
     .mat-spark circle   { fill:   var(--info); }
     .mat-tag {
