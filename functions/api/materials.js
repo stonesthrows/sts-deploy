@@ -10,7 +10,9 @@
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VER = '2022-06-28';
-const API_VERSION = 'materials-api v6 (2026-07-29)';
+const API_VERSION = 'materials-api v7 (2026-09-16)';
+
+const MM_PER_FOOT = 304.8;
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -115,6 +117,14 @@ function pageToMaterial(page) {
   // rename — surface it as 'argentium' so old pages keep matching the
   // dropdown and waste-by-metal lookups (any edit-save migrates the page).
   const metalTypeRaw = sel(p['Metal Type']);
+  // Legacy: chain (and anything else) used to be stocked by the foot.
+  // Chain is now measured in millimetres, so surface old 'foot' pages as
+  // 'mm' with their stock and cost converted (1 ft = 304.8 mm) — the
+  // numbers stay true and any edit-save migrates the page for good.
+  const unitRaw   = sel(p['Unit']);
+  const wasFoot   = unitRaw === 'foot';
+  const costRaw   = p['Current Cost Per Unit']?.number ?? null;
+  const stockRaw  = p['Stock Level']?.number ?? null;
   return {
     notionPageId:       page.id,
     name:                ttl(p['Name']),
@@ -122,9 +132,9 @@ function pageToMaterial(page) {
     metalType:           metalTypeRaw === 'sterling' ? 'argentium' : metalTypeRaw,
     form:                sel(p['Form']),
     gauge:               txt(p['Gauge']),
-    unit:                sel(p['Unit']),
-    currentCostPerUnit:  p['Current Cost Per Unit']?.number ?? null,
-    stockLevel:          p['Stock Level']?.number ?? null,
+    unit:                wasFoot ? 'mm' : unitRaw,
+    currentCostPerUnit:  costRaw  == null ? null : (wasFoot ? costRaw / MM_PER_FOOT : costRaw),
+    stockLevel:          stockRaw == null ? null : (wasFoot ? stockRaw * MM_PER_FOOT : stockRaw),
     stockConfidence:     sel(p['Stock Confidence']),
     supplierDefault:     sel(p['Supplier Default']),
     active:              p['Active']?.checkbox !== false,

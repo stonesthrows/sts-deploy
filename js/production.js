@@ -1328,7 +1328,7 @@ function sotNorm(s) {
 }
 
 function sotUnitAbbr(u) {
-  return u === 'gram' ? 'g' : u === 'ozt' ? 'ozt' : u === 'foot' ? 'ft' : 'pc';
+  return u === 'gram' ? 'g' : u === 'ozt' ? 'ozt' : u === 'mm' ? 'mm' : 'pc';
 }
 
 // Exact normalized-name match only. A fuzzy match here would put a wrong

@@ -37,7 +37,14 @@ document.addEventListener('click', e => {
 // material quantities (designs, receiving, replenish, closeout) —
 // materials.js loads before all of them.
 function matUnitAbbr(unit) {
-  return unit === 'gram' ? 'g' : unit === 'ozt' ? 'ozt' : unit === 'foot' ? 'ft' : 'pc';
+  return unit === 'gram' ? 'g' : unit === 'ozt' ? 'ozt' : unit === 'mm' ? 'mm' : 'pc';
+}
+
+// Cost per unit. A millimetre of chain costs fractions of a cent, so
+// per-mm figures need four decimals — two would round most chains to
+// $0.02 and make every one of them look the same price.
+function matCostFmt(cost, unit) {
+  return Number(cost).toFixed(unit === 'mm' ? 4 : 2);
 }
 
 // ── API helpers ────────────────────────────────
@@ -160,7 +167,7 @@ function materialsSparkline(m) {
   const poly = coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
   const last = coords[coords.length - 1];
   const unit = '/' + matUnitAbbr(m.unit);
-  const title = pts.length + ' purchases: $' + pts[0].toFixed(2) + ' → $' + pts[pts.length - 1].toFixed(2) + unit;
+  const title = pts.length + ' purchases: $' + matCostFmt(pts[0], m.unit) + ' → $' + matCostFmt(pts[pts.length - 1], m.unit) + unit;
   return '<svg class="mat-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + escHtml(title) + '">'
     + '<title>' + escHtml(title) + '</title>'
     + '<polyline points="' + poly + '" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
@@ -225,7 +232,7 @@ function materialsRender() {
     const spec = (m.category === 'metal' || m.category === 'chain')
       ? [m.metalType, m.form, m.gauge].filter(Boolean).join(' · ')
       : '—';
-    const cost = m.currentCostPerUnit != null ? `$${Number(m.currentCostPerUnit).toFixed(2)}` : '—';
+    const cost = m.currentCostPerUnit != null ? `$${matCostFmt(m.currentCostPerUnit, m.unit)}` : '—';
     const stock = m.stockLevel != null ? `${m.stockLevel} ${matUnitAbbr(m.unit)}` : '—';
     const confClass = m.stockConfidence ? `mat-conf mat-conf-${m.stockConfidence}` : 'mat-conf';
     return `
@@ -361,7 +368,7 @@ async function materialsSave() {
 // starts unknown ('estimated'); the first Receive Shipment fills both.
 let _matImpCands = [];
 
-const _MAT_IMP_UNIT_BY_CAT = { metal: 'ozt', chain: 'foot', component: 'piece' };
+const _MAT_IMP_UNIT_BY_CAT = { metal: 'ozt', chain: 'mm', component: 'piece' };
 
 function _matImpGuessCat(desc) {
   const l = (desc || '').toLowerCase();
@@ -474,7 +481,7 @@ function _matImpRender() {
 
     const unitSel = document.createElement('select');
     unitSel.className = 'mi-unit';
-    [['gram', 'Gram'], ['ozt', 'Troy Oz'], ['foot', 'Foot'], ['piece', 'Piece']].forEach(([v, l]) => unitSel.add(new Option(l, v)));
+    [['gram', 'Gram'], ['ozt', 'Troy Oz'], ['mm', 'Millimeter'], ['piece', 'Piece']].forEach(([v, l]) => unitSel.add(new Option(l, v)));
     unitSel.value = _MAT_IMP_UNIT_BY_CAT[cat];
     catSel.onchange = () => { unitSel.value = _MAT_IMP_UNIT_BY_CAT[catSel.value]; };
 
