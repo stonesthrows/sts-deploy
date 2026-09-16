@@ -1352,10 +1352,11 @@ function _dsnGuideBomRender() {
     const m = _dsnBomMat(l.materialId);
     if (!m) return '<li><span class="dsn-gd-matname" style="color:var(--text3)">Unknown material</span></li>';
     const unit = _dsnUnitSuffix(m);
-    let qty = `${l.qty} ${unit}`;
+    const q = matBomQty(l, m);
+    let qty = `${q} ${unit}`;
     if (m.category === 'metal') {
       const w = _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null);
-      if (w > 0) qty += ` <span class="dsn-ru-dim">cut ${(l.qty * (1 + w / 100)).toFixed(2)} ${unit} incl. ${w}% waste</span>`;
+      if (w > 0) qty += ` <span class="dsn-ru-dim">cut ${(q * (1 + w / 100)).toFixed(2)} ${unit} incl. ${w}% waste</span>`;
     }
     return `<li><span class="dsn-gd-matname">${escHtml(m.name || 'Untitled')}</span><span class="dsn-gd-matqty">${qty}</span></li>`;
   }).join('') + '</ul>';
@@ -1911,8 +1912,8 @@ async function designsSaveDesign() {
     bom:          _designsBom
                     .filter(l => l.materialId && l.qty > 0)
                     .map(l => (splitOn && l.pct > 0)
-                      ? { materialId: l.materialId, qty: l.qty, pct: l.pct }
-                      : { materialId: l.materialId, qty: l.qty }),
+                      ? { materialId: l.materialId, qty: l.qty, qtyUnit: l.qtyUnit, pct: l.pct }
+                      : { materialId: l.materialId, qty: l.qty, qtyUnit: l.qtyUnit }),
     bomTotalWeightOzt: splitOn ? _dsnBomTotalOzt() : null,
     bomTotalWeightG:   splitOn ? splitTotalG : null,
     wasteOverridePct: (wasteRaw === '' || wasteRaw == null) ? null : parseFloat(wasteRaw),
@@ -2307,10 +2308,8 @@ function _dsnUnitSuffix(m) {
 //  qty is always computed and stored, so cost rollups, the pricing sheet
 //  and the replenishment engine are untouched.
 const _DSN_G_PER_OZT = 31.1035;
-const _DSN_IN_PER_FT = 12;
 
 function _dsnIsWeightUnit(m) { return !!m && (m.unit === 'gram' || m.unit === 'ozt'); }
-function _dsnIsChainMat(m)   { return !!m && m.category === 'chain'; }
 function _dsnBomSplitOn()    { const el = document.getElementById('dsn-bom-split'); return !!(el && el.checked); }
 // The total-weight field is entered in troy ounces; line math runs in grams
 function _dsnBomTotalOzt()   { const v = parseFloat((document.getElementById('dsn-bom-total') || {}).value); return isNaN(v) ? null : v; }
@@ -2394,9 +2393,6 @@ function _dsnWastePctFor(m) {
 function _dsnEffectiveLabel(l, split) {
   const m = _dsnBomMat(l.materialId);
   if (!m) return '';
-  // Chain lines are entered in inches but priced/stocked by the ft the
-  // Materials Library carries — show the ft the entered length converts to.
-  if (_dsnIsChainMat(m)) return l.qty > 0 ? ('= ' + l.qty.toFixed(2) + ' ft') : '';
   if (!(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
   // Troy-oz equivalent of the entered qty on gram-based lines
@@ -2452,17 +2448,22 @@ function _designsBomRender() {
 
   const split = _dsnBomSplitOn();
   const total = _dsnBomTotalG();
+  // Stamp each line with the unit it now holds, converting any foot-era
+  // chain length on the way in. Done here rather than at load because
+  // the materials list arrives after the form opens.
+  _designsBom.forEach(l => {
+    const m = _dsnBomMat(l.materialId);
+    if (!m) return;
+    l.qty = matBomQty(l, m);
+    l.qtyUnit = m.unit;
+  });
   wrap.innerHTML = _designsBom.map((l, i) => {
     const m = _dsnBomMat(l.materialId);
     const usePct = split && _dsnIsWeightUnit(m);
     if (usePct) l.qty = _dsnSplitQty(m, total, l.pct);
-    const isChain = !usePct && _dsnIsChainMat(m);
     let inputHtml;
     if (usePct) {
       inputHtml = `<input type="number" step="0.1" min="0" max="100" class="dsn-bom-pct" placeholder="% of total" value="${l.pct != null ? l.pct : ''}">`;
-    } else if (isChain) {
-      const inVal = l.qty > 0 ? Math.round(l.qty * _DSN_IN_PER_FT * 1000) / 1000 : '';
-      inputHtml = `<input type="number" step="0.01" min="0" class="dsn-bom-qty dsn-bom-chain-in" placeholder="Length (in)" value="${inVal}">`;
     } else {
       inputHtml = `<input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${m ? ' (' + _dsnUnitSuffix(m) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">`;
     }
@@ -2507,15 +2508,10 @@ function dsnBomSyncFromDom() {
     if (!l) return;
     l.materialId = row.querySelector('.dsn-bom-mat').value;
     const pctEl     = row.querySelector('.dsn-bom-pct');
-    const chainInEl = row.querySelector('.dsn-bom-chain-in');
     if (pctEl) {
       const p = parseFloat(pctEl.value);
       l.pct = isNaN(p) ? null : p;
       l.qty = _dsnSplitQty(_dsnBomMat(l.materialId), total, l.pct);
-    } else if (chainInEl) {
-      // Entered in inches, stored in ft — still priced/stocked per foot.
-      const inches = parseFloat(chainInEl.value);
-      l.qty = isNaN(inches) ? null : Math.round(inches / _DSN_IN_PER_FT * 1000) / 1000;
     } else {
       const q = parseFloat(row.querySelector('.dsn-bom-qty').value);
       l.qty = isNaN(q) ? null : q;
@@ -2723,7 +2719,8 @@ function dsnCostRollup(d) {
     if (!m || !(l.qty > 0)) { matMissing = true; return; }
     const isMetal = m.category === 'metal';
     const w = isMetal ? _dsnWastePctResolve(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) : 0;
-    const effQty = l.qty * (1 + w / 100);
+    const q = matBomQty(l, m);
+    const effQty = q * (1 + w / 100);
     // Per-material cost wins; metals with no cost fall back to the
     // shop-wide $/ozt price for their metal type (argentium / gold_fill).
     const shopPrice = isMetal && typeof shopPrices[m.metalType] === 'number' ? shopPrices[m.metalType] : null;
@@ -2731,7 +2728,7 @@ function dsnCostRollup(d) {
     const cost = unitCost != null ? effQty * unitCost : null;
     if (cost == null) matMissing = true; else matCost += cost;
     lines.push({
-      name: m.name, qty: l.qty, unit: _dsnUnitSuffix(m),
+      name: m.name, qty: q, unit: _dsnUnitSuffix(m),
       wastePct: isMetal ? w : null, effQty, unitCost, cost,
       shopPriced: m.currentCostPerUnit == null && unitCost != null,
     });
@@ -2916,7 +2913,7 @@ function _dsnVariantsInit(design) {
   _dsnVariants = (design && Array.isArray(design.variants))
     ? design.variants.map(v => ({
         id: v.id, label: v.label || '',
-        bom: (v.bom || []).map(l => ({ materialId: l.materialId, qty: l.qty })),
+        bom: (v.bom || []).map(l => ({ materialId: l.materialId, qty: l.qty, qtyUnit: l.qtyUnit })),
         wasteOverridePct: v.wasteOverridePct != null ? v.wasteOverridePct : null,
         squareItemId: v.squareItemId || null, squareItemName: v.squareItemName || null,
         retailPriceOverride: v.retailPriceOverride != null ? v.retailPriceOverride : null,
@@ -2975,7 +2972,7 @@ function _dsnVariantModalOpen(idx) {
   const v = idx != null ? _dsnVariants[idx] : null;
   document.getElementById('dsnVarModalTitle').textContent = v ? 'Edit Variation' : 'Add Variation';
   document.getElementById('dsn-var-label').value = v ? v.label : '';
-  _dsnVarBom = v ? v.bom.map(l => ({ materialId: l.materialId, qty: l.qty })) : [];
+  _dsnVarBom = v ? v.bom.map(l => ({ materialId: l.materialId, qty: l.qty, qtyUnit: l.qtyUnit })) : [];
   document.getElementById('dsn-var-waste').value = (v && v.wasteOverridePct != null) ? v.wasteOverridePct : '';
   _dsnVarLinkedSq = (v && v.squareItemId) ? { id: v.squareItemId, name: v.squareItemName || v.squareItemId } : null;
   document.getElementById('dsn-var-retail-ov').value = (v && v.retailPriceOverride != null) ? v.retailPriceOverride : '';
@@ -3029,15 +3026,22 @@ function _dsnVarEffectiveLabel(l) {
   const m = _dsnBomMat(l.materialId);
   if (!m || !(l.qty > 0)) return '';
   const unit = _dsnUnitSuffix(m);
-  if (m.category !== 'metal') return l.qty + ' ' + unit;
+  const q = matBomQty(l, m);
+  if (m.category !== 'metal') return q + ' ' + unit;
   const w = _dsnVarWastePctFor(m);
-  return '→ ' + (l.qty * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
+  return '→ ' + (q * (1 + w / 100)).toFixed(2) + ' ' + unit + ' incl. ' + w + '% waste';
 }
 
 function _dsnVarBomRender() {
   const wrap = document.getElementById('dsn-var-bom-rows');
   if (!wrap) return;
   if (_designsMaterials === null) { wrap.innerHTML = '<div class="dsn-bom-note">Loading materials…</div>'; return; }
+  _dsnVarBom.forEach(l => {
+    const m = _dsnBomMat(l.materialId);
+    if (!m) return;
+    l.qty = matBomQty(l, m);
+    l.qtyUnit = m.unit;
+  });
   wrap.innerHTML = _dsnVarBom.map((l, i) => `<div class="dsn-bom-row" data-idx="${i}">
       <select class="dsn-bom-mat">${_dsnBomOptions(l.materialId)}</select>
       <input type="number" step="0.01" min="0" class="dsn-bom-qty" placeholder="Qty${_dsnBomMat(l.materialId) ? ' (' + _dsnUnitSuffix(_dsnBomMat(l.materialId)) + ')' : ''}" value="${l.qty != null ? l.qty : ''}">

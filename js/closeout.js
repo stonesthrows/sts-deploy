@@ -108,9 +108,10 @@ function _coCompute(session) {
     d.bom.forEach(function(l) {
       var m = matById[l.materialId];
       if (!m || !(l.qty > 0)) return;
+      var qty = matBomQty(l, m);
       var perPiece = m.category === 'metal'
-        ? l.qty * (1 + _coWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
-        : l.qty;
+        ? qty * (1 + _coWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
+        : qty;
       totals[l.materialId] = (totals[l.materialId] || 0) + perPiece * it.pieces;
     });
   });

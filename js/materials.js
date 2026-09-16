@@ -47,6 +47,20 @@ function matCostFmt(cost, unit) {
   return Number(cost).toFixed(unit === 'mm' ? 4 : 2);
 }
 
+// Chain used to be stocked by the foot, so BOM lines written before the
+// switch hold feet. A saved line now carries the unit it was written in
+// (qtyUnit); one without it predates the switch, and on a chain material
+// it means feet. Every consumer of a BOM line (designs, closeout,
+// replenish) reads its qty through here so the old recipes stay true.
+const MAT_MM_PER_FOOT = 304.8;
+
+function matBomQty(line, m) {
+  const q = line && line.qty;
+  if (!(q > 0)) return q;
+  if (line.qtyUnit || !m || m.category !== 'chain' || m.unit !== 'mm') return q;
+  return Math.round(q * MAT_MM_PER_FOOT * 100) / 100;
+}
+
 // ── API helpers ────────────────────────────────
 async function _materialsApiFetch() {
   const resp = await fetch('/api/materials');

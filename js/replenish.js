@@ -745,9 +745,10 @@ function _rpWastePct(m, overridePct) {
 
 // Per-piece consumption per BOM line for a design
 function _rpPerPiece(d, l, m) {
+  var qty = matBomQty(l, m);
   return m.category === 'metal'
-    ? l.qty * (1 + _rpWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
-    : l.qty;
+    ? qty * (1 + _rpWastePct(m, d.wasteOverridePct != null ? d.wasteOverridePct : null) / 100)
+    : qty;
 }
 
 // ── The queue computation ──────────────────────
