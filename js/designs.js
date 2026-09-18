@@ -2727,8 +2727,13 @@ function dsnCostRollup(d) {
     const unitCost = m.currentCostPerUnit != null ? m.currentCostPerUnit : shopPrice;
     const cost = unitCost != null ? effQty * unitCost : null;
     if (cost == null) matMissing = true; else matCost += cost;
+    // Chain costs per mm but reads in inches — the breakdown prints the
+    // inches, the math underneath stays in the material's own unit.
+    const chainIn = matIsChainMm(m);
     lines.push({
       name: m.name, qty: q, unit: _dsnUnitSuffix(m),
+      dispQty: chainIn ? matMmToIn(q) : q,
+      dispUnit: chainIn ? ' in' : _dsnUnitSuffix(m),
       wastePct: isMetal ? w : null, effQty, unitCost, cost,
       shopPriced: m.currentCostPerUnit == null && unitCost != null,
     });
@@ -2802,7 +2807,7 @@ function _dsnRollupBoxHtml(r) {
   const matRows = r.lines.map(l => {
     const wasteTxt = l.wastePct != null && l.wastePct > 0 ? ` <span class="dsn-ru-dim">+${l.wastePct}% waste → ${l.effQty.toFixed(2)}${l.unit}</span>` : '';
     const shopTxt = l.shopPriced ? ` <span class="dsn-ru-dim">@ shop $${l.unitCost.toFixed(2)}/${l.unit}</span>` : '';
-    return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.qty}${l.unit}${wasteTxt}${shopTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
+    return `<div class="dsn-ru-row"><span>${escHtml(l.name)} · ${l.dispQty}${l.dispUnit}${wasteTxt}${shopTxt}</span><span>${_dsnMoney(l.cost)}</span></div>`;
   }).join('');
 
   const laborNote = r.laborSource === 'tracked' ? ` <span class="dsn-ru-dim">(${r.laborMin.toFixed(1)} min/pc from timers)</span>`

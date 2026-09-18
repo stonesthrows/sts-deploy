@@ -1900,7 +1900,7 @@
       </div>
       <div style="flex:1">
         <label style="font-size:12px;color:var(--text-dim);">Unit</label>
-        <select id="matUnit" style="width:100%" onchange="materialsCostHintRender()">
+        <select id="matUnit" style="width:100%" onchange="materialsCostFieldSync()">
           <option value="gram">Gram</option>
           <option value="ozt">Troy Ounce (ozt)</option>
           <option value="mm">Millimeter (mm)</option>
@@ -1935,7 +1935,7 @@
     </div>
     <div class="sot-modal-row">
       <div style="flex:1">
-        <label style="font-size:12px;color:var(--text-dim);">Current Cost / Unit ($)</label>
+        <label id="matCostLabel" style="font-size:12px;color:var(--text-dim);">Current Cost / Unit ($)</label>
         <input id="matCost" type="number" step="0.0001" min="0" style="width:100%" oninput="materialsCostHintRender()">
         <div id="matCostPerFt" class="mat-per-ft-hint"></div>
       </div>
@@ -3792,7 +3792,7 @@
 <script src="js/restock-sessions.js?v=20260902a"></script>
 <script src="js/prod-report.js?v=20260828a"></script>
 <script src="js/supplier-history.js?v=20260729a"></script>
-<script src="js/materials.js?v=10"></script>
+<script src="js/materials.js?v=11"></script>
 <script src="js/receiving.js?v=20260727a"></script>
 <script src="js/closeout.js?v=5"></script>
 <!-- ── Archive Action Confirmation Modal ───────────────────── -->
@@ -3885,7 +3885,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/designs.js?v=31"></script>
+<script src="js/designs.js?v=32"></script>
 <script src="js/design-vectors.js?v=3"></script>
 <script src="js/triplog.js?v=20260728a"></script>
 <script src="js/inventory.js?v=20260810c"></script>

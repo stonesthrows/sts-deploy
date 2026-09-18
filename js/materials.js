@@ -52,6 +52,14 @@ function matCostFmt(cost, unit) {
 // that is the number to check a quote against.
 function matIsChainMm(m) { return !!m && m.category === 'chain' && m.unit === 'mm'; }
 
+// Chain is stocked and costed per mm, but read and talked about in
+// inches at the bench — cost breakdowns show the inches a line comes to.
+const MAT_MM_PER_INCH = 25.4;
+
+function matMmToIn(mm) {
+  return Math.round(Number(mm) / MAT_MM_PER_INCH * 100) / 100;
+}
+
 function matCostPerFoot(cost) {
   return '$' + (Number(cost) * MAT_MM_PER_FOOT).toFixed(2) + '/ft';
 }
@@ -296,7 +304,7 @@ function materialsOpenNew() {
   document.getElementById('matForm').value = '';
   document.getElementById('matGauge').value = '';
   document.getElementById('matUnit').value = 'gram';
-  document.getElementById('matCost').value = '';
+  _matCostFieldLoad(null);
   document.getElementById('matStock').value = '0';
   document.getElementById('matConfidence').value = 'estimated';
   document.getElementById('matSupplier').value = '';
@@ -318,7 +326,7 @@ function materialsOpenEdit(id) {
   document.getElementById('matForm').value = m.form || '';
   document.getElementById('matGauge').value = m.gauge || '';
   document.getElementById('matUnit').value = m.unit || 'gram';
-  document.getElementById('matCost').value = m.currentCostPerUnit ?? '';
+  _matCostFieldLoad(m.currentCostPerUnit);
   document.getElementById('matStock').value = m.stockLevel ?? '';
   document.getElementById('matConfidence').value = m.stockConfidence || 'estimated';
   // Imported/Notion-side suppliers may not be in the fixed option list —
@@ -347,19 +355,66 @@ function materialsToggleMetalFields() {
   const isMetal = cat === 'metal';
   document.getElementById('matMetalTypeRow').style.display = (isMetal || cat === 'chain') ? '' : 'none';
   document.getElementById('matFormGaugeRow').style.display = isMetal ? '' : 'none';
+  materialsCostFieldSync();
+}
+
+// Seed the cost field with the stored per-unit figure; the sync that
+// follows (via materialsToggleMetalFields) converts it for display if
+// this material is entered by the foot.
+function _matCostFieldLoad(costPerUnit) {
+  const el = document.getElementById('matCost');
+  if (!el) return;
+  el.dataset.mode = 'unit';
+  el.value = costPerUnit ?? '';
+}
+
+// Chain is stocked and costed per mm, but bought by the foot — so on a
+// chain the cost field takes the per-foot price straight off the Rio
+// Grande invoice, and the per-mm figure it stores is shown underneath.
+// Everything else keeps entering cost in its own unit.
+function matCostFieldMode() {
+  return (document.getElementById('matCategory').value === 'chain'
+       && document.getElementById('matUnit').value === 'mm') ? 'foot' : 'unit';
+}
+
+// Re-label the cost field for the category/unit now selected, carrying
+// any figure already typed across the per-foot ↔ per-mm boundary so the
+// price never silently changes by 304.8×.
+function materialsCostFieldSync() {
+  const el = document.getElementById('matCost');
+  if (!el) return;
+  const want = matCostFieldMode();
+  const had  = el.dataset.mode || 'unit';
+  if (want !== had) {
+    const v = parseFloat(el.value);
+    if (v > 0) {
+      el.value = want === 'foot'
+        ? Math.round(v * MAT_MM_PER_FOOT * 100) / 100
+        : v / MAT_MM_PER_FOOT;
+    }
+    el.dataset.mode = want;
+  }
+  el.step = want === 'foot' ? '0.01' : '0.0001';
+  const lbl = document.getElementById('matCostLabel');
+  if (lbl) lbl.textContent = want === 'foot' ? 'Current Cost / Foot ($)' : 'Current Cost / Unit ($)';
   materialsCostHintRender();
 }
 
-// Chain is priced per mm here but bought per foot, so the cost field
-// shows what the figure being typed comes to per foot — the number that
-// can be read straight off a Rio Grande quote.
 function materialsCostHintRender() {
   const el = document.getElementById('matCostPerFt');
   if (!el) return;
-  const isChain = document.getElementById('matCategory').value === 'chain'
-               && document.getElementById('matUnit').value === 'mm';
   const v = parseFloat(document.getElementById('matCost').value);
-  el.textContent = (isChain && v > 0) ? '= ' + matCostPerFoot(v) : '';
+  el.textContent = (matCostFieldMode() === 'foot' && v > 0)
+    ? '= $' + (v / MAT_MM_PER_FOOT).toFixed(4) + '/mm stored'
+    : '';
+}
+
+// Cost field → the per-unit number the library stores (per mm on chain).
+function materialsCostFieldValue() {
+  const el = document.getElementById('matCost');
+  if (!el || el.value === '') return null;
+  const v = Number(el.value);
+  return el.dataset.mode === 'foot' ? v / MAT_MM_PER_FOOT : v;
 }
 
 // ── Save / Delete ───────────────────────────────
@@ -381,7 +436,7 @@ async function materialsSave() {
     form:               isMetal ? document.getElementById('matForm').value : '',
     gauge:              isMetal ? document.getElementById('matGauge').value.trim() : '',
     unit,
-    currentCostPerUnit: document.getElementById('matCost').value === '' ? null : Number(document.getElementById('matCost').value),
+    currentCostPerUnit: materialsCostFieldValue(),
     stockLevel:         document.getElementById('matStock').value === '' ? null : Number(document.getElementById('matStock').value),
     stockConfidence:    document.getElementById('matConfidence').value,
     supplierDefault:    document.getElementById('matSupplier').value,
