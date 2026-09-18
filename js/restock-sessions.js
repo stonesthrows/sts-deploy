@@ -15,13 +15,288 @@
 //  readability.
 // ════════════════════════════════════════════
 
+// ── Session outbox ────────────────────────────────────────────────────────────
+//
+// A stopped timer's session is the one record in this app nobody can
+// reconstruct. rqStopTimer deletes the timer and unpersists its KV entry
+// before it writes anything, the elapsed time only ever existed in that timer,
+// and _rqSessions is in-memory only — rqLoadSessions() replaces it wholesale
+// with whatever Notion has. So a write that failed at the moment of stopping
+// (no signal at a market, a Notion 5xx, the integration's access revoked, a
+// page archived out from under the PATCH) took the session with it: the ⚠ sat
+// in the Session Log until the next reload and then the work was simply gone,
+// never having reached the STS Work Sessions database at all. Those are the
+// sessions missing from the Production Report.
+//
+// Every stop now writes its payload to IndexedDB BEFORE touching the network
+// and clears it only on a confirmed 2xx. Whatever is still queued is replayed
+// on load, when the connection comes back, and whenever the Session Log or the
+// report is opened — and is rendered into both lists meanwhile, so an unsent
+// session is visible and counted rather than absent.
+//
+// Unlike js/notion.js's order queue, an HTTP error is NOT dropped here. That
+// queue can afford to give up because the order it describes is still on the
+// device and can be re-pushed; this payload is the only copy of the hours.
+// Replay is driven by user-visible events, not a timer, so keeping a doomed
+// entry costs one request per tab open and keeps the ⚠ on screen.
+var RQ_OUTBOX_KEY = 'rq-session-outbox';
+var _rqOutbox = [];            // [{ key, pageId, payload, queuedAt, attempts, lastError }]
+var _rqOutboxLoaded = false;
+var _rqOutboxReplaying = false;
+
+function _rqOutboxSave() {
+  if (typeof stsStoreSet !== 'function') return Promise.resolve();
+  return stsStoreSet(RQ_OUTBOX_KEY, _rqOutbox).catch(function() {});
+}
+
+function rqOutboxLoad() {
+  if (_rqOutboxLoaded) return Promise.resolve(_rqOutbox);
+  if (typeof stsStoreGet !== 'function') { _rqOutboxLoaded = true; return Promise.resolve(_rqOutbox); }
+  return stsStoreGet(RQ_OUTBOX_KEY).then(function(saved) {
+    if (Array.isArray(saved)) {
+      // Anything already in memory this session wins — it is the live entry
+      // the in-flight send is mutating.
+      var have = {};
+      _rqOutbox.forEach(function(e) { have[e.key] = 1; });
+      saved.forEach(function(e) { if (e && e.key && !have[e.key]) _rqOutbox.push(e); });
+    }
+    _rqOutboxLoaded = true;
+    return _rqOutbox;
+  }).catch(function() { _rqOutboxLoaded = true; return _rqOutbox; });
+}
+
+function _rqOutboxAdd(entry) {
+  _rqOutbox = _rqOutbox.filter(function(e) { return e.key !== entry.key; });
+  _rqOutbox.push(entry);
+  return _rqOutboxSave();
+}
+
+function _rqOutboxDrop(key) {
+  _rqOutbox = _rqOutbox.filter(function(e) { return e.key !== key; });
+  return _rqOutboxSave();
+}
+
+function _rqOutboxGet(key) {
+  var hit = _rqOutbox.filter(function(e) { return e.key === key; });
+  return hit.length ? hit[0] : null;
+}
+
+// One canonical payload per queued session, in the POST body's shape. The
+// PATCH is those same fields plus pageId, which is why both derive from it —
+// and why a PATCH whose page has gone can fall back to a create without the
+// caller having kept a second copy.
+var _RQ_PATCHABLE = ['startTime', 'stopTime', 'totalMin', 'dedMin', 'netMin',
+                     'notes', 'itemsJson', 'pieces', 'laborRate', 'itemName'];
+
+function _rqOutboxRequest(entry) {
+  var p = entry.payload || {};
+  if (!entry.pageId) return { method: 'POST', body: p };
+  var patch = { pageId: entry.pageId };
+  _RQ_PATCHABLE.forEach(function(k) { if (p[k] != null) patch[k] = p[k]; });
+  return { method: 'PATCH', body: patch };
+}
+
+// Fold a later edit into a queued payload, so the replay sends the corrected
+// figures rather than the ones captured at stop.
+function _rqOutboxAmend(key, fields) {
+  var entry = _rqOutboxGet(key);
+  if (!entry) return Promise.resolve();
+  Object.keys(fields || {}).forEach(function(k) {
+    if (k === 'pageId') return;
+    entry.payload[k] = fields[k];
+  });
+  return _rqOutboxSave();
+}
+
+// The Session Log and the report render session objects, not payloads — rebuild
+// one from the queued payload so an unsent session shows up in both lists after
+// a reload instead of vanishing until it lands.
+function _rqOutboxAsSession(entry) {
+  var p = entry.payload || {};
+  var items = [];
+  if (p.itemsJson) { try { items = JSON.parse(p.itemsJson) || []; } catch (e) { items = []; } }
+  if (!items.length) {
+    items = [{ name: p.itemName || '', squareId: p.squareItemId || '',
+               pieces: p.pieces != null ? p.pieces : null, isCustom: false, unitPrice: null }];
+  }
+  return {
+    notionPageId: entry.pageId || null,
+    items: items,
+    employee: { name: p.employeeName || '', id: '' },
+    category: p.category || '', sku: p.sku || '',
+    startTime: p.startTime || null, stopTime: p.stopTime || null,
+    totalMs: (p.totalMin || 0) * 60000,
+    dedMs: p.dedMin != null ? p.dedMin * 60000 : null,
+    netMs: (p.netMin || 0) * 60000,
+    notes: p.notes || '',
+    laborRate: p.laborRate != null ? p.laborRate : null,
+    saved: false,
+    error: entry.lastError || 'Not saved yet — will retry',
+    pushed: false,
+    _outboxKey: entry.key,
+  };
+}
+
+// Newest first, to match both lists' order.
+function _rqOutboxSessions() {
+  return _rqOutbox.slice().sort(function(a, b) {
+    return new Date(b.queuedAt || 0) - new Date(a.queuedAt || 0);
+  }).map(_rqOutboxAsSession);
+}
+
+// Send one queued entry. Resolves 'ok' | 'http-error' | 'network-error' and
+// leaves entry.lastError set for the ⚠ in the log. `session` is the live
+// in-memory copy, when there is one, so its saved/error state tracks the send.
+function _rqOutboxSend(entry, session) {
+  var req = _rqOutboxRequest(entry);
+  var wasPatch = req.method === 'PATCH';
+  entry.attempts = (entry.attempts || 0) + 1;
+  return fetch('/api/notion-timesession', {
+    method: req.method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req.body),
+  }).then(function(r) {
+    return r.json().catch(function() { return {}; }).then(function(d) {
+      return { ok: r.ok, status: r.status, data: d };
+    });
+  }).then(function(res) {
+    if (res.ok) {
+      if (res.data && res.data.notionPageId) entry.pageId = res.data.notionPageId;
+      entry.lastError = null;
+      if (session) {
+        if (entry.pageId) session.notionPageId = entry.pageId;
+        session.saved = true;
+        session.error = null;
+        delete session._outboxKey;
+        // The inventory push runs before the page exists, so its own
+        // pushedToSquare PATCH had nothing to write to — record it now, or a
+        // reload offers ↑ Square on an already-pushed session.
+        if (session.pushed) _rqMarkPushedInNotion(session);
+      }
+      if (res.data && res.data.warning) entry.warning = res.data.warning;
+      return 'ok';
+    }
+    // A rejected PATCH is usually a page archived or deleted out from under
+    // it — retrying that write can never land. Create a fresh page instead:
+    // a duplicate page is recoverable, a lost session is not.
+    if (wasPatch) {
+      entry.pageId = null;
+      if (session) session.notionPageId = null;
+      return _rqOutboxSend(entry, session);
+    }
+    entry.lastError = (res.data && res.data.error) || ('Notion error ' + res.status);
+    if (session) { session.saved = false; session.error = entry.lastError; }
+    return 'http-error';
+  }).catch(function() {
+    entry.lastError = 'Not saved — no connection';
+    if (session) { session.saved = false; session.error = entry.lastError; }
+    return 'network-error';
+  });
+}
+
+// The live in-memory copy of a queued session, if this page still holds one.
+function _rqSessionForOutbox(key) {
+  var hit = (_rqSessions || []).filter(function(s) { return s._outboxKey === key; });
+  return hit.length ? hit[0] : null;
+}
+
+// Queue a just-stopped session and try to send it immediately. Called by
+// rqStopTimer (js/restock.js) in place of its own fetch, so the payload is on
+// disk before the network is touched.
+function rqQueueSession(session, payload) {
+  var entry = {
+    key: 'sess-' + (session.startTime || new Date().toISOString()) + '-'
+       + Math.random().toString(36).slice(2, 8),
+    pageId: session.notionPageId || null,
+    payload: payload,
+    queuedAt: new Date().toISOString(),
+    attempts: 0,
+    lastError: null,
+  };
+  session._outboxKey = entry.key;
+  session.saved = false;
+  session.error = null;
+  return _rqOutboxAdd(entry)
+    .then(function() { return _rqOutboxSend(entry, session); })
+    .then(function(status) {
+      if (status === 'ok') {
+        return _rqOutboxDrop(entry.key).then(function() {
+          rqRenderSessions();
+          _rqReportFetchedAt = 0;     // the report's cached list is now short one session
+          toast(entry.warning || 'Session saved ✓', entry.warning ? '⚠' : '✓');
+        });
+      }
+      return _rqOutboxSave().then(function() {
+        rqRenderSessions();
+        toast(status === 'network-error'
+          ? 'No connection — session saved on this device, will sync automatically'
+          : 'Notion rejected the session — kept on this device, will retry', '📡');
+      });
+    });
+}
+
+// Replay everything queued, oldest first. A network error stops the pass (still
+// offline, no point hammering the rest); an HTTP error moves on, keeping the
+// entry for the next attempt.
+function rqOutboxReplay() {
+  if (_rqOutboxReplaying) return Promise.resolve(0);
+  return rqOutboxLoad().then(function() {
+    if (!_rqOutbox.length) return 0;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+    _rqOutboxReplaying = true;
+    var queue = _rqOutbox.slice().sort(function(a, b) {
+      return new Date(a.queuedAt || 0) - new Date(b.queuedAt || 0);
+    });
+    var sent = 0;
+    var step = function(n) {
+      if (n >= queue.length) return Promise.resolve();
+      var entry = queue[n];
+      return _rqOutboxSend(entry, _rqSessionForOutbox(entry.key)).then(function(status) {
+        if (status === 'ok') {
+          sent++;
+          return _rqOutboxDrop(entry.key).then(function() { return step(n + 1); });
+        }
+        if (status === 'network-error') return _rqOutboxSave();
+        return _rqOutboxSave().then(function() { return step(n + 1); });
+      });
+    };
+    return step(0).then(function() {
+      _rqOutboxReplaying = false;
+      if (sent) {
+        // _rqOutboxSend has already flipped each live copy to saved, so the two
+        // lists only need repainting. Deliberately NOT rqLoadSessions(), which
+        // replays at its top and would start a second pass from inside this one.
+        _rqReportFetchedAt = 0;
+        rqRenderSessions();
+        toast('✓ Synced ' + sent + ' unsaved session' + (sent > 1 ? 's' : '') + ' to Notion', '↻');
+      }
+      return sent;
+    }).catch(function() { _rqOutboxReplaying = false; return sent; });
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', function() { rqOutboxReplay(); });
+}
+
 // ── Session log ───────────────────────────────────────────────────────────────
 
 function rqLoadSessions() {
-  fetch('/api/notion-timesession')
-    .then(function(r) { return r.ok ? r.json() : []; })
+  // Both handlers below merge the outbox into the list they build, so the load
+  // is joined into the chain rather than raced against it.
+  Promise.all([
+    fetch('/api/notion-timesession').then(function(r) { return r.ok ? r.json() : []; }),
+    rqOutboxLoad(),
+  ])
+    .then(function(both) { rqOutboxReplay(); return both[0]; })
     .then(function(ns) {
-      if (!Array.isArray(ns) || !ns.length) { _rqSessionsLoaded = true; return; }
+      if (!Array.isArray(ns) || !ns.length) {
+        _rqSessionsLoaded = true;
+        // Queued-but-unsent sessions are still the only copy of their hours —
+        // show them even when Notion has nothing (or is unreachable).
+        if (_rqOutbox.length) { _rqSessions = _rqOutboxSessions(); rqRenderSessions(); }
+        return;
+      }
       _rqSessions = ns
         .filter(function(s) { return s.netMin != null; })
         .map(function(s) {
@@ -43,10 +318,17 @@ function rqLoadSessions() {
             pushed: !!s.pushed,
           };
         });
+      // A queued session has no netMin in Notion yet — either its page was
+      // never created or its stop PATCH never landed — so the filter above
+      // already excluded it and prepending cannot duplicate one.
+      if (_rqOutbox.length) _rqSessions = _rqOutboxSessions().concat(_rqSessions);
       _rqSessionsLoaded = true;
       rqRenderSessions();
     })
-    .catch(function() { _rqSessionsLoaded = true; });
+    .catch(function() {
+      _rqSessionsLoaded = true;
+      if (_rqOutbox.length) { _rqSessions = _rqOutboxSessions(); rqRenderSessions(); }
+    });
 }
 
 function _rqFmtDur(ms) {
@@ -1051,7 +1333,11 @@ function rqSaveEditSession(store, i) {
     var totalPcs = null;
     pricedItems.forEach(function(it) { if (it.pieces != null) totalPcs = (totalPcs || 0) + it.pieces; });
     _rqStoreRender(store);
-    if (!s.notionPageId) return;
+    // A session still in the outbox has no page to PATCH — fold the edit into
+    // the queued payload, or the replay would send the pre-edit figures. Built
+    // below and applied at the end, so the two paths share one set of fields.
+    var queuedKey = s._outboxKey || null;
+    if (!s.notionPageId && !queuedKey) return;
     var patch = { pageId: s.notionPageId };
     if (newStart) patch.startTime = newStart;
     if (newStop)  patch.stopTime  = newStop;
@@ -1069,6 +1355,12 @@ function rqSaveEditSession(store, i) {
     if (rateChanged) patch.laborRate = newRate;
     patch.itemsJson = JSON.stringify(_rqItemsForJson(pricedItems));
     patch.itemName  = (pricedItems[0] && pricedItems[0].name) || '';
+    if (queuedKey) {
+      return _rqOutboxAmend(queuedKey, patch).then(function() {
+        toast('Session updated — still waiting to sync', '📡');
+        return rqOutboxReplay();
+      });
+    }
     return fetch('/api/notion-timesession', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
       .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
       .then(function(res) {
@@ -1300,6 +1592,11 @@ function rqRenderProductionReport(forceRefresh) {
   var body = document.getElementById('prod-report-body');
   if (!body) return;
 
+  // Opening the report is the surface where a lost session is noticed, so it is
+  // also where the outbox gets another shot at draining. A successful replay
+  // clears the cache and re-renders on its own.
+  rqOutboxReplay();
+
   // Stale-while-revalidate. The cached list paints immediately so there is no
   // "Loading…" flash on a tab switch, and the refetch behind it is what picks
   // up sessions written since — by a timer stopped in the Restock Queue, by the
@@ -1341,13 +1638,20 @@ function rqRenderProductionReport(forceRefresh) {
           sku: s.sku || '',
         };
       });
-      return _rqFillReportPriceFallbacks(sessions);
+      // Joined in here for the same reason as rqLoadSessions: the handler below
+      // merges the outbox into what it publishes.
+      return rqOutboxLoad().then(function() { return _rqFillReportPriceFallbacks(sessions); });
     })
     .then(function(sessions) {
-      _rqReportSessions = sessions;
+      // Hours that are queued but not yet in Notion are still hours worked, and
+      // this is the surface where their absence was the complaint — so they are
+      // counted here too, carrying the ⚠ that says they have not landed. Same
+      // reasoning as the Session Log: a queued session has no netMin in Notion,
+      // so the filter above already excluded it and this cannot duplicate one.
+      _rqReportSessions = _rqOutbox.length ? _rqOutboxSessions().concat(sessions) : sessions;
       _rqReportFetchedAt = Date.now();
       _rqReportLoading = false;
-      _rqRenderReportBody(sessions);
+      _rqRenderReportBody(_rqReportSessions);
     })
     .catch(function() {
       _rqReportLoading = false;
@@ -1498,6 +1802,34 @@ function _rqEsc2(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').re
 function rqSetReportView(v)  { _rqReportView = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
 function rqSetReportRange(v) { _rqReportRange = v; if (_rqReportSessions) _rqRenderReportBody(_rqReportSessions); else _rqRenderReportControls(); }
 
+// The Session Log's DOM was removed from jewelry-workflow.html, so
+// rqRenderSessions() has been a no-op and the ✓ Saved / ⚠ status it draws has
+// been invisible for as long as that has been true. A failed session write
+// therefore announced itself with one toast and nothing else — which is how
+// sessions went missing without anybody being told. The Production Report is
+// the surface people actually look at, so the outbox states its case here.
+function _rqOutboxBannerHTML() {
+  if (!_rqOutbox.length) return '';
+  var n = _rqOutbox.length;
+  var why = _rqOutbox[0].lastError || 'not sent yet';
+  return '<div class="rq-outbox-banner" role="status">'
+    + '<span class="rq-outbox-banner-msg">⚠ ' + n + ' session' + (n > 1 ? 's' : '')
+    + ' recorded on this device ' + (n > 1 ? 'have' : 'has') + ' not reached Notion yet'
+    + ' <span class="pr-dim">(' + _rqEsc2(why) + ')</span>. '
+    + (n > 1 ? 'They are' : 'It is') + ' listed below and counted in these figures.</span>'
+    + '<button class="btn btn-outline btn-sm" onclick="rqRetryOutbox(this)">↻ Retry now</button>'
+    + '</div>';
+}
+
+function rqRetryOutbox(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Retrying…'; }
+  rqOutboxReplay().then(function(sent) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Retry now'; }
+    if (!sent) toast(_rqOutbox.length ? 'Still not saving — ' + (_rqOutbox[0].lastError || 'no connection') : 'Nothing to retry', '⚠');
+    _rqRenderReportControls();
+  });
+}
+
 function _rqRenderReportControls() {
   var el = document.getElementById('prod-report-controls');
   if (!el) return;
@@ -1513,7 +1845,8 @@ function _rqRenderReportControls() {
     ['listing',  'By Listing','Time per Restock Queue listing, so versions named apart are timed apart'],
     ['category', 'By Category','Per-category rollup'],
   ];
-  el.innerHTML = '<div class="rq-report-controls">'
+  el.innerHTML = _rqOutboxBannerHTML()
+    + '<div class="rq-report-controls">'
     + '<select class="rq-report-range" onchange="rqSetReportRange(this.value)">'
     + ranges.map(function(r) { return '<option value="' + r[0] + '"' + (_rqReportRange === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
     + '</select>'
@@ -2219,6 +2552,9 @@ function _rqShiftStoreState(store, removedIdx) {
 }
 
 function _rqDeleteSessionPage(s, store) {
+  // Deleting a session that never reached Notion means dropping it from the
+  // outbox — otherwise the next replay puts it straight back.
+  if (s._outboxKey) { _rqOutboxDrop(s._outboxKey); if (!s.notionPageId) return; }
   if (!s.notionPageId) return;
   fetch('/api/notion-timesession?pageId=' + encodeURIComponent(s.notionPageId), { method: 'DELETE' })
     .then(function(r) {

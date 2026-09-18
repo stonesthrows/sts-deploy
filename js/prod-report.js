@@ -705,7 +705,15 @@ function _prRenderLedger(sessions, idxs, body, summaryEl) {
       + '<div class="rq-sbar-meta">' + (emp ? _rqEsc2(emp) + ' · ' : '')
       + (s.category ? _rqEsc2(s.category) + ' · ' : '') + _prDate(s.startTime) + '</div>'
       + '</div>'
-      + '<div class="pr-card-pace">' + paceHtml + '</div>'
+      + '<div class="pr-card-pace">'
+      // A queued session is real work with real hours, but it is not in Notion
+      // yet, so say so on the card rather than letting it pass for a saved one.
+      + (s._outboxKey
+          ? '<span class="pr-pill pr-bad" title="Recorded on this device and not yet written to the STS Work Sessions database. '
+            + 'It will be sent automatically; ↻ Retry now at the top of the report forces an attempt.">'
+            + '⚠ not saved to Notion</span>'
+          : '')
+      + paceHtml + '</div>'
       + '<button class="rq-sbar-del" onclick="rqDeleteReportSession(' + i + ',this)" title="Delete">✕</button>'
       + '</div>'
       + bar

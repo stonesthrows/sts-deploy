@@ -2892,16 +2892,27 @@ function rqStopTimer(pid) {
   // No-op when nothing in the session is Square-linked; a failed push leaves
   // the Session Log's ↑ Square button as the retry.
   rqAutoPushInventory(session);
-  if (!session.notionPageId) {
-    // The Notion page create at timer start failed (offline, Notion hiccup) —
-    // create the page now instead of silently marking the session "Saved"
-    // and losing the hours/pieces on reload.
-    _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
-      session.items = pricedItems;
-      var postBody = {
-        itemName:     (pricedItems[0] && pricedItems[0].name) || '',
+  // The one write in this app whose failure cannot be undone: the timer is
+  // already deleted and unpersisted above, and _rqSessions is in-memory only,
+  // so a lost write means the hours are gone at the next reload. The payload
+  // therefore goes to IndexedDB before the network is touched, and is cleared
+  // only on a confirmed 2xx — see the session outbox in js/restock-sessions.js.
+  //
+  // _rqAttachItemPrices is a Square catalogue lookup for the unit prices the
+  // report's Value and Profit columns read. It must never gate the Notion
+  // write, so its failure resolves to the unpriced items rather than rejecting
+  // the chain the write hangs off.
+  _rqAttachItemPrices(expandedItems)
+    .catch(function() { return expandedItems; })
+    .then(function(pricedItems) {
+      session.items = pricedItems || expandedItems;
+      // One canonical payload, in the POST body's shape. The outbox derives the
+      // PATCH from it when the page created at timer start still exists, and
+      // falls back to a create when it does not.
+      var payload = {
+        itemName:     (session.items[0] && session.items[0].name) || '',
         employeeName: (session.employee && session.employee.name) || '',
-        squareItemId: (pricedItems[0] && !pricedItems[0].isCustom && pricedItems[0].squareId) || '',
+        squareItemId: (session.items[0] && !session.items[0].isCustom && session.items[0].squareId) || '',
         date:         session.startTime.slice(0, 10),
         startTime:    session.startTime,
         stopTime:     stopTime,
@@ -2909,50 +2920,14 @@ function rqStopTimer(pid) {
         dedMin:       dedMin,
         netMin:       netMin,
         notes:        notes,
-        itemsJson:    JSON.stringify(_rqItemsForJson(pricedItems)),
+        itemsJson:    JSON.stringify(_rqItemsForJson(session.items)),
       };
-      if (totalPcs  != null) postBody.pieces    = totalPcs;
-      if (laborRate != null) postBody.laborRate = laborRate;
-      return fetch('/api/notion-timesession', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postBody),
-      }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-      .then(function(res) {
-        session.notionPageId = (res.data && res.data.notionPageId) || null;
-        session.saved = !!session.notionPageId;
-        // The automatic inventory push runs before this page exists, so its
-        // own pushedToSquare PATCH had no page to write to — record it now,
-        // or a reload would offer ↑ Square on an already-pushed session.
-        if (session.pushed) _rqMarkPushedInNotion(session);
-        session.error = session.saved ? null : 'Notion error';
-        rqRenderSessions();
-        toast(session.saved ? 'Session saved ✓' : 'Notion save failed', session.saved ? '✓' : '⚠');
-      });
-    }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
-    return;
-  }
-  _rqAttachItemPrices(expandedItems).then(function(pricedItems) {
-    session.items = pricedItems;
-    var patchBody = { pageId: session.notionPageId, stopTime: stopTime, totalMin: totalMin, dedMin: dedMin, netMin: netMin, notes: notes, itemsJson: JSON.stringify(_rqItemsForJson(pricedItems)) };
-    if (totalPcs  != null) patchBody.pieces    = totalPcs;
-    // Only snapshot a real configured rate — writing the 0 that _rqRateFor
-    // used to return for "no rate set" locked sessions at $0/hr forever.
-    if (laborRate != null) patchBody.laborRate = laborRate;
-    return fetch('/api/notion-timesession', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patchBody),
-    }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-    .then(function(res) {
-      session.saved = res.ok;
-      session.error = res.ok ? null : 'Notion error';
-      rqRenderSessions();
-      if (!res.ok) { toast('Notion save failed', '⚠'); return; }
-      if (res.data && res.data.warning) { toast(res.data.warning, '⚠'); return; }
-      toast('Session saved ✓', '✓');
+      if (totalPcs  != null) payload.pieces    = totalPcs;
+      // Only snapshot a real configured rate — writing the 0 that _rqRateFor
+      // used to return for "no rate set" locked sessions at $0/hr forever.
+      if (laborRate != null) payload.laborRate = laborRate;
+      return rqQueueSession(session, payload);
     });
-  }).catch(function() { session.error = 'Network error'; rqRenderSessions(); });
 }
 
 function rqToggleTimerNotes(pid) {
