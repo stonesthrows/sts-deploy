@@ -1144,6 +1144,83 @@ async function stopTimer(tid, stopAtMs) {
   if (hasParent || hasPieces) { showInventoryModal(tid, session); } else { resetTimer(tid); }
 }
 
+// ── Items JSON ───────────────────────────────────────────────────────────────
+// The Production Report reads a session's per-item breakdown out of the
+// "Items JSON" Notion property, in the shape js/restock.js writes it
+// (_rqItemsForJson): { name, squareId, pieces, isCustom, unitPrice }. This tab
+// never wrote that property, so every session it saved arrived at the report as
+// a single item rebuilt from Item Name plus the total piece count — the
+// per-size split, the per-item counts, and the unit prices the report's Value
+// and Profit columns are computed from were all dropped.
+//
+// The report's "Square-linked" test is the squareId. A custom item never had
+// one, and the local ear-cuff catalogue's ids (LOCAL_ITEMS, above) are this
+// file's own invention — sending either would key a design's run history and
+// the report's catalogue lookups on an id Square has never heard of, so they go
+// out unlinked and the report groups them by name instead.
+function _wtSquareId(it) {
+  const id = (it && it.id) || '';
+  if (!id || it.isCustom || it.isLocal || String(id).indexOf('local-') === 0) return '';
+  return id;
+}
+
+// Search rows carry price as a fixed-2 string ('42.00'); custom items carry a
+// parsed unitPrice. The report wants a number either way.
+function _wtUnitPrice(it) {
+  if (!it) return null;
+  if (it.unitPrice != null && !isNaN(it.unitPrice)) return Number(it.unitPrice);
+  const p = it.price != null && it.price !== '' ? parseFloat(it.price) : null;
+  return p != null && !isNaN(p) ? p : null;
+}
+
+// A parent listing expands into one row per size picked at stop, the way the
+// Restock Queue does: the report keys run history and its price/category
+// lookups on the Square VARIATION id, and a parent's own id is the ITEM id,
+// which resolves to neither.
+function itemsJsonFor(session) {
+  const out = [];
+  ((session && session.items) || []).forEach(it => {
+    const sizes = it.selectedVariants || [];
+    if (it.isParent && sizes.length) {
+      const priceById = {};
+      (it.variants || []).forEach(v => { priceById[v.id] = v; });
+      sizes.forEach(row => {
+        // resolveLocalVariantIds stamps squareId onto a local row once it finds
+        // the real variation; a plain Square parent's rows are already ids.
+        const sqId = row.squareId || _wtSquareId(row);
+        out.push({
+          name: [it.name, row.name].filter(Boolean).join(' – '),
+          squareId: sqId,
+          pieces: row.qty != null ? row.qty : null,
+          isCustom: !sqId,
+          unitPrice: _wtUnitPrice(priceById[row.id]),
+        });
+      });
+      return;
+    }
+    const sqId = _wtSquareId(it);
+    out.push({
+      name: it.name || '',
+      squareId: sqId,
+      pieces: it.pieces != null ? it.pieces : null,
+      isCustom: !sqId,
+      unitPrice: _wtUnitPrice(it),
+    });
+  });
+  return out;
+}
+
+// The sizes on a parent listing are only known once the inventory modal has
+// resolved them, which happens after finalizeNotionSession has already written
+// the session. Re-send the breakdown alongside the piece count, or the report
+// keeps the single unsplit parent row written at stop.
+function patchSessionItems(session, pieces) {
+  if (!session || !session.notionPageId) return;
+  const fields = { itemsJson: JSON.stringify(itemsJsonFor(session)) };
+  if (pieces != null) fields.pieces = pieces;
+  patchNotion(session.notionPageId, fields);
+}
+
 async function finalizeNotionSession(session) {
   let pageId = session.notionPageId;
   if (!pageId) {
@@ -1187,6 +1264,7 @@ async function finalizeNotionSession(session) {
         dedMin:   parseFloat((session.clockedOutMs/60000).toFixed(2)),
         netMin:   parseFloat((session.netMs/60000).toFixed(2)),
         notes: [session.notes, timelineBlock].filter(Boolean).join('\n\n'),
+        itemsJson: JSON.stringify(itemsJsonFor(session)),
         ...(totalPcs > 0 ? { pieces: totalPcs } : {}),
       }),
     });
@@ -1255,6 +1333,10 @@ async function inventoryConfirm() {
   confirmBtn.disabled = true; confirmBtn.textContent = 'Adding…'; statusEl.textContent = '';
   const parentItem = (s.items||[]).find(it => it.isParent);
   let changes;
+  // Rows carrying the Square variation ids resolveLocalVariantIds found, so the
+  // breakdown written below links to the catalogue rather than to this file's
+  // own local ids.
+  let resolvedRows = null;
   if (parentItem && _invSizeRows.length) {
     if (parentItem.isLocal) {
       const resolved = await resolveLocalVariantIds(parentItem, _invSizeRows);
@@ -1264,10 +1346,13 @@ async function inventoryConfirm() {
         parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows;
         s.inventoryAdded = _invSizeRows.map(r=>`${r.qty}× ${r.name}`).join(', ');
         const allPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
-        if (allPcs > 0 && s.notionPageId) patchNotion(s.notionPageId, { pieces: allPcs });
+        // Unlinked, but the sizes and their counts are still the breakdown —
+        // the report groups them by name.
+        patchSessionItems(s, allPcs > 0 ? allPcs : null);
         renderLog(); showToast('Pieces recorded in Notion (Square item not found)');
         inventoryDone(); return;
       }
+      resolvedRows = resolved;
       changes = resolved.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.squareId, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }));
     } else {
       changes = _invSizeRows.map(r => ({ type:'ADJUSTMENT', adjustment:{ catalog_object_id:r.id, location_id:CFG.sqLocation, from_state:'NONE', to_state:'IN_STOCK', quantity:String(r.qty), occurred_at:s.timestamp } }));
@@ -1283,10 +1368,10 @@ async function inventoryConfirm() {
       confirmBtn.disabled=false; confirmBtn.textContent='Retry'; return;
     }
     const totalPcs = changes.reduce((acc,c) => acc+parseInt(c.adjustment.quantity,10), 0);
-    if (parentItem) { parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows; s.inventoryAdded = _invSizeRows.map(r=>`${r.qty}× ${r.name}`).join(', '); }
+    if (parentItem) { parentItem.pieces = totalPcs; parentItem.selectedVariants = resolvedRows || _invSizeRows; s.inventoryAdded = _invSizeRows.map(r=>`${r.qty}× ${r.name}`).join(', '); }
     else { s.inventoryAdded = (s.items||[]).filter(it=>!it.isParent&&it.pieces>0).map(it=>`${it.pieces}× ${it.name}`).join(', '); }
     const allPcs = (s.items||[]).reduce((acc,it) => acc+(it.pieces||0), 0);
-    if (allPcs > 0 && s.notionPageId) patchNotion(s.notionPageId, { pieces: allPcs });
+    patchSessionItems(s, allPcs > 0 ? allPcs : null);
     renderLog(); showToast(`+${totalPcs} piece${totalPcs!==1?'s':''} added to Square ✓`);
     inventoryDone();
   } catch(e) { statusEl.style.color='var(--red)'; statusEl.textContent='⚠ Network error — '+e.message; confirmBtn.disabled=false; confirmBtn.textContent='Retry'; }
@@ -1297,7 +1382,7 @@ function inventorySkip() {
   if (parentItem && _invSizeRows.length) {
     const totalPcs = _invSizeRows.reduce((acc,r) => acc+r.qty, 0);
     parentItem.pieces = totalPcs; parentItem.selectedVariants = _invSizeRows;
-    if (_invSession.notionPageId) patchNotion(_invSession.notionPageId, { pieces: totalPcs });
+    patchSessionItems(_invSession, totalPcs);
     renderLog();
   }
   inventoryDone();
