@@ -1095,6 +1095,15 @@ var RQ_RATE_PEOPLE   = ['Vanessa', 'Stevie', 'Kyle'];
 var _rqRatesPanelOpen = false;
 var _rqReportSessions = null;
 var _rqReportLoading  = false;
+// When the cached session list was last read from Notion. The report used to
+// fetch once per page load and never again, so a timer stopped afterwards was
+// missing from every view until a manual Refresh or a reload — and this app is
+// a PWA that stays open for days on the bench iPad, where "afterwards" means
+// every session of the day. Entering the tab now revalidates (see
+// rqRenderProductionReport), coalesced over a few seconds so flipping between
+// sub-tabs doesn't re-page the whole database.
+var _rqReportFetchedAt = 0;
+var _RQ_REPORT_COALESCE_MS = 10000;
 
 function _rqLoadRates() {
   try {
@@ -1290,10 +1299,25 @@ function rqRenderProductionReport(forceRefresh) {
   _rqSyncProdSettings();
   var body = document.getElementById('prod-report-body');
   if (!body) return;
-  if (_rqReportSessions && !forceRefresh) { _rqRenderReportBody(_rqReportSessions); return; }
+
+  // Stale-while-revalidate. The cached list paints immediately so there is no
+  // "Loading…" flash on a tab switch, and the refetch behind it is what picks
+  // up sessions written since — by a timer stopped in the Restock Queue, by the
+  // Work Timer tab, or by the other iPad.
+  var haveCache = !!_rqReportSessions;
+  if (haveCache) _rqRenderReportBody(_rqReportSessions);
   if (_rqReportLoading) return;
+  if (haveCache && !forceRefresh) {
+    // An open edit or push panel is unsaved work keyed by array index, so a
+    // refetch underneath it would both discard what was typed and risk landing
+    // the panel on a different session. The explicit Refresh button still
+    // reloads — that is a deliberate ask.
+    if (_rqEditingSession.report != null || _rqPushingSession.report != null) return;
+    if (Date.now() - _rqReportFetchedAt < _RQ_REPORT_COALESCE_MS) return;
+  }
+
   _rqReportLoading = true;
-  body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Loading…</div>';
+  if (!haveCache) body.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14px;padding:40px 0;">Loading…</div>';
   fetch('/api/notion-timesession?all=true')
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(ns) {
@@ -1321,11 +1345,16 @@ function rqRenderProductionReport(forceRefresh) {
     })
     .then(function(sessions) {
       _rqReportSessions = sessions;
+      _rqReportFetchedAt = Date.now();
       _rqReportLoading = false;
       _rqRenderReportBody(sessions);
     })
     .catch(function() {
       _rqReportLoading = false;
+      // A failed revalidation must not wipe a report that is already on screen —
+      // the figures shown are the last ones Notion actually gave us. Only an
+      // empty report has nothing better to show than the error.
+      if (_rqReportSessions) { toast('Could not refresh the report', '⚠'); return; }
       body.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:13px;padding:30px 0;">Failed to load report</div>';
     });
 }
