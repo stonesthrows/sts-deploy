@@ -1033,7 +1033,7 @@ var sotNotionPageId = null;
 var sotNotionTimer  = null;
 var sotUpdatedAt    = 0;
 var sotCatalogUrls  = {};
-var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat, deleted}
+var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat, sku, deleted}
 var sotFreq         = {};     // id -> {n: weeks ordered, last: 0-based weeks-ago}
 var sotFreqLoaded   = false;
 var sotSheetIsOpen  = false;
@@ -1449,7 +1449,7 @@ function sotReCard(item, inOrder) {
             + f.n + '&#215;/12 wk</span>';
   h += '</div>';
 
-  h += '<div class="sot-re-meta"><span class="sot-re-sku">' + sotEsc(item.id.replace(/^[a-z]+_/, '')) + '</span>';
+  h += '<div class="sot-re-meta"><span class="sot-re-sku">' + sotEsc(sotItemSku(item)) + '</span>';
   if (unit) h += '<span>by the ' + sotEsc(unit) + '</span>';
   if (mat && mat.stockLevel != null) {
     h += '<span class="sot-re-stock' + (mat.stockConfidence === 'estimated' ? ' est' : '') + '">'
@@ -1674,6 +1674,12 @@ function sotAllItems() {
   });
   return cat.concat(sotCustom);
 }
+// The SKU shown/sent for an item. Ids stay fixed (they key the order,
+// history and URLs), so an edited SKU lives in item.sku instead.
+function sotItemSku(item) {
+  if (!item) return '';
+  return item.sku || String(item.id||'').replace(/^[a-z]+_/, '');
+}
 function sotGetItem(id) {
   return sotAllItems().filter(function(i){return i.id===id;})[0] || null;
 }
@@ -1701,7 +1707,7 @@ function sotRenderCatalog() {
     var items = allItems.filter(function(i){ return i.sup === sup.id; });
     if (f) {
       items = items.filter(function(i){
-        return (i.name+' '+i.desc+' '+i.id+' '+(i.cat||''))
+        return (i.name+' '+i.desc+' '+i.id+' '+sotItemSku(i)+' '+(i.cat||''))
           .toLowerCase().indexOf(f) >= 0;
       });
       if (items.length === 0) return;
@@ -1755,7 +1761,7 @@ function sotRenderCatalog() {
         html += '<div class="sot-item-info">';
         html += '<div class="sot-item-name">' + sotEsc(item.name) + '</div>';
         if (item.desc) html += '<div class="sot-item-desc">' + sotEsc(item.desc) + '</div>';
-        html += '<span class="sot-item-sku">' + sotEsc(item.id.replace(/^[a-z]+_/, '')) + '</span>';
+        html += '<span class="sot-item-sku">' + sotEsc(sotItemSku(item)) + '</span>';
         if (url) {
           html += '<a class="sot-item-link" href="' + sotEsc(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ordering page">&#128279; Order page</a>';
         }
@@ -1849,7 +1855,7 @@ function sotRenderOrder() {
         var qty = entry.qty || 1;
         var unit = sotGetUnit(it.desc);
         html += '<div class="sot-ord-item">';
-        html += '<input class="sot-ord-sku-input" type="text" readonly value="' + sotEsc(it.id.replace(/^[a-z]+_/, '')) + '"'
+        html += '<input class="sot-ord-sku-input" type="text" readonly value="' + sotEsc(sotItemSku(it)) + '"'
               + ' onclick="this.select()" onfocus="this.select()" title="Click to select SKU">';
         html += '<div class="sot-ord-item-info">';
         html += '<div class="sot-ord-item-name">' + sotEsc(it.name) + '</div>';
@@ -1927,7 +1933,7 @@ function sotSendToRG() {
     var entry = sotOrder[id];
     if (typeof entry !== 'object' || entry === null) entry = {qty:Number(entry)||1, amount:''};
     var unit = sotGetUnit(it.desc);
-    var code = id.replace(/^rg_/, '');
+    var code = sotItemSku(it);
     items.push({code:code, name:it.name, amount: unit ? (entry.amount||'') : String(entry.qty||1), unit: unit||'qty'});
   });
   if (!items.length) { alert('No Rio Grande items in your order.'); return; }
@@ -1975,7 +1981,9 @@ function sotCheckRgPanel(val) {
   var isRg = /^\d{4,7}[A-Za-z]*$/.test(clean);
   if (isRg) {
     var fullId = 'rg_' + clean;
-    var alreadyIn = sotAllItems().some(function(i){return i.id===fullId;});
+    var alreadyIn = sotAllItems().some(function(i){
+      return i.id===fullId || (i.sup==='rg' && sotItemSku(i)===clean);
+    });
     if (!alreadyIn) {
       var link = document.getElementById('sotRgLink');
       if (link) link.href = 'https://www.riogrande.com/product/' + clean;
@@ -2067,7 +2075,7 @@ function sotEditOpen(id) {
   var el;
   el = document.getElementById('sotEditName'); if(el) { el.value = item.name||''; el.disabled = false; }
   el = document.getElementById('sotEditDesc'); if(el) { el.value = item.desc||''; el.disabled = false; }
-  el = document.getElementById('sotEditSku');  if(el) el.value = item.id||'';
+  el = document.getElementById('sotEditSku');  if(el) el.value = sotItemSku(item);
   el = document.getElementById('sotEditCat');  if(el) {
     el.innerHTML = '<option value="">— Category —</option>' +
       CAT_ORDER.map(function(c){ return '<option' + (c===item.cat?' selected':'') + '>' + sotEsc(c) + '</option>'; }).join('') +
@@ -2084,7 +2092,19 @@ function sotEditSave() {
   var nameEl = document.getElementById('sotEditName');
   var descEl = document.getElementById('sotEditDesc');
   var catEl  = document.getElementById('sotEditCat');
+  var skuEl  = document.getElementById('sotEditSku');
   var url = urlEl ? urlEl.value.trim() : '';
+  // Blank or unchanged-from-default SKU clears the override.
+  var cur = sotGetItem(sotEditId);
+  var defSku = String(sotEditId||'').replace(/^[a-z]+_/, '');
+  var sku = skuEl ? skuEl.value.trim() : sotItemSku(cur);
+  if (sku && cur && sku !== sotItemSku(cur)) {
+    var dup = sotAllItems().filter(function(i){
+      return i.id !== sotEditId && i.sup === cur.sup && sotItemSku(i) === sku;
+    })[0];
+    if (dup && !confirm('"' + dup.name + '" already uses SKU ' + sku + '. Use it anyway?')) return;
+  }
+  if (sku === defSku) sku = '';
   if (isCust) {
     var item = sotCustom.filter(function(i){return i.id===sotEditId;})[0];
     if (!item) return;
@@ -2092,11 +2112,13 @@ function sotEditSave() {
     if (descEl) item.desc = descEl.value.trim();
     if (catEl)  item.cat  = catEl.value;
     item.url = url;
+    if (sku) item.sku = sku; else delete item.sku;
   } else {
     var ov = sotCatalogOverrides[sotEditId] || {};
     if (nameEl) ov.name = nameEl.value.trim();
     if (descEl) ov.desc = descEl.value.trim();
     if (catEl)  ov.cat  = catEl.value;
+    if (sku) ov.sku = sku; else delete ov.sku;
     sotCatalogOverrides[sotEditId] = ov;
     if (url) sotCatalogUrls[sotEditId] = url;
     else delete sotCatalogUrls[sotEditId];
@@ -2148,7 +2170,7 @@ function sotPrint() {
       if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
       var unit = sotGetUnit(it&&it.desc);
       var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
-      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+sotItemSku(it));
     });
     lines.push('');
   });
@@ -2174,7 +2196,7 @@ function sotCopy() {
       if (typeof entry !== 'object') entry = {qty:Number(entry)||1,amount:''};
       var unit = sotGetUnit(it&&it.desc);
       var qtyStr = unit ? ((entry.amount||'?')+' '+unit) : ('x'+entry.qty);
-      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+id);
+      if (it) lines.push('  ['+qtyStr+']  '+it.name+(it.desc?' ('+it.desc+')':'')+' | '+sotItemSku(it));
     });
     lines.push('');
   });
