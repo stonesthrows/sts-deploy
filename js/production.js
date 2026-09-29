@@ -1033,7 +1033,7 @@ var sotNotionPageId = null;
 var sotNotionTimer  = null;
 var sotUpdatedAt    = 0;
 var sotCatalogUrls  = {};
-var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat}
+var sotCatalogOverrides = {}; // built-in catalog items edited by the user — id -> {name, desc, cat, deleted}
 var sotFreq         = {};     // id -> {n: weeks ordered, last: 0-based weeks-ago}
 var sotFreqLoaded   = false;
 var sotSheetIsOpen  = false;
@@ -1663,7 +1663,12 @@ function sotRenderCartBar() {
 
 // ── Data helpers ─────────────────────────────────────────────
 function sotAllItems() {
-  var cat = CATALOG.map(function(i) {
+  // Built-in items can't be removed from CATALOG itself, so a delete
+  // is recorded as an override and filtered out here.
+  var cat = CATALOG.filter(function(i) {
+    var ov = sotCatalogOverrides[i.id];
+    return !(ov && ov.deleted);
+  }).map(function(i) {
     var ov = sotCatalogOverrides[i.id];
     return ov ? Object.assign({}, i, ov) : i;
   });
@@ -1742,7 +1747,6 @@ function sotRenderCatalog() {
 
       catItems.forEach(function(item) {
         var chk  = sotOrder[item.id] !== undefined;
-        var isCust = !CATALOG_IDS.has(item.id);
         var url  = sotItemUrl(item);
         html += '<div class="sot-item" id="sot-item-' + sotEsc(item.id) + '">';
         html += '<input class="sot-item-cb" type="checkbox"'
@@ -1758,9 +1762,7 @@ function sotRenderCatalog() {
         html += '</div>';
         html += '<div class="sot-item-actions">';
         html += '<button class="sot-item-btn" onclick="sotEditOpen(\'' + sotEsc(item.id) + '\')">Edit</button>';
-        if (isCust) {
-          html += '<button class="sot-item-btn del" onclick="sotDeleteItem(\'' + sotEsc(item.id) + '\')">Del</button>';
-        }
+        html += '<button class="sot-item-btn del" onclick="sotDeleteItem(\'' + sotEsc(item.id) + '\')">Del</button>';
         html += '</div>';
         html += '</div>';
       });
@@ -1994,7 +1996,8 @@ function sotRgAdd() {
   var cat  = catEl  ? catEl.value  : '';
   var sku  = nameEl ? (nameEl.getAttribute('data-sku')||sotUid()) : sotUid();
   if (!name) { alert('Please enter an item name.'); return; }
-  sotCustom.push({id:'rg_'+sku, sup:'rg', cat:cat||'Other', name:name, desc:desc});
+  if (!sotRestoreCatalogItem('rg_'+sku, {name:name, desc:desc, cat:cat||'Other'}))
+    sotCustom.push({id:'rg_'+sku, sup:'rg', cat:cat||'Other', name:name, desc:desc});
   sotSave();
   document.getElementById('sotRgPanel').classList.remove('open');
   document.getElementById('sotSearch').value = '';
@@ -2006,6 +2009,16 @@ function sotRgAdd() {
 }
 
 // ── Add item ─────────────────────────────────────────────────
+// Re-adding a built-in item that was deleted brings the built-in back
+// (with the new details) rather than shadowing it with a custom copy
+// under the same id.
+function sotRestoreCatalogItem(id, fields) {
+  var ov = sotCatalogOverrides[id];
+  if (!CATALOG_IDS.has(id) || !(ov && ov.deleted)) return false;
+  delete ov.deleted;
+  sotCatalogOverrides[id] = Object.assign(ov, fields);
+  return true;
+}
 function sotToggleAddForm(supId) {
   var f = document.getElementById('sot-add-form-'+supId);
   if (f) f.classList.toggle('open');
@@ -2021,7 +2034,8 @@ function sotAddItem(supId) {
   var cat  = catEl  ? catEl.value         : '';
   if (!name) { alert('Please enter an item name.'); return; }
   var id = sku ? (supId+'_'+sku) : (supId+'_'+sotUid());
-  sotCustom.push({id:id, sup:supId, cat:cat, name:name, desc:desc});
+  if (!sotRestoreCatalogItem(id, {name:name, desc:desc, cat:cat}))
+    sotCustom.push({id:id, sup:supId, cat:cat, name:name, desc:desc});
   sotSave();
   sotRenderCatalog();
 }
@@ -2049,7 +2063,6 @@ function sotAddSupplier() {
 function sotEditOpen(id) {
   var item = sotGetItem(id);
   if (!item) return;
-  var isCust = !CATALOG_IDS.has(id);
   sotEditId = id;
   var el;
   el = document.getElementById('sotEditName'); if(el) { el.value = item.name||''; el.disabled = false; }
@@ -2062,7 +2075,7 @@ function sotEditOpen(id) {
     el.disabled = false;
   }
   el = document.getElementById('sotEditUrl');  if(el) el.value = sotItemUrl(item);
-  el = document.getElementById('sotModalDelete'); if(el) el.style.display = isCust ? '' : 'none';
+  el = document.getElementById('sotModalDelete'); if(el) el.style.display = '';
   document.getElementById('sotModalBg').classList.add('open');
 }
 function sotEditSave() {
@@ -2094,9 +2107,15 @@ function sotEditSave() {
   sotRenderOrder();
 }
 function sotDeleteItem(id) {
-  if (CATALOG_IDS.has(id)) return;
+  if (!id) return;
   if (!confirm('Remove this item from your catalog?')) return;
-  sotCustom = sotCustom.filter(function(i){return i.id!==id;});
+  if (CATALOG_IDS.has(id)) {
+    var ov = sotCatalogOverrides[id] || {};
+    ov.deleted = true;
+    sotCatalogOverrides[id] = ov;
+  } else {
+    sotCustom = sotCustom.filter(function(i){return i.id!==id;});
+  }
   delete sotOrder[id];
   sotSave();
   sotModalBgClose();
