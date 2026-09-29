@@ -1159,6 +1159,7 @@ async function sotSaveNotion() {
     notes:        sotNotesTxt,
     custom:       JSON.stringify(sotCustom),
     customSuppliers: JSON.stringify(sotCustomSuppliers),
+    overrides:    JSON.stringify({catalogOverrides: sotCatalogOverrides, catalogUrls: sotCatalogUrls}),
     updatedAt:    sotUpdatedAt,
     notionPageId: sotNotionPageId || undefined,
   };
@@ -1188,11 +1189,17 @@ async function sotLoadNotion() {
     if (!d.found) return;
     sotNotionPageId = d.notionPageId;
     var remoteUpdatedAt = Number(d.updatedAt) || 0;
-    if (remoteUpdatedAt <= sotUpdatedAt) return;
+    if (remoteUpdatedAt <= sotUpdatedAt) {
+      // This device is newer; still make sure its built-in item edits
+      // are on the server even if nothing else has changed since.
+      if (sotOverridesMissingFrom(d.overrides)) sotSave();
+      return;
+    }
 
     sotOrder = JSON.parse(d.items || '{}');
     sotCustom = JSON.parse(d.custom || '[]');
     sotCustomSuppliers = JSON.parse(d.customSuppliers || '[]');
+    var needsPush = sotMergeOverrides(d.overrides);
     sotNotesTxt = d.notes || '';
     var el = document.getElementById('sotNotes');
     if (el) el.value = sotNotesTxt;
@@ -1201,7 +1208,42 @@ async function sotLoadNotion() {
     sotSaveLocal();
     sotRenderCatalog();
     sotRenderOrder();
+    if (needsPush) sotSave();
   } catch(e) {}
+}
+
+// Built-in item edits (deletes, SKU/name changes, order-page URLs) merge
+// per item rather than wholesale: remote wins for any item it mentions,
+// and items only this device has edited are kept and pushed back up. That
+// way a device that never had an edit can't wipe one out, e.g. the first
+// time each device runs this code. Returns true if local had extras.
+function sotOverridesMissingFrom(raw) {
+  var remote;
+  try { remote = JSON.parse(raw || 'null'); } catch(e) { remote = null; }
+  remote = remote || {};
+  function missing(local, rem) {
+    rem = rem || {};
+    return Object.keys(local).some(function(id){
+      return JSON.stringify(local[id]) !== JSON.stringify(rem[id]);
+    });
+  }
+  return missing(sotCatalogOverrides, remote.catalogOverrides) ||
+         missing(sotCatalogUrls, remote.catalogUrls);
+}
+function sotMergeOverrides(raw) {
+  var remote;
+  try { remote = JSON.parse(raw || 'null'); } catch(e) { remote = null; }
+  if (!remote) return Object.keys(sotCatalogOverrides).length > 0 ||
+                      Object.keys(sotCatalogUrls).length > 0;
+  var extra = false;
+  function merge(local, rem) {
+    rem = rem || {};
+    Object.keys(local).forEach(function(id){ if (!(id in rem)) extra = true; });
+    Object.keys(rem).forEach(function(id){ local[id] = rem[id]; });
+  }
+  merge(sotCatalogOverrides, remote.catalogOverrides);
+  merge(sotCatalogUrls, remote.catalogUrls);
+  return extra;
 }
 
 // ── Order-again history ──────────────────────────────────────
@@ -2120,8 +2162,8 @@ function sotEditSave() {
     if (catEl)  ov.cat  = catEl.value;
     if (sku) ov.sku = sku; else delete ov.sku;
     sotCatalogOverrides[sotEditId] = ov;
-    if (url) sotCatalogUrls[sotEditId] = url;
-    else delete sotCatalogUrls[sotEditId];
+    // Stored as '' rather than deleted so the removal syncs.
+    if (url || sotEditId in sotCatalogUrls) sotCatalogUrls[sotEditId] = url;
   }
   sotSave();
   sotModalBgClose();

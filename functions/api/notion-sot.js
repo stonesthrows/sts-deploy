@@ -36,6 +36,33 @@ function extractDbId(raw) {
   return m ? m[0].replace(/-/g, '') : null;
 }
 
+// A rich_text element holds at most 2000 chars, but a property can hold
+// up to 100 of them — so long JSON blobs are split on write and joined on
+// read instead of being cut off mid-JSON.
+function toRichText(str) {
+  var parts = [];
+  str = String(str || '');
+  for (var i = 0; i < str.length && parts.length < 100; i += 2000) {
+    parts.push({ text: { content: str.slice(i, i + 2000) } });
+  }
+  return parts;
+}
+function fromRichText(prop) {
+  return ((prop || {}).rich_text || []).map(function (t) { return t.plain_text; }).join('');
+}
+
+// Catalog overrides (built-in item deletes, SKU/name edits, order-page
+// URLs) were added after the database was created. Add the column the
+// first time it's needed rather than requiring a manual schema change.
+async function ensureOverridesProp(token, dbId) {
+  var r = await fetch(NOTION_API + '/databases/' + dbId, {
+    method: 'PATCH',
+    headers: notionHdrs(token),
+    body: JSON.stringify({ properties: { Overrides: { rich_text: {} } } }),
+  });
+  return r.ok;
+}
+
 // Monday ISO date string → stable week key
 function weekKey() {
   var now = new Date();
@@ -69,10 +96,9 @@ async function historyResp(token, dbId, limit) {
   var cur = weekKey();
   var weeks = (data.results || []).map(function (page) {
     var titleRaw = ((page.properties.Week || {}).title || [])[0];
-    var itemsRaw = ((page.properties.Items || {}).rich_text || [])[0];
     return {
       week:  titleRaw ? titleRaw.plain_text.slice(0, 10) : '',
-      items: itemsRaw ? itemsRaw.plain_text : '{}',
+      items: fromRichText(page.properties.Items) || '{}',
     };
   }).filter(function (w) { return w.week && w.week !== cur; });
   return jsonResp({ weeks: weeks });
@@ -104,17 +130,15 @@ export async function onRequestGet(context) {
   var page = (data.results || [])[0];
   if (!page) return jsonResp({ found: false });
 
-  var itemsRaw  = ((page.properties.Items || {}).rich_text || [])[0];
-  var notesRaw  = ((page.properties.Notes || {}).rich_text || [])[0];
-  var customRaw = ((page.properties.Custom || {}).rich_text || [])[0];
-  var supRaw    = ((page.properties.CustomSuppliers || {}).rich_text || [])[0];
+  var p = page.properties;
   return jsonResp({
     found: true,
     notionPageId: page.id,
-    items: itemsRaw ? itemsRaw.plain_text : '{}',
-    notes: notesRaw ? notesRaw.plain_text : '',
-    custom: customRaw ? customRaw.plain_text : '[]',
-    customSuppliers: supRaw ? supRaw.plain_text : '[]',
+    items: fromRichText(p.Items) || '{}',
+    notes: fromRichText(p.Notes),
+    custom: fromRichText(p.Custom) || '[]',
+    customSuppliers: fromRichText(p.CustomSuppliers) || '[]',
+    overrides: fromRichText(p.Overrides),
     updatedAt: (page.properties.Updated || {}).number || 0,
   });
 }
@@ -131,41 +155,46 @@ export async function onRequestPost(context) {
   var notes  = body.notes     || '';
   var custom = body.custom    || '[]';
   var sups   = body.customSuppliers || '[]';
+  var overrides = body.overrides || '';
   var weekLabel  = body.weekLabel || key;
   var updatedAt  = Number(body.updatedAt) || Date.now();
 
   var props = {
     'Week':   { title:     [{ text: { content: key + ' — ' + weekLabel } }] },
-    'Items':  { rich_text: [{ text: { content: items.slice(0, 2000) } }] },
-    'Notes':  { rich_text: [{ text: { content: notes.slice(0, 2000) } }] },
-    'Custom': { rich_text: [{ text: { content: custom.slice(0, 2000) } }] },
-    'CustomSuppliers': { rich_text: [{ text: { content: sups.slice(0, 2000) } }] },
+    'Items':  { rich_text: toRichText(items) },
+    'Notes':  { rich_text: toRichText(notes) },
+    'Custom': { rich_text: toRichText(custom) },
+    'CustomSuppliers': { rich_text: toRichText(sups) },
     'Updated': { number: updatedAt },
   };
+  if (overrides) props.Overrides = { rich_text: toRichText(overrides) };
 
   var hdrs = notionHdrs(token);
 
-  // Update existing page
-  if (body.notionPageId) {
-    var pr = await fetch(NOTION_API + '/pages/' + body.notionPageId, {
-      method: 'PATCH',
-      headers: hdrs,
-      body: JSON.stringify({ properties: props, archived: false }),
-    });
-    if (!pr.ok) {
-      var pe = await pr.json().catch(() => ({}));
-      return jsonResp({ error: pe.message || 'patch failed' }, pr.status);
+  async function write() {
+    if (body.notionPageId) {
+      return fetch(NOTION_API + '/pages/' + body.notionPageId, {
+        method: 'PATCH',
+        headers: hdrs,
+        body: JSON.stringify({ properties: props, archived: false }),
+      });
     }
-    return jsonResp({ notionPageId: body.notionPageId });
+    return fetch(NOTION_API + '/pages', {
+      method: 'POST',
+      headers: hdrs,
+      body: JSON.stringify({ parent: { database_id: dbId }, properties: props }),
+    });
   }
 
-  // Create new page
-  var cr = await fetch(NOTION_API + '/pages', {
-    method: 'POST',
-    headers: hdrs,
-    body: JSON.stringify({ parent: { database_id: dbId }, properties: props }),
-  });
-  var cd = await cr.json();
-  if (!cr.ok) return jsonResp({ error: cd.message || 'create failed' }, cr.status);
-  return jsonResp({ notionPageId: cd.id });
+  var r = await write();
+  var d = await r.json().catch(() => ({}));
+  // Missing Overrides column → add it and retry once.
+  if (!r.ok && props.Overrides && /Overrides/.test(d.message || '')) {
+    if (await ensureOverridesProp(token, dbId)) {
+      r = await write();
+      d = await r.json().catch(() => ({}));
+    }
+  }
+  if (!r.ok) return jsonResp({ error: d.message || 'save failed' }, r.status);
+  return jsonResp({ notionPageId: body.notionPageId || d.id });
 }
