@@ -170,11 +170,7 @@ async function _invFallbackCatSearch(sub) {
     console.log(`[inv] ${sub}: fallback matched ${matches.length} category(ies):`,
       matches.map(o => `"${o.category_data.name}" (${o.id})`).join(', '),
       '— update INV_CAT_IDS to fix permanently');
-    const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
-      method: 'POST',
-      body: JSON.stringify({ category_ids: matchedIds }),
-    });
-    return (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
+    return (await _invSearchItems(matchedIds)).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
   } catch (e) {
     console.warn(`[inv] fallback search failed for ${sub}:`, e.message);
     return [];
@@ -205,6 +201,53 @@ async function _sqFetch(path, opts = {}) {
     throw new Error(msg);
   }
   return json;
+}
+
+// ── Inventory counts, batched + paged ───────────────────
+// Square caps batch-retrieve at 100 ids per call and pages the counts it
+// returns. Sending a whole tab's variations in one request silently dropped
+// everything past the cap, so those rows read "not tracked" even though
+// Square tracks them (the Twist Hoops on the Hoops tab, behind the many
+// seamless hoop sizes).
+
+async function _invFetchCounts(varIds) {
+  const counts = {};
+  const batches = [];
+  for (let i = 0; i < varIds.length; i += 100) batches.push(varIds.slice(i, i + 100));
+  await Promise.all(batches.map(async batch => {
+    let cursor = null, guard = 0;
+    do {
+      const res = await _sqFetch('/v2/inventory/counts/batch-retrieve', {
+        method: 'POST',
+        body: JSON.stringify({
+          catalog_object_ids: batch,
+          location_ids: [INV_LOCATION_ID],
+          ...(cursor ? { cursor } : {}),
+        }),
+      });
+      (res.counts || []).forEach(c => {
+        if (c.state && c.state !== 'IN_STOCK') return;
+        counts[c.catalog_object_id] = parseInt(c.quantity) || 0;
+      });
+      cursor = res.cursor || null;
+    } while (cursor && ++guard < 50);
+  }));
+  return counts;
+}
+
+// Search-catalog-items pages its results too (100 items a page)
+async function _invSearchItems(catIds) {
+  const items = [];
+  let cursor = null, guard = 0;
+  do {
+    const res = await _sqFetch('/v2/catalog/search-catalog-items', {
+      method: 'POST',
+      body: JSON.stringify({ category_ids: catIds, ...(cursor ? { cursor } : {}) }),
+    });
+    items.push(...(res.items || []));
+    cursor = res.cursor || null;
+  } while (cursor && ++guard < 50);
+  return items;
 }
 
 // ── Hidden items (deprecated from webapp, not Square) ────
@@ -315,13 +358,7 @@ async function invResetItem(itemId, itemName, sub) {
 
       const newVarIds = (fresh.item_data?.variations || []).filter(v => !v.is_deleted).map(v => v.id);
       if (newVarIds.length) {
-        const countRes = await _sqFetch('/v2/inventory/counts/batch-retrieve', {
-          method: 'POST',
-          body: JSON.stringify({ catalog_object_ids: newVarIds, location_ids: [INV_LOCATION_ID] }),
-        });
-        (countRes.counts || []).forEach(c => {
-          data.counts[c.catalog_object_id] = parseInt(c.quantity) || 0;
-        });
+        Object.assign(data.counts, await _invFetchCounts(newVarIds));
       }
       _invRenderSub(sub);
       _invUpdateCountLabel();
@@ -381,13 +418,7 @@ async function _invLoadSub(sub) {
     // skip the search entirely when there are no category IDs to filter on.
     let items = [];
     if (catIds.length) {
-      const searchRes = await _sqFetch('/v2/catalog/search-catalog-items', {
-        method: 'POST',
-        body: JSON.stringify({
-          category_ids: catIds,
-        }),
-      });
-      items = (searchRes.items || []).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
+      items = (await _invSearchItems(catIds)).filter(o => !o.is_deleted && !INV_RETIRED_ITEM_IDS.has(o.id));
       console.log(`[inv] ${sub}: searched ${catIds.length} category ID(s), got ${items.length} item(s)`, items.map(i => i.item_data?.name));
     }
 
@@ -424,19 +455,7 @@ async function _invLoadSub(sub) {
     );
 
     // Fetch inventory counts
-    const counts = {};
-    if (varIds.length) {
-      const countRes = await _sqFetch('/v2/inventory/counts/batch-retrieve', {
-        method: 'POST',
-        body: JSON.stringify({
-          catalog_object_ids: varIds,
-          location_ids: [INV_LOCATION_ID],
-        }),
-      });
-      (countRes.counts || []).forEach(c => {
-        counts[c.catalog_object_id] = parseInt(c.quantity) || 0;
-      });
-    }
+    const counts = await _invFetchCounts(varIds);
 
     _invData[sub] = { items, counts };
     _invRenderSub(sub);
