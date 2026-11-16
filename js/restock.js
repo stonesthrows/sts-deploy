@@ -2,7 +2,7 @@
 //  RESTOCK QUEUE  —  js/restock.js  (extracted from notes.js)
 //  All rq* logic: priority queue, assignees, inline timers, Square auto-match,
 //  size pickers, session log, production report. Loaded AFTER notes.js.
-//  Order + assignees stored in /api/restock-meta.
+//  Order + assignees stored in /api/restock-meta; Urgent flags in /api/restock-urgent.
 // ════════════════════════════════════════════
 
 var _rqMeta       = { order: [], assignees: {} };
@@ -11,6 +11,7 @@ var _rqSizes       = {};    // { [pid]: { [variantId]: qty } } — cross-device 
 var _rqSizesLoaded = false;
 var _rqNotes       = {};    // { [pid]: noteText } — free-text notes per item, via /api/restock-notes
 var _rqNotesLoaded = false;
+var _rqUrgent      = {};    // { [pid]: true } — items flagged Urgent (red bar), via /api/restock-urgent
 var _rqNotesSaveDebounce = null;
 var _rqNotesPending = {};    // { [pid]: text|null } queued for the debounced per-item notes PATCH
 var _rqLastLoadTs = 0;       // when the shared stores were last fetched — drives the staleness re-fetch
@@ -552,6 +553,27 @@ function _rqLoadNotes(cb) {
     .catch(function() { _rqNotesLoaded = true; if (cb) cb(); });
 }
 
+// ── Urgent flags (cross-device, red bar on the card) ──────────────────────────
+
+function _rqApplyUrgent(d) {
+  _rqUrgent = (d && typeof d === 'object' && !d.error) ? d : {};
+}
+function _rqLoadUrgent(cb) {
+  if (_rqPrefetch) { _rqApplyUrgent(_rqPrefetch.urgent); if (cb) cb(); return; }
+  fetch('/api/restock-urgent')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { _rqApplyUrgent(d); if (cb) cb(); })
+    .catch(function() { if (cb) cb(); });
+}
+function rqToggleUrgent(pid) {
+  if (!pid) return;
+  var patch = {};
+  if (_rqUrgent[pid]) { delete _rqUrgent[pid]; patch[pid] = null; }
+  else                { _rqUrgent[pid] = true; patch[pid] = true; }
+  restockQueueRender();
+  _rqPatchStore('/api/restock-urgent', patch, 'Failed to save urgent flag');
+}
+
 // ── Matches persistence (cross-device Square item choice per queue row) ─────
 
 // Merges the shared match store into the local cache. The server copy wins
@@ -699,7 +721,7 @@ function _rqLoadAll(cb) {
   var runLoaders = function() {
     // With _rqPrefetch set the loaders consume the cache synchronously (no
     // network); with it null they each fetch their own endpoint in parallel.
-    Promise.all([ wrap(_rqLoadMeta), wrap(_rqLoadSizes), wrap(_rqLoadNotes), wrap(_rqLoadMatches) ])
+    Promise.all([ wrap(_rqLoadMeta), wrap(_rqLoadSizes), wrap(_rqLoadNotes), wrap(_rqLoadMatches), wrap(_rqLoadUrgent) ])
       .then(function() {
         _rqPrefetch = null;
         _rqLoadingAll = false;
@@ -717,7 +739,7 @@ function _rqLoadAll(cb) {
     .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function(d) {
       if (!d || d.error) return Promise.reject();
-      _rqPrefetch = { meta: d.meta || {}, sizes: d.sizes || {}, notes: d.notes || {}, matches: d.matches || {} };
+      _rqPrefetch = { meta: d.meta || {}, sizes: d.sizes || {}, notes: d.notes || {}, matches: d.matches || {}, urgent: d.urgent || {} };
       runLoaders();
     })
     .catch(function() { _rqPrefetch = null; runLoaders(); });
@@ -2245,7 +2267,8 @@ function restockQueueRender() {
     var isRunning = !!timer;
     var isSetup  = pid ? !!_rqSetups[pid] : false;
     var cls      = assignee ? ' rq-' + assignee.toLowerCase() : '';
-    var itemCls  = (isRunning || isSetup) ? ' rq-active' : '';
+    var isUrgent = !!(pid && _rqUrgent[pid]);
+    var itemCls  = ((isRunning || isSetup) ? ' rq-active' : '') + (isUrgent ? ' rq-urgent' : '');
     var textCls  = item.done ? ' rq-done' : '';
     var shortText = _rqShortName(item.text);
     var safeText  = shortText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
@@ -2313,6 +2336,7 @@ function restockQueueRender() {
       + (canExpand ? '<span class="rq-expand-caret">' + (expanded ? '▾' : '▸') + '</span>' : '')
       + '<span class="rq-text' + textCls + '">' + safeText + (note ? ' <span class="rq-note-flag" title="Has a note">📝</span>' : '') + '</span>'
       + '<div class="rq-item-controls">'
+      + (pid ? '<button class="rq-urgent-btn' + (isUrgent ? ' rq-urgent-on' : '') + '" onclick="rqToggleUrgent(\'' + safePid + '\')" title="' + (isUrgent ? 'Urgent — click to clear' : 'Mark as urgent') + '" aria-pressed="' + isUrgent + '">!</button>' : '')
       + '<button class="rq-start-btn" ' + startOnclick + (startDisabled ? ' disabled' : '') + ' title="' + startTitle + '">⏱</button>'
       + castHtml
       + '<select class="rq-assignee' + cls + '" onchange="rqSetAssignee(this,' + idx + ')">'
@@ -3766,6 +3790,7 @@ function _rqDeleteItemObj(item) {
     if (hadMatch)       _rqPatchStore('/api/restock-matches', removal, 'Failed to sync removal');
     if (_rqSizes[pid])  { delete _rqSizes[pid]; _rqPatchStore('/api/restock-sizes', removal, 'Failed to sync removal'); }
     if (_rqNotes[pid])  { delete _rqNotes[pid]; _rqPatchStore('/api/restock-notes', removal, 'Failed to sync removal'); }
+    if (_rqUrgent[pid]) { delete _rqUrgent[pid]; _rqPatchStore('/api/restock-urgent', removal, 'Failed to sync removal'); }
   }
   // Remove from NOTES_DATA by object identity
   var gi = NOTES_DATA.indexOf(item);

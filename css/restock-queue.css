@@ -233,3 +233,10 @@
 #tab-to-restock .rq-timer-notes-toggle:focus-visible,
 #tab-to-restock .rq-match-change:focus-visible,
 #tab-to-restock .rq-style-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Urgent cards — placed last so they out-rank the tab's card, hover and
+   mobile running-card border rules (same specificity, later wins). The red
+   left bar always shows; the wash yields to the running-timer highlight. */
+#tab-to-restock .rq-item.rq-urgent,
+#tab-to-restock .rq-item.rq-urgent:hover { border-color: var(--danger-line); border-left-color: var(--danger); }
+#tab-to-restock .rq-item.rq-urgent:not(.rq-active) { background: var(--danger-bg); }

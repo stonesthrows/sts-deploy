@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════
 //  Restock Queue Aggregate Read  —  /api/restock-all
-//  Read-only. Returns { meta, sizes, notes, matches } in ONE Notion DB query
+//  Read-only. Returns { meta, sizes, notes, matches, urgent } in ONE Notion DB query
 //  instead of four separate GETs (restock-meta + restock-sizes +
 //  restock-notes + restock-matches).
 //  Writes are DELIBERATELY left on the separate endpoints so a size- or
@@ -14,6 +14,7 @@ const META_BLOCK    = '__rq_meta__';
 const SIZES_BLOCK   = '__rq_sizes__';
 const NOTES_BLOCK   = '__rq_notes__';
 const MATCHES_BLOCK = '__rq_matches__';
+const URGENT_BLOCK  = '__rq_urgent__';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -59,6 +60,7 @@ export async function onRequest({ request, env }) {
         { property: 'Block', select: { equals: SIZES_BLOCK } },
         { property: 'Block', select: { equals: NOTES_BLOCK } },
         { property: 'Block', select: { equals: MATCHES_BLOCK } },
+        { property: 'Block', select: { equals: URGENT_BLOCK } },
       ] },
       page_size: 10,
     }),
@@ -77,5 +79,6 @@ export async function onRequest({ request, env }) {
     sizes:   byBlock[SIZES_BLOCK]   || {},
     notes:   byBlock[NOTES_BLOCK]   || {},
     matches: byBlock[MATCHES_BLOCK] || {},
+    urgent:  byBlock[URGENT_BLOCK]  || {},
   });
 }
