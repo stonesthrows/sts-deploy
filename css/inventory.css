@@ -857,8 +857,10 @@
   body.dsn-printing .dsn-gd-meta, body.dsn-printing .dsn-gd-h2 { color: var(--text2) !important; }
   body.dsn-printing .dsn-cat-chip { border: 1px solid var(--text3) !important; }
   body.dsn-printing .dsn-gd-stepnum { border-color: var(--text) !important; }
-  body.dsn-printing .dsn-gd-hero { width: 3in; cursor: default; }
-  body.dsn-printing .dsn-gd-thumb { width: 0.9in; height: 0.9in; cursor: default; }
+  body.dsn-printing .dsn-gd-hero { width: 2.25in; cursor: default; }
+  body.dsn-printing .dsn-gd-thumbs { gap: 6px; margin-top: 8px; }
+  body.dsn-printing .dsn-gd-thumb { width: 0.7in; height: 0.7in; cursor: default; }
+  body.dsn-printing .dsn-gd-sec { margin-top: 16px; }
   /* Printing from a phone would otherwise inherit the narrow screen's
      scrolling filmstrip and put a single row of thumbnails on paper. */
   body.dsn-printing .dsn-gd-thumbs { flex-wrap: wrap; overflow: visible; }
@@ -869,3 +871,16 @@
   body.dsn-printing .dsn-gd-thumbs { break-inside: avoid; }
   body.dsn-printing .dsn-gd-h2, body.dsn-printing .dsn-gd-subhead { break-after: avoid; }
 }
+
+/* Off-screen clone used by _dsnGuideFitToPage() to measure the guide at
+   print size — mirrors the print rules above so the height matches paper. */
+.dsn-print-measure {
+  max-width: none !important; margin: 0 !important; padding: 0 !important;
+  border: none !important; box-shadow: none !important; border-radius: 0 !important;
+}
+.dsn-print-measure .dsn-no-print { display: none !important; }
+.dsn-print-measure .dsn-gd-head { flex-direction: row !important; }
+.dsn-print-measure .dsn-gd-hero { width: 2.25in !important; max-width: none !important; }
+.dsn-print-measure .dsn-gd-thumbs { gap: 6px; margin-top: 8px; }
+.dsn-print-measure .dsn-gd-thumb { width: 0.7in; height: 0.7in; }
+.dsn-print-measure .dsn-gd-sec { margin-top: 16px; }

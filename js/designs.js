@@ -1486,9 +1486,53 @@ async function dsnGuidePrint() {
 // Scope print styling to the guide — Ctrl+P works too, and other tabs
 // printing this document are untouched because the class never lands.
 window.addEventListener('beforeprint', () => {
-  if (_designsView === 'guide') document.body.classList.add('dsn-printing');
+  if (_designsView !== 'guide') return;
+  document.body.classList.add('dsn-printing');
+  _dsnGuideFitToPage();
 });
-window.addEventListener('afterprint', () => document.body.classList.remove('dsn-printing'));
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('dsn-printing');
+  const page = document.getElementById('dsn-guide-page');
+  if (page) page.style.zoom = '';
+});
+
+// One-page fit: lay out an off-screen clone at the printable letter width
+// (8.5in − 2×0.6in margins) with the print image sizes, then binary-search
+// the largest zoom whose rendered height fits the printable height. Zoom
+// keeps the width filled, so text reflows wider as it shrinks — measuring
+// at each candidate zoom (not just once at 100%) avoids over-shrinking.
+// Floor at 60% — past that a guide is too long to read on one sheet and
+// is left to flow onto a second page instead.
+const DSN_PRINT_W_IN = 7.3, DSN_PRINT_H_IN = 9.8, DSN_PRINT_MIN_ZOOM = 0.6;
+function _dsnGuideFitToPage() {
+  const page = document.getElementById('dsn-guide-page');
+  if (!page) return;
+  page.style.zoom = '';
+  const avail = DSN_PRINT_H_IN * 96 * 0.97; // small safety margin for printer rounding
+  const wrap  = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;width:' + DSN_PRINT_W_IN + 'in';
+  const clone = page.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.classList.add('dsn-print-measure');
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+  const heightAt = z => { clone.style.zoom = String(z); return clone.getBoundingClientRect().height; };
+  let zoom = 1;
+  if (heightAt(1) > avail) {
+    if (heightAt(DSN_PRINT_MIN_ZOOM) > avail) {
+      zoom = DSN_PRINT_MIN_ZOOM;
+    } else {
+      let lo = DSN_PRINT_MIN_ZOOM, hi = 1;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        if (heightAt(mid) > avail) hi = mid; else lo = mid;
+      }
+      zoom = lo;
+    }
+  }
+  wrap.remove();
+  if (zoom < 1) page.style.zoom = zoom.toFixed(3);
+}
 
 // ── Form ──────────────────────────────────────
 function designsRenderForm() {
